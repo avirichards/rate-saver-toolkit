@@ -27,14 +27,15 @@ const NotFound = () => {
             Sorry, we couldn't find the page you're looking for. The page might have been removed or the URL might be incorrect.
           </p>
           
-          <Button 
-            variant="primary" 
-            className="mx-auto"
-            iconLeft={<Home className="h-4 w-4" />}
-            asChild
-          >
-            <Link to="/">Return Home</Link>
-          </Button>
+          <Link to="/">
+            <Button 
+              variant="primary" 
+              className="mx-auto"
+              iconLeft={<Home className="h-4 w-4" />}
+            >
+              Return Home
+            </Button>
+          </Link>
         </div>
       </div>
     </div>

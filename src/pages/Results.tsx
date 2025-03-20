@@ -90,6 +90,14 @@ const Results = () => {
   // Calculate the total number of shipments
   const totalShipments = shipmentData.length;
   
+  // Helper function to safely format numbers
+  const safeToFixed = (value: any, decimals: number = 2): string => {
+    if (typeof value === 'number') {
+      return value.toFixed(decimals);
+    }
+    return String(value);
+  };
+  
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-6">
@@ -113,21 +121,21 @@ const Results = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <SummaryStats
             title="Total Savings"
-            value={`$${totalSavings.toFixed(2)}`}
+            value={`$${safeToFixed(totalSavings)}`}
             icon={<DollarSign />}
             color="green"
           />
           
           <SummaryStats
             title="Current Spend"
-            value={`$${totalCurrentCost.toFixed(2)}`}
+            value={`$${safeToFixed(totalCurrentCost)}`}
             icon={<DollarSign />}
             color="blue"
           />
           
           <SummaryStats
             title="Average Savings"
-            value={`${savingsPercentage.toFixed(1)}%`}
+            value={`${safeToFixed(savingsPercentage, 1)}%`}
             description="Of current shipping costs"
             trend="down"
             icon={<ArrowDownRight />}
@@ -194,7 +202,7 @@ const Results = () => {
                         <XAxis dataKey="name" />
                         <YAxis />
                         <Tooltip formatter={(value, name) => [
-                          name === 'avgSavings' ? `$${value.toFixed(2)}` : `${value} shipments`,
+                          name === 'avgSavings' ? `$${safeToFixed(value)}` : `${value} shipments`,
                           name === 'avgSavings' ? 'Avg. Savings' : 'Shipments'
                         ]} />
                         <Bar name="Shipments" dataKey="shipments" fill="#8884d8" />

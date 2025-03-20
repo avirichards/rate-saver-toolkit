@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   Select,
@@ -20,7 +21,7 @@ interface ColumnMappingField {
 
 export interface ColumnMapperProps {
   csvHeaders: string[];
-  onMappingComplete: (mapping: Record<string, string>) => void;
+  onMappingComplete?: (mapping: Record<string, string>) => void;
   className?: string;
   field?: { id: string; label: string; description: string };
   selectedHeader?: any;
@@ -31,7 +32,7 @@ export interface ColumnMapperProps {
 
 export const ColumnMapper: React.FC<ColumnMapperProps> = ({
   csvHeaders,
-  onMappingComplete,
+  onMappingComplete = () => {}, // Add default empty function
   className,
   field,
   selectedHeader,

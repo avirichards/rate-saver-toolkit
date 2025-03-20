@@ -37,6 +37,7 @@ const optionalFields = [
 
 // Create a backward-compatible ColumnMapper component
 const ColumnMapperAdapter = ({ field, csvHeaders, selectedHeader, onSelect, error, required }) => {
+  // Provide a dummy onMappingComplete prop since it's now required
   return (
     <ColumnMapper
       field={field}
@@ -45,6 +46,7 @@ const ColumnMapperAdapter = ({ field, csvHeaders, selectedHeader, onSelect, erro
       onSelect={onSelect}
       error={error}
       required={required}
+      onMappingComplete={() => {}}
     />
   );
 };
@@ -157,6 +159,7 @@ const Mapping = () => {
                   csvHeaders={mockCsvHeaders}
                   selectedHeader={mappings[field.id]}
                   onSelect={(header) => handleMapping(field.id, header)}
+                  error={null}
                   required={false}
                 />
               ))}

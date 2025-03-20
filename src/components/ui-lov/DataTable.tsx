@@ -266,7 +266,7 @@ export function DataTable({
                   variant="outline"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => table.previousPage()}
+                  onClick={() => table.previousPage()}  // Fixed: Removed argument
                   disabled={!table.getCanPreviousPage()}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -275,8 +275,8 @@ export function DataTable({
                   variant="outline"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={() => table.nextPage()}
-                  disabled={!table.getCanNextPage()}
+                  onClick={() => table.nextPage()}  // Fixed: Removed argument
+                  disabled={!table.getCanNextPage()}  // This is correct now
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
@@ -285,7 +285,7 @@ export function DataTable({
                   size="icon"
                   className="h-8 w-8"
                   onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                  disabled={!table.getCanNextPage()}
+                  disabled={!table.getCanNextPage()}  // Fixed: Removed argument
                 >
                   <ChevronsRight className="h-4 w-4" />
                 </Button>

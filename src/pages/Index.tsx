@@ -1,141 +1,147 @@
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui-lov/Button';
 import { Card, CardContent } from '@/components/ui-lov/Card';
-import { 
-  Upload, 
-  TrendingDown, 
-  BarChart3, 
-  FileText, 
-  Share, 
-  ArrowRight, 
-  Package, 
-  Truck 
-} from 'lucide-react';
-import { motion } from 'framer-motion';
-
-const FeatureCard = ({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) => (
-  <Card className="h-full">
-    <CardContent className="p-6">
-      <div className="w-12 h-12 rounded-lg bg-app-blue-100 flex items-center justify-center text-app-blue-500 mb-4">
-        {icon}
-      </div>
-      <h3 className="text-lg font-medium mb-2">{title}</h3>
-      <p className="text-muted-foreground text-sm">{description}</p>
-    </CardContent>
-  </Card>
-);
+import { Package, TrendingUp, FileBarChart, Settings, ArrowRight } from 'lucide-react';
 
 const Index = () => {
-  const navigate = useNavigate();
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        duration: 0.5,
-        ease: [0.165, 0.84, 0.44, 1],
-      },
-    },
-  };
-
   return (
-    <AppLayout showProgress={false} showBackButton={false}>
-      <motion.div
-        className="flex flex-col items-center text-center max-w-3xl mx-auto"
-        initial="hidden"
-        animate="visible"
-        variants={containerVariants}
-      >
-        <motion.div variants={itemVariants} className="mb-2">
-          <div className="inline-flex items-center px-3 py-1 bg-app-blue-100 text-app-blue-600 rounded-full text-sm mb-4">
-            <Package className="w-4 h-4 mr-1" />
-            Shipping Rate Optimization
+    <div className="min-h-screen bg-background flex flex-col">
+      <header className="border-b bg-card/50 backdrop-blur-sm">
+        <div className="flex items-center justify-between h-16 px-6">
+          <div className="flex items-center gap-2">
+            <div className="bg-primary text-primary-foreground p-1.5 rounded">
+              <Package className="h-5 w-5" />
+            </div>
+            <span className="font-semibold text-lg tracking-tight">ShipRate Pro</span>
           </div>
-        </motion.div>
-        
-        <motion.h1 variants={itemVariants} className="text-4xl md:text-5xl font-semibold mb-4 leading-tight">
-          Analyze & Optimize <span className="text-app-blue-500">Shipping Costs</span>
-        </motion.h1>
-
-        <motion.p variants={itemVariants} className="text-xl text-muted-foreground mb-8 max-w-2xl">
-          Upload your shipping data to discover potential savings and optimize your logistics spend.
-        </motion.p>
-
-        <motion.div variants={itemVariants}>
-          <Button 
-            variant="primary" 
-            size="xl"
-            iconRight={<ArrowRight className="ml-1 h-5 w-5" />}
-            onClick={() => navigate('/upload')}
-            className="mb-10"
-          >
-            Start Analysis
-          </Button>
-        </motion.div>
-
-        <motion.div variants={itemVariants} className="w-full mb-16">
-          <div className="bg-gradient-to-b from-gray-50 to-white border rounded-xl overflow-hidden shadow-card">
-            <img 
-              src="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80" 
-              alt="Shipping Analysis Dashboard" 
-              className="w-full h-auto object-cover"
-            />
+          <div className="hidden md:flex items-center gap-6">
+            <Link to="/dashboard" className="text-sm font-medium hover:text-primary transition-colors">Dashboard</Link>
+            <Link to="/upload" className="text-sm font-medium hover:text-primary transition-colors">Analysis</Link>
+            <Link to="/reports" className="text-sm font-medium hover:text-primary transition-colors">Reports</Link>
+            <Link to="/settings" className="text-sm font-medium hover:text-primary transition-colors">Settings</Link>
           </div>
-        </motion.div>
-
-        <motion.h2 variants={itemVariants} className="text-2xl font-medium mb-8 mt-6">
-          Powerful Features to Optimize Your Shipping
-        </motion.h2>
-
-        <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-          <FeatureCard 
-            icon={<Upload className="h-6 w-6" />}
-            title="Simple CSV Upload"
-            description="Easily upload your shipping data in CSV format for quick analysis"
-          />
-          <FeatureCard 
-            icon={<TrendingDown className="h-6 w-6" />}
-            title="Cost Savings Analysis"
-            description="Compare current rates against negotiated rates to identify savings"
-          />
-          <FeatureCard 
-            icon={<BarChart3 className="h-6 w-6" />}
-            title="Detailed Reporting"
-            description="Visualize your shipping patterns and opportunities for optimization"
-          />
-          <FeatureCard 
-            icon={<FileText className="h-6 w-6" />}
-            title="Export & Share"
-            description="Export analysis results as CSV or share them with your team"
-          />
-          <FeatureCard 
-            icon={<Truck className="h-6 w-6" />}
-            title="Service Comparison"
-            description="Compare costs across different service types and shipping methods"
-          />
-          <FeatureCard 
-            icon={<Share className="h-6 w-6" />}
-            title="Real-time Rate API"
-            description="Connect to shipping APIs for accurate real-time rate comparison"
-          />
-        </motion.div>
-      </motion.div>
-    </AppLayout>
+          <div>
+            <Link to="/dashboard">
+              <Button variant="primary" size="sm">
+                Get Started
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+      
+      <main className="flex-1 overflow-auto">
+        <section className="py-16 md:py-24 px-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="space-y-6"
+              >
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight">
+                  Optimize Your 
+                  <span className="text-primary"> Shipping Costs</span>
+                </h1>
+                
+                <p className="text-lg text-muted-foreground max-w-lg">
+                  Analyze your shipping data to identify cost-saving opportunities 
+                  and negotiate better rates with carriers.
+                </p>
+                
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <Link to="/upload">
+                    <Button 
+                      variant="primary" 
+                      size="lg"
+                      iconRight={<ArrowRight className="ml-2 h-5 w-5" />}
+                    >
+                      Start Analysis
+                    </Button>
+                  </Link>
+                  <Link to="/dashboard">
+                    <Button 
+                      variant="outline" 
+                      size="lg"
+                    >
+                      View Dashboard
+                    </Button>
+                  </Link>
+                </div>
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+                className="relative"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-secondary/20 rounded-3xl blur-3xl -z-10"></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card className="bg-card/80 backdrop-blur-sm">
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                        <TrendingUp className="h-6 w-6 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2">Cost Analysis</h3>
+                      <p className="text-sm text-muted-foreground">Identify savings on all carrier services and routes</p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-card/80 backdrop-blur-sm">
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                        <FileBarChart className="h-6 w-6 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2">Detailed Reports</h3>
+                      <p className="text-sm text-muted-foreground">Get comprehensive shipping performance metrics</p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-card/80 backdrop-blur-sm md:translate-y-4">
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                        <Package className="h-6 w-6 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2">Service Optimization</h3>
+                      <p className="text-sm text-muted-foreground">Find the right carrier services for each package</p>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card className="bg-card/80 backdrop-blur-sm md:translate-y-4">
+                    <CardContent className="p-6 flex flex-col items-center text-center">
+                      <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
+                        <Settings className="h-6 w-6 text-primary" />
+                      </div>
+                      <h3 className="text-lg font-medium mb-2">Custom Settings</h3>
+                      <p className="text-sm text-muted-foreground">Configure analysis parameters to your needs</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </section>
+      </main>
+      
+      <footer className="border-t py-8 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center">
+          <div className="flex items-center gap-2 mb-4 md:mb-0">
+            <div className="bg-primary text-primary-foreground p-1 rounded">
+              <Package className="h-4 w-4" />
+            </div>
+            <span className="font-medium">ShipRate Pro</span>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            © {new Date().getFullYear()} ShipRate Pro. All rights reserved.
+          </div>
+        </div>
+      </footer>
+    </div>
   );
 };
 

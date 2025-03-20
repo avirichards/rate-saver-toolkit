@@ -1,24 +1,7 @@
 
 import React, { useState } from 'react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  flexRender,
-  getCoreRowModel,
-  getSortedRowModel,
-  getPaginationRowModel,
-  getFilteredRowModel,
-  useReactTable,
-  type SortingState,
-  type ColumnDef,
-  type ColumnFiltersState,
-} from '@tanstack/react-table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { flexRender, getCoreRowModel, getSortedRowModel, getPaginationRowModel, getFilteredRowModel, useReactTable } from '@tanstack/react-table';
 import { Input } from '@/components/ui/input';
 import { Button } from './Button';
 import { Card, CardContent, CardHeader, CardTitle } from './Card';
@@ -26,29 +9,9 @@ import { Download, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Searc
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
-  data: TData[];
-  title?: string;
-  searchable?: boolean;
-  searchColumn?: string;
-  pagination?: boolean;
-  exportData?: boolean;
-  className?: string;
-}
-
-export function DataTable<TData, TValue>({
-  columns,
-  data,
-  title,
-  searchable = true,
-  searchColumn,
-  pagination = true,
-  exportData = true,
-  className,
-}: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+export function DataTable({ columns, data, title, searchable = true, searchColumn, pagination = true, exportData = true, className }) {
+  const [sorting, setSorting] = useState([]);
+  const [columnFilters, setColumnFilters] = useState([]);
   const [globalFilter, setGlobalFilter] = useState('');
 
   const table = useReactTable({
@@ -57,10 +20,10 @@ export function DataTable<TData, TValue>({
     state: {
       sorting,
       columnFilters,
-      globalFilter,
+      globalFilter
     },
     enableSorting: true,
-    enableFiltering: true,
+    enableFilters: true, // Changed from enableFiltering to enableFilters
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
@@ -70,23 +33,25 @@ export function DataTable<TData, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     initialState: {
       pagination: {
-        pageSize: 10,
-      },
-    },
+        pageSize: 10
+      }
+    }
   });
 
   const handleExport = () => {
     // Implementation to export data as CSV
-    const headers = columns.map(col => (typeof col.header === 'string' ? col.header : col.id));
-    
-    const csvData = data.map((row: any) => {
+    const headers = columns.map(col => typeof col.header === 'string' ? col.header : col.id);
+    const csvData = data.map(row => {
       return columns.map(col => {
-        const value = row[col.id as keyof TData];
+        const value = row[col.id];
         return typeof value === 'string' ? `"${value}"` : String(value);
       }).join(',');
     });
     
-    const csvContent = [headers.join(','), ...csvData].join('\n');
+    const csvContent = [
+      headers.join(','),
+      ...csvData
+    ].join('\n');
     
     // Create and trigger download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -117,10 +82,11 @@ export function DataTable<TData, TValue>({
                 />
               </div>
             )}
+            
             {exportData && (
-              <Button
-                variant="outline"
-                size="sm"
+              <Button 
+                variant="outline" 
+                size="sm" 
                 className="ml-auto"
                 onClick={handleExport}
                 iconLeft={<Download className="h-4 w-4" />}
@@ -131,6 +97,7 @@ export function DataTable<TData, TValue>({
           </div>
         </CardHeader>
       )}
+      
       <CardContent>
         <div className="rounded-md border">
           <Table>
@@ -140,17 +107,15 @@ export function DataTable<TData, TValue>({
                   {headerGroup.headers.map((header) => (
                     <TableHead key={header.id} className="whitespace-nowrap">
                       {header.isPlaceholder ? null : (
-                        <div
-                          className={cn(
-                            "flex items-center gap-1",
-                            header.column.getCanSort() && "cursor-pointer select-none"
-                          )}
+                        <div 
+                          className={cn("flex items-center gap-1", header.column.getCanSort() && "cursor-pointer select-none")}
                           onClick={header.column.getToggleSortingHandler()}
                         >
                           {flexRender(
                             header.column.columnDef.header,
                             header.getContext()
                           )}
+                          
                           {header.column.getIsSorted() === 'asc' && (
                             <SortAsc className="h-4 w-4" />
                           )}
@@ -188,12 +153,12 @@ export function DataTable<TData, TValue>({
             </TableBody>
           </Table>
         </div>
-
+        
         {pagination && (
           <div className="flex items-center justify-between py-4">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <div>
-                Showing 
+                Showing
                 <span className="px-1 font-medium">
                   {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}
                 </span>
@@ -211,7 +176,7 @@ export function DataTable<TData, TValue>({
                 entries
               </div>
             </div>
-
+            
             <div className="flex items-center gap-2">
               <Select
                 value={table.getState().pagination.pageSize.toString()}
@@ -230,7 +195,7 @@ export function DataTable<TData, TValue>({
                   ))}
                 </SelectContent>
               </Select>
-
+              
               <div className="flex items-center space-x-2">
                 <Button
                   variant="outline"

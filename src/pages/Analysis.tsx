@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { AppLayout } from '@/components/layout/AppLayout';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui-lov/Button';
 import { Card, CardContent } from '@/components/ui-lov/Card';
 import { Progress } from '@/components/ui/progress';
@@ -100,8 +100,8 @@ const Analysis = () => {
   };
   
   return (
-    <AppLayout showProgress={true} backButtonUrl="/mapping">
-      <div className="max-w-2xl mx-auto">
+    <DashboardLayout>
+      <div className="max-w-2xl mx-auto p-6">
         <h1 className="text-3xl font-semibold mb-2">Analyzing Shipping Data</h1>
         <p className="text-muted-foreground mb-6">
           Please wait while we analyze your shipping data and calculate potential savings.
@@ -134,8 +134,8 @@ const Analysis = () => {
                 return (
                   <div key={step.id} className="flex items-center">
                     <div className={`w-6 h-6 flex-shrink-0 rounded-full flex items-center justify-center mr-3 ${
-                      isActive ? 'bg-app-blue-100 text-app-blue-500' : 
-                      isCompleted ? 'bg-app-green-100 text-app-green-500' : 
+                      isActive ? 'bg-primary/20 text-primary' : 
+                      isCompleted ? 'bg-green-100 text-green-600' : 
                       'bg-gray-100 text-gray-400'
                     }`}>
                       {isCompleted ? (
@@ -147,8 +147,8 @@ const Analysis = () => {
                       )}
                     </div>
                     <span className={`text-sm ${
-                      isActive ? 'text-app-blue-600 font-medium' : 
-                      isCompleted ? 'text-app-green-600' : 
+                      isActive ? 'text-primary font-medium' : 
+                      isCompleted ? 'text-green-600' : 
                       'text-muted-foreground'
                     }`}>
                       {step.label}
@@ -188,7 +188,7 @@ const Analysis = () => {
           </CardContent>
         </Card>
       </div>
-    </AppLayout>
+    </DashboardLayout>
   );
 };
 

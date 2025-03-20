@@ -35,6 +35,20 @@ const optionalFields = [
   { id: 'deliveryDate', label: 'Delivery Date', description: 'Date the package was delivered' }
 ];
 
+// Create a backward-compatible ColumnMapper component
+const ColumnMapperAdapter = ({ field, csvHeaders, selectedHeader, onSelect, error, required }) => {
+  return (
+    <ColumnMapper
+      field={field}
+      csvHeaders={csvHeaders}
+      selectedHeader={selectedHeader}
+      onSelect={onSelect}
+      error={error}
+      required={required}
+    />
+  );
+};
+
 const Mapping = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -115,14 +129,14 @@ const Mapping = () => {
           <CardContent>
             <div className="space-y-4">
               {requiredFields.map((field) => (
-                <ColumnMapper
+                <ColumnMapperAdapter
                   key={field.id}
                   field={field}
                   csvHeaders={mockCsvHeaders}
                   selectedHeader={mappings[field.id]}
                   onSelect={(header) => handleMapping(field.id, header)}
                   error={validationErrors[field.id]}
-                  required
+                  required={true}
                 />
               ))}
             </div>
@@ -137,12 +151,13 @@ const Mapping = () => {
           <CardContent>
             <div className="space-y-4">
               {optionalFields.map((field) => (
-                <ColumnMapper
+                <ColumnMapperAdapter
                   key={field.id}
                   field={field}
                   csvHeaders={mockCsvHeaders}
                   selectedHeader={mappings[field.id]}
                   onSelect={(header) => handleMapping(field.id, header)}
+                  required={false}
                 />
               ))}
             </div>

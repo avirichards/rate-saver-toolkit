@@ -4,12 +4,15 @@ import { Upload, File, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from './Button';
 import { Card, CardContent } from './Card';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
 
-interface FileUploadProps {
+export interface FileUploadProps {
   accept?: string;
   maxSize?: number; // in MB
-  onFileSelect: (file: File) => void;
+  onFileSelect?: (file: File) => void;
+  onUpload?: (file: File) => void;
+  onError?: (error: string) => void;
+  acceptedFileTypes?: string[];
+  maxFileSizeMB?: number;
   className?: string;
 }
 
@@ -17,12 +20,30 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   accept = '.csv',
   maxSize = 10, // Default 10MB
   onFileSelect,
+  onUpload,
+  onError,
+  acceptedFileTypes,
+  maxFileSizeMB,
   className,
 }) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Use the appropriate prop based on what was passed
+  const effectiveMaxSize = maxFileSizeMB || maxSize;
+  const effectiveAccept = acceptedFileTypes?.join(',') || accept;
+  
+  // Use appropriate handler
+  const handleFileCallback = (file: File) => {
+    if (onFileSelect) onFileSelect(file);
+    if (onUpload) onUpload(file);
+  };
+  
+  const handleErrorCallback = (errorMsg: string) => {
+    if (onError) onError(errorMsg);
+  };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -37,14 +58,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
   const validateFile = (file: File): boolean => {
     // Check file type
-    if (accept && !file.name.endsWith('.csv')) {
-      setError(`Only ${accept} files are accepted`);
+    if (effectiveAccept && !file.name.endsWith('.csv')) {
+      const errorMsg = `Only ${effectiveAccept} files are accepted`;
+      setError(errorMsg);
+      handleErrorCallback(errorMsg);
       return false;
     }
     
     // Check file size
-    if (file.size > maxSize * 1024 * 1024) {
-      setError(`File size exceeds ${maxSize}MB limit`);
+    if (file.size > effectiveMaxSize * 1024 * 1024) {
+      const errorMsg = `File size exceeds ${effectiveMaxSize}MB limit`;
+      setError(errorMsg);
+      handleErrorCallback(errorMsg);
       return false;
     }
     
@@ -61,10 +86,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       const file = e.dataTransfer.files[0];
       if (validateFile(file)) {
         setSelectedFile(file);
-        onFileSelect(file);
-        toast.success('File uploaded successfully');
-      } else {
-        toast.error(error || 'Invalid file');
+        handleFileCallback(file);
       }
     }
   };
@@ -74,10 +96,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       const file = e.target.files[0];
       if (validateFile(file)) {
         setSelectedFile(file);
-        onFileSelect(file);
-        toast.success('File uploaded successfully');
-      } else {
-        toast.error(error || 'Invalid file');
+        handleFileCallback(file);
       }
     }
   };
@@ -136,7 +155,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               Select File
             </Button>
             <p className="text-xs text-muted-foreground">
-              Accepts {accept} files up to {maxSize}MB
+              Accepts {effectiveAccept} files up to {effectiveMaxSize}MB
             </p>
             {error && (
               <div className="mt-4 text-sm text-red-500 flex items-center">
@@ -177,7 +196,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       <input
         ref={fileInputRef}
         type="file"
-        accept={accept}
+        accept={effectiveAccept}
         onChange={handleFileInput}
         className="hidden"
       />

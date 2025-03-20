@@ -1,127 +1,101 @@
 
 import React from 'react';
-import { cn } from '@/lib/utils';
 import { Card, CardContent } from './Card';
-import { TrendingDown, TrendingUp, DollarSign, Package, Truck } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { ArrowDownIcon, ArrowUpIcon } from 'lucide-react';
 
-interface StatCardProps {
-  title: string;
-  value: string | number;
+export interface SummaryStatsProps {
+  title?: string;
+  value?: string | number;
   description?: string;
-  trend?: 'up' | 'down' | 'neutral';
-  trendValue?: string;
+  trend?: string;
   icon?: React.ReactNode;
+  color?: string;
   className?: string;
 }
 
-export const StatCard: React.FC<StatCardProps> = ({
+export const SummaryStats: React.FC<SummaryStatsProps> = ({
   title,
   value,
   description,
   trend,
-  trendValue,
   icon,
+  color = 'blue',
   className,
 }) => {
+  const getTrendIcon = () => {
+    if (!trend) return null;
+    
+    if (trend === 'up') {
+      return <ArrowUpIcon className="h-3 w-3 text-emerald-500" />;
+    } else if (trend === 'down') {
+      return <ArrowDownIcon className="h-3 w-3 text-red-500" />;
+    }
+    return null;
+  };
+  
+  const getColorClasses = () => {
+    switch (color) {
+      case 'blue':
+        return {
+          iconBg: 'bg-blue-100 dark:bg-blue-900/30',
+          iconColor: 'text-blue-500 dark:text-blue-400',
+        };
+      case 'green':
+        return {
+          iconBg: 'bg-emerald-100 dark:bg-emerald-900/30',
+          iconColor: 'text-emerald-500 dark:text-emerald-400',
+        };
+      case 'red':
+        return {
+          iconBg: 'bg-red-100 dark:bg-red-900/30',
+          iconColor: 'text-red-500 dark:text-red-400',
+        };
+      case 'amber':
+        return {
+          iconBg: 'bg-amber-100 dark:bg-amber-900/30',
+          iconColor: 'text-amber-500 dark:text-amber-400',
+        };
+      case 'purple':
+        return {
+          iconBg: 'bg-purple-100 dark:bg-purple-900/30',
+          iconColor: 'text-purple-500 dark:text-purple-400',
+        };
+      default:
+        return {
+          iconBg: 'bg-gray-100 dark:bg-gray-800',
+          iconColor: 'text-gray-500 dark:text-gray-400',
+        };
+    }
+  };
+  
+  const { iconBg, iconColor } = getColorClasses();
+  
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    <Card className={cn("hover:shadow-md transition-shadow", className)}>
       <CardContent className="p-6">
-        <div className="flex justify-between items-start">
+        <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <h4 className="text-2xl font-bold mt-1">{value}</h4>
-            
-            {trend && trendValue && (
-              <div className="flex items-center mt-1">
-                {trend === 'up' && (
-                  <TrendingUp className="h-4 w-4 text-app-green-500 mr-1" />
-                )}
-                {trend === 'down' && (
-                  <TrendingDown className="h-4 w-4 text-red-500 mr-1" />
-                )}
-                <span 
-                  className={cn(
-                    "text-xs font-medium",
-                    trend === 'up' && "text-app-green-500",
-                    trend === 'down' && "text-red-500",
-                    trend === 'neutral' && "text-muted-foreground"
-                  )}
-                >
-                  {trendValue}
-                </span>
-              </div>
-            )}
+            <p className="text-sm font-medium text-muted-foreground mb-1">{title}</p>
+            <h4 className="text-2xl font-bold tracking-tight">{value}</h4>
             
             {description && (
-              <p className="text-xs text-muted-foreground mt-1">{description}</p>
+              <div className="flex items-center mt-1 space-x-1">
+                {getTrendIcon()}
+                <p className="text-xs text-muted-foreground">{description}</p>
+              </div>
             )}
           </div>
           
           {icon && (
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-              {icon}
+            <div className={cn("p-2 rounded-full", iconBg)}>
+              <div className={cn("h-5 w-5", iconColor)}>
+                {icon}
+              </div>
             </div>
           )}
         </div>
       </CardContent>
     </Card>
-  );
-};
-
-interface SummaryStatsProps {
-  currentCost: number;
-  potentialCost: number;
-  savings: number;
-  savingsPercentage: number;
-  shipmentCount: number;
-  className?: string;
-}
-
-export const SummaryStats: React.FC<SummaryStatsProps> = ({
-  currentCost,
-  potentialCost,
-  savings,
-  savingsPercentage,
-  shipmentCount,
-  className,
-}) => {
-  // Format currency values
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-    }).format(value);
-  };
-
-  return (
-    <div className={cn("grid gap-4 md:grid-cols-2 lg:grid-cols-4", className)}>
-      <StatCard
-        title="Current Cost"
-        value={formatCurrency(currentCost)}
-        description="Total shipping spend"
-        icon={<DollarSign className="h-5 w-5 text-amber-500" />}
-      />
-      <StatCard
-        title="Optimized Cost"
-        value={formatCurrency(potentialCost)}
-        description="Potential new rate"
-        icon={<DollarSign className="h-5 w-5 text-app-blue-500" />}
-      />
-      <StatCard
-        title="Total Savings"
-        value={formatCurrency(savings)}
-        trend="down"
-        trendValue={`${savingsPercentage.toFixed(1)}%`}
-        description="Potential cost reduction"
-        icon={<TrendingDown className="h-5 w-5 text-app-green-500" />}
-      />
-      <StatCard
-        title="Shipments Analyzed"
-        value={shipmentCount}
-        description="Total packages reviewed"
-        icon={<Package className="h-5 w-5 text-purple-500" />}
-      />
-    </div>
   );
 };

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Select,
@@ -19,18 +18,27 @@ interface ColumnMappingField {
   mappedTo: string | null;
 }
 
-interface ColumnMapperProps {
+export interface ColumnMapperProps {
   csvHeaders: string[];
   onMappingComplete: (mapping: Record<string, string>) => void;
   className?: string;
+  field?: { id: string; label: string; description: string };
+  selectedHeader?: any;
+  onSelect?: (header: any) => void;
+  error?: any;
+  required?: boolean;
 }
 
 export const ColumnMapper: React.FC<ColumnMapperProps> = ({
   csvHeaders,
   onMappingComplete,
   className,
+  field,
+  selectedHeader,
+  onSelect,
+  error,
+  required,
 }) => {
-  // Define the required and optional fields for shipping data
   const [fields, setFields] = useState<ColumnMappingField[]>([
     { required: true, name: 'trackingNumber', description: 'Shipment tracking ID', mappedTo: null },
     { required: true, name: 'weight', description: 'Package weight', mappedTo: null },
@@ -43,17 +51,14 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
     { required: false, name: 'isResidential', description: 'Residential delivery indicator', mappedTo: null },
   ]);
 
-  // Auto-map fields that match exactly by name or close variations
   React.useEffect(() => {
     if (csvHeaders.length > 0) {
       const newFields = [...fields];
       let changedAny = false;
       
       fields.forEach((field, index) => {
-        // Skip already mapped fields
         if (field.mappedTo) return;
         
-        // Try to find an exact match
         const exactMatch = csvHeaders.find(
           header => header.toLowerCase() === field.name.toLowerCase()
         );
@@ -64,7 +69,6 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
           return;
         }
         
-        // Try to find a partial match
         const partialMatches = csvHeaders.filter(
           header => header.toLowerCase().includes(field.name.toLowerCase()) ||
                     field.name.toLowerCase().includes(header.toLowerCase())
@@ -115,6 +119,34 @@ export const ColumnMapper: React.FC<ColumnMapperProps> = ({
     onMappingComplete(mapping);
     toast.success('Column mapping completed successfully');
   };
+
+  if (field && onSelect !== undefined) {
+    return (
+      <div className="flex items-center mb-2">
+        <div className="w-1/3">
+          <span className="font-medium">{field.label}</span>
+          {required && <span className="text-red-500 ml-1">*</span>}
+        </div>
+        <div className="w-1/3 text-sm text-muted-foreground">{field.description}</div>
+        <div className="w-1/3">
+          <Select
+            value={selectedHeader || ""}
+            onValueChange={onSelect}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select column" />
+            </SelectTrigger>
+            <SelectContent>
+              {csvHeaders.map(header => (
+                <SelectItem key={header} value={header}>{header}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card className={className}>

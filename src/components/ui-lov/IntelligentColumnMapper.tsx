@@ -104,7 +104,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
   const handleMapping = (fieldId: string, csvHeader: string) => {
     setMappings(prev => ({
       ...prev,
-      [fieldId]: csvHeader
+      [fieldId]: csvHeader === "__NONE__" ? "" : csvHeader
     }));
   };
 
@@ -188,7 +188,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
               <SelectValue placeholder="Select column" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">None</SelectItem>
+              <SelectItem value="__NONE__">None</SelectItem>
               {csvHeaders.map(header => (
                 <SelectItem key={header} value={header}>
                   {header}

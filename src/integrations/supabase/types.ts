@@ -14,6 +14,83 @@ export type Database = {
   }
   public: {
     Tables: {
+      column_mappings: {
+        Row: {
+          confidence_score: number | null
+          created_at: string
+          csv_header: string
+          csv_upload_id: string
+          field_name: string
+          id: string
+          is_auto_detected: boolean
+          is_required: boolean
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string
+          csv_header: string
+          csv_upload_id: string
+          field_name: string
+          id?: string
+          is_auto_detected?: boolean
+          is_required?: boolean
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string
+          csv_header?: string
+          csv_upload_id?: string
+          field_name?: string
+          id?: string
+          is_auto_detected?: boolean
+          is_required?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "column_mappings_csv_upload_id_fkey"
+            columns: ["csv_upload_id"]
+            isOneToOne: false
+            referencedRelation: "csv_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      csv_uploads: {
+        Row: {
+          created_at: string
+          detected_headers: string[]
+          file_name: string
+          file_size: number
+          id: string
+          row_count: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          detected_headers: string[]
+          file_name: string
+          file_size: number
+          id?: string
+          row_count?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          detected_headers?: string[]
+          file_name?: string
+          file_size?: number
+          id?: string
+          row_count?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       rate_quotes: {
         Row: {
           created_at: string
@@ -56,6 +133,36 @@ export type Database = {
           total_cost?: number | null
           ups_response?: Json | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      service_mappings: {
+        Row: {
+          carrier: string
+          confidence_score: number | null
+          created_at: string
+          id: string
+          is_verified: boolean
+          original_service: string
+          standardized_service: string
+        }
+        Insert: {
+          carrier: string
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          is_verified?: boolean
+          original_service: string
+          standardized_service: string
+        }
+        Update: {
+          carrier?: string
+          confidence_score?: number | null
+          created_at?: string
+          id?: string
+          is_verified?: boolean
+          original_service?: string
+          standardized_service?: string
         }
         Relationships: []
       }

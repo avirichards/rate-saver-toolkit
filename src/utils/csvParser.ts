@@ -1,0 +1,185 @@
+export interface CSVParseResult {
+  headers: string[];
+  data: any[];
+  rowCount: number;
+}
+
+export interface FieldMapping {
+  fieldName: string;
+  csvHeader: string;
+  confidence: number;
+  isAutoDetected: boolean;
+}
+
+export interface ServiceMapping {
+  original: string;
+  standardized: string;
+  carrier: string;
+  confidence: number;
+}
+
+// Common field patterns for fuzzy matching
+const FIELD_PATTERNS: Record<string, string[]> = {
+  trackingId: ['tracking', 'track', 'number', 'id', 'shipment_id', 'tracking_number', 'track_num'],
+  weight: ['weight', 'wt', 'lbs', 'pounds', 'kg', 'kilos', 'weight_lbs', 'package_weight'],
+  service: ['service', 'shipping_service', 'carrier_service', 'service_type', 'ship_service'],
+  cost: ['cost', 'price', 'amount', 'charge', 'fee', 'total', 'shipping_cost', 'rate'],
+  originZip: ['origin', 'from', 'ship_from', 'origin_zip', 'from_zip', 'sender_zip'],
+  destZip: ['destination', 'dest', 'to', 'ship_to', 'dest_zip', 'to_zip', 'recipient_zip'],
+  length: ['length', 'len', 'l', 'package_length', 'box_length'],
+  width: ['width', 'w', 'package_width', 'box_width'],
+  height: ['height', 'h', 'package_height', 'box_height'],
+  zone: ['zone', 'shipping_zone', 'rate_zone', 'delivery_zone'],
+  shipDate: ['ship_date', 'shipping_date', 'date_shipped', 'send_date'],
+  deliveryDate: ['delivery_date', 'delivered_date', 'date_delivered', 'arrival_date']
+};
+
+export function parseCSV(csvContent: string): CSVParseResult {
+  const lines = csvContent.split('\n').filter(line => line.trim());
+  
+  if (lines.length === 0) {
+    throw new Error('CSV file is empty');
+  }
+
+  // Parse headers from first line
+  const headers = parseCSVLine(lines[0]);
+  
+  // Parse data rows
+  const data = lines.slice(1).map(line => {
+    const values = parseCSVLine(line);
+    const row: any = {};
+    headers.forEach((header, index) => {
+      row[header] = values[index] || '';
+    });
+    return row;
+  });
+
+  return {
+    headers,
+    data,
+    rowCount: data.length
+  };
+}
+
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current.trim());
+  return result;
+}
+
+export function generateColumnMappings(csvHeaders: string[]): FieldMapping[] {
+  const mappings: FieldMapping[] = [];
+  
+  Object.entries(FIELD_PATTERNS).forEach(([fieldName, patterns]) => {
+    const bestMatch = findBestMatch(csvHeaders, patterns);
+    if (bestMatch) {
+      mappings.push({
+        fieldName,
+        csvHeader: bestMatch.header,
+        confidence: bestMatch.confidence,
+        isAutoDetected: true
+      });
+    }
+  });
+  
+  return mappings;
+}
+
+function findBestMatch(csvHeaders: string[], patterns: string[]): { header: string; confidence: number } | null {
+  let bestMatch: { header: string; confidence: number } | null = null;
+  
+  csvHeaders.forEach(header => {
+    const headerLower = header.toLowerCase().replace(/[_\s-]/g, '');
+    
+    patterns.forEach(pattern => {
+      const patternLower = pattern.toLowerCase().replace(/[_\s-]/g, '');
+      
+      // Exact match
+      if (headerLower === patternLower) {
+        if (!bestMatch || bestMatch.confidence < 1.0) {
+          bestMatch = { header, confidence: 1.0 };
+        }
+        return;
+      }
+      
+      // Contains match
+      if (headerLower.includes(patternLower) || patternLower.includes(headerLower)) {
+        const confidence = Math.min(patternLower.length, headerLower.length) / 
+                          Math.max(patternLower.length, headerLower.length);
+        
+        if (confidence > 0.6 && (!bestMatch || bestMatch.confidence < confidence)) {
+          bestMatch = { header, confidence };
+        }
+      }
+    });
+  });
+  
+  return bestMatch;
+}
+
+export function detectServiceTypes(data: any[], serviceColumn: string): ServiceMapping[] {
+  const uniqueServices = [...new Set(data.map(row => row[serviceColumn]).filter(Boolean))];
+  
+  return uniqueServices.map(service => {
+    const standardized = standardizeService(service);
+    return {
+      original: service,
+      standardized: standardized.service,
+      carrier: standardized.carrier,
+      confidence: standardized.confidence
+    };
+  });
+}
+
+function standardizeService(service: string): { service: string; carrier: string; confidence: number } {
+  const serviceLower = service.toLowerCase().trim();
+  
+  // UPS patterns
+  if (serviceLower.includes('ups') || serviceLower.includes('ground') || serviceLower.includes('gnd')) {
+    if (serviceLower.includes('next') || serviceLower.includes('nda')) {
+      return { service: 'UPS_NEXT_DAY_AIR', carrier: 'UPS', confidence: 0.9 };
+    }
+    if (serviceLower.includes('2nd') || serviceLower.includes('2da')) {
+      return { service: 'UPS_2ND_DAY_AIR', carrier: 'UPS', confidence: 0.9 };
+    }
+    return { service: 'UPS_GROUND', carrier: 'UPS', confidence: 0.8 };
+  }
+  
+  // FedEx patterns
+  if (serviceLower.includes('fedex') || serviceLower.includes('express')) {
+    if (serviceLower.includes('overnight')) {
+      return { service: 'FEDEX_STANDARD_OVERNIGHT', carrier: 'FedEx', confidence: 0.9 };
+    }
+    if (serviceLower.includes('ground')) {
+      return { service: 'FEDEX_GROUND', carrier: 'FedEx', confidence: 0.9 };
+    }
+    return { service: 'FEDEX_EXPRESS_SAVER', carrier: 'FedEx', confidence: 0.7 };
+  }
+  
+  // USPS patterns
+  if (serviceLower.includes('usps') || serviceLower.includes('priority') || serviceLower.includes('postal')) {
+    if (serviceLower.includes('priority')) {
+      return { service: 'USPS_PRIORITY_MAIL', carrier: 'USPS', confidence: 0.9 };
+    }
+    return { service: 'USPS_GROUND_ADVANTAGE', carrier: 'USPS', confidence: 0.7 };
+  }
+  
+  // Default fallback
+  return { service: service.toUpperCase().replace(/\s+/g, '_'), carrier: 'UNKNOWN', confidence: 0.3 };
+}

@@ -1,28 +1,70 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { FileUpload } from '@/components/ui-lov/FileUpload';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { parseCSV } from '@/utils/csvParser';
+import { useAuth } from '@/hooks/useAuth';
 
 const Upload = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [isProcessing, setIsProcessing] = useState(false);
   
-  const handleFileUpload = (file) => {
-    // In a real app, this would process the file
-    console.log("File uploaded:", file);
-    toast.success('File uploaded successfully!');
+  const handleFileUpload = async (file: File) => {
+    if (!user) {
+      toast.error('Please log in to upload files');
+      return;
+    }
+
+    setIsProcessing(true);
     
-    // Navigate to the mapping page
-    setTimeout(() => {
+    try {
+      // Read and parse the CSV file
+      const fileContent = await file.text();
+      const parseResult = parseCSV(fileContent);
+      
+      // Store the upload in the database
+      const { data: csvUpload, error } = await supabase
+        .from('csv_uploads')
+        .insert({
+          user_id: user.id,
+          file_name: file.name,
+          file_size: file.size,
+          detected_headers: parseResult.headers,
+          row_count: parseResult.rowCount,
+          status: 'parsed'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success(`File processed successfully! Found ${parseResult.rowCount} rows with ${parseResult.headers.length} columns.`);
+      
+      // Navigate to the mapping page with parsed data
       navigate('/mapping', { 
         state: { 
+          csvUploadId: csvUpload.id,
           fileName: file.name,
+          headers: parseResult.headers,
+          data: parseResult.data.slice(0, 10), // Pass first 10 rows for preview
+          rowCount: parseResult.rowCount,
           fileUploaded: true,
         } 
       });
-    }, 1000);
+      
+    } catch (error) {
+      console.error('Error processing file:', error);
+      toast.error('Failed to process the CSV file. Please check the format and try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
   
   const handleError = (error) => {
@@ -55,6 +97,16 @@ const Upload = () => {
               acceptedFileTypes={['.csv']}
               maxFileSizeMB={10}
             />
+            
+            {isProcessing && (
+              <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
+                  <span className="text-sm text-primary font-medium">Processing CSV file...</span>
+                </div>
+                <p className="text-xs text-primary/70 mt-1">Analyzing headers and detecting field patterns</p>
+              </div>
+            )}
             
             <div className="mt-6">
               <h3 className="text-sm font-medium mb-2">Instructions:</h3>

@@ -20,15 +20,15 @@ export interface ServiceMapping {
 
 // Common field patterns for fuzzy matching
 const FIELD_PATTERNS: Record<string, string[]> = {
-  trackingId: ['tracking', 'track', 'number', 'id', 'shipment_id', 'tracking_number', 'track_num'],
-  weight: ['weight', 'wt', 'lbs', 'pounds', 'kg', 'kilos', 'weight_lbs', 'package_weight'],
-  service: ['service', 'shipping_service', 'carrier_service', 'service_type', 'ship_service'],
-  cost: ['cost', 'price', 'amount', 'charge', 'fee', 'total', 'shipping_cost', 'rate'],
-  originZip: ['origin', 'from', 'ship_from', 'origin_zip', 'from_zip', 'sender_zip'],
-  destZip: ['destination', 'dest', 'to', 'ship_to', 'dest_zip', 'to_zip', 'recipient_zip'],
-  length: ['length', 'len', 'l', 'package_length', 'box_length'],
-  width: ['width', 'w', 'package_width', 'box_width'],
-  height: ['height', 'h', 'package_height', 'box_height'],
+  trackingId: ['tracking', 'track', 'number', 'id', 'shipment_id', 'tracking_number', 'track_num', 'trackingid'],
+  weight: ['weight', 'wt', 'lbs', 'pounds', 'kg', 'kilos', 'weight_lbs', 'package_weight', 'pkg_weight', 'wght'],
+  service: ['service', 'shipping_service', 'carrier_service', 'service_type', 'ship_service', 'carrier', 'method'],
+  cost: ['cost', 'price', 'amount', 'charge', 'fee', 'total', 'shipping_cost', 'rate', 'freight', 'billing'],
+  originZip: ['origin', 'from', 'ship_from', 'origin_zip', 'from_zip', 'sender_zip', 'origin_postal', 'shipper_zip', 'pickup_zip'],
+  destZip: ['destination', 'dest', 'to', 'ship_to', 'dest_zip', 'to_zip', 'recipient_zip', 'delivery_zip', 'consignee_zip'],
+  length: ['length', 'len', 'l', 'package_length', 'box_length', 'pkg_length'],
+  width: ['width', 'w', 'package_width', 'box_width', 'pkg_width'],
+  height: ['height', 'h', 'package_height', 'box_height', 'pkg_height'],
   zone: ['zone', 'shipping_zone', 'rate_zone', 'delivery_zone'],
   shipDate: ['ship_date', 'shipping_date', 'date_shipped', 'send_date'],
   deliveryDate: ['delivery_date', 'delivered_date', 'date_delivered', 'arrival_date']
@@ -84,20 +84,26 @@ function parseCSVLine(line: string): string[] {
 }
 
 export function generateColumnMappings(csvHeaders: string[]): FieldMapping[] {
+  console.log('generateColumnMappings - Input headers:', csvHeaders);
   const mappings: FieldMapping[] = [];
   
   Object.entries(FIELD_PATTERNS).forEach(([fieldName, patterns]) => {
+    console.log(`Checking field ${fieldName} with patterns:`, patterns);
     const bestMatch = findBestMatch(csvHeaders, patterns);
     if (bestMatch) {
+      console.log(`Found match for ${fieldName}:`, bestMatch);
       mappings.push({
         fieldName,
         csvHeader: bestMatch.header,
         confidence: bestMatch.confidence,
         isAutoDetected: true
       });
+    } else {
+      console.log(`No match found for ${fieldName}`);
     }
   });
   
+  console.log('Final mappings generated:', mappings);
   return mappings;
 }
 
@@ -106,12 +112,14 @@ function findBestMatch(csvHeaders: string[], patterns: string[]): { header: stri
   
   csvHeaders.forEach(header => {
     const headerLower = header.toLowerCase().replace(/[_\s-]/g, '');
+    console.log(`  Checking header: "${header}" -> normalized: "${headerLower}"`);
     
     patterns.forEach(pattern => {
       const patternLower = pattern.toLowerCase().replace(/[_\s-]/g, '');
       
       // Exact match
       if (headerLower === patternLower) {
+        console.log(`    EXACT MATCH with pattern "${pattern}"`);
         if (!bestMatch || bestMatch.confidence < 1.0) {
           bestMatch = { header, confidence: 1.0 };
         }
@@ -123,6 +131,7 @@ function findBestMatch(csvHeaders: string[], patterns: string[]): { header: stri
         const confidence = Math.min(patternLower.length, headerLower.length) / 
                           Math.max(patternLower.length, headerLower.length);
         
+        console.log(`    PARTIAL MATCH with pattern "${pattern}", confidence: ${confidence}`);
         if (confidence > 0.6 && (!bestMatch || bestMatch.confidence < confidence)) {
           bestMatch = { header, confidence };
         }
@@ -130,6 +139,7 @@ function findBestMatch(csvHeaders: string[], patterns: string[]): { header: stri
     });
   });
   
+  console.log(`  Best match result:`, bestMatch);
   return bestMatch;
 }
 

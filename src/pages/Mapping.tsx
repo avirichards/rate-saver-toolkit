@@ -41,6 +41,9 @@ const Mapping = () => {
       return;
     }
 
+    console.log('Mapping page - CSV Headers received:', state.headers);
+    console.log('Mapping page - CSV Data sample:', state.data?.slice(0, 2));
+    
     setCsvHeaders(state.headers);
     setCsvData(state.data || []);
     setFileName(state.fileName || '');

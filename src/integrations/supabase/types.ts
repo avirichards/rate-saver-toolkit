@@ -14,7 +14,165 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      rate_quotes: {
+        Row: {
+          created_at: string
+          currency: string
+          expires_at: string | null
+          id: string
+          quote_date: string
+          rates: Json
+          service_codes: string[]
+          shipment_data: Json
+          status: string
+          total_cost: number | null
+          ups_response: Json | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          quote_date?: string
+          rates: Json
+          service_codes?: string[]
+          shipment_data: Json
+          status?: string
+          total_cost?: number | null
+          ups_response?: Json | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          expires_at?: string | null
+          id?: string
+          quote_date?: string
+          rates?: Json
+          service_codes?: string[]
+          shipment_data?: Json
+          status?: string
+          total_cost?: number | null
+          ups_response?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      shipping_analyses: {
+        Row: {
+          analysis_date: string
+          created_at: string
+          file_name: string
+          id: string
+          original_data: Json
+          recommendations: Json | null
+          savings_analysis: Json | null
+          status: string
+          total_savings: number | null
+          total_shipments: number
+          updated_at: string
+          ups_quotes: Json | null
+          user_id: string
+        }
+        Insert: {
+          analysis_date?: string
+          created_at?: string
+          file_name: string
+          id?: string
+          original_data: Json
+          recommendations?: Json | null
+          savings_analysis?: Json | null
+          status?: string
+          total_savings?: number | null
+          total_shipments?: number
+          updated_at?: string
+          ups_quotes?: Json | null
+          user_id: string
+        }
+        Update: {
+          analysis_date?: string
+          created_at?: string
+          file_name?: string
+          id?: string
+          original_data?: Json
+          recommendations?: Json | null
+          savings_analysis?: Json | null
+          status?: string
+          total_savings?: number | null
+          total_shipments?: number
+          updated_at?: string
+          ups_quotes?: Json | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ups_configs: {
+        Row: {
+          account_number: string | null
+          client_id: string
+          client_secret: string
+          created_at: string
+          id: string
+          is_active: boolean
+          is_sandbox: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_number?: string | null
+          client_id: string
+          client_secret: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_number?: string | null
+          client_id?: string
+          client_secret?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ups_services: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_international: boolean
+          service_code: string
+          service_name: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_international?: boolean
+          service_code: string
+          service_name: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_international?: boolean
+          service_code?: string
+          service_name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

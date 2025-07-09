@@ -8,9 +8,129 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, User, Shield, BellRing, Truck, Cog, Database } from 'lucide-react';
+import { Save, User, Shield, BellRing, Truck, Cog, Database, CheckCircle, AlertTriangle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useState, useEffect } from 'react';
 
 const SettingsPage = () => {
+  const [upsConfig, setUpsConfig] = useState({
+    client_id: '',
+    client_secret: '',
+    account_number: '',
+    is_sandbox: true
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [upsConfigExists, setUpsConfigExists] = useState(false);
+
+  useEffect(() => {
+    loadUpsConfig();
+  }, []);
+
+  const loadUpsConfig = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('ups_configs')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (data && !error) {
+        setUpsConfig({
+          client_id: data.client_id,
+          client_secret: data.client_secret,
+          account_number: data.account_number || '',
+          is_sandbox: data.is_sandbox
+        });
+        setUpsConfigExists(true);
+      }
+    } catch (error) {
+      console.error('Error loading UPS config:', error);
+    }
+  };
+
+  const saveUpsConfig = async () => {
+    if (!upsConfig.client_id || !upsConfig.client_secret) {
+      toast.error('Please enter both Client ID and Client Secret');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('Please log in to save UPS configuration');
+        return;
+      }
+
+      if (upsConfigExists) {
+        // Update existing config
+        const { error } = await supabase
+          .from('ups_configs')
+          .update({
+            client_id: upsConfig.client_id,
+            client_secret: upsConfig.client_secret,
+            account_number: upsConfig.account_number,
+            is_sandbox: upsConfig.is_sandbox
+          })
+          .eq('user_id', user.id)
+          .eq('is_active', true);
+
+        if (error) throw error;
+      } else {
+        // Insert new config
+        const { error } = await supabase
+          .from('ups_configs')
+          .insert({
+            user_id: user.id,
+            client_id: upsConfig.client_id,
+            client_secret: upsConfig.client_secret,
+            account_number: upsConfig.account_number,
+            is_sandbox: upsConfig.is_sandbox
+          });
+
+        if (error) throw error;
+        setUpsConfigExists(true);
+      }
+
+      toast.success('UPS configuration saved successfully');
+    } catch (error) {
+      console.error('Error saving UPS config:', error);
+      toast.error('Failed to save UPS configuration');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const testUpsConnection = async () => {
+    if (!upsConfig.client_id || !upsConfig.client_secret) {
+      toast.error('Please save your UPS configuration first');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('ups-auth', {
+        body: { action: 'get_token' }
+      });
+
+      if (error || !data.access_token) {
+        throw new Error(error?.message || 'Failed to authenticate with UPS');
+      }
+
+      toast.success('UPS connection successful!');
+    } catch (error) {
+      console.error('Error testing UPS connection:', error);
+      toast.error(`UPS connection failed: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="p-6">
@@ -30,6 +150,10 @@ const SettingsPage = () => {
             <TabsTrigger value="carriers" className="flex gap-2 items-center">
               <Truck className="h-4 w-4" />
               <span className="hidden md:inline">Carriers</span>
+            </TabsTrigger>
+            <TabsTrigger value="ups" className="flex gap-2 items-center">
+              <Truck className="h-4 w-4" />
+              <span className="hidden md:inline">UPS API</span>
             </TabsTrigger>
             <TabsTrigger value="api" className="flex gap-2 items-center">
               <Database className="h-4 w-4" />
@@ -131,6 +255,92 @@ const SettingsPage = () => {
                     iconLeft={<Save className="h-4 w-4" />}
                   >
                     Save Changes
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="ups">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  UPS API Configuration
+                  {upsConfigExists && (
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  Configure your UPS API credentials for real-time rate shopping
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ups-client-id">UPS Client ID</Label>
+                    <Input 
+                      id="ups-client-id" 
+                      value={upsConfig.client_id}
+                      onChange={(e) => setUpsConfig({...upsConfig, client_id: e.target.value})}
+                      placeholder="Enter your UPS API Client ID" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ups-client-secret">UPS Client Secret</Label>
+                    <Input 
+                      id="ups-client-secret" 
+                      type="password"
+                      value={upsConfig.client_secret}
+                      onChange={(e) => setUpsConfig({...upsConfig, client_secret: e.target.value})}
+                      placeholder="Enter your UPS API Client Secret" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="ups-account">UPS Account Number (Optional)</Label>
+                    <Input 
+                      id="ups-account" 
+                      value={upsConfig.account_number}
+                      onChange={(e) => setUpsConfig({...upsConfig, account_number: e.target.value})}
+                      placeholder="Enter your UPS Account Number" 
+                    />
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <div>
+                      <div className="font-medium">Sandbox Mode</div>
+                      <div className="text-sm text-muted-foreground">Use UPS testing environment</div>
+                    </div>
+                    <Switch 
+                      checked={upsConfig.is_sandbox}
+                      onCheckedChange={(checked) => setUpsConfig({...upsConfig, is_sandbox: checked})}
+                    />
+                  </div>
+                </div>
+                
+                {upsConfig.is_sandbox && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-md p-4 flex items-start">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-amber-700">
+                      <p className="font-medium">Sandbox Mode Active</p>
+                      <p>You're using UPS's testing environment. Switch to production when ready to go live.</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex justify-between">
+                  <Button 
+                    variant="outline" 
+                    onClick={testUpsConnection}
+                    disabled={isLoading}
+                  >
+                    Test Connection
+                  </Button>
+                  <Button 
+                    variant="primary" 
+                    iconLeft={<Save className="h-4 w-4" />}
+                    onClick={saveUpsConfig}
+                    disabled={isLoading}
+                  >
+                    Save Configuration
                   </Button>
                 </div>
               </CardContent>

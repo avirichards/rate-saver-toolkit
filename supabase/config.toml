@@ -1,1 +1,7 @@
 project_id = "olehfhquezzfkdgilkut"
+
+[functions.ups-auth]
+verify_jwt = true
+
+[functions.ups-rate-quote]
+verify_jwt = true

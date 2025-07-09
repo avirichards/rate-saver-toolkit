@@ -7,14 +7,16 @@ import { Card, CardContent } from '@/components/ui-lov/Card';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle, RotateCw, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
-// Simulated analysis steps
+// Analysis steps with UPS API integration
 const ANALYSIS_STEPS = [
-  { id: 'parsing', label: 'Parsing shipping data', duration: 2000 },
-  { id: 'rates', label: 'Retrieving current rates', duration: 3000 },
-  { id: 'calculating', label: 'Calculating potential savings', duration: 2500 },
-  { id: 'comparing', label: 'Comparing service options', duration: 2000 },
-  { id: 'generating', label: 'Generating optimization report', duration: 1500 },
+  { id: 'parsing', label: 'Parsing shipping data', duration: 1000 },
+  { id: 'validating', label: 'Validating UPS configuration', duration: 1500 },
+  { id: 'rates', label: 'Retrieving UPS rates', duration: 4000 },
+  { id: 'calculating', label: 'Calculating potential savings', duration: 2000 },
+  { id: 'comparing', label: 'Comparing service options', duration: 1500 },
+  { id: 'generating', label: 'Generating optimization report', duration: 1000 },
 ];
 
 const Analysis = () => {
@@ -26,6 +28,7 @@ const Analysis = () => {
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
+  const [analysisData, setAnalysisData] = useState<any>(null);
   
   useEffect(() => {
     // In a real application, we would get the mapping and data from the state or context
@@ -53,7 +56,7 @@ const Analysis = () => {
     runAnalysisStep();
   };
   
-  const runAnalysisStep = () => {
+  const runAnalysisStep = async () => {
     if (currentStep >= ANALYSIS_STEPS.length) {
       setIsComplete(true);
       setIsAnalyzing(false);
@@ -63,40 +66,214 @@ const Analysis = () => {
     
     const step = ANALYSIS_STEPS[currentStep];
     const stepProgress = 100 / ANALYSIS_STEPS.length;
-    let stepProgressInternal = 0;
     
-    // Simulate progress within this step
-    const progressInterval = setInterval(() => {
-      stepProgressInternal += 5;
-      const calculatedProgress = Math.min(
-        ((currentStep * stepProgress) + (stepProgressInternal * stepProgress / 100)),
-        100
-      );
-      setProgress(calculatedProgress);
-      
-      if (stepProgressInternal >= 100) {
-        clearInterval(progressInterval);
-        setCurrentStep(prev => prev + 1);
-        
-        // Simulate rare random error
-        const randomError = Math.random() > 0.95;
-        if (randomError) {
-          setError('An error occurred during analysis. Please try again.');
-          setIsAnalyzing(false);
-          clearInterval(progressInterval);
-          return;
-        }
-        
-        // Move to next step
-        setTimeout(() => {
-          runAnalysisStep();
-        }, 100);
+    try {
+      // Handle specific analysis steps
+      if (step.id === 'validating') {
+        await validateUpsConfiguration();
+      } else if (step.id === 'rates') {
+        await fetchUpsRates();
+      } else if (step.id === 'calculating') {
+        await calculateSavings();
       }
-    }, step.duration / 20);
+      
+      // Simulate progress within this step
+      let stepProgressInternal = 0;
+      const progressInterval = setInterval(() => {
+        stepProgressInternal += 10;
+        const calculatedProgress = Math.min(
+          ((currentStep * stepProgress) + (stepProgressInternal * stepProgress / 100)),
+          100
+        );
+        setProgress(calculatedProgress);
+        
+        if (stepProgressInternal >= 100) {
+          clearInterval(progressInterval);
+          setCurrentStep(prev => prev + 1);
+          
+          // Move to next step
+          setTimeout(() => {
+            runAnalysisStep();
+          }, 100);
+        }
+      }, step.duration / 10);
+      
+    } catch (error) {
+      console.error(`Error in step ${step.id}:`, error);
+      setError(`Analysis failed at step: ${step.label}. ${error.message}`);
+      setIsAnalyzing(false);
+    }
+  };
+
+  const validateUpsConfiguration = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Please log in to run analysis');
+    }
+
+    const { data: config, error } = await supabase
+      .from('ups_configs')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !config) {
+      throw new Error('UPS configuration not found. Please configure UPS API in Settings.');
+    }
+
+    // Test UPS connection
+    const { data, error: authError } = await supabase.functions.invoke('ups-auth', {
+      body: { action: 'get_token' }
+    });
+
+    if (authError || !data?.access_token) {
+      throw new Error('Failed to authenticate with UPS. Please check your API credentials.');
+    }
+  };
+
+  const fetchUpsRates = async () => {
+    // Get mapping and data from location state
+    const state = location.state as { mappedData?: any[] } | null;
+    if (!state?.mappedData || state.mappedData.length === 0) {
+      throw new Error('No shipping data found for analysis');
+    }
+
+    const sampleShipments = state.mappedData.slice(0, 10); // Analyze first 10 shipments
+    const ratePromises = sampleShipments.map(async (shipment) => {
+      try {
+        const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
+          body: {
+            shipment: {
+              shipFrom: {
+                name: 'Sample Shipper',
+                address: shipment.origin_address || '123 Main St',
+                city: shipment.origin_city || 'Atlanta',
+                state: shipment.origin_state || 'GA',
+                zipCode: shipment.origin_zip || '30309',
+                country: 'US'
+              },
+              shipTo: {
+                name: 'Sample Recipient',
+                address: shipment.destination_address || '456 Oak Ave',
+                city: shipment.destination_city || 'Chicago',
+                state: shipment.destination_state || 'IL',
+                zipCode: shipment.destination_zip || '60601',
+                country: 'US'
+              },
+              package: {
+                weight: parseFloat(shipment.weight) || 1,
+                weightUnit: 'LBS',
+                length: parseFloat(shipment.length) || 12,
+                width: parseFloat(shipment.width) || 12,
+                height: parseFloat(shipment.height) || 6,
+                dimensionUnit: 'IN'
+              },
+              serviceTypes: ['01', '02', '03', '12', '13'] // Common UPS services
+            }
+          }
+        });
+
+        if (error) {
+          console.error('Rate quote error:', error);
+          return null;
+        }
+
+        return {
+          originalShipment: shipment,
+          upsRates: data.rates,
+          currentCost: parseFloat(shipment.cost) || 0
+        };
+      } catch (error) {
+        console.error('Error fetching rates for shipment:', error);
+        return null;
+      }
+    });
+
+    const results = await Promise.all(ratePromises);
+    const validResults = results.filter(result => result !== null);
+    
+    if (validResults.length === 0) {
+      throw new Error('No valid rate quotes received from UPS');
+    }
+
+    setAnalysisData({
+      shipments: validResults,
+      totalShipments: state.mappedData.length,
+      analyzedShipments: validResults.length
+    });
+  };
+
+  const calculateSavings = async () => {
+    if (!analysisData) return;
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    let totalCurrentCost = 0;
+    let totalPotentialSavings = 0;
+    const recommendations = [];
+
+    analysisData.shipments.forEach((shipment: any) => {
+      const currentCost = shipment.currentCost;
+      const cheapestUpsRate = Math.min(...shipment.upsRates.map((rate: any) => rate.totalCharges));
+      const savings = Math.max(0, currentCost - cheapestUpsRate);
+      
+      totalCurrentCost += currentCost;
+      totalPotentialSavings += savings;
+
+      if (savings > 0) {
+        const bestRate = shipment.upsRates.find((rate: any) => rate.totalCharges === cheapestUpsRate);
+        recommendations.push({
+          shipment: shipment.originalShipment,
+          currentCost,
+          recommendedCost: cheapestUpsRate,
+          savings,
+          recommendedService: bestRate?.serviceName
+        });
+      }
+    });
+
+    // Save analysis to database
+    const { error } = await supabase
+      .from('shipping_analyses')
+      .insert({
+        user_id: user.id,
+        file_name: 'Real-time Analysis',
+        original_data: analysisData.shipments.map((s: any) => s.originalShipment),
+        ups_quotes: analysisData.shipments.map((s: any) => s.upsRates),
+        savings_analysis: {
+          totalCurrentCost,
+          totalPotentialSavings,
+          savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0
+        },
+        recommendations,
+        total_shipments: analysisData.totalShipments,
+        total_savings: totalPotentialSavings,
+        status: 'completed'
+      });
+
+    if (error) {
+      console.error('Error saving analysis:', error);
+    }
+
+    // Store results for results page
+    setAnalysisData(prev => ({
+      ...prev,
+      totalCurrentCost,
+      totalPotentialSavings,
+      recommendations,
+      savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0
+    }));
   };
   
   const handleViewResults = () => {
-    navigate('/results');
+    navigate('/results', { 
+      state: { 
+        analysisComplete: true, 
+        analysisData 
+      } 
+    });
   };
   
   return (

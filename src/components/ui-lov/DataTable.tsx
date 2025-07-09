@@ -74,8 +74,8 @@ export function DataTable({
     getCanNextPage: () => data.length > 10,
     previousPage: () => {},
     nextPage: () => {},
-    setPageIndex: () => {},
-    setPageSize: () => {},
+    setPageIndex: (index: number) => {},
+    setPageSize: (size: number) => {},
     getPageCount: () => Math.ceil(data.length / 10),
     getFilteredRowModel: () => ({
       rows: data

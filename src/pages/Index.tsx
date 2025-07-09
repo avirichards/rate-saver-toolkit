@@ -4,9 +4,16 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui-lov/Button';
 import { Card, CardContent } from '@/components/ui-lov/Card';
-import { Package, TrendingUp, FileBarChart, Settings, ArrowRight } from 'lucide-react';
+import { Package, TrendingUp, FileBarChart, Settings, ArrowRight, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const Index = () => {
+  const { user, signOut, loading } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <header className="border-b bg-card/50 backdrop-blur-sm">
@@ -24,11 +31,31 @@ const Index = () => {
             <Link to="/settings" className="text-sm font-medium hover:text-primary transition-colors">Settings</Link>
           </div>
           <div>
-            <Link to="/dashboard">
-              <Button variant="primary" size="sm">
-                Get Started
+            {loading ? (
+              <Button variant="outline" size="sm" disabled>
+                Loading...
               </Button>
-            </Link>
+            ) : user ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground hidden sm:inline">
+                  {user.email}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleSignOut}
+                  iconLeft={<LogOut className="h-4 w-4" />}
+                >
+                  Sign Out
+                </Button>
+              </div>
+            ) : (
+              <Link to="/auth">
+                <Button variant="primary" size="sm">
+                  Sign In
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </header>

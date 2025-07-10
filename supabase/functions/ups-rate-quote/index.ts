@@ -120,6 +120,9 @@ serve(async (req) => {
             CustomerContext: `ShipRate-${Date.now()}`
           }
         },
+        RateInformation: {
+          NegotiatedRates: "true"
+        },
         Shipment: {
           Shipper: {
             Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35), // UPS name limit
@@ -188,6 +191,8 @@ serve(async (req) => {
 
     if (config?.account_number) {
       ratingRequest.RateRequest.Shipment.Shipper.ShipperNumber = config.account_number;
+    } else {
+      console.warn('No UPS account number configured - negotiated rates will not be available');
     }
 
     console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
@@ -234,19 +239,43 @@ serve(async (req) => {
               .eq('service_code', serviceCode)
               .single();
 
-            const totalCharges = parseFloat(ratedShipment.TotalCharges?.MonetaryValue || '0');
-            const baseCharges = parseFloat(ratedShipment.BaseServiceCharge?.MonetaryValue || '0');
+            // Check for negotiated rates first, then fall back to published rates
+            const publishedCharges = parseFloat(ratedShipment.TotalCharges?.MonetaryValue || '0');
+            const negotiatedCharges = parseFloat(ratedShipment.NegotiatedRateCharges?.TotalCharge?.MonetaryValue || '0');
+            
+            const hasNegotiatedRates = negotiatedCharges > 0 && config?.account_number;
+            const finalCharges = hasNegotiatedRates ? negotiatedCharges : publishedCharges;
+            const rateType = hasNegotiatedRates ? 'negotiated' : 'published';
+            
+            // Calculate savings if we have both rates
+            const savingsAmount = hasNegotiatedRates && publishedCharges > 0 ? publishedCharges - negotiatedCharges : 0;
+            const savingsPercentage = savingsAmount > 0 ? ((savingsAmount / publishedCharges) * 100) : 0;
 
-            if (totalCharges > 0) {
+            console.log(`Rate analysis for service ${serviceCode}:`, {
+              published: publishedCharges,
+              negotiated: negotiatedCharges,
+              final: finalCharges,
+              rateType,
+              savings: savingsAmount,
+              hasAccount: !!config?.account_number
+            });
+
+            if (finalCharges > 0) {
               rates.push({
                 serviceCode,
                 serviceName: service?.service_name || `UPS Service ${serviceCode}`,
                 description: service?.description || '',
-                totalCharges,
+                totalCharges: finalCharges,
                 currency: ratedShipment.TotalCharges?.CurrencyCode || 'USD',
-                baseCharges,
+                baseCharges: parseFloat(ratedShipment.BaseServiceCharge?.MonetaryValue || '0'),
                 transitTime: ratedShipment.GuaranteedDelivery?.BusinessDaysInTransit || null,
-                deliveryDate: ratedShipment.GuaranteedDelivery?.DeliveryByTime || null
+                deliveryDate: ratedShipment.GuaranteedDelivery?.DeliveryByTime || null,
+                rateType,
+                hasNegotiatedRates,
+                publishedRate: publishedCharges,
+                negotiatedRate: negotiatedCharges,
+                savingsAmount,
+                savingsPercentage
               });
             }
           }
@@ -265,6 +294,11 @@ serve(async (req) => {
 
     console.log(`Successfully retrieved ${rates.length} rates`);
 
+    // Calculate overall rate type and savings
+    const hasAnyNegotiatedRates = rates.some(rate => rate.hasNegotiatedRates);
+    const totalSavings = rates.reduce((sum, rate) => sum + (rate.savingsAmount || 0), 0);
+    const overallRateType = hasAnyNegotiatedRates ? 'negotiated' : 'published';
+
     // Save quote to database
     const { data: quote, error: quoteError } = await supabase
       .from('rate_quotes')
@@ -274,6 +308,12 @@ serve(async (req) => {
         rates: rates,
         service_codes: serviceCodes,
         total_cost: rates.reduce((sum, rate) => sum + rate.totalCharges, 0),
+        rate_type: overallRateType,
+        has_negotiated_rates: hasAnyNegotiatedRates,
+        published_rate: rates.reduce((sum, rate) => sum + (rate.publishedRate || 0), 0),
+        negotiated_rate: hasAnyNegotiatedRates ? rates.reduce((sum, rate) => sum + (rate.negotiatedRate || 0), 0) : null,
+        savings_amount: totalSavings > 0 ? totalSavings : null,
+        savings_percentage: totalSavings > 0 && rates.length > 0 ? (totalSavings / rates.reduce((sum, rate) => sum + (rate.publishedRate || 0), 0)) * 100 : null,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
       })
       .select()

@@ -96,9 +96,15 @@ export type Database = {
           created_at: string
           currency: string
           expires_at: string | null
+          has_negotiated_rates: boolean | null
           id: string
+          negotiated_rate: number | null
+          published_rate: number | null
           quote_date: string
+          rate_type: string | null
           rates: Json
+          savings_amount: number | null
+          savings_percentage: number | null
           service_codes: string[]
           shipment_data: Json
           status: string
@@ -110,9 +116,15 @@ export type Database = {
           created_at?: string
           currency?: string
           expires_at?: string | null
+          has_negotiated_rates?: boolean | null
           id?: string
+          negotiated_rate?: number | null
+          published_rate?: number | null
           quote_date?: string
+          rate_type?: string | null
           rates: Json
+          savings_amount?: number | null
+          savings_percentage?: number | null
           service_codes?: string[]
           shipment_data: Json
           status?: string
@@ -124,9 +136,15 @@ export type Database = {
           created_at?: string
           currency?: string
           expires_at?: string | null
+          has_negotiated_rates?: boolean | null
           id?: string
+          negotiated_rate?: number | null
+          published_rate?: number | null
           quote_date?: string
+          rate_type?: string | null
           rates?: Json
+          savings_amount?: number | null
+          savings_percentage?: number | null
           service_codes?: string[]
           shipment_data?: Json
           status?: string

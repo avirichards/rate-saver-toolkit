@@ -343,7 +343,16 @@ const Analysis = () => {
         comparisonRate: comparisonRate.totalCharges,
         savings,
         recommendedUpsService: comparisonRate.serviceName,
-        isEquivalentService: equivalentServiceRate ? true : false
+        isEquivalentService: equivalentServiceRate ? true : false,
+        usedEquivalentService: !!equivalentServiceRate // Add flag to track if equivalent service was used
+      });
+      
+      console.log(`Using ${equivalentServiceRate ? 'equivalent' : 'best overall'} service for comparison:`, {
+        equivalentServiceAvailable: !!equivalentServiceRate,
+        equivalentServiceName: equivalentServiceRate?.serviceName,
+        bestServiceName: bestOverallRate?.serviceName,
+        comparisonServiceName: comparisonRate.serviceName,
+        savings
       });
       
       // Update totals

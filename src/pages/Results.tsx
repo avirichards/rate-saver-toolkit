@@ -334,15 +334,15 @@ const Results = () => {
                 <DataTable 
                   data={shipmentData}
                   columns={[
-                    { key: 'trackingId', label: 'Tracking ID' },
-                    { key: 'originZip', label: 'Origin' },
-                    { key: 'destinationZip', label: 'Destination' },
-                    { key: 'weight', label: 'Weight (lbs)' },
-                    { key: 'service', label: 'Original Service' },
-                    { key: 'currentRate', label: 'Current Rate', format: (value: number) => `$${value.toFixed(2)}` },
-                    { key: 'newRate', label: 'New Rate', format: (value: number) => `$${value.toFixed(2)}` },
-                    { key: 'savings', label: 'Savings', format: (value: number) => `$${value.toFixed(2)}` },
-                    { key: 'savingsPercent', label: 'Savings %', format: (value: number) => `${value.toFixed(1)}%` }
+                    { accessorKey: 'trackingId', header: 'Tracking ID' },
+                    { accessorKey: 'originZip', header: 'Origin' },
+                    { accessorKey: 'destinationZip', header: 'Destination' },
+                    { accessorKey: 'weight', header: 'Weight (lbs)' },
+                    { accessorKey: 'service', header: 'Original Service' },
+                    { accessorKey: 'currentRate', header: 'Current Rate', cell: (info: any) => `$${info.getValue().toFixed(2)}` },
+                    { accessorKey: 'newRate', header: 'New Rate', cell: (info: any) => `$${info.getValue().toFixed(2)}` },
+                    { accessorKey: 'savings', header: 'Savings', cell: (info: any) => `$${info.getValue().toFixed(2)}` },
+                    { accessorKey: 'savingsPercent', header: 'Savings %', cell: (info: any) => `${info.getValue().toFixed(1)}%` }
                   ]}
                   title="Shipment Analysis"
                 />

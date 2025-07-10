@@ -278,9 +278,16 @@ serve(async (req) => {
 
     console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
 
-    // Service codes to quote
+    // Service codes to quote - first code is the primary/equivalent service
     const serviceCodes = shipment.serviceTypes || ['01', '02', '03', '12', '13'];
+    const primaryServiceCode = serviceCodes[0]; // The first code is the mapped equivalent service
     const rates = [];
+
+    console.log('Service codes to request:', {
+      serviceCodes,
+      primaryServiceCode,
+      total: serviceCodes.length
+    });
 
     // Get rates for each service type
     for (const serviceCode of serviceCodes) {
@@ -356,7 +363,8 @@ serve(async (req) => {
                 publishedRate: publishedCharges,
                 negotiatedRate: negotiatedCharges,
                 savingsAmount,
-                savingsPercentage
+                savingsPercentage,
+                isEquivalentService: serviceCode === primaryServiceCode // Mark the equivalent service
               });
             }
           }

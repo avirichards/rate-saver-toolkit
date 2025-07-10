@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Ca
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
+import { Badge } from '@/components/ui/badge';
 
 // Sample data for the Shipment Analysis
 const shipmentData = [
@@ -123,6 +124,15 @@ const columns = [
     header: 'Savings %',
     cell: ({ cell }) => `${cell.getValue()}%` 
   },
+  { 
+    accessorKey: 'recommendedService', 
+    header: 'UPS Equivalent Service',
+    cell: ({ getValue }) => (
+      <Badge variant="outline" className="whitespace-nowrap">
+        {getValue() as string}
+      </Badge>
+    )
+  },
 ];
 
 // Colors for the pie chart
@@ -154,8 +164,9 @@ const Results = () => {
       currentRate: rec.currentCost || 0,
       newRate: rec.recommendedCost || 0,
       savings: rec.savings || 0,
-      savingsPercent: rec.currentCost > 0 ? ((rec.savings / rec.currentCost) * 100) : 0
-    })) : shipmentData;
+      savingsPercent: rec.currentCost > 0 ? ((rec.savings / rec.currentCost) * 100) : 0,
+      recommendedService: rec.recommendedService || 'UPS Ground' // Add UPS equivalent service
+    })) : shipmentData.map(item => ({ ...item, recommendedService: 'UPS Ground' }));
   
   // Generate dynamic chart data from real analysis results
   const serviceChartData = generateServiceChartData(displayData);

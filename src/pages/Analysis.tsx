@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
+import { mapServiceToUpsCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
 
 interface ProcessedShipment {
   id: number;
@@ -237,12 +238,19 @@ const Analysis = () => {
       const width = parseFloat(shipment.width || '12'); 
       const height = parseFloat(shipment.height || '6');
       
+      // Map the original service to UPS service codes
+      const serviceMapping = mapServiceToUpsCode(shipment.service || '');
+      const serviceCodesToRequest = getServiceCodesToRequest(shipment.service || '');
+      
       console.log(`Processing shipment ${index + 1}:`, {
         originZip: shipment.originZip,
         destZip: shipment.destZip,
         weight,
         dimensions: { length, width, height },
-        currentCost
+        currentCost,
+        originalService: shipment.service,
+        mappedService: serviceMapping,
+        serviceCodes: serviceCodesToRequest
       });
       
       // Use real address data from CSV or map ZIP codes to correct cities for test data
@@ -281,7 +289,7 @@ const Analysis = () => {
           height,
           dimensionUnit: 'IN'
         },
-        serviceTypes: ['01', '02', '03', '12', '13']
+        serviceTypes: serviceCodesToRequest
       };
       
       // Fetch UPS rates with enhanced error handling
@@ -304,23 +312,31 @@ const Analysis = () => {
         throw new Error('No rates returned from UPS. This may indicate:\n• Invalid ZIP codes\n• Package dimensions exceed limits\n• Service unavailable for this route\n• UPS API configuration issues');
       }
       
-      // Find best rate (lowest cost)
-      const bestRate = data.rates.reduce((best: any, current: any) => 
+      // Find equivalent service rate (for apples-to-apples comparison)
+      const equivalentServiceRate = data.rates.find((rate: any) => rate.isEquivalentService);
+      
+      // Find best overall rate (lowest cost)
+      const bestOverallRate = data.rates.reduce((best: any, current: any) => 
         (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
       );
       
-      if (!bestRate || bestRate.totalCharges === undefined) {
+      // Use equivalent service for comparison if available, otherwise use best overall rate
+      const comparisonRate = equivalentServiceRate || bestOverallRate;
+      
+      if (!comparisonRate || comparisonRate.totalCharges === undefined) {
         throw new Error('Invalid rate data returned from UPS');
       }
       
-      const savings = Math.max(0, currentCost - bestRate.totalCharges);
+      const savings = Math.max(0, currentCost - comparisonRate.totalCharges);
       
       console.log(`Shipment ${index + 1} analysis complete:`, {
         originalService: shipment.service,
+        equivalentService: serviceMapping.upsServiceName,
         currentCost,
-        bestRate: bestRate.totalCharges,
+        comparisonRate: comparisonRate.totalCharges,
         savings,
-        recommendedUpsService: bestRate.serviceName
+        recommendedUpsService: comparisonRate.serviceName,
+        isEquivalentService: equivalentServiceRate ? true : false
       });
       
       // Update totals
@@ -335,7 +351,7 @@ const Analysis = () => {
           currentCost,
           originalService: shipment.service, // Store original service from CSV
           upsRates: data.rates,
-          bestRate,
+          bestRate: comparisonRate,
           savings
         } : result
       ));

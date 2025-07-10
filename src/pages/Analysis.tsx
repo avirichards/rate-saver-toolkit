@@ -320,8 +320,15 @@ const Analysis = () => {
         (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
       );
       
-      // Use equivalent service for comparison if available, otherwise use best overall rate
-      const comparisonRate = equivalentServiceRate || bestOverallRate;
+      // Use the best rate for savings calculation (always choose cheapest option)
+      const comparisonRate = bestOverallRate;
+      
+      // But track both for display purposes
+      const equivalentServiceInfo = equivalentServiceRate ? {
+        serviceName: equivalentServiceRate.serviceName,
+        cost: equivalentServiceRate.totalCharges,
+        isEquivalent: true
+      } : null;
       
       if (!comparisonRate || comparisonRate.totalCharges === undefined) {
         throw new Error('Invalid rate data returned from UPS');
@@ -619,29 +626,41 @@ const Analysis = () => {
                       <p className="font-medium text-sm">
                         {result.shipment.trackingId || `Shipment ${index + 1}`}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {result.shipment.originZip} → {result.shipment.destZip} | {result.shipment.weight}lbs
-                      </p>
+                      <div className="text-xs text-muted-foreground space-y-1">
+                        <p>{result.shipment.originZip} → {result.shipment.destZip} | {result.shipment.weight}lbs</p>
+                        {result.shipment.service && (
+                          <p>Service: {result.shipment.service}</p>
+                        )}
+                        {(result.shipment.length || result.shipment.width || result.shipment.height) && (
+                          <p>Dimensions: {result.shipment.length || 12}" × {result.shipment.width || 12}" × {result.shipment.height || 6}"</p>
+                        )}
+                        {result.status === 'processing' && (
+                          <p className="text-primary font-medium">Getting UPS rates...</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="text-right">
-                    {result.status === 'completed' && (
-                      <div className="flex items-center gap-2">
-                        <div className="text-right">
-                          <p className="text-sm font-medium">
-                            ${result.currentCost?.toFixed(2)} → ${result.bestRate?.totalCharges?.toFixed(2)}
-                          </p>
-                          {result.savings && result.savings > 0 ? (
-                            <Badge variant="secondary" className="bg-green-100 text-green-800">
-                              Save ${result.savings.toFixed(2)}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline">No savings</Badge>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                   <div className="text-right">
+                     {result.status === 'completed' && (
+                       <div className="flex items-center gap-2">
+                         <div className="text-right">
+                           <p className="text-sm font-medium">
+                             ${result.currentCost?.toFixed(2)} → ${result.bestRate?.totalCharges?.toFixed(2)}
+                           </p>
+                           <div className="text-xs text-muted-foreground mb-1">
+                             via {result.bestRate?.serviceName || 'UPS Service'}
+                           </div>
+                           {result.savings && result.savings > 0 ? (
+                             <Badge variant="secondary" className="bg-green-100 text-green-800">
+                               Save ${result.savings.toFixed(2)}
+                             </Badge>
+                           ) : (
+                             <Badge variant="outline">No savings</Badge>
+                           )}
+                         </div>
+                       </div>
+                     )}
                     
                     {result.status === 'error' && (
                       <Badge variant="destructive">Error</Badge>

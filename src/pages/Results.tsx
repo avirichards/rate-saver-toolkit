@@ -415,149 +415,148 @@ const Results = () => {
           
           {/* Overview Tab */}
           <TabsContent value="overview" className="mt-6">
-            {/* Summary Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* 7 Day Snapshot */}
               <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Package className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">{filteredStats.totalShipments}</p>
-                      <p className="text-sm text-muted-foreground">Total Shipments</p>
-                    </div>
+                <CardHeader>
+                  <CardTitle className="text-lg font-semibold">7 Day Snapshot</CardTitle>
+                  <p className="text-sm text-muted-foreground">{filteredStats.totalShipments} Total Shipments</p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Current Cost</span>
+                    <span className="font-semibold">${filteredStats.totalCurrentCost.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Ship Pro Cost</span>
+                    <span className="font-semibold">${(filteredStats.totalCurrentCost - filteredStats.totalSavings).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Savings ($)</span>
+                    <span className="font-semibold text-green-600">${filteredStats.totalSavings.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Savings (%)</span>
+                    <span className="font-semibold text-green-600">{filteredStats.averageSavingsPercent.toFixed(2)}%</span>
                   </div>
                 </CardContent>
               </Card>
-              
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-green-500/10 rounded-lg">
-                      <DollarSign className="h-6 w-6 text-green-600" />
+
+              {/* Charts */}
+              <div className="lg:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Shipment Volume by Service Type</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={serviceChartData}
+                            cx="50%"
+                            cy="50%"
+                            labelLine={false}
+                            outerRadius={70}
+                            fill="#8884d8"
+                            dataKey="value"
+                            label={({ name, value }) => `${name} ${value}`}
+                          >
+                            {serviceChartData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip />
+                        </PieChart>
+                      </ResponsiveContainer>
                     </div>
-                    <div>
-                      <p className="text-2xl font-bold">${filteredStats.totalCurrentCost.toFixed(2)}</p>
-                      <p className="text-sm text-muted-foreground">Current Cost</p>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Service Type Cost Comparison</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[200px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={serviceCostData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="service" />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar dataKey="currentCost" fill="#ef4444" name="Avg Current Cost" />
+                          <Bar dataKey="newCost" fill="#22c55e" name="Avg SP Cost" />
+                        </BarChart>
+                      </ResponsiveContainer>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-emerald-500/10 rounded-lg">
-                      <ArrowDownRight className="h-6 w-6 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">${filteredStats.totalSavings.toFixed(2)}</p>
-                      <p className="text-sm text-muted-foreground">Potential Savings</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-orange-500/10 rounded-lg">
-                      <TruckIcon className="h-6 w-6 text-orange-600" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold">{filteredStats.averageSavingsPercent.toFixed(1)}%</p>
-                      <p className="text-sm text-muted-foreground">Average Savings</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
 
-            {/* Service Type Filters */}
-            <Card className="mb-6">
+            {/* Service Types Table */}
+            <Card className="mt-6">
               <CardHeader>
-                <CardTitle>Service Type Filters</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Toggle service types to see how they affect your savings
-                </p>
+                <CardTitle>Current Service Types</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-3">
-                  {availableServices.map(service => (
-                    <div key={service} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={service}
-                        checked={selectedServices.includes(service)}
-                        onCheckedChange={() => toggleService(service)}
-                      />
-                      <label
-                        htmlFor={service}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {service}
-                      </label>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">Service Type</th>
+                        <th className="text-right p-2 font-medium">Shipment Count</th>
+                        <th className="text-right p-2 font-medium">Volume %</th>
+                        <th className="text-right p-2 font-medium">Avg Weight</th>
+                        <th className="text-right p-2 font-medium">Avg Current Cost</th>
+                        <th className="text-right p-2 font-medium">Avg SP Cost</th>
+                        <th className="text-right p-2 font-medium">Avg Savings ($)</th>
+                        <th className="text-right p-2 font-medium">Avg Savings (%)</th>
+                        <th className="text-center p-2 font-medium">Filter</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {serviceCostData.map((service, index) => {
+                        const avgCurrentCost = service.currentCost / service.shipments;
+                        const avgNewCost = service.newCost / service.shipments;
+                        const avgSavings = service.savings / service.shipments;
+                        const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
+                        const avgWeight = filteredData
+                          .filter(item => item.service === service.service)
+                          .reduce((sum, item) => sum + item.weight, 0) / service.shipments;
+                        const volumePercent = (service.shipments / filteredStats.totalShipments) * 100;
+                        
+                        return (
+                          <tr key={service.service} className="border-b hover:bg-muted/50">
+                            <td className="p-2">{service.service}</td>
+                            <td className="p-2 text-right">{service.shipments}</td>
+                            <td className="p-2 text-right">{volumePercent.toFixed(1)}%</td>
+                            <td className="p-2 text-right">{avgWeight.toFixed(2)}</td>
+                            <td className="p-2 text-right">${avgCurrentCost.toFixed(2)}</td>
+                            <td className="p-2 text-right">${avgNewCost.toFixed(2)}</td>
+                            <td className="p-2 text-right text-green-600">${avgSavings.toFixed(2)}</td>
+                            <td className="p-2 text-right text-green-600">{avgSavingsPercent.toFixed(2)}%</td>
+                            <td className="p-2 text-center">
+                              <Checkbox
+                                checked={selectedServices.includes(service.service)}
+                                onCheckedChange={() => toggleService(service.service)}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Shipment Volume by Service Type</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={serviceChartData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                          outerRadius={100}
-                          fill="#8884d8"
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        >
-                          {serviceChartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Cost Comparison by Service</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={serviceCostData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="service" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="currentCost" fill="#ef4444" name="Current Cost" />
-                        <Bar dataKey="newCost" fill="#22c55e" name="Optimized Cost" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card>
+            {/* Rate Comparison by Weight */}
+            <Card className="mt-6">
               <CardHeader>
-                <CardTitle>Rate Comparison by Weight Range</CardTitle>
+                <CardTitle>Rate Comparison by Weight</CardTitle>
+                <p className="text-sm text-muted-foreground">Compare average shipping costs by package weight</p>
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -567,8 +566,8 @@ const Results = () => {
                       <XAxis dataKey="name" />
                       <YAxis />
                       <Tooltip />
-                      <Area dataKey="avgCurrentRate" stackId="1" stroke="#ef4444" fill="#ef4444" name="Current Rate" />
-                      <Area dataKey="avgNewRate" stackId="2" stroke="#22c55e" fill="#22c55e" name="Optimized Rate" />
+                      <Area dataKey="avgCurrentRate" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Avg Current Cost" />
+                      <Area dataKey="avgNewRate" stackId="2" stroke="#22c55e" fill="#22c55e" fillOpacity={0.6} name="Avg SP Cost" />
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
@@ -625,80 +624,62 @@ const Results = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <DataTable 
-                  data={filteredData.map(item => ({
-                    ...item,
-                    isWin: item.savings > 0,
-                    isLoss: item.savings < 0
-                  }))}
-                  columns={[
-                    { 
-                      accessorKey: 'trackingId', 
-                      header: 'Order/Tracking ID'
-                    },
-                    { 
-                      accessorKey: 'originZip', 
-                      header: 'Shipper Zip'
-                    },
-                    { 
-                      accessorKey: 'destinationZip', 
-                      header: 'Recipient Zip'
-                    },
-                    { 
-                      accessorKey: 'weight', 
-                      header: 'Weight (lbs)',
-                      cell: (info: any) => `${info.getValue().toFixed(1)}`
-                    },
-                    { 
-                      accessorKey: 'service', 
-                      header: 'Current Service Type'
-                    },
-                    { 
-                      accessorKey: 'currentRate', 
-                      header: 'Current Cost',
-                      cell: (info: any) => `$${info.getValue().toFixed(2)}`
-                    },
-                    { 
-                      accessorKey: 'newRate', 
-                      header: 'SP Cost',
-                      cell: (info: any) => `$${info.getValue().toFixed(2)}`
-                    },
-                    { 
-                      accessorKey: 'savings', 
-                      header: 'Savings',
-                      cell: (info: any) => {
-                        const value = info.getValue();
-                        const isWin = value > 0;
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium min-w-[120px]">Order / Tracking</th>
+                        <th className="text-left p-2 font-medium">Shipper Zip</th>
+                        <th className="text-left p-2 font-medium">Recipient Zip</th>
+                        <th className="text-right p-2 font-medium">Weight</th>
+                        <th className="text-right p-2 font-medium">Length</th>
+                        <th className="text-right p-2 font-medium">Width</th>
+                        <th className="text-right p-2 font-medium">Height</th>
+                        <th className="text-left p-2 font-medium">Current Service Type</th>
+                        <th className="text-right p-2 font-medium">Current Cost</th>
+                        <th className="text-right p-2 font-medium">SP Cost</th>
+                        <th className="text-left p-2 font-medium">SP Service Type</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredData.map((row, index) => {
+                        const isWin = row.savings > 0;
+                        const isLoss = row.savings < 0;
+                        const rowClass = isWin ? "bg-green-50" : isLoss ? "bg-red-50" : "";
+                        
                         return (
-                          <div className={cn("flex items-center gap-1", 
-                            isWin ? "text-green-600" : value < 0 ? "text-red-600" : "text-muted-foreground"
-                          )}>
-                            {isWin ? <CheckCircle2 className="h-3 w-3" /> : value < 0 ? <XCircle className="h-3 w-3" /> : null}
-                            ${Math.abs(value).toFixed(2)}
-                          </div>
+                          <tr key={index} className={cn("border-b hover:bg-muted/50", rowClass)}>
+                            <td className="p-2">{row.trackingId}</td>
+                            <td className="p-2">{row.originZip}</td>
+                            <td className="p-2">{row.destinationZip}</td>
+                            <td className="p-2 text-right">{row.weight.toFixed(2)}</td>
+                            <td className="p-2 text-right">-</td>
+                            <td className="p-2 text-right">-</td>
+                            <td className="p-2 text-right">-</td>
+                            <td className="p-2">{row.service}</td>
+                            <td className={cn("p-2 text-right font-medium", 
+                              isWin ? "text-red-600" : isLoss ? "text-red-600" : ""
+                            )}>
+                              ${row.currentRate.toFixed(2)}
+                            </td>
+                            <td className={cn("p-2 text-right font-medium", 
+                              isWin ? "text-green-600" : isLoss ? "text-green-600" : ""
+                            )}>
+                              ${row.newRate.toFixed(2)}
+                            </td>
+                            <td className="p-2">UPS® Ground</td>
+                          </tr>
                         );
-                      }
-                    },
-                    { 
-                      accessorKey: 'savingsPercent', 
-                      header: 'Savings %',
-                      cell: (info: any) => {
-                        const value = info.getValue();
-                        const isWin = value > 0;
-                        return (
-                          <span className={cn(
-                            "font-medium",
-                            isWin ? "text-green-600" : value < 0 ? "text-red-600" : "text-muted-foreground"
-                          )}>
-                            {value > 0 ? '+' : ''}{value.toFixed(1)}%
-                          </span>
-                        );
-                      }
-                    }
-                  ]}
-                  title="Shipment Analysis"
-                  searchable={false}
-                />
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                
+                {filteredData.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No shipments match the current filters.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

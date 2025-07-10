@@ -69,7 +69,7 @@ const Upload = () => {
           csvUploadId: csvUpload.id,
           fileName: file.name,
           headers: parseResult.headers,
-          data: parseResult.data.slice(0, 10), // Pass first 10 rows for preview
+          data: parseResult.data, // Pass all data for analysis
           rowCount: parseResult.rowCount,
           fileUploaded: true,
         } 
@@ -133,7 +133,7 @@ const Upload = () => {
           csvUploadId: csvUpload.id,
           fileName: `test-data-${scenario}.csv`,
           headers: parseResult.headers,
-          data: parseResult.data.slice(0, 10),
+          data: parseResult.data,
           rowCount: parseResult.rowCount,
           fileUploaded: true,
           isTestData: true

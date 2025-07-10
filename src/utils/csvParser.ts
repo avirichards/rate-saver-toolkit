@@ -18,28 +18,28 @@ export interface ServiceMapping {
   confidence: number;
 }
 
-// Common field patterns for fuzzy matching
+// Common field patterns for fuzzy matching - enhanced with more variations
 const FIELD_PATTERNS: Record<string, string[]> = {
-  trackingId: ['tracking', 'track', 'number', 'id', 'shipment_id', 'tracking_number', 'track_num', 'trackingid'],
-  weight: ['weight', 'wt', 'lbs', 'pounds', 'kg', 'kilos', 'weight_lbs', 'package_weight', 'pkg_weight', 'wght', 'oz', 'ounces', 'weight_oz'],
-  service: ['service', 'shipping_service', 'carrier_service', 'service_type', 'ship_service', 'carrier', 'method'],
-  cost: ['cost', 'price', 'amount', 'charge', 'fee', 'total', 'shipping_cost', 'rate', 'freight', 'billing'],
-  originZip: ['origin', 'from', 'ship_from', 'origin_zip', 'from_zip', 'sender_zip', 'origin_postal', 'shipper_zip', 'pickup_zip'],
-  destZip: ['destination', 'dest', 'to', 'ship_to', 'dest_zip', 'to_zip', 'recipient_zip', 'delivery_zip', 'consignee_zip'],
-  length: ['length', 'len', 'l', 'package_length', 'box_length', 'pkg_length', 'dim_length', 'dimension_length'],
-  width: ['width', 'w', 'package_width', 'box_width', 'pkg_width', 'dim_width', 'dimension_width'],
-  height: ['height', 'h', 'package_height', 'box_height', 'pkg_height', 'dim_height', 'dimension_height'],
-  shipperName: ['shipper_name', 'sender_name', 'from_name', 'ship_from_name', 'origin_name', 'company_from'],
-  shipperAddress: ['shipper_address', 'sender_address', 'from_address', 'ship_from_address', 'origin_address'],
-  shipperCity: ['shipper_city', 'sender_city', 'from_city', 'ship_from_city', 'origin_city'],
-  shipperState: ['shipper_state', 'sender_state', 'from_state', 'ship_from_state', 'origin_state'],
-  recipientName: ['recipient_name', 'consignee_name', 'to_name', 'ship_to_name', 'dest_name', 'company_to'],
-  recipientAddress: ['recipient_address', 'consignee_address', 'to_address', 'ship_to_address', 'dest_address'],
-  recipientCity: ['recipient_city', 'consignee_city', 'to_city', 'ship_to_city', 'dest_city'],
-  recipientState: ['recipient_state', 'consignee_state', 'to_state', 'ship_to_state', 'dest_state'],
-  zone: ['zone', 'shipping_zone', 'rate_zone', 'delivery_zone'],
-  shipDate: ['ship_date', 'shipping_date', 'date_shipped', 'send_date'],
-  deliveryDate: ['delivery_date', 'delivered_date', 'date_delivered', 'arrival_date']
+  trackingId: ['tracking', 'track', 'number', 'id', 'shipment_id', 'tracking_number', 'track_num', 'trackingid', 'shipment', 'ref', 'reference', 'trackno', 'pkg', 'package'],
+  weight: ['weight', 'wt', 'lbs', 'pounds', 'kg', 'kilos', 'weight_lbs', 'package_weight', 'pkg_weight', 'wght', 'oz', 'ounces', 'weight_oz', 'mass', 'lb', 'kgs'],
+  service: ['service', 'shipping_service', 'carrier_service', 'service_type', 'ship_service', 'carrier', 'method', 'type', 'shipment_type', 'ship_method', 'delivery'],
+  cost: ['cost', 'price', 'amount', 'charge', 'fee', 'total', 'shipping_cost', 'rate', 'freight', 'billing', 'charges', 'expense', 'money', 'bill'],
+  originZip: ['origin', 'from', 'ship_from', 'origin_zip', 'from_zip', 'sender_zip', 'origin_postal', 'shipper_zip', 'pickup_zip', 'start', 'source', 'begin'],
+  destZip: ['destination', 'dest', 'to', 'ship_to', 'dest_zip', 'to_zip', 'recipient_zip', 'delivery_zip', 'consignee_zip', 'end', 'target', 'deliver'],
+  length: ['length', 'len', 'l', 'package_length', 'box_length', 'pkg_length', 'dim_length', 'dimension_length', 'long', 'x'],
+  width: ['width', 'w', 'package_width', 'box_width', 'pkg_width', 'dim_width', 'dimension_width', 'wide', 'y'],
+  height: ['height', 'h', 'package_height', 'box_height', 'pkg_height', 'dim_height', 'dimension_height', 'tall', 'z'],
+  shipperName: ['shipper_name', 'sender_name', 'from_name', 'ship_from_name', 'origin_name', 'company_from', 'shipper', 'sender', 'from_company'],
+  shipperAddress: ['shipper_address', 'sender_address', 'from_address', 'ship_from_address', 'origin_address', 'shipper_addr', 'sender_addr'],
+  shipperCity: ['shipper_city', 'sender_city', 'from_city', 'ship_from_city', 'origin_city', 'from_town'],
+  shipperState: ['shipper_state', 'sender_state', 'from_state', 'ship_from_state', 'origin_state', 'from_st'],
+  recipientName: ['recipient_name', 'consignee_name', 'to_name', 'ship_to_name', 'dest_name', 'company_to', 'recipient', 'consignee', 'to_company'],
+  recipientAddress: ['recipient_address', 'consignee_address', 'to_address', 'ship_to_address', 'dest_address', 'recipient_addr', 'consignee_addr'],
+  recipientCity: ['recipient_city', 'consignee_city', 'to_city', 'ship_to_city', 'dest_city', 'to_town'],
+  recipientState: ['recipient_state', 'consignee_state', 'to_state', 'ship_to_state', 'dest_state', 'to_st'],
+  zone: ['zone', 'shipping_zone', 'rate_zone', 'delivery_zone', 'postal_zone'],
+  shipDate: ['ship_date', 'shipping_date', 'date_shipped', 'send_date', 'pickup_date', 'date'],
+  deliveryDate: ['delivery_date', 'delivered_date', 'date_delivered', 'arrival_date', 'due_date']
 };
 
 export function parseCSV(csvContent: string): CSVParseResult {
@@ -140,7 +140,7 @@ function findBestMatch(csvHeaders: string[], patterns: string[]): { header: stri
                           Math.max(patternLower.length, headerLower.length);
         
         console.log(`    PARTIAL MATCH with pattern "${pattern}", confidence: ${confidence}`);
-        if (confidence > 0.6 && (!bestMatch || bestMatch.confidence < confidence)) {
+        if (confidence > 0.4 && (!bestMatch || bestMatch.confidence < confidence)) {
           bestMatch = { header, confidence };
         }
       }

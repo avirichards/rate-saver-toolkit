@@ -29,19 +29,24 @@ export function validateZipCode(zipCode: string): AddressValidationResult {
   };
 }
 
-// Validate weight values
-export function validateWeight(weight: string | number): AddressValidationResult {
+// Validate weight values - now handles oz to lbs conversion
+export function validateWeight(weight: string | number, unit?: string): AddressValidationResult {
   if (!weight) {
     return { isValid: false, errors: ['Weight is required'] };
   }
 
-  const numWeight = typeof weight === 'string' ? parseFloat(weight) : weight;
+  let numWeight = typeof weight === 'string' ? parseFloat(weight) : weight;
   
   if (isNaN(numWeight) || numWeight <= 0) {
     return { 
       isValid: false, 
       errors: ['Weight must be a positive number'] 
     };
+  }
+
+  // Convert ounces to pounds if needed
+  if (unit && unit.toLowerCase().includes('oz')) {
+    numWeight = numWeight / 16;
   }
 
   if (numWeight > 150) {
@@ -58,10 +63,20 @@ export function validateWeight(weight: string | number): AddressValidationResult
   };
 }
 
-// Validate dimensions
-export function validateDimension(dimension: string | number, fieldName: string): AddressValidationResult {
-  if (!dimension) {
-    return { isValid: false, errors: [`${fieldName} is required`] };
+// Validate dimensions - now optional with defaults
+export function validateDimension(dimension: string | number, fieldName: string, isRequired: boolean = false): AddressValidationResult {
+  if (!dimension || dimension === '') {
+    if (isRequired) {
+      return { isValid: false, errors: [`${fieldName} is required`] };
+    }
+    // Provide sensible defaults for missing dimensions
+    const defaultDimensions = { 'Length': '12', 'Width': '12', 'Height': '6' };
+    const defaultValue = defaultDimensions[fieldName as keyof typeof defaultDimensions] || '6';
+    return { 
+      isValid: true, 
+      errors: [], 
+      cleanedValue: defaultValue 
+    };
   }
 
   const numDimension = typeof dimension === 'string' ? parseFloat(dimension) : dimension;
@@ -150,7 +165,16 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
   const errors: Record<string, string[]> = {};
   const warnings: Record<string, string[]> = {};
 
-  // Validate required fields
+  console.log('Validating shipment:', {
+    id: shipment.id,
+    originZip: shipment.originZip,
+    destZip: shipment.destZip,
+    weight: shipment.weight,
+    cost: shipment.cost,
+    dimensions: { length: shipment.length, width: shipment.width, height: shipment.height }
+  });
+
+  // Validate required fields - more flexible approach
   const originZipResult = validateZipCode(shipment.originZip);
   if (!originZipResult.isValid) {
     errors.originZip = originZipResult.errors;
@@ -161,28 +185,42 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
     errors.destZip = destZipResult.errors;
   }
 
-  const weightResult = validateWeight(shipment.weight);
+  // Enhanced weight validation with unit detection
+  let weightUnit = 'lbs';
+  if (shipment.weightUnit) {
+    weightUnit = shipment.weightUnit;
+  } else if (shipment.weight && typeof shipment.weight === 'string') {
+    // Try to detect unit from weight string
+    if (shipment.weight.toLowerCase().includes('oz')) weightUnit = 'oz';
+  }
+
+  const weightResult = validateWeight(shipment.weight, weightUnit);
   if (!weightResult.isValid) {
     errors.weight = weightResult.errors;
   }
 
-  const costResult = validateCost(shipment.cost);
-  if (!costResult.isValid) {
-    errors.cost = costResult.errors;
+  // Cost validation - more flexible
+  if (shipment.cost) {
+    const costResult = validateCost(shipment.cost);
+    if (!costResult.isValid) {
+      errors.cost = costResult.errors;
+    }
+  } else {
+    warnings.cost = ['Missing cost data - cannot calculate savings'];
   }
 
-  // Validate dimensions
-  const lengthResult = validateDimension(shipment.length, 'Length');
+  // Validate dimensions - now optional with smart defaults
+  const lengthResult = validateDimension(shipment.length, 'Length', false);
   if (!lengthResult.isValid) {
     errors.length = lengthResult.errors;
   }
 
-  const widthResult = validateDimension(shipment.width, 'Width');
+  const widthResult = validateDimension(shipment.width, 'Width', false);
   if (!widthResult.isValid) {
     errors.width = widthResult.errors;
   }
 
-  const heightResult = validateDimension(shipment.height, 'Height');
+  const heightResult = validateDimension(shipment.height, 'Height', false);
   if (!heightResult.isValid) {
     errors.height = heightResult.errors;
   }
@@ -207,8 +245,18 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
     warnings.addresses = ['City information missing - may affect rate accuracy'];
   }
 
+  // Log validation results
+  const isValid = Object.keys(errors).length === 0;
+  console.log(`Shipment ${shipment.id} validation result:`, {
+    isValid,
+    errorCount: Object.keys(errors).length,
+    warningCount: Object.keys(warnings).length,
+    errors: Object.keys(errors),
+    warnings: Object.keys(warnings)
+  });
+
   return {
-    isValid: Object.keys(errors).length === 0,
+    isValid,
     errors,
     warnings
   };

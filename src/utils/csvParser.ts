@@ -21,14 +21,14 @@ export interface ServiceMapping {
 // Common field patterns for fuzzy matching
 const FIELD_PATTERNS: Record<string, string[]> = {
   trackingId: ['tracking', 'track', 'number', 'id', 'shipment_id', 'tracking_number', 'track_num', 'trackingid'],
-  weight: ['weight', 'wt', 'lbs', 'pounds', 'kg', 'kilos', 'weight_lbs', 'package_weight', 'pkg_weight', 'wght'],
+  weight: ['weight', 'wt', 'lbs', 'pounds', 'kg', 'kilos', 'weight_lbs', 'package_weight', 'pkg_weight', 'wght', 'oz', 'ounces', 'weight_oz'],
   service: ['service', 'shipping_service', 'carrier_service', 'service_type', 'ship_service', 'carrier', 'method'],
   cost: ['cost', 'price', 'amount', 'charge', 'fee', 'total', 'shipping_cost', 'rate', 'freight', 'billing'],
   originZip: ['origin', 'from', 'ship_from', 'origin_zip', 'from_zip', 'sender_zip', 'origin_postal', 'shipper_zip', 'pickup_zip'],
   destZip: ['destination', 'dest', 'to', 'ship_to', 'dest_zip', 'to_zip', 'recipient_zip', 'delivery_zip', 'consignee_zip'],
-  length: ['length', 'len', 'l', 'package_length', 'box_length', 'pkg_length'],
-  width: ['width', 'w', 'package_width', 'box_width', 'pkg_width'],
-  height: ['height', 'h', 'package_height', 'box_height', 'pkg_height'],
+  length: ['length', 'len', 'l', 'package_length', 'box_length', 'pkg_length', 'dim_length', 'dimension_length'],
+  width: ['width', 'w', 'package_width', 'box_width', 'pkg_width', 'dim_width', 'dimension_width'],
+  height: ['height', 'h', 'package_height', 'box_height', 'pkg_height', 'dim_height', 'dimension_height'],
   shipperName: ['shipper_name', 'sender_name', 'from_name', 'ship_from_name', 'origin_name', 'company_from'],
   shipperAddress: ['shipper_address', 'sender_address', 'from_address', 'ship_from_address', 'origin_address'],
   shipperCity: ['shipper_city', 'sender_city', 'from_city', 'ship_from_city', 'origin_city'],

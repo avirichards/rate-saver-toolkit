@@ -70,14 +70,19 @@ export function useShipmentValidation() {
   }, [validationState.results]);
 
   const getInvalidShipments = useCallback((shipments: any[]) => {
-    return shipments.filter((_, index) => {
+    const invalidShipments: any[] = [];
+    shipments.forEach((shipment, index) => {
       const result = validationState.results[index];
-      return result && !result.isValid;
-    }).map((shipment, originalIndex) => ({
-      shipment,
-      errors: validationState.results[originalIndex]?.errors || {},
-      warnings: validationState.results[originalIndex]?.warnings || {}
-    }));
+      if (result && !result.isValid) {
+        invalidShipments.push({
+          shipment,
+          errors: result.errors || {},
+          warnings: result.warnings || {},
+          originalIndex: index
+        });
+      }
+    });
+    return invalidShipments;
   }, [validationState.results]);
 
   const clearValidation = useCallback(() => {

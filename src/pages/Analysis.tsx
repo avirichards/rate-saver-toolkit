@@ -9,12 +9,14 @@ import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, 
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
+import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 
 interface ProcessedShipment {
   id: number;
   trackingId?: string;
   service?: string;
   weight?: string;
+  weightUnit?: string;
   cost?: string;
   originZip?: string;
   destZip?: string;
@@ -54,7 +56,7 @@ const Analysis = () => {
   const [totalSavings, setTotalSavings] = useState(0);
   const [totalCurrentCost, setTotalCurrentCost] = useState(0);
   const [validationSummary, setValidationSummary] = useState<any>(null);
-  const { validateShipments, getValidShipments } = useShipmentValidation();
+  const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
     const state = location.state as { 
@@ -184,11 +186,24 @@ const Analysis = () => {
     ));
     
     try {
-      // Validate required fields with detailed error messages
+      // Enhanced validation with better error messages
       const missingFields = [];
       if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
       if (!shipment.destZip?.trim()) missingFields.push('Destination ZIP');
-      if (!shipment.weight || parseFloat(shipment.weight) <= 0) missingFields.push('Weight');
+      
+      let weight = 0;
+      if (!shipment.weight || shipment.weight === '') {
+        missingFields.push('Weight');
+      } else {
+        weight = parseFloat(shipment.weight);
+        // Handle oz to lbs conversion
+        if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
+          weight = weight / 16;
+        }
+        if (isNaN(weight) || weight <= 0) {
+          missingFields.push('Valid Weight');
+        }
+      }
       
       if (missingFields.length > 0) {
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
@@ -204,7 +219,6 @@ const Analysis = () => {
       }
       
       const currentCost = parseFloat(shipment.cost || '0');
-      const weight = parseFloat(shipment.weight);
       const length = parseFloat(shipment.length || '12');
       const width = parseFloat(shipment.width || '12'); 
       const height = parseFloat(shipment.height || '6');
@@ -262,7 +276,8 @@ const Analysis = () => {
       }
       
       if (!data.rates || !Array.isArray(data.rates) || data.rates.length === 0) {
-        throw new Error('No rates returned from UPS - this may indicate invalid addresses or service unavailability');
+        console.error('UPS API returned no rates. Full response:', data);
+        throw new Error('No rates returned from UPS. This may indicate:\n• Invalid ZIP codes\n• Package dimensions exceed limits\n• Service unavailable for this route\n• UPS API configuration issues');
       }
       
       // Find best rate (lowest cost)
@@ -457,6 +472,15 @@ const Analysis = () => {
           </Card>
         </div>
         
+        {/* Validation Summary */}
+        {validationState.summary.total > 0 && (
+          <ValidationSummary 
+            validationState={validationState} 
+            shipments={shipments} 
+            className="mb-6" 
+          />
+        )}
+
         {/* Progress Bar */}
         <Card className="mb-6">
           <CardContent className="p-6">

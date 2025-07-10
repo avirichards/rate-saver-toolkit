@@ -82,10 +82,35 @@ serve(async (req) => {
 
     const { access_token, is_sandbox } = tokenResponse.data;
 
-    // Build UPS Rating API request
+    // Build UPS Rating API request with proper endpoint
     const ratingEndpoint = is_sandbox
       ? 'https://wwwcie.ups.com/api/rating/v1/Rate'
       : 'https://onlinetools.ups.com/api/rating/v1/Rate';
+
+    console.log('UPS Rating API Configuration:', {
+      endpoint: ratingEndpoint,
+      is_sandbox,
+      has_access_token: !!access_token
+    });
+
+    // Validate shipment data before building request
+    if (!shipment?.shipFrom?.zipCode || !shipment?.shipTo?.zipCode) {
+      return new Response(JSON.stringify({ error: 'Missing required ZIP codes' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!shipment?.package?.weight || shipment.package.weight <= 0) {
+      return new Response(JSON.stringify({ error: 'Invalid package weight' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Clean and format addresses
+    const cleanZip = (zip: string) => zip.trim().substring(0, 5); // Use 5-digit ZIP for UPS
+    const formatAddress = (addr: string) => addr.trim().substring(0, 50); // UPS address line limit
 
     const ratingRequest = {
       RateRequest: {
@@ -97,34 +122,34 @@ serve(async (req) => {
         },
         Shipment: {
           Shipper: {
-            Name: shipment.shipFrom.name,
+            Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35), // UPS name limit
             ShipperNumber: "", // Will be filled from UPS config
             Address: {
-              AddressLine: [shipment.shipFrom.address],
-              City: shipment.shipFrom.city,
-              StateProvinceCode: shipment.shipFrom.state,
-              PostalCode: shipment.shipFrom.zipCode,
-              CountryCode: shipment.shipFrom.country
+              AddressLine: [formatAddress(shipment.shipFrom.address || '123 Main St')],
+              City: (shipment.shipFrom.city || 'Atlanta').substring(0, 30),
+              StateProvinceCode: (shipment.shipFrom.state || 'GA').substring(0, 5),
+              PostalCode: cleanZip(shipment.shipFrom.zipCode),
+              CountryCode: shipment.shipFrom.country || 'US'
             }
           },
           ShipTo: {
-            Name: shipment.shipTo.name,
+            Name: (shipment.shipTo.name || 'Recipient').substring(0, 35),
             Address: {
-              AddressLine: [shipment.shipTo.address],
-              City: shipment.shipTo.city,
-              StateProvinceCode: shipment.shipTo.state,
-              PostalCode: shipment.shipTo.zipCode,
-              CountryCode: shipment.shipTo.country
+              AddressLine: [formatAddress(shipment.shipTo.address || '456 Oak Ave')],
+              City: (shipment.shipTo.city || 'Chicago').substring(0, 30),
+              StateProvinceCode: (shipment.shipTo.state || 'IL').substring(0, 5),
+              PostalCode: cleanZip(shipment.shipTo.zipCode),
+              CountryCode: shipment.shipTo.country || 'US'
             }
           },
           ShipFrom: {
-            Name: shipment.shipFrom.name,
+            Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
             Address: {
-              AddressLine: [shipment.shipFrom.address],
-              City: shipment.shipFrom.city,
-              StateProvinceCode: shipment.shipFrom.state,
-              PostalCode: shipment.shipFrom.zipCode,
-              CountryCode: shipment.shipFrom.country
+              AddressLine: [formatAddress(shipment.shipFrom.address || '123 Main St')],
+              City: (shipment.shipFrom.city || 'Atlanta').substring(0, 30),
+              StateProvinceCode: (shipment.shipFrom.state || 'GA').substring(0, 5),
+              PostalCode: cleanZip(shipment.shipFrom.zipCode),
+              CountryCode: shipment.shipFrom.country || 'US'
             }
           },
           Service: {
@@ -134,14 +159,14 @@ serve(async (req) => {
             PackagingType: {
               Code: shipment.package.packageType || "02", // Customer Supplied Package
             },
-            Dimensions: shipment.package.length ? {
+            Dimensions: {
               UnitOfMeasurement: {
                 Code: shipment.package.dimensionUnit || "IN"
               },
-              Length: shipment.package.length.toString(),
-              Width: shipment.package.width?.toString() || "1",
-              Height: shipment.package.height?.toString() || "1"
-            } : undefined,
+              Length: (shipment.package.length || 12).toString(),
+              Width: (shipment.package.width || 12).toString(),
+              Height: (shipment.package.height || 6).toString()
+            },
             PackageWeight: {
               UnitOfMeasurement: {
                 Code: shipment.package.weightUnit || "LBS"
@@ -165,6 +190,8 @@ serve(async (req) => {
       ratingRequest.RateRequest.Shipment.Shipper.ShipperNumber = config.account_number;
     }
 
+    console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
+
     // Service codes to quote
     const serviceCodes = shipment.serviceTypes || ['01', '02', '03', '12', '13'];
     const rates = [];
@@ -174,22 +201,31 @@ serve(async (req) => {
       try {
         ratingRequest.RateRequest.Shipment.Service.Code = serviceCode;
 
+        console.log(`Requesting rate for service ${serviceCode}...`);
+
         const response = await fetch(ratingEndpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${access_token}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json',
             'transId': `shiprate-${Date.now()}`,
-            'transactionSrc': 'ShipRate Pro'
+            'transactionSrc': 'ShipRate Pro',
+            'version': 'v1'
           },
           body: JSON.stringify(ratingRequest)
         });
 
+        console.log(`UPS API Response Status for service ${serviceCode}:`, response.status);
+
         if (response.ok) {
           const rateData = await response.json();
+          console.log(`UPS Rate Response for service ${serviceCode}:`, JSON.stringify(rateData, null, 2));
           
           if (rateData.RateResponse?.RatedShipment) {
-            const ratedShipment = rateData.RateResponse.RatedShipment;
+            const ratedShipment = Array.isArray(rateData.RateResponse.RatedShipment) 
+              ? rateData.RateResponse.RatedShipment[0] 
+              : rateData.RateResponse.RatedShipment;
             
             // Get service name
             const { data: service } = await supabase
@@ -198,22 +234,36 @@ serve(async (req) => {
               .eq('service_code', serviceCode)
               .single();
 
-            rates.push({
-              serviceCode,
-              serviceName: service?.service_name || `UPS Service ${serviceCode}`,
-              description: service?.description || '',
-              totalCharges: parseFloat(ratedShipment.TotalCharges?.MonetaryValue || '0'),
-              currency: ratedShipment.TotalCharges?.CurrencyCode || 'USD',
-              baseCharges: parseFloat(ratedShipment.BaseServiceCharge?.MonetaryValue || '0'),
-              transitTime: ratedShipment.GuaranteedDelivery?.BusinessDaysInTransit || null,
-              deliveryDate: ratedShipment.GuaranteedDelivery?.DeliveryByTime || null
-            });
+            const totalCharges = parseFloat(ratedShipment.TotalCharges?.MonetaryValue || '0');
+            const baseCharges = parseFloat(ratedShipment.BaseServiceCharge?.MonetaryValue || '0');
+
+            if (totalCharges > 0) {
+              rates.push({
+                serviceCode,
+                serviceName: service?.service_name || `UPS Service ${serviceCode}`,
+                description: service?.description || '',
+                totalCharges,
+                currency: ratedShipment.TotalCharges?.CurrencyCode || 'USD',
+                baseCharges,
+                transitTime: ratedShipment.GuaranteedDelivery?.BusinessDaysInTransit || null,
+                deliveryDate: ratedShipment.GuaranteedDelivery?.DeliveryByTime || null
+              });
+            }
           }
+        } else {
+          const errorText = await response.text();
+          console.error(`UPS API Error for service ${serviceCode}:`, {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorText
+          });
         }
       } catch (error) {
         console.error(`Error getting rate for service ${serviceCode}:`, error);
       }
     }
+
+    console.log(`Successfully retrieved ${rates.length} rates`);
 
     // Save quote to database
     const { data: quote, error: quoteError } = await supabase

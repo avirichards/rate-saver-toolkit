@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, User, Shield, BellRing, Truck, Cog, Database, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Save, User, Shield, BellRing, Truck, Cog, Database, CheckCircle, AlertTriangle, Zap } from 'lucide-react';
+import { UpsTestButton } from '@/components/ui-lov/UpsTestButton';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
@@ -331,6 +332,7 @@ const SettingsPage = () => {
                     variant="outline" 
                     onClick={testUpsConnection}
                     disabled={isLoading}
+                    iconLeft={<Zap className="h-4 w-4" />}
                   >
                     Test Connection
                   </Button>
@@ -342,6 +344,11 @@ const SettingsPage = () => {
                   >
                     Save Configuration
                   </Button>
+                </div>
+                
+                {/* Enhanced UPS Testing */}
+                <div className="pt-6 border-t">
+                  <UpsTestButton />
                 </div>
               </CardContent>
             </Card>

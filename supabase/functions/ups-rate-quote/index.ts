@@ -112,76 +112,7 @@ serve(async (req) => {
     const cleanZip = (zip: string) => zip.trim().substring(0, 5); // Use 5-digit ZIP for UPS
     const formatAddress = (addr: string) => addr.trim().substring(0, 50); // UPS address line limit
 
-    const ratingRequest = {
-      RateRequest: {
-        Request: {
-          RequestOption: "Rate",
-          TransactionReference: {
-            CustomerContext: `ShipRate-${Date.now()}`
-          }
-        },
-        RateInformation: {
-          NegotiatedRates: "true"
-        },
-        Shipment: {
-          Shipper: {
-            Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35), // UPS name limit
-            ShipperNumber: "", // Will be filled from UPS config
-            Address: {
-              AddressLine: [formatAddress(shipment.shipFrom.address || '123 Main St')],
-              City: (shipment.shipFrom.city || 'Atlanta').substring(0, 30),
-              StateProvinceCode: (shipment.shipFrom.state || 'GA').substring(0, 5),
-              PostalCode: cleanZip(shipment.shipFrom.zipCode),
-              CountryCode: shipment.shipFrom.country || 'US'
-            }
-          },
-          ShipTo: {
-            Name: (shipment.shipTo.name || 'Recipient').substring(0, 35),
-            Address: {
-              AddressLine: [formatAddress(shipment.shipTo.address || '456 Oak Ave')],
-              City: (shipment.shipTo.city || 'Chicago').substring(0, 30),
-              StateProvinceCode: (shipment.shipTo.state || 'IL').substring(0, 5),
-              PostalCode: cleanZip(shipment.shipTo.zipCode),
-              CountryCode: shipment.shipTo.country || 'US'
-            }
-          },
-          ShipFrom: {
-            Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
-            Address: {
-              AddressLine: [formatAddress(shipment.shipFrom.address || '123 Main St')],
-              City: (shipment.shipFrom.city || 'Atlanta').substring(0, 30),
-              StateProvinceCode: (shipment.shipFrom.state || 'GA').substring(0, 5),
-              PostalCode: cleanZip(shipment.shipFrom.zipCode),
-              CountryCode: shipment.shipFrom.country || 'US'
-            }
-          },
-          Service: {
-            Code: "03", // Default to Ground, will iterate through services
-          },
-          Package: [{
-            PackagingType: {
-              Code: shipment.package.packageType || "02", // Customer Supplied Package
-            },
-            Dimensions: {
-              UnitOfMeasurement: {
-                Code: shipment.package.dimensionUnit || "IN"
-              },
-              Length: (shipment.package.length || 12).toString(),
-              Width: (shipment.package.width || 12).toString(),
-              Height: (shipment.package.height || 6).toString()
-            },
-            PackageWeight: {
-              UnitOfMeasurement: {
-                Code: shipment.package.weightUnit || "LBS"
-              },
-              Weight: shipment.package.weight.toString()
-            }
-          }]
-        }
-      }
-    };
-
-    // Get UPS account number
+    // Get UPS account number first since we need it for the request structure
     const { data: config } = await supabase
       .from('ups_configs')
       .select('account_number')
@@ -189,11 +120,91 @@ serve(async (req) => {
       .eq('is_active', true)
       .single();
 
-    if (config?.account_number) {
-      ratingRequest.RateRequest.Shipment.Shipper.ShipperNumber = config.account_number;
-    } else {
-      console.warn('No UPS account number configured - negotiated rates will not be available');
+    if (!config?.account_number) {
+      return new Response(JSON.stringify({ error: 'UPS account number is required for rate quotes' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
+
+    const ratingRequest = {
+      RateRequest: {
+        Request: {
+          TransactionReference: {
+            CustomerContext: `ShipRate-${Date.now()}`
+          }
+        },
+        Shipment: {
+          Shipper: {
+            Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
+            ShipperNumber: config.account_number,
+            Address: {
+              PostalCode: cleanZip(shipment.shipFrom.zipCode),
+              CountryCode: shipment.shipFrom.country || 'US'
+            }
+          },
+          ShipTo: {
+            Name: (shipment.shipTo.name || 'Recipient').substring(0, 35),
+            Address: {
+              StateProvinceCode: (shipment.shipTo.state || 'IL').substring(0, 5),
+              PostalCode: cleanZip(shipment.shipTo.zipCode),
+              CountryCode: shipment.shipTo.country || 'US',
+              ResidentialAddressIndicator: "Y"
+            }
+          },
+          PaymentDetails: {
+            ShipmentCharge: [{
+              Type: "01",
+              BillShipper: {
+                AttentionName: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
+                Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
+                AccountNumber: config.account_number,
+                Address: {
+                  AddressLine: formatAddress(shipment.shipFrom.address || '123 Main St'),
+                  City: (shipment.shipFrom.city || 'Atlanta').substring(0, 30),
+                  StateProvinceCode: (shipment.shipFrom.state || 'GA').substring(0, 5),
+                  PostalCode: cleanZip(shipment.shipFrom.zipCode),
+                  CountryCode: shipment.shipFrom.country || 'US'
+                }
+              }
+            }]
+          },
+          ShipmentRatingOptions: {
+            TPFCNegotiatedRatesIndicator: "Y",
+            NegotiatedRatesIndicator: "Y"
+          },
+          Service: {
+            Code: "03", // Default to Ground, will iterate through services
+            Description: "Ground"
+          },
+          Package: {
+            PackagingType: {
+              Code: shipment.package.packageType || "02",
+              Description: "Packaging"
+            },
+            Dimensions: {
+              UnitOfMeasurement: {
+                Code: shipment.package.dimensionUnit || "IN",
+                Description: "Inches"
+              },
+              Length: (shipment.package.length || 12).toString(),
+              Width: (shipment.package.width || 12).toString(),
+              Height: (shipment.package.height || 6).toString()
+            },
+            PackageWeight: {
+              UnitOfMeasurement: {
+                Code: shipment.package.weightUnit || "LBS",
+                Description: "Pounds"
+              },
+              Weight: shipment.package.weight.toString()
+            },
+            OversizeIndicator: "X",
+            MinimumBillableWeightIndicator: "X"
+          }
+        }
+      }
+    };
+
 
     console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
 

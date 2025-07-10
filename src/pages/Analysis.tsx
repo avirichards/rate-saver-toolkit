@@ -38,6 +38,7 @@ interface AnalysisResult {
   shipment: ProcessedShipment;
   status: 'pending' | 'processing' | 'completed' | 'error';
   currentCost?: number;
+  originalService?: string; // Original service from CSV
   upsRates?: any[];
   bestRate?: any;
   savings?: number;
@@ -315,10 +316,11 @@ const Analysis = () => {
       const savings = Math.max(0, currentCost - bestRate.totalCharges);
       
       console.log(`Shipment ${index + 1} analysis complete:`, {
+        originalService: shipment.service,
         currentCost,
         bestRate: bestRate.totalCharges,
         savings,
-        serviceName: bestRate.serviceName
+        recommendedUpsService: bestRate.serviceName
       });
       
       // Update totals
@@ -331,6 +333,7 @@ const Analysis = () => {
           ...result,
           status: 'completed',
           currentCost,
+          originalService: shipment.service, // Store original service from CSV
           upsRates: data.rates,
           bestRate,
           savings
@@ -360,6 +363,7 @@ const Analysis = () => {
       .filter(r => r.savings && r.savings > 0)
       .map(r => ({
         shipment: r.shipment,
+        originalService: r.originalService, // Include original service
         currentCost: r.currentCost,
         recommendedCost: r.bestRate?.totalCharges,
         savings: r.savings,
@@ -395,6 +399,7 @@ const Analysis = () => {
       .filter(r => r.savings && r.savings > 0)
       .map(r => ({
         shipment: r.shipment,
+        originalService: r.originalService, // Include original service
         currentCost: r.currentCost,
         recommendedCost: r.bestRate?.totalCharges,
         savings: r.savings,

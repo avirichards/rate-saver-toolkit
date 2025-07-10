@@ -102,7 +102,7 @@ const columns = [
   { accessorKey: 'originZip', header: 'Origin' },
   { accessorKey: 'destinationZip', header: 'Destination' },
   { accessorKey: 'weight', header: 'Weight (lbs)' },
-  { accessorKey: 'service', header: 'Service' },
+  { accessorKey: 'service', header: 'Original Service' },
   { 
     accessorKey: 'currentRate', 
     header: 'Current Rate',
@@ -150,7 +150,7 @@ const Results = () => {
       originZip: rec.shipment.originZip || '',
       destinationZip: rec.shipment.destZip || '',
       weight: parseFloat(rec.shipment.weight || '0'),
-      service: rec.recommendedService || 'UPS Ground',
+      service: rec.originalService || rec.shipment.service || 'Unknown', // Show ORIGINAL service from CSV
       currentRate: rec.currentCost || 0,
       newRate: rec.recommendedCost || 0,
       savings: rec.savings || 0,

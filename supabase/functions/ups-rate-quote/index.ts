@@ -284,8 +284,22 @@ serve(async (req) => {
           console.error(`UPS API Error for service ${serviceCode}:`, {
             status: response.status,
             statusText: response.statusText,
-            body: errorText
+            endpoint: ratingEndpoint,
+            body: errorText,
+            requestHeaders: {
+              hasAuth: !!access_token,
+              endpoint: ratingEndpoint,
+              serviceCode: serviceCode
+            }
           });
+          
+          // Try to parse UPS error response
+          try {
+            const errorData = JSON.parse(errorText);
+            console.error(`UPS Error Details for service ${serviceCode}:`, errorData);
+          } catch (e) {
+            console.error(`UPS Raw Error Response for service ${serviceCode}:`, errorText);
+          }
         }
       } catch (error) {
         console.error(`Error getting rate for service ${serviceCode}:`, error);

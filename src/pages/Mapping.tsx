@@ -100,16 +100,16 @@ const Mapping = () => {
 
       toast.success('Column mapping saved successfully!');
       
-      // Navigate to the analysis page with processed data
-      navigate('/analysis', { 
+      // Navigate to the service mapping review page
+      navigate('/service-mapping', { 
         state: { 
           csvUploadId,
           fileName,
           mappings,
-          serviceMappings,
+          csvData,
           rowCount,
-          processedShipments,
-          readyForAnalysis: true
+          serviceColumn: mappings.service, // Pass the mapped service column
+          readyForServiceMapping: true
         } 
       });
       

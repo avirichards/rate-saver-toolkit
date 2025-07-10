@@ -16,6 +16,7 @@ export interface ServiceMapping {
   standardized: string;
   carrier: string;
   confidence: number;
+  upsServiceCode?: string;
 }
 
 // Enhanced field patterns with priority-based matching

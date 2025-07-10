@@ -12,6 +12,7 @@ import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToUpsCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
+import type { ServiceMapping } from '@/utils/csvParser';
 
 interface ProcessedShipment {
   id: number;
@@ -60,34 +61,55 @@ const Analysis = () => {
   const [totalSavings, setTotalSavings] = useState(0);
   const [totalCurrentCost, setTotalCurrentCost] = useState(0);
   const [validationSummary, setValidationSummary] = useState<any>(null);
+  const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
     const state = location.state as { 
       readyForAnalysis?: boolean, 
-      processedShipments?: ProcessedShipment[],
+      csvData?: any[],
+      mappings?: Record<string, string>,
+      serviceMappings?: ServiceMapping[],
       fileName?: string,
       csvUploadId?: string
     } | null;
     
-    if (!state || !state.readyForAnalysis || !state.processedShipments) {
-      toast.error('Please map columns first');
-      navigate('/mapping');
+    if (!state || !state.readyForAnalysis || !state.csvData || !state.mappings) {
+      toast.error('Please complete the service mapping review first');
+      navigate('/service-mapping');
       return;
     }
     
-    console.log(`Analysis received ${state.processedShipments.length} shipments (sample):`, state.processedShipments.slice(0, 2));
-    setShipments(state.processedShipments);
+    // Process CSV data into shipments using the confirmed mappings
+    const processedShipments = state.csvData.map((row, index) => {
+      const shipment: ProcessedShipment = { id: index + 1 };
+      
+      Object.entries(state.mappings).forEach(([fieldName, csvHeader]) => {
+        if (csvHeader && csvHeader !== "__NONE__" && row[csvHeader] !== undefined) {
+          let value = row[csvHeader];
+          if (typeof value === 'string') {
+            value = value.trim();
+          }
+          (shipment as any)[fieldName] = value;
+        }
+      });
+      
+      return shipment;
+    });
+
+    console.log(`Analysis received ${processedShipments.length} shipments (sample):`, processedShipments.slice(0, 2));
+    setShipments(processedShipments);
+    setServiceMappings(state.serviceMappings || []);
     
     // Initialize analysis results
-    const initialResults = state.processedShipments.map(shipment => ({
+    const initialResults = processedShipments.map(shipment => ({
       shipment,
       status: 'pending' as const
     }));
     setAnalysisResults(initialResults);
     
     // Validate shipments first, then start analysis
-    validateAndStartAnalysis(state.processedShipments);
+    validateAndStartAnalysis(processedShipments);
   }, [location, navigate]);
   
   const validateAndStartAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
@@ -238,10 +260,26 @@ const Analysis = () => {
       const width = parseFloat(shipment.width || '12'); 
       const height = parseFloat(shipment.height || '6');
       
-      // Map the original service to UPS service codes
-      const serviceMapping = mapServiceToUpsCode(shipment.service || '');
-      const serviceCodesToRequest = getServiceCodesToRequest(shipment.service || '');
-      const equivalentServiceCode = serviceMapping.upsServiceCode;
+      // Use the confirmed service mapping from the service review step
+      const confirmedMapping = serviceMappings.find(m => m.original === shipment.service);
+      let serviceMapping, serviceCodesToRequest, equivalentServiceCode;
+      
+      if (confirmedMapping && confirmedMapping.upsServiceCode) {
+        // Use the user-confirmed mapping
+        equivalentServiceCode = confirmedMapping.upsServiceCode;
+        serviceCodesToRequest = [equivalentServiceCode, '01', '02', '03', '12', '13'].filter((code, index, arr) => arr.indexOf(code) === index);
+        serviceMapping = {
+          upsServiceCode: equivalentServiceCode,
+          upsServiceName: confirmedMapping.standardized,
+          standardizedService: confirmedMapping.standardized,
+          confidence: confirmedMapping.confidence
+        };
+      } else {
+        // Fallback to auto-mapping if no confirmed mapping found
+        serviceMapping = mapServiceToUpsCode(shipment.service || '');
+        serviceCodesToRequest = getServiceCodesToRequest(shipment.service || '');
+        equivalentServiceCode = serviceMapping.upsServiceCode;
+      }
       
       console.log(`Processing shipment ${index + 1}:`, {
         originZip: shipment.originZip,

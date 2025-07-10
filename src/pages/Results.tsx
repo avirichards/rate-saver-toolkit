@@ -7,7 +7,7 @@ import { DataTable } from '@/components/ui-lov/DataTable';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 
 // Sample data for the Shipment Analysis
@@ -22,31 +22,79 @@ const shipmentData = [
   { id: 8, trackingId: '7901234567894', originZip: '85001', destinationZip: '32801', weight: 3.5, service: 'FedEx Priority Overnight', currentRate: 78.25, newRate: 70.43, savings: 7.82, savingsPercent: 10.0 },
 ];
 
-// Chart data
-const serviceChartData = [
-  { name: 'UPS Ground', value: 2 },
-  { name: 'FedEx Express', value: 1 },
-  { name: 'UPS Next Day Air', value: 1 },
-  { name: 'FedEx Ground', value: 1 },
-  { name: 'UPS 3 Day Select', value: 1 },
-  { name: 'FedEx 2Day', value: 1 },
-  { name: 'FedEx Priority Overnight', value: 1 },
-];
+// Dynamic chart data generation functions
+const generateServiceChartData = (data: any[]) => {
+  const serviceCount = data.reduce((acc, item) => {
+    const service = item.service || 'Unknown';
+    acc[service] = (acc[service] || 0) + 1;
+    return acc;
+  }, {});
+  
+  return Object.entries(serviceCount).map(([name, value]) => ({ name, value }));
+};
 
-const weightRangeData = [
-  { name: '0-5 lbs', shipments: 2, avgSavings: 4.35 },
-  { name: '5-10 lbs', shipments: 3, avgSavings: 2.27 },
-  { name: '10-15 lbs', shipments: 2, avgSavings: 4.90 },
-  { name: '15+ lbs', shipments: 1, avgSavings: 4.65 },
-];
+const generateWeightRangeData = (data: any[]) => {
+  const ranges = {
+    '0-5 lbs': { shipments: 0, totalSavings: 0 },
+    '5-10 lbs': { shipments: 0, totalSavings: 0 },
+    '10-15 lbs': { shipments: 0, totalSavings: 0 },
+    '15+ lbs': { shipments: 0, totalSavings: 0 }
+  };
+  
+  data.forEach(item => {
+    const weight = parseFloat(item.weight) || 0;
+    const savings = item.savings || 0;
+    
+    if (weight <= 5) {
+      ranges['0-5 lbs'].shipments++;
+      ranges['0-5 lbs'].totalSavings += savings;
+    } else if (weight <= 10) {
+      ranges['5-10 lbs'].shipments++;
+      ranges['5-10 lbs'].totalSavings += savings;
+    } else if (weight <= 15) {
+      ranges['10-15 lbs'].shipments++;
+      ranges['10-15 lbs'].totalSavings += savings;
+    } else {
+      ranges['15+ lbs'].shipments++;
+      ranges['15+ lbs'].totalSavings += savings;
+    }
+  });
+  
+  return Object.entries(ranges).map(([name, data]) => ({
+    name,
+    shipments: data.shipments,
+    avgSavings: data.shipments > 0 ? data.totalSavings / data.shipments : 0
+  }));
+};
 
-const zoneChartData = [
-  { name: 'Zone 2', shipments: 1, avgSavings: 2.15 },
-  { name: 'Zone 3', shipments: 2, avgSavings: 3.33 },
-  { name: 'Zone 4', shipments: 2, avgSavings: 4.96 },
-  { name: 'Zone 5', shipments: 1, avgSavings: 5.26 },
-  { name: 'Zone 8', shipments: 2, avgSavings: 7.18 },
-];
+const generateZoneData = (data: any[]) => {
+  // Simple zone calculation based on ZIP code distance (simplified)
+  const zoneData = data.reduce((acc, item) => {
+    const originZip = parseInt(item.originZip) || 0;
+    const destZip = parseInt(item.destinationZip) || 0;
+    const zipDiff = Math.abs(originZip - destZip);
+    
+    let zone = 'Zone 2';
+    if (zipDiff > 50000) zone = 'Zone 8';
+    else if (zipDiff > 30000) zone = 'Zone 5';
+    else if (zipDiff > 15000) zone = 'Zone 4';
+    else if (zipDiff > 5000) zone = 'Zone 3';
+    
+    if (!acc[zone]) {
+      acc[zone] = { shipments: 0, totalSavings: 0 };
+    }
+    acc[zone].shipments++;
+    acc[zone].totalSavings += item.savings || 0;
+    
+    return acc;
+  }, {});
+  
+  return Object.entries(zoneData).map(([name, data]: [string, any]) => ({
+    name,
+    shipments: data.shipments,
+    avgSavings: data.shipments > 0 ? data.totalSavings / data.shipments : 0
+  }));
+};
 
 // Define the columns for the DataTable
 const columns = [
@@ -109,6 +157,14 @@ const Results = () => {
       savingsPercent: rec.currentCost > 0 ? ((rec.savings / rec.currentCost) * 100) : 0
     })) : shipmentData;
   
+  // Generate dynamic chart data from real analysis results
+  const serviceChartData = generateServiceChartData(displayData);
+  const weightRangeData = generateWeightRangeData(displayData);
+  const zoneChartData = generateZoneData(displayData);
+  
+  // Show message if no real data is available
+  const noRealData = !isRealData;
+  
   // Helper function to safely format numbers
   const safeToFixed = (value: any, decimals: number = 2): string => {
     if (typeof value === 'number') {
@@ -120,12 +176,27 @@ const Results = () => {
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-6">
+        {noRealData && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2 text-amber-800">
+              <AlertCircle className="h-5 w-5" />
+              <p className="font-medium">Sample Data Display</p>
+            </div>
+            <p className="text-sm text-amber-700 mt-1">
+              This page is showing sample data. Complete an analysis from the Upload page to see real results.
+            </p>
+          </div>
+        )}
+        
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-semibold">Analysis Results</h1>
               <p className="text-muted-foreground mt-2">
-                Review your potential savings and optimization opportunities
+                {isRealData 
+                  ? "Review your potential savings and optimization opportunities"
+                  : "Sample analysis results showing potential savings format"
+                }
               </p>
             </div>
             <Button 
@@ -235,7 +306,6 @@ const Results = () => {
           </TabsContent>
           
           <TabsContent value="by-service">
-            {/* Service-specific content */}
             <Card>
               <CardHeader>
                 <CardTitle>Savings by Service Type</CardTitle>
@@ -243,7 +313,7 @@ const Results = () => {
               <CardContent>
                 <div className="h-[400px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={shipmentData.reduce((acc, cur) => {
+                    <BarChart data={displayData.reduce((acc, cur) => {
                       const serviceEntry = acc.find(item => item.name === cur.service);
                       if (serviceEntry) {
                         serviceEntry.shipments += 1;
@@ -274,7 +344,6 @@ const Results = () => {
           </TabsContent>
           
           <TabsContent value="by-weight">
-            {/* Weight-specific content */}
             <Card>
               <CardHeader>
                 <CardTitle>Savings by Weight Range</CardTitle>
@@ -297,7 +366,6 @@ const Results = () => {
           </TabsContent>
           
           <TabsContent value="by-zone">
-            {/* Zone-specific content */}
             <Card>
               <CardHeader>
                 <CardTitle>Savings by Zone</CardTitle>

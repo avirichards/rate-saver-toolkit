@@ -1,6 +1,5 @@
-
-import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { SummaryStats } from '@/components/ui-lov/SummaryStats';
 import { DataTable } from '@/components/ui-lov/DataTable';
@@ -10,277 +9,352 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
-// Sample data for the Shipment Analysis
-const shipmentData = [
-  { id: 1, trackingId: '1Z999AA10123456784', originZip: '90210', destinationZip: '10001', weight: 5.25, service: 'UPS Ground', currentRate: 24.50, newRate: 22.35, savings: 2.15, savingsPercent: 8.8 },
-  { id: 2, trackingId: '7901234567891', originZip: '60606', destinationZip: '20001', weight: 10.0, service: 'FedEx Express', currentRate: 45.30, newRate: 40.77, savings: 4.53, savingsPercent: 10.0 },
-  { id: 3, trackingId: '1Z999AA10123456785', originZip: '33101', destinationZip: '98101', weight: 2.0, service: 'UPS Next Day Air', currentRate: 65.40, newRate: 58.86, savings: 6.54, savingsPercent: 10.0 },
-  { id: 4, trackingId: '7901234567892', originZip: '77002', destinationZip: '94105', weight: 15.5, service: 'FedEx Ground', currentRate: 38.75, newRate: 34.10, savings: 4.65, savingsPercent: 12.0 },
-  { id: 5, trackingId: '1Z999AA10123456786', originZip: '02108', destinationZip: '90001', weight: 8.75, service: 'UPS 3 Day Select', currentRate: 35.20, newRate: 33.44, savings: 1.76, savingsPercent: 5.0 },
-  { id: 6, trackingId: '7901234567893', originZip: '80202', destinationZip: '48226', weight: 12.25, service: 'FedEx 2Day', currentRate: 52.60, newRate: 47.34, savings: 5.26, savingsPercent: 10.0 },
-  { id: 7, trackingId: '1Z999AA10123456787', originZip: '20001', destinationZip: '60606', weight: 6.0, service: 'UPS Ground', currentRate: 28.90, newRate: 26.01, savings: 2.89, savingsPercent: 10.0 },
-  { id: 8, trackingId: '7901234567894', originZip: '85001', destinationZip: '32801', weight: 3.5, service: 'FedEx Priority Overnight', currentRate: 78.25, newRate: 70.43, savings: 7.82, savingsPercent: 10.0 },
-];
-
-// Dynamic chart data generation functions
-const generateServiceChartData = (data: any[]) => {
-  const serviceCount = data.reduce((acc, item) => {
-    const service = item.service || 'Unknown';
-    acc[service] = (acc[service] || 0) + 1;
-    return acc;
-  }, {});
-  
-  return Object.entries(serviceCount).map(([name, value]) => ({ name, value }));
-};
-
-const generateWeightRangeData = (data: any[]) => {
-  const ranges = {
-    '0-5 lbs': { shipments: 0, totalSavings: 0 },
-    '5-10 lbs': { shipments: 0, totalSavings: 0 },
-    '10-15 lbs': { shipments: 0, totalSavings: 0 },
-    '15+ lbs': { shipments: 0, totalSavings: 0 }
-  };
-  
-  data.forEach(item => {
-    const weight = parseFloat(item.weight) || 0;
-    const savings = item.savings || 0;
-    
-    if (weight <= 5) {
-      ranges['0-5 lbs'].shipments++;
-      ranges['0-5 lbs'].totalSavings += savings;
-    } else if (weight <= 10) {
-      ranges['5-10 lbs'].shipments++;
-      ranges['5-10 lbs'].totalSavings += savings;
-    } else if (weight <= 15) {
-      ranges['10-15 lbs'].shipments++;
-      ranges['10-15 lbs'].totalSavings += savings;
-    } else {
-      ranges['15+ lbs'].shipments++;
-      ranges['15+ lbs'].totalSavings += savings;
-    }
-  });
-  
-  return Object.entries(ranges).map(([name, data]) => ({
-    name,
-    shipments: data.shipments,
-    avgSavings: data.shipments > 0 ? data.totalSavings / data.shipments : 0
-  }));
-};
-
-const generateZoneData = (data: any[]) => {
-  // Simple zone calculation based on ZIP code distance (simplified)
-  const zoneData = data.reduce((acc, item) => {
-    const originZip = parseInt(item.originZip) || 0;
-    const destZip = parseInt(item.destinationZip) || 0;
-    const zipDiff = Math.abs(originZip - destZip);
-    
-    let zone = 'Zone 2';
-    if (zipDiff > 50000) zone = 'Zone 8';
-    else if (zipDiff > 30000) zone = 'Zone 5';
-    else if (zipDiff > 15000) zone = 'Zone 4';
-    else if (zipDiff > 5000) zone = 'Zone 3';
-    
-    if (!acc[zone]) {
-      acc[zone] = { shipments: 0, totalSavings: 0 };
-    }
-    acc[zone].shipments++;
-    acc[zone].totalSavings += item.savings || 0;
-    
-    return acc;
-  }, {});
-  
-  return Object.entries(zoneData).map(([name, data]: [string, any]) => ({
-    name,
-    shipments: data.shipments,
-    avgSavings: data.shipments > 0 ? data.totalSavings / data.shipments : 0
-  }));
-};
-
-// Define the columns for the DataTable
-const columns = [
-  { accessorKey: 'trackingId', header: 'Tracking ID' },
-  { accessorKey: 'originZip', header: 'Origin' },
-  { accessorKey: 'destinationZip', header: 'Destination' },
-  { accessorKey: 'weight', header: 'Weight (lbs)' },
-  { accessorKey: 'service', header: 'Original Service' },
-  { 
-    accessorKey: 'currentRate', 
-    header: 'Current Rate',
-    cell: ({ cell }) => `$${cell.getValue().toFixed(2)}` 
-  },
-  { 
-    accessorKey: 'newRate', 
-    header: 'New Rate',
-    cell: ({ cell }) => `$${cell.getValue().toFixed(2)}` 
-  },
-  { 
-    accessorKey: 'savings', 
-    header: 'Savings',
-    cell: ({ cell }) => {
-      const value = cell.getValue();
-      const isLoss = value < 0;
-      return (
-        <span className={isLoss ? "text-red-600 font-medium" : value > 0 ? "text-green-600 font-medium" : ""}>
-          {isLoss ? `-$${Math.abs(value).toFixed(2)}` : `$${value.toFixed(2)}`}
-        </span>
-      );
-    }
-  },
-  { 
-    accessorKey: 'savingsPercent', 
-    header: 'Savings %',
-    cell: ({ cell }) => {
-      const value = cell.getValue();
-      const isLoss = value < 0;
-      return (
-        <span className={isLoss ? "text-red-600 font-medium" : value > 0 ? "text-green-600 font-medium" : ""}>
-          {value.toFixed(1)}%
-        </span>
-      );
-    }
-  },
-  { 
-    accessorKey: 'recommendedService', 
-    header: 'UPS Equivalent Service',
-    cell: ({ getValue }) => (
-      <Badge variant="outline" className="whitespace-nowrap">
-        {getValue() as string}
-      </Badge>
-    )
-  },
-];
-
-// Colors for the pie chart
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FCCDE5'];
+interface AnalysisData {
+  totalCurrentCost: number;
+  totalPotentialSavings: number;
+  recommendations: any[];
+  savingsPercentage: number;
+  totalShipments: number;
+  analyzedShipments: number;
+}
 
 const Results = () => {
-  const [activeTab, setActiveTab] = useState('overview');
   const location = useLocation();
-  
-  // Get real analysis data from navigation state
-  const analysisData = location.state?.analysisData;
-  const isRealData = !!analysisData;
-  
-  // Use real data if available, otherwise fall back to sample data
-  const totalCurrentCost = isRealData ? analysisData.totalCurrentCost : shipmentData.reduce((sum, item) => sum + item.currentRate, 0);
-  const totalSavings = isRealData ? analysisData.totalPotentialSavings : shipmentData.reduce((sum, item) => sum + item.savings, 0);
-  const savingsPercentage = isRealData ? analysisData.savingsPercentage : (totalSavings / totalCurrentCost) * 100;
-  const totalShipments = isRealData ? analysisData.totalShipments : shipmentData.length;
-  
-  // Convert real recommendations to display format if available
-  const displayData = isRealData && analysisData.recommendations ? 
-    analysisData.recommendations.map((rec, index) => ({
+  const params = useParams();
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [shipmentData, setShipmentData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadAnalysisData = async () => {
+      try {
+        // Check if we have data from analysis navigation
+        const state = location.state as { analysisComplete?: boolean; analysisData?: AnalysisData } | null;
+        
+        if (state?.analysisComplete && state.analysisData) {
+          // Use data passed from analysis
+          console.log('Using analysis data from navigation:', state.analysisData);
+          setAnalysisData(state.analysisData);
+          
+          // Convert recommendations to shipment data format
+          const formattedData = state.analysisData.recommendations.map((rec: any, index: number) => ({
+            id: index + 1,
+            trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
+            originZip: rec.shipment.originZip,
+            destinationZip: rec.shipment.destZip,
+            weight: parseFloat(rec.shipment.weight || '0'),
+            service: rec.originalService || rec.shipment.service,
+            currentRate: rec.currentCost,
+            newRate: rec.recommendedCost,
+            savings: rec.savings,
+            savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
+          }));
+          
+          setShipmentData(formattedData);
+          setLoading(false);
+        } else if (params.id) {
+          // Load from database using the ID
+          await loadFromDatabase(params.id);
+        } else {
+          // Load most recent analysis
+          await loadMostRecentAnalysis();
+        }
+      } catch (error) {
+        console.error('Error loading analysis data:', error);
+        toast.error('Failed to load analysis results');
+        setLoading(false);
+      }
+    };
+
+    loadAnalysisData();
+  }, [location, params.id]);
+
+  const loadFromDatabase = async (analysisId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('Please log in to view results');
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('shipping_analyses')
+      .select('*')
+      .eq('id', analysisId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (error || !data) {
+      toast.error('Analysis not found');
+      setLoading(false);
+      return;
+    }
+
+    processAnalysisFromDatabase(data);
+  };
+
+  const loadMostRecentAnalysis = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('Please log in to view results');
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('shipping_analyses')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Database error:', error);
+      toast.error('Failed to load analysis results');
+      setLoading(false);
+      return;
+    }
+
+    if (!data) {
+      toast.error('No analysis results found. Please run an analysis first.');
+      setLoading(false);
+      return;
+    }
+
+    processAnalysisFromDatabase(data);
+  };
+
+  const processAnalysisFromDatabase = (data: any) => {
+    const savings = data.savings_analysis || {};
+    const recommendations = data.recommendations || [];
+    
+    const analysisInfo: AnalysisData = {
+      totalCurrentCost: savings.totalCurrentCost || 0,
+      totalPotentialSavings: data.total_savings || 0,
+      recommendations,
+      savingsPercentage: savings.savingsPercentage || 0,
+      totalShipments: data.total_shipments || 0,
+      analyzedShipments: recommendations.length
+    };
+
+    setAnalysisData(analysisInfo);
+
+    // Convert to display format
+    const formattedData = recommendations.map((rec: any, index: number) => ({
       id: index + 1,
-      trackingId: rec.shipment.trackingId || `TRACK${String(index + 1).padStart(3, '0')}`,
-      originZip: rec.shipment.originZip || '',
-      destinationZip: rec.shipment.destZip || '',
-      weight: parseFloat(rec.shipment.weight || '0'),
-      service: rec.originalService || rec.shipment.service || 'Unknown', // Show ORIGINAL service from CSV
+      trackingId: rec.shipment?.trackingId || `Shipment-${index + 1}`,
+      originZip: rec.shipment?.originZip || '',
+      destinationZip: rec.shipment?.destZip || '',
+      weight: parseFloat(rec.shipment?.weight || '0'),
+      service: rec.originalService || rec.shipment?.service || '',
       currentRate: rec.currentCost || 0,
       newRate: rec.recommendedCost || 0,
       savings: rec.savings || 0,
-      savingsPercent: rec.currentCost > 0 ? ((rec.savings / rec.currentCost) * 100) : 0,
-      recommendedService: rec.recommendedService || 'UPS Ground' // Add UPS equivalent service
-    })) : shipmentData.map(item => ({ ...item, recommendedService: 'UPS Ground' }));
-  
-  // Generate dynamic chart data from real analysis results
-  const serviceChartData = generateServiceChartData(displayData);
-  const weightRangeData = generateWeightRangeData(displayData);
-  const zoneChartData = generateZoneData(displayData);
-  
-  // Show message if no real data is available
-  const noRealData = !isRealData;
-  
-  // Helper function to safely format numbers
-  const safeToFixed = (value: any, decimals: number = 2): string => {
-    if (typeof value === 'number') {
-      return value.toFixed(decimals);
-    }
-    return String(value);
+      savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
+    }));
+
+    setShipmentData(formattedData);
+    setLoading(false);
   };
+
+  // Dynamic chart data generation functions
+  const generateServiceChartData = (data: any[]) => {
+    const serviceCount = data.reduce((acc, item) => {
+      const service = item.service || 'Unknown';
+      acc[service] = (acc[service] || 0) + 1;
+      return acc;
+    }, {});
+    
+    return Object.entries(serviceCount).map(([name, value]) => ({ name, value }));
+  };
+
+  const generateWeightRangeData = (data: any[]) => {
+    const ranges = {
+      '0-5 lbs': { shipments: 0, totalSavings: 0 },
+      '5-10 lbs': { shipments: 0, totalSavings: 0 },
+      '10-15 lbs': { shipments: 0, totalSavings: 0 },
+      '15+ lbs': { shipments: 0, totalSavings: 0 }
+    };
+    
+    data.forEach(item => {
+      const weight = parseFloat(item.weight) || 0;
+      const savings = item.savings || 0;
+      
+      if (weight <= 5) {
+        ranges['0-5 lbs'].shipments++;
+        ranges['0-5 lbs'].totalSavings += savings;
+      } else if (weight <= 10) {
+        ranges['5-10 lbs'].shipments++;
+        ranges['5-10 lbs'].totalSavings += savings;
+      } else if (weight <= 15) {
+        ranges['10-15 lbs'].shipments++;
+        ranges['10-15 lbs'].totalSavings += savings;
+      } else {
+        ranges['15+ lbs'].shipments++;
+        ranges['15+ lbs'].totalSavings += savings;
+      }
+    });
+    
+    return Object.entries(ranges).map(([name, data]) => ({
+      name,
+      shipments: data.shipments,
+      savings: data.totalSavings
+    }));
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-6xl mx-auto p-6">
+          <div className="text-center">
+            <p className="text-lg">Loading analysis results...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!analysisData || shipmentData.length === 0) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-6xl mx-auto p-6">
+          <div className="text-center">
+            <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">No Analysis Results Found</h2>
+            <p className="text-muted-foreground">Please run an analysis first to see results here.</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Calculate summary statistics from actual data
+  const totalShipments = analysisData.totalShipments;
+  const totalCurrentCost = analysisData.totalCurrentCost;
+  const totalSavings = analysisData.totalPotentialSavings;
+  const averageSavingsPercent = analysisData.savingsPercentage;
+
+  // Chart data
+  const serviceChartData = generateServiceChartData(shipmentData);
+  const weightRangeData = generateWeightRangeData(shipmentData);
   
+  // Colors for charts
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
+
   return (
     <DashboardLayout>
-      <div className="max-w-7xl mx-auto p-6">
-        {noRealData && (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <div className="flex items-center gap-2 text-amber-800">
-              <AlertCircle className="h-5 w-5" />
-              <p className="font-medium">Sample Data Display</p>
-            </div>
-            <p className="text-sm text-amber-700 mt-1">
-              This page is showing sample data. Complete an analysis from the Upload page to see real results.
-            </p>
-          </div>
-        )}
-        
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-semibold">Analysis Results</h1>
-              <p className="text-muted-foreground mt-2">
-                {isRealData 
-                  ? "Review your potential savings and optimization opportunities"
-                  : "Sample analysis results showing potential savings format"
-                }
-              </p>
-            </div>
-            <Button 
-              variant="outline" 
-              iconLeft={<Download className="w-4 h-4 mr-2" />}
-            >
-              Export Report
-            </Button>
-          </div>
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-semibold mb-2">Analysis Results</h1>
+          <p className="text-muted-foreground">
+            Comprehensive shipping analysis showing potential savings and optimization opportunities for {totalShipments} shipments.
+          </p>
+        </div>
+
+        {/* Summary Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Package className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{totalShipments}</p>
+                  <p className="text-sm text-muted-foreground">Total Shipments</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <DollarSign className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">${totalCurrentCost.toFixed(2)}</p>
+                  <p className="text-sm text-muted-foreground">Current Cost</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <ArrowDownRight className="h-6 w-6 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">${totalSavings.toFixed(2)}</p>
+                  <p className="text-sm text-muted-foreground">Potential Savings</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <TruckIcon className="h-6 w-6 text-orange-600" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{averageSavingsPercent.toFixed(1)}%</p>
+                  <p className="text-sm text-muted-foreground">Average Savings</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <SummaryStats
-            title={totalSavings >= 0 ? "Total Savings" : "Total Loss"}
-            value={totalSavings >= 0 ? `$${safeToFixed(totalSavings)}` : `-$${safeToFixed(Math.abs(totalSavings))}`}
-            icon={<DollarSign />}
-            color={totalSavings >= 0 ? "green" : "red"}
-          />
-          
-          <SummaryStats
-            title="Current Spend"
-            value={`$${safeToFixed(totalCurrentCost)}`}
-            icon={<DollarSign />}
-            color="blue"
-          />
-          
-          <SummaryStats
-            title={savingsPercentage >= 0 ? "Average Savings" : "Average Loss"}
-            value={`${safeToFixed(Math.abs(savingsPercentage), 1)}%`}
-            description="Of current shipping costs"
-            trend={savingsPercentage >= 0 ? "down" : "up"}
-            icon={<ArrowDownRight />}
-            color={savingsPercentage >= 0 ? "amber" : "red"}
-          />
-          
-          <SummaryStats
-            title="Total Shipments"
-            value={totalShipments.toString()}
-            description="Analyzed in this report"
-            icon={<Package />}
-            color="purple"
-          />
-        </div>
-        
-        <Tabs defaultValue="overview" className="mb-8" onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="by-service">By Service</TabsTrigger>
-            <TabsTrigger value="by-weight">By Weight</TabsTrigger>
-            <TabsTrigger value="by-zone">By Zone</TabsTrigger>
+        {/* Detailed Analysis Tabs */}
+        <Tabs defaultValue="detailed" className="w-full">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="detailed">Detailed Results</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="summary">Executive Summary</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="overview" className="space-y-6">
+          <TabsContent value="detailed" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Shipment Analysis Details</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Detailed breakdown of each shipment showing current vs. optimized rates
+                </p>
+              </CardHeader>
+              <CardContent>
+                <DataTable 
+                  data={shipmentData}
+                  columns={[
+                    { key: 'trackingId', label: 'Tracking ID' },
+                    { key: 'originZip', label: 'Origin' },
+                    { key: 'destinationZip', label: 'Destination' },
+                    { key: 'weight', label: 'Weight (lbs)' },
+                    { key: 'service', label: 'Original Service' },
+                    { key: 'currentRate', label: 'Current Rate', format: (value: number) => `$${value.toFixed(2)}` },
+                    { key: 'newRate', label: 'New Rate', format: (value: number) => `$${value.toFixed(2)}` },
+                    { key: 'savings', label: 'Savings', format: (value: number) => `$${value.toFixed(2)}` },
+                    { key: 'savingsPercent', label: 'Savings %', format: (value: number) => `${value.toFixed(1)}%` }
+                  ]}
+                  title="Shipment Analysis"
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="analytics" className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Service Distribution</CardTitle>
+                  <CardTitle>Service Type Distribution</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="h-[300px]">
@@ -300,7 +374,7 @@ const Results = () => {
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value) => [`${value} shipments`, 'Count']} />
+                        <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -318,12 +392,9 @@ const Results = () => {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis />
-                        <Tooltip formatter={(value, name) => [
-                          name === 'avgSavings' ? `$${safeToFixed(value)}` : `${value} shipments`,
-                          name === 'avgSavings' ? 'Avg. Savings' : 'Shipments'
-                        ]} />
-                        <Bar name="Shipments" dataKey="shipments" fill="#8884d8" />
-                        <Bar name="Avg. Savings" dataKey="avgSavings" fill="#82ca9d" />
+                        <Tooltip />
+                        <Bar dataKey="shipments" fill="#8884d8" name="Shipments" />
+                        <Bar dataKey="savings" fill="#82ca9d" name="Total Savings" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -332,98 +403,52 @@ const Results = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="by-service">
-            <Card>
-              <CardHeader>
-                <CardTitle>Savings by Service Type</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[400px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={displayData.reduce((acc, cur) => {
-                      const serviceEntry = acc.find(item => item.name === cur.service);
-                      if (serviceEntry) {
-                        serviceEntry.shipments += 1;
-                        serviceEntry.savings += cur.savings;
-                      } else {
-                        acc.push({
-                          name: cur.service,
-                          shipments: 1,
-                          savings: cur.savings,
-                          avgSavings: cur.savings
-                        });
-                      }
-                      return acc;
-                    }, [] as any[]).map(item => ({
-                      ...item,
-                      avgSavings: item.savings / item.shipments
-                    }))}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar name="Average Savings" dataKey="avgSavings" fill="#82ca9d" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="by-weight">
-            <Card>
-              <CardHeader>
-                <CardTitle>Savings by Weight Range</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[400px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={weightRangeData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar name="Shipments" dataKey="shipments" fill="#8884d8" />
-                      <Bar name="Avg. Savings" dataKey="avgSavings" fill="#82ca9d" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="by-zone">
-            <Card>
-              <CardHeader>
-                <CardTitle>Savings by Zone</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-[400px]">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={zoneChartData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip />
-                      <Bar name="Shipments" dataKey="shipments" fill="#8884d8" />
-                      <Bar name="Avg. Savings" dataKey="avgSavings" fill="#82ca9d" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="summary" className="mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Package className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{totalShipments}</p>
+                      <p className="text-sm text-muted-foreground">Total Shipments</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-green-100 rounded-lg">
+                      <DollarSign className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">${totalSavings.toFixed(2)}</p>
+                      <p className="text-sm text-muted-foreground">Potential Savings</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-2 bg-orange-100 rounded-lg">
+                      <TruckIcon className="h-6 w-6 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{averageSavingsPercent.toFixed(1)}%</p>
+                      <p className="text-sm text-muted-foreground">Average Savings</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
-        
-        <DataTable 
-          columns={columns} 
-          data={displayData} 
-          title={isRealData ? "Analysis Results" : "Sample Shipment Details"}
-          searchable={true}
-          pagination={true}
-          exportData={true}
-          className="mb-8"
-        />
       </div>
     </DashboardLayout>
   );

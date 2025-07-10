@@ -166,15 +166,16 @@ const Analysis = () => {
       
       // Process shipments one by one
       for (let i = 0; i < shipmentsToAnalyze.length; i++) {
-        // Check if paused
-        while (isPaused) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        // Check if paused before processing each shipment
+        if (isPaused) {
+          console.log('Analysis paused, stopping processing');
+          break;
         }
         
         setCurrentShipmentIndex(i);
         await processShipment(i, shipmentsToAnalyze[i]);
         
-        // Small delay to show progress
+        // Small delay to show progress and allow for pause to take effect
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       

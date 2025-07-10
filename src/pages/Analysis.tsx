@@ -5,7 +5,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, Shield, Clock } from 'lucide-react';
+import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, Shield, Clock, Pause, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
@@ -52,6 +52,7 @@ const Analysis = () => {
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [currentShipmentIndex, setCurrentShipmentIndex] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalSavings, setTotalSavings] = useState(0);
@@ -141,6 +142,11 @@ const Analysis = () => {
       
       // Process shipments one by one
       for (let i = 0; i < shipmentsToAnalyze.length; i++) {
+        // Check if paused
+        while (isPaused) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
         setCurrentShipmentIndex(i);
         await processShipment(i, shipmentsToAnalyze[i]);
         
@@ -515,6 +521,25 @@ const Analysis = () => {
               </div>
             </div>
             <Progress value={progress} className="h-2" />
+            
+            {/* Control Buttons */}
+            {isAnalyzing && !isComplete && (
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant={isPaused ? "primary" : "outline"}
+                  size="sm"
+                  onClick={() => setIsPaused(!isPaused)}
+                  iconLeft={isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                >
+                  {isPaused ? 'Resume Analysis' : 'Pause Analysis'}
+                </Button>
+                {isPaused && (
+                  <div className="text-sm text-muted-foreground self-center">
+                    Analysis paused. Click Resume to continue.
+                  </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
         

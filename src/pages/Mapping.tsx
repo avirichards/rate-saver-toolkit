@@ -161,7 +161,7 @@ const Mapping = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-80 overflow-y-auto">
               <table className="w-full text-xs border-collapse">
                  <thead>
                    <tr className="border-b bg-muted/50">
@@ -172,8 +172,8 @@ const Mapping = () => {
                      ))}
                    </tr>
                  </thead>
-                 <tbody>
-                   {csvData.slice(0, 3).map((row, rowIndex) => (
+                 <tbody className="max-h-64 overflow-y-auto">
+                   {csvData.slice(0, 20).map((row, rowIndex) => (
                      <tr key={rowIndex} className="border-b border-border/50">
                        {csvHeaders.map((header, colIndex) => (
                          <td key={colIndex} className="py-2 px-3 text-muted-foreground">

@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { SummaryStats } from '@/components/ui-lov/SummaryStats';
 import { DataTable } from '@/components/ui-lov/DataTable';
@@ -81,14 +82,32 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'
 
 const Results = () => {
   const [activeTab, setActiveTab] = useState('overview');
+  const location = useLocation();
   
-  // Calculate the total current cost and total savings
-  const totalCurrentCost = shipmentData.reduce((sum, item) => sum + item.currentRate, 0);
-  const totalSavings = shipmentData.reduce((sum, item) => sum + item.savings, 0);
-  const savingsPercentage = (totalSavings / totalCurrentCost) * 100;
+  // Get real analysis data from navigation state
+  const analysisData = location.state?.analysisData;
+  const isRealData = !!analysisData;
   
-  // Calculate the total number of shipments
-  const totalShipments = shipmentData.length;
+  // Use real data if available, otherwise fall back to sample data
+  const totalCurrentCost = isRealData ? analysisData.totalCurrentCost : shipmentData.reduce((sum, item) => sum + item.currentRate, 0);
+  const totalSavings = isRealData ? analysisData.totalPotentialSavings : shipmentData.reduce((sum, item) => sum + item.savings, 0);
+  const savingsPercentage = isRealData ? analysisData.savingsPercentage : (totalSavings / totalCurrentCost) * 100;
+  const totalShipments = isRealData ? analysisData.totalShipments : shipmentData.length;
+  
+  // Convert real recommendations to display format if available
+  const displayData = isRealData && analysisData.recommendations ? 
+    analysisData.recommendations.map((rec, index) => ({
+      id: index + 1,
+      trackingId: rec.shipment.trackingId || `TRACK${String(index + 1).padStart(3, '0')}`,
+      originZip: rec.shipment.originZip || '',
+      destinationZip: rec.shipment.destZip || '',
+      weight: parseFloat(rec.shipment.weight || '0'),
+      service: rec.recommendedService || 'UPS Ground',
+      currentRate: rec.currentCost || 0,
+      newRate: rec.recommendedCost || 0,
+      savings: rec.savings || 0,
+      savingsPercent: rec.currentCost > 0 ? ((rec.savings / rec.currentCost) * 100) : 0
+    })) : shipmentData;
   
   // Helper function to safely format numbers
   const safeToFixed = (value: any, decimals: number = 2): string => {
@@ -303,8 +322,8 @@ const Results = () => {
         
         <DataTable 
           columns={columns} 
-          data={shipmentData} 
-          title="Shipment Details"
+          data={displayData} 
+          title={isRealData ? "Analysis Results" : "Sample Shipment Details"}
           searchable={true}
           pagination={true}
           exportData={true}

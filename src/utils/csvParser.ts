@@ -168,21 +168,34 @@ export function detectServiceTypes(data: any[], serviceColumn: string): ServiceM
 function standardizeService(service: string): { service: string; carrier: string; confidence: number } {
   const serviceLower = service.toLowerCase().trim();
   
-  // UPS patterns
-  if (serviceLower.includes('ups') || serviceLower.includes('ground') || serviceLower.includes('gnd')) {
-    if (serviceLower.includes('next') || serviceLower.includes('nda')) {
+  // UPS patterns - check for UPS first, then ground patterns
+  if (serviceLower.includes('ups')) {
+    if (serviceLower.includes('next') || serviceLower.includes('nda') || serviceLower.includes('overnight')) {
       return { service: 'UPS_NEXT_DAY_AIR', carrier: 'UPS', confidence: 0.9 };
     }
-    if (serviceLower.includes('2nd') || serviceLower.includes('2da')) {
+    if (serviceLower.includes('2nd') || serviceLower.includes('2da') || serviceLower.includes('2day')) {
       return { service: 'UPS_2ND_DAY_AIR', carrier: 'UPS', confidence: 0.9 };
     }
-    return { service: 'UPS_GROUND', carrier: 'UPS', confidence: 0.8 };
+    if (serviceLower.includes('3rd') || serviceLower.includes('3day') || serviceLower.includes('select')) {
+      return { service: 'UPS_3_DAY_SELECT', carrier: 'UPS', confidence: 0.9 };
+    }
+    if (serviceLower.includes('ground') || serviceLower.includes('gnd')) {
+      return { service: 'UPS_GROUND', carrier: 'UPS', confidence: 0.9 };
+    }
+    // Default UPS service if no specific type found
+    return { service: 'UPS_GROUND', carrier: 'UPS', confidence: 0.7 };
   }
   
   // FedEx patterns
-  if (serviceLower.includes('fedex') || serviceLower.includes('express')) {
-    if (serviceLower.includes('overnight')) {
+  if (serviceLower.includes('fedex') || serviceLower.includes('federal express')) {
+    if (serviceLower.includes('overnight') || serviceLower.includes('next') || serviceLower.includes('priority')) {
       return { service: 'FEDEX_STANDARD_OVERNIGHT', carrier: 'FedEx', confidence: 0.9 };
+    }
+    if (serviceLower.includes('2day') || serviceLower.includes('2nd')) {
+      return { service: 'FEDEX_2DAY', carrier: 'FedEx', confidence: 0.9 };
+    }
+    if (serviceLower.includes('express') && !serviceLower.includes('ground')) {
+      return { service: 'FEDEX_EXPRESS_SAVER', carrier: 'FedEx', confidence: 0.8 };
     }
     if (serviceLower.includes('ground')) {
       return { service: 'FEDEX_GROUND', carrier: 'FedEx', confidence: 0.9 };
@@ -191,11 +204,34 @@ function standardizeService(service: string): { service: string; carrier: string
   }
   
   // USPS patterns
-  if (serviceLower.includes('usps') || serviceLower.includes('priority') || serviceLower.includes('postal')) {
+  if (serviceLower.includes('usps') || serviceLower.includes('postal') || serviceLower.includes('mail')) {
+    if (serviceLower.includes('priority') && serviceLower.includes('express')) {
+      return { service: 'USPS_PRIORITY_MAIL_EXPRESS', carrier: 'USPS', confidence: 0.9 };
+    }
     if (serviceLower.includes('priority')) {
       return { service: 'USPS_PRIORITY_MAIL', carrier: 'USPS', confidence: 0.9 };
     }
-    return { service: 'USPS_GROUND_ADVANTAGE', carrier: 'USPS', confidence: 0.7 };
+    if (serviceLower.includes('ground') || serviceLower.includes('advantage')) {
+      return { service: 'USPS_GROUND_ADVANTAGE', carrier: 'USPS', confidence: 0.8 };
+    }
+    return { service: 'USPS_PRIORITY_MAIL', carrier: 'USPS', confidence: 0.7 };
+  }
+  
+  // Generic patterns (when no carrier is specified)
+  if (serviceLower.includes('next') || serviceLower.includes('overnight') || serviceLower.includes('nda')) {
+    return { service: 'NEXT_DAY_AIR', carrier: 'UNKNOWN', confidence: 0.6 };
+  }
+  if (serviceLower.includes('2nd') || serviceLower.includes('2day') || serviceLower.includes('2da')) {
+    return { service: '2ND_DAY_AIR', carrier: 'UNKNOWN', confidence: 0.6 };
+  }
+  if (serviceLower.includes('3rd') || serviceLower.includes('3day') || serviceLower.includes('select')) {
+    return { service: '3_DAY_SELECT', carrier: 'UNKNOWN', confidence: 0.6 };
+  }
+  if (serviceLower.includes('ground') || serviceLower.includes('gnd')) {
+    return { service: 'GROUND', carrier: 'UNKNOWN', confidence: 0.6 };
+  }
+  if (serviceLower.includes('express')) {
+    return { service: 'EXPRESS', carrier: 'UNKNOWN', confidence: 0.5 };
   }
   
   // Default fallback

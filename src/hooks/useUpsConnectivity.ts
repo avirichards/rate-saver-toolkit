@@ -56,7 +56,6 @@ export function useUpsConnectivity() {
           name: 'Test Shipper',
           address: '123 Main St',
           city: 'Atlanta',
-          state: 'GA',
           zipCode: '30309',
           country: 'US'
         },
@@ -64,7 +63,6 @@ export function useUpsConnectivity() {
           name: 'Test Recipient',
           address: '456 Oak Ave',
           city: 'Chicago',
-          state: 'IL',
           zipCode: '60601',
           country: 'US'
         },

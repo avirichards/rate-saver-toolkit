@@ -286,7 +286,8 @@ serve(async (req) => {
     console.log('Service codes to request:', {
       serviceCodes,
       primaryServiceCode,
-      total: serviceCodes.length
+      total: serviceCodes.length,
+      receivedServiceTypes: shipment.serviceTypes
     });
 
     // Get rates for each service type

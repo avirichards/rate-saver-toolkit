@@ -242,6 +242,13 @@ const Analysis = () => {
       const originCityState = getCityStateFromZip(shipment.originZip);
       const destCityState = getCityStateFromZip(shipment.destZip);
       
+      console.log(`ZIP code mapping for shipment ${index + 1}:`, {
+        originZip: shipment.originZip,
+        originMapping: originCityState,
+        destZip: shipment.destZip,
+        destMapping: destCityState
+      });
+      
       const shipmentRequest = {
         shipFrom: {
           name: shipment.shipperName || 'Sample Shipper',

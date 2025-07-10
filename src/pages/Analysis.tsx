@@ -5,9 +5,10 @@ import { Button } from '@/components/ui-lov/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package } from 'lucide-react';
+import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, Shield, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 
 interface ProcessedShipment {
   id: number;
@@ -20,6 +21,14 @@ interface ProcessedShipment {
   length?: string;
   width?: string;
   height?: string;
+  shipperName?: string;
+  shipperAddress?: string;
+  shipperCity?: string;
+  shipperState?: string;
+  recipientName?: string;
+  recipientAddress?: string;
+  recipientCity?: string;
+  recipientState?: string;
 }
 
 interface AnalysisResult {
@@ -44,6 +53,8 @@ const Analysis = () => {
   const [error, setError] = useState<string | null>(null);
   const [totalSavings, setTotalSavings] = useState(0);
   const [totalCurrentCost, setTotalCurrentCost] = useState(0);
+  const [validationSummary, setValidationSummary] = useState<any>(null);
+  const { validateShipments, getValidShipments } = useShipmentValidation();
   
   useEffect(() => {
     const state = location.state as { 
@@ -59,7 +70,7 @@ const Analysis = () => {
       return;
     }
     
-    console.log('Analysis received shipments:', state.processedShipments.slice(0, 2));
+    console.log(`Analysis received ${state.processedShipments.length} shipments (sample):`, state.processedShipments.slice(0, 2));
     setShipments(state.processedShipments);
     
     // Initialize analysis results
@@ -69,10 +80,47 @@ const Analysis = () => {
     }));
     setAnalysisResults(initialResults);
     
-    // Auto-start analysis
-    startAnalysis(state.processedShipments);
+    // Validate shipments first, then start analysis
+    validateAndStartAnalysis(state.processedShipments);
   }, [location, navigate]);
   
+  const validateAndStartAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
+    setIsAnalyzing(true);
+    setError(null);
+    
+    try {
+      // Validate all shipments first
+      console.log('Validating shipments...');
+      const validationResults = await validateShipments(shipmentsToAnalyze);
+      const validShipments = getValidShipments(shipmentsToAnalyze);
+      
+      const summary = {
+        total: shipmentsToAnalyze.length,
+        valid: validShipments.length,
+        invalid: shipmentsToAnalyze.length - validShipments.length
+      };
+      
+      setValidationSummary(summary);
+      console.log('Validation complete:', summary);
+      
+      if (validShipments.length === 0) {
+        throw new Error('No valid shipments found. Please check your data and field mappings.');
+      }
+      
+      if (summary.invalid > 0) {
+        toast.warning(`${summary.invalid} shipments have validation errors and will be skipped.`);
+      }
+      
+      // Process only valid shipments
+      await startAnalysis(validShipments);
+      
+    } catch (error: any) {
+      console.error('Validation error:', error);
+      setError(error.message);
+      setIsAnalyzing(false);
+    }
+  };
+
   const startAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
     setIsAnalyzing(true);
     setCurrentShipmentIndex(0);
@@ -136,56 +184,104 @@ const Analysis = () => {
     ));
     
     try {
-      // Validate required fields
-      if (!shipment.originZip || !shipment.destZip || !shipment.weight) {
-        throw new Error('Missing required fields for UPS rate quote');
+      // Validate required fields with detailed error messages
+      const missingFields = [];
+      if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
+      if (!shipment.destZip?.trim()) missingFields.push('Destination ZIP');
+      if (!shipment.weight || parseFloat(shipment.weight) <= 0) missingFields.push('Weight');
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+      
+      // Validate ZIP codes format (basic US ZIP validation)
+      const zipRegex = /^\d{5}(-\d{4})?$/;
+      if (!zipRegex.test(shipment.originZip.trim())) {
+        throw new Error(`Invalid origin ZIP code format: ${shipment.originZip}`);
+      }
+      if (!zipRegex.test(shipment.destZip.trim())) {
+        throw new Error(`Invalid destination ZIP code format: ${shipment.destZip}`);
       }
       
       const currentCost = parseFloat(shipment.cost || '0');
+      const weight = parseFloat(shipment.weight);
+      const length = parseFloat(shipment.length || '12');
+      const width = parseFloat(shipment.width || '12'); 
+      const height = parseFloat(shipment.height || '6');
       
-      // Fetch UPS rates
+      console.log(`Processing shipment ${index + 1}:`, {
+        originZip: shipment.originZip,
+        destZip: shipment.destZip,
+        weight,
+        dimensions: { length, width, height },
+        currentCost
+      });
+      
+      // Use real address data from CSV or default to sample addresses
+      const shipmentRequest = {
+        shipFrom: {
+          name: shipment.shipperName || 'Sample Shipper',
+          address: shipment.shipperAddress || '123 Main St',
+          city: shipment.shipperCity || 'Atlanta',
+          state: shipment.shipperState || 'GA',
+          zipCode: shipment.originZip.trim(),
+          country: 'US'
+        },
+        shipTo: {
+          name: shipment.recipientName || 'Sample Recipient',
+          address: shipment.recipientAddress || '456 Oak Ave',
+          city: shipment.recipientCity || 'Chicago',
+          state: shipment.recipientState || 'IL',
+          zipCode: shipment.destZip.trim(),
+          country: 'US'
+        },
+        package: {
+          weight,
+          weightUnit: 'LBS',
+          length,
+          width,
+          height,
+          dimensionUnit: 'IN'
+        },
+        serviceTypes: ['01', '02', '03', '12', '13']
+      };
+      
+      // Fetch UPS rates with enhanced error handling
       const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
-        body: {
-          shipment: {
-            shipFrom: {
-              name: 'Sample Shipper',
-              address: '123 Main St',
-              city: 'Atlanta',
-              state: 'GA',
-              zipCode: shipment.originZip,
-              country: 'US'
-            },
-            shipTo: {
-              name: 'Sample Recipient',
-              address: '456 Oak Ave',
-              city: 'Chicago',
-              state: 'IL',
-              zipCode: shipment.destZip,
-              country: 'US'
-            },
-            package: {
-              weight: parseFloat(shipment.weight),
-              weightUnit: 'LBS',
-              length: parseFloat(shipment.length || '12'),
-              width: parseFloat(shipment.width || '12'),
-              height: parseFloat(shipment.height || '6'),
-              dimensionUnit: 'IN'
-            },
-            serviceTypes: ['01', '02', '03', '12', '13']
-          }
-        }
+        body: { shipment: shipmentRequest }
       });
 
-      if (error || !data?.rates) {
-        throw new Error('Failed to fetch UPS rates');
+      console.log(`UPS API response for shipment ${index + 1}:`, { data, error });
+
+      if (error) {
+        throw new Error(`UPS API Error: ${error.message || 'Unknown error'}`);
       }
       
-      // Find best rate
+      if (!data) {
+        throw new Error('No data returned from UPS API');
+      }
+      
+      if (!data.rates || !Array.isArray(data.rates) || data.rates.length === 0) {
+        throw new Error('No rates returned from UPS - this may indicate invalid addresses or service unavailability');
+      }
+      
+      // Find best rate (lowest cost)
       const bestRate = data.rates.reduce((best: any, current: any) => 
-        current.totalCharges < best.totalCharges ? current : best
+        (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
       );
       
+      if (!bestRate || bestRate.totalCharges === undefined) {
+        throw new Error('Invalid rate data returned from UPS');
+      }
+      
       const savings = Math.max(0, currentCost - bestRate.totalCharges);
+      
+      console.log(`Shipment ${index + 1} analysis complete:`, {
+        currentCost,
+        bestRate: bestRate.totalCharges,
+        savings,
+        serviceName: bestRate.serviceName
+      });
       
       // Update totals
       setTotalCurrentCost(prev => prev + currentCost);
@@ -204,7 +300,7 @@ const Analysis = () => {
       ));
       
     } catch (error: any) {
-      console.error(`Error processing shipment ${index}:`, error);
+      console.error(`Error processing shipment ${index + 1}:`, error);
       setAnalysisResults(prev => prev.map((result, i) => 
         i === index ? {
           ...result,
@@ -297,7 +393,7 @@ const Analysis = () => {
         </div>
         
         {/* Progress Overview */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -309,6 +405,20 @@ const Analysis = () => {
               </div>
             </CardContent>
           </Card>
+
+          {validationSummary && (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <Shield className="h-8 w-8 text-emerald-600" />
+                  <div>
+                    <p className="text-2xl font-bold">{validationSummary.valid}</p>
+                    <p className="text-sm text-muted-foreground">Valid Shipments</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           
           <Card>
             <CardContent className="p-4">

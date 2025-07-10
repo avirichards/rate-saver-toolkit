@@ -78,20 +78,25 @@ const Mapping = () => {
         throw mappingError;
       }
 
-      // Process CSV data using mappings to create structured shipment records
+      // Process ALL CSV data using mappings to create structured shipment records
       const processedShipments = csvData.map((row, index) => {
         const shipment: any = { id: index + 1 };
         
         Object.entries(mappings).forEach(([fieldName, csvHeader]) => {
           if (csvHeader && csvHeader !== "__NONE__" && row[csvHeader] !== undefined) {
-            shipment[fieldName] = row[csvHeader];
+            // Clean and validate the data as we process it
+            let value = row[csvHeader];
+            if (typeof value === 'string') {
+              value = value.trim();
+            }
+            shipment[fieldName] = value;
           }
         });
         
         return shipment;
       });
 
-      console.log('Processed shipments sample:', processedShipments.slice(0, 2));
+      console.log(`Processing ${processedShipments.length} total shipments (sample):`, processedShipments.slice(0, 2));
 
       toast.success('Column mapping saved successfully!');
       

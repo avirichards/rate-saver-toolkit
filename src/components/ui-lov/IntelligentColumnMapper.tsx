@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './Card';
-import { Button } from './Button';
-import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
+import { Button } from '@/components/ui-lov/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { CheckCircle, AlertTriangle, Zap, ArrowRight, RefreshCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { Zap, CheckCircle, AlertCircle, RotateCw, X } from 'lucide-react';
 import { generateColumnMappings, detectServiceTypes, type FieldMapping, type ServiceMapping } from '@/utils/csvParser';
 
 interface Field {
@@ -22,15 +22,23 @@ interface IntelligentColumnMapperProps {
 }
 
 const REQUIRED_FIELDS: Field[] = [
-  { id: 'trackingId', label: 'Tracking ID', description: 'Unique identifier for the shipment', required: true },
-  { id: 'service', label: 'Service Type', description: 'Shipping service used (Ground, Express, etc.)', required: true },
-  { id: 'weight', label: 'Weight (lbs)', description: 'Package weight in pounds', required: true },
-  { id: 'cost', label: 'Current Cost ($)', description: 'Amount charged for the shipment', required: true },
-  { id: 'originZip', label: 'Origin ZIP', description: 'Shipment origin postal code (required for UPS rates)', required: true },
-  { id: 'destZip', label: 'Destination ZIP', description: 'Shipment destination postal code (required for UPS rates)', required: true },
-  { id: 'length', label: 'Length (in)', description: 'Package length in inches (required for UPS rates)', required: true },
-  { id: 'width', label: 'Width (in)', description: 'Package width in inches (required for UPS rates)', required: true },
-  { id: 'height', label: 'Height (in)', description: 'Package height in inches (required for UPS rates)', required: true }
+  { id: 'trackingId', label: 'Tracking ID', description: 'Shipment tracking number', required: false },
+  { id: 'service', label: 'Service Type', description: 'Shipping service used', required: true },
+  { id: 'weight', label: 'Weight', description: 'Package weight (lbs)', required: true },
+  { id: 'cost', label: 'Current Cost', description: 'Current shipping cost ($)', required: true },
+  { id: 'originZip', label: 'Origin ZIP', description: 'Pickup ZIP code', required: true },
+  { id: 'destZip', label: 'Destination ZIP', description: 'Delivery ZIP code', required: true },
+  { id: 'length', label: 'Length', description: 'Package length (inches)', required: true },
+  { id: 'width', label: 'Width', description: 'Package width (inches)', required: true },
+  { id: 'height', label: 'Height', description: 'Package height (inches)', required: true },
+  { id: 'shipperName', label: 'Shipper Name', description: 'Sender company/person name', required: false },
+  { id: 'shipperAddress', label: 'Shipper Address', description: 'Sender street address', required: false },
+  { id: 'shipperCity', label: 'Shipper City', description: 'Sender city', required: false },
+  { id: 'shipperState', label: 'Shipper State', description: 'Sender state/province', required: false },
+  { id: 'recipientName', label: 'Recipient Name', description: 'Receiver company/person name', required: false },
+  { id: 'recipientAddress', label: 'Recipient Address', description: 'Receiver street address', required: false },
+  { id: 'recipientCity', label: 'Recipient City', description: 'Receiver city', required: false },
+  { id: 'recipientState', label: 'Recipient State', description: 'Receiver state/province', required: false }
 ];
 
 const OPTIONAL_FIELDS: Field[] = [
@@ -50,90 +58,80 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showOptionalFields, setShowOptionalFields] = useState(false);
 
-  // Generate intelligent mappings when headers change
   useEffect(() => {
+    console.log('IntelligentColumnMapper - Starting auto-detection with headers:', csvHeaders);
     if (csvHeaders.length > 0) {
-      setIsAnalyzing(true);
-      
-      // Small delay to show the analyzing state
-      setTimeout(() => {
-        const autoDetected = generateColumnMappings(csvHeaders);
-        setAutoMappings(autoDetected);
-        
-        // Apply auto-mappings
-        const initialMappings: Record<string, string> = {};
-        autoDetected.forEach(mapping => {
-          initialMappings[mapping.fieldName] = mapping.csvHeader;
-        });
-        setMappings(initialMappings);
-        
-        // Show success message
-        const autoMappedCount = autoDetected.length;
-        if (autoMappedCount > 0) {
-          toast.success(`Automatically mapped ${autoMappedCount} fields!`);
-        }
-        
-        setIsAnalyzing(false);
-      }, 1000);
+      performAutoDetection();
     }
   }, [csvHeaders]);
 
-  // Detect service types when service field is mapped
-  useEffect(() => {
-    const serviceColumn = mappings.service;
-    if (serviceColumn && csvData.length > 0) {
-      const detected = detectServiceTypes(csvData, serviceColumn);
-      setServiceMappings(detected);
-    }
-  }, [mappings.service, csvData]);
+  const performAutoDetection = () => {
+    setIsAnalyzing(true);
+    
+    setTimeout(() => {
+      console.log('Running auto-detection for CSV headers:', csvHeaders);
+      const autoDetected = generateColumnMappings(csvHeaders);
+      console.log('Auto-detection results:', autoDetected);
+      setAutoMappings(autoDetected);
+      
+      const newMappings: Record<string, string> = {};
+      autoDetected.forEach(mapping => {
+        newMappings[mapping.fieldName] = mapping.csvHeader;
+      });
+      setMappings(newMappings);
+      
+      setIsAnalyzing(false);
+      toast.success('Auto-detection complete!');
+    }, 1000);
+  };
 
-  // Validate mappings
-  useEffect(() => {
+  const handleMappingChange = (fieldId: string, csvHeader: string) => {
+    const newMappings = { ...mappings };
+    
+    if (csvHeader === "__NONE__") {
+      delete newMappings[fieldId];
+    } else {
+      newMappings[fieldId] = csvHeader;
+    }
+    
+    setMappings(newMappings);
+    
+    // Clear validation error for this field
+    if (validationErrors[fieldId]) {
+      const newErrors = { ...validationErrors };
+      delete newErrors[fieldId];
+      setValidationErrors(newErrors);
+    }
+  };
+
+  const validateMappings = (): boolean => {
     const errors: Record<string, string> = {};
     
+    // Check required fields
     REQUIRED_FIELDS.forEach(field => {
-      if (!mappings[field.id]) {
-        errors[field.id] = 'This field is required';
+      if (field.required && (!mappings[field.id] || mappings[field.id] === "__NONE__")) {
+        errors[field.id] = `${field.label} is required for UPS rate calculations`;
+      }
+    });
+    
+    // Check for duplicate mappings
+    const usedHeaders = new Set<string>();
+    Object.entries(mappings).forEach(([fieldId, header]) => {
+      if (header && header !== "__NONE__") {
+        if (usedHeaders.has(header)) {
+          errors[fieldId] = `This column is already mapped to another field`;
+        }
+        usedHeaders.add(header);
       }
     });
     
     setValidationErrors(errors);
-  }, [mappings]);
-
-  const handleMapping = (fieldId: string, csvHeader: string) => {
-    setMappings(prev => ({
-      ...prev,
-      [fieldId]: csvHeader === "__NONE__" ? "" : csvHeader
-    }));
+    return Object.keys(errors).length === 0;
   };
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.9) return 'bg-green-100 text-green-800';
-    if (confidence >= 0.7) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
-  };
-
-  const getConfidenceText = (confidence: number) => {
-    if (confidence >= 0.9) return 'High';
-    if (confidence >= 0.7) return 'Medium';
-    return 'Low';
-  };
-
-  const isRequiredFieldsMapped = () => {
-    return REQUIRED_FIELDS.every(field => mappings[field.id]);
-  };
-
-  const handleContinue = () => {
-    if (!isRequiredFieldsMapped()) {
-      toast.error('Please map all required fields before continuing');
-      return;
-    }
-    
-    onMappingComplete(mappings, serviceMappings);
-  };
-
-  const handleReanalyze = () => {
+  const handleReAnalyze = () => {
     setIsAnalyzing(true);
     setTimeout(() => {
       const autoDetected = generateColumnMappings(csvHeaders);
@@ -148,6 +146,18 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
       setIsAnalyzing(false);
       toast.success('Re-analysis complete!');
     }, 1000);
+  };
+
+  const getConfidenceColor = (confidence: number): string => {
+    if (confidence >= 0.8) return 'bg-green-100 text-green-800';
+    if (confidence >= 0.6) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+  };
+
+  const getConfidenceText = (confidence: number): string => {
+    if (confidence >= 0.8) return 'High';
+    if (confidence >= 0.6) return 'Medium';
+    return 'Low';
   };
 
   const renderFieldMapping = (field: Field) => {
@@ -180,23 +190,23 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
         </div>
         
         <div className="w-1/3">
-          <Select
-            value={selectedHeader || ""}
-            onValueChange={(value) => handleMapping(field.id, value)}
+          <Select 
+            value={selectedHeader || "__NONE__"} 
+            onValueChange={(value) => handleMappingChange(field.id, value)}
           >
-            <SelectTrigger className={error ? 'border-red-300' : ''}>
-              <SelectValue placeholder="Select column" />
+            <SelectTrigger className={`w-full ${error ? 'border-red-500' : ''}`}>
+              <SelectValue placeholder="Select column..." />
             </SelectTrigger>
             <SelectContent>
-              {!field.required && <SelectItem value="__NONE__">Skip Field</SelectItem>}
-              {csvHeaders.map(header => (
+              <SelectItem value="__NONE__" disabled={field.required}>
+                <div className="flex items-center gap-2">
+                  <X className="h-4 w-4 text-muted-foreground" />
+                  <span>{field.required ? 'Required field' : 'Skip this field'}</span>
+                </div>
+              </SelectItem>
+              {csvHeaders.map((header) => (
                 <SelectItem key={header} value={header}>
                   {header}
-                  {autoMapping?.csvHeader === header && (
-                    <Badge variant="secondary" className="ml-2 text-xs">
-                      Auto-detected
-                    </Badge>
-                  )}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -207,137 +217,138 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
     );
   };
 
+  const handleProceed = async () => {
+    if (!validateMappings()) {
+      toast.error('Please fix mapping errors before proceeding');
+      return;
+    }
+    
+    // Detect service mappings if service column is mapped
+    let detectedServiceMappings: ServiceMapping[] = [];
+    if (mappings.service && csvData.length > 0) {
+      try {
+        detectedServiceMappings = detectServiceTypes(csvData, mappings.service);
+        setServiceMappings(detectedServiceMappings);
+      } catch (error) {
+        console.error('Error detecting service types:', error);
+      }
+    }
+    
+    onMappingComplete(mappings, detectedServiceMappings);
+  };
+
+  const mappedCount = Object.keys(mappings).filter(key => mappings[key] && mappings[key] !== "__NONE__").length;
+  const requiredCount = REQUIRED_FIELDS.filter(f => f.required).length;
+  const requiredMappedCount = REQUIRED_FIELDS.filter(f => f.required && mappings[f.id] && mappings[f.id] !== "__NONE__").length;
+
   return (
     <div className={className}>
-      {/* Analysis Status */}
-      {isAnalyzing && (
-        <Card className="mb-6 border-primary/20 bg-primary/5">
-          <CardContent className="py-4">
-            <div className="flex items-center gap-3">
-              <div className="animate-spin">
-                <RefreshCw className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-medium text-primary">Analyzing CSV structure...</p>
-                <p className="text-sm text-primary/70">Detecting field patterns and generating suggestions</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Required Fields */}
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex justify-between items-start">
             <div>
               <CardTitle className="flex items-center gap-2">
-                Required Fields
-                {autoMappings.filter(m => REQUIRED_FIELDS.find(f => f.id === m.fieldName)).length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    <Zap className="h-3 w-3 mr-1" />
-                    Auto-detected
-                  </Badge>
-                )}
+                <Zap className="h-5 w-5 text-primary" />
+                Intelligent Field Mapping
+                {isAnalyzing && <RotateCw className="h-4 w-4 animate-spin text-primary" />}
               </CardTitle>
               <CardDescription>
-                These fields are necessary for the analysis to work properly.
+                We've analyzed your CSV and auto-detected field mappings. Review and adjust as needed.
               </CardDescription>
             </div>
             <Button
               variant="outline"
               size="sm"
-              onClick={handleReanalyze}
+              onClick={handleReAnalyze}
               disabled={isAnalyzing}
+              iconLeft={<RotateCw className="h-4 w-4" />}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isAnalyzing ? 'animate-spin' : ''}`} />
               Re-analyze
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-1">
-            {REQUIRED_FIELDS.map(renderFieldMapping)}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Optional Fields */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Optional Fields</CardTitle>
-          <CardDescription>
-            These fields can enhance your analysis but are not required.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-1">
-            {OPTIONAL_FIELDS.map(renderFieldMapping)}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Service Type Detection */}
-      {serviceMappings.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Detected Service Types</CardTitle>
-            <CardDescription>
-              Found {serviceMappings.length} unique service types in your data.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-2">
-              {serviceMappings.map((mapping, index) => (
-                <div key={index} className="flex items-center justify-between py-2 px-3 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium text-sm">{mapping.original}</span>
-                    <span className="text-gray-400">→</span>
-                    <span className="text-sm text-muted-foreground">{mapping.standardized}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {mapping.carrier}
-                    </Badge>
-                    <Badge 
-                      variant="secondary" 
-                      className={`text-xs ${getConfidenceColor(mapping.confidence)}`}
-                    >
-                      {getConfidenceText(mapping.confidence)}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+          {/* Mapping Statistics */}
+          <div className="grid grid-cols-3 gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
+            <div className="text-center">
+              <p className="text-2xl font-bold text-primary">{mappedCount}</p>
+              <p className="text-sm text-muted-foreground">Fields Mapped</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Continue Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          {!isRequiredFieldsMapped() ? (
-            <div className="flex items-center text-amber-500 text-sm">
-              <AlertTriangle className="h-4 w-4 mr-2" />
-              <span>Please map all required fields</span>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-green-600">{requiredMappedCount}/{requiredCount}</p>
+              <p className="text-sm text-muted-foreground">Required Fields</p>
             </div>
-          ) : (
-            <div className="flex items-center text-green-500 text-sm">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              <span>All required fields mapped</span>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-blue-600">{autoMappings.length}</p>
+              <p className="text-sm text-muted-foreground">Auto-Detected</p>
+            </div>
+          </div>
+          
+          {/* Required Fields */}
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4 text-orange-500" />
+              Required Fields for UPS Analysis
+            </h3>
+            <div className="space-y-1">
+              {REQUIRED_FIELDS.map(renderFieldMapping)}
+            </div>
+          </div>
+          
+          {/* Optional Fields Toggle */}
+          <div className="mb-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowOptionalFields(!showOptionalFields)}
+            >
+              {showOptionalFields ? 'Hide' : 'Show'} Optional Fields ({OPTIONAL_FIELDS.length})
+            </Button>
+          </div>
+          
+          {/* Optional Fields */}
+          {showOptionalFields && (
+            <div className="mb-6">
+              <h3 className="font-semibold mb-3 text-muted-foreground">Optional Fields</h3>
+              <div className="space-y-1">
+                {OPTIONAL_FIELDS.map(renderFieldMapping)}
+              </div>
             </div>
           )}
-        </div>
-        
-        <Button 
-          variant="primary" 
-          onClick={handleContinue}
-          disabled={!isRequiredFieldsMapped() || isAnalyzing}
-          iconRight={<ArrowRight className="ml-1 h-4 w-4" />}
-        >
-          Continue to Analysis
-        </Button>
-      </div>
+          
+          {/* Service Mapping Preview */}
+          {mappings.service && serviceMappings.length > 0 && (
+            <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <h3 className="font-semibold mb-2 text-blue-900">Service Type Detection</h3>
+              <p className="text-sm text-blue-700 mb-3">
+                Found {serviceMappings.length} unique service types in your data
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {serviceMappings.slice(0, 5).map((mapping, index) => (
+                  <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800">
+                    {mapping.original} → {mapping.standardized}
+                  </Badge>
+                ))}
+                {serviceMappings.length > 5 && (
+                  <Badge variant="outline">+{serviceMappings.length - 5} more</Badge>
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="primary"
+              onClick={handleProceed}
+              disabled={requiredMappedCount < requiredCount}
+              iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
+            >
+              Proceed to Analysis
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

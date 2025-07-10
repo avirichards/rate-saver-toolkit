@@ -146,7 +146,7 @@ serve(async (req) => {
           ShipTo: {
             Name: (shipment.shipTo.name || 'Recipient').substring(0, 35),
             Address: {
-              StateProvinceCode: (shipment.shipTo.state || 'IL').substring(0, 5),
+              StateProvinceCode: (shipment.shipTo.state || '').substring(0, 5),
               PostalCode: cleanZip(shipment.shipTo.zipCode),
               CountryCode: shipment.shipTo.country || 'US',
               ResidentialAddressIndicator: "Y"
@@ -161,8 +161,8 @@ serve(async (req) => {
                 AccountNumber: config.account_number,
                 Address: {
                   AddressLine: formatAddress(shipment.shipFrom.address || '123 Main St'),
-                  City: (shipment.shipFrom.city || 'Atlanta').substring(0, 30),
-                  StateProvinceCode: (shipment.shipFrom.state || 'GA').substring(0, 5),
+                  City: (shipment.shipFrom.city || '').substring(0, 30),
+                  StateProvinceCode: (shipment.shipFrom.state || '').substring(0, 5),
                   PostalCode: cleanZip(shipment.shipFrom.zipCode),
                   CountryCode: shipment.shipFrom.country || 'US'
                 }

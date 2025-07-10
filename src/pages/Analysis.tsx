@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
+import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 
 interface ProcessedShipment {
   id: number;
@@ -237,21 +238,24 @@ const Analysis = () => {
         currentCost
       });
       
-      // Use real address data from CSV or default to sample addresses
+      // Use real address data from CSV or map ZIP codes to correct cities for test data
+      const originCityState = getCityStateFromZip(shipment.originZip);
+      const destCityState = getCityStateFromZip(shipment.destZip);
+      
       const shipmentRequest = {
         shipFrom: {
           name: shipment.shipperName || 'Sample Shipper',
           address: shipment.shipperAddress || '123 Main St',
-          city: shipment.shipperCity || 'Atlanta',
-          state: shipment.shipperState || 'GA',
+          city: shipment.shipperCity || originCityState.city,
+          state: shipment.shipperState || originCityState.state,
           zipCode: shipment.originZip.trim(),
           country: 'US'
         },
         shipTo: {
           name: shipment.recipientName || 'Sample Recipient',
           address: shipment.recipientAddress || '456 Oak Ave',
-          city: shipment.recipientCity || 'Chicago',
-          state: shipment.recipientState || 'IL',
+          city: shipment.recipientCity || destCityState.city,
+          state: shipment.recipientState || destCityState.state,
           zipCode: shipment.destZip.trim(),
           country: 'US'
         },

@@ -315,6 +315,23 @@ const Analysis = () => {
       // Find equivalent service rate (for apples-to-apples comparison)
       const equivalentServiceRate = data.rates.find((rate: any) => rate.isEquivalentService);
       
+      console.log('Service rate analysis:', {
+        totalRates: data.rates.length,
+        ratesWithEquivalentFlag: data.rates.filter((r: any) => r.isEquivalentService).length,
+        equivalentServiceFound: !!equivalentServiceRate,
+        equivalentServiceDetails: equivalentServiceRate ? {
+          serviceName: equivalentServiceRate.serviceName,
+          serviceCode: equivalentServiceRate.serviceCode,
+          cost: equivalentServiceRate.totalCharges
+        } : null,
+        allRates: data.rates.map((r: any) => ({
+          code: r.serviceCode,
+          name: r.serviceName,
+          cost: r.totalCharges,
+          isEquivalent: r.isEquivalentService
+        }))
+      });
+      
       // Find best overall rate (lowest cost)
       const bestOverallRate = data.rates.reduce((best: any, current: any) => 
         (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best

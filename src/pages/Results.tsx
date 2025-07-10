@@ -117,12 +117,28 @@ const columns = [
   { 
     accessorKey: 'savings', 
     header: 'Savings',
-    cell: ({ cell }) => `$${cell.getValue().toFixed(2)}` 
+    cell: ({ cell }) => {
+      const value = cell.getValue();
+      const isLoss = value < 0;
+      return (
+        <span className={isLoss ? "text-red-600 font-medium" : value > 0 ? "text-green-600 font-medium" : ""}>
+          {isLoss ? `-$${Math.abs(value).toFixed(2)}` : `$${value.toFixed(2)}`}
+        </span>
+      );
+    }
   },
   { 
     accessorKey: 'savingsPercent', 
     header: 'Savings %',
-    cell: ({ cell }) => `${cell.getValue()}%` 
+    cell: ({ cell }) => {
+      const value = cell.getValue();
+      const isLoss = value < 0;
+      return (
+        <span className={isLoss ? "text-red-600 font-medium" : value > 0 ? "text-green-600 font-medium" : ""}>
+          {value.toFixed(1)}%
+        </span>
+      );
+    }
   },
   { 
     accessorKey: 'recommendedService', 
@@ -221,10 +237,10 @@ const Results = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <SummaryStats
-            title="Total Savings"
-            value={`$${safeToFixed(totalSavings)}`}
+            title={totalSavings >= 0 ? "Total Savings" : "Total Loss"}
+            value={totalSavings >= 0 ? `$${safeToFixed(totalSavings)}` : `-$${safeToFixed(Math.abs(totalSavings))}`}
             icon={<DollarSign />}
-            color="green"
+            color={totalSavings >= 0 ? "green" : "red"}
           />
           
           <SummaryStats
@@ -235,12 +251,12 @@ const Results = () => {
           />
           
           <SummaryStats
-            title="Average Savings"
-            value={`${safeToFixed(savingsPercentage, 1)}%`}
+            title={savingsPercentage >= 0 ? "Average Savings" : "Average Loss"}
+            value={`${safeToFixed(Math.abs(savingsPercentage), 1)}%`}
             description="Of current shipping costs"
-            trend="down"
+            trend={savingsPercentage >= 0 ? "down" : "up"}
             icon={<ArrowDownRight />}
-            color="amber"
+            color={savingsPercentage >= 0 ? "amber" : "red"}
           />
           
           <SummaryStats

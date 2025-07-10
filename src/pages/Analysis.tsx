@@ -334,7 +334,7 @@ const Analysis = () => {
         throw new Error('Invalid rate data returned from UPS');
       }
       
-      const savings = Math.max(0, currentCost - comparisonRate.totalCharges);
+      const savings = currentCost - comparisonRate.totalCharges;
       
       console.log(`Shipment ${index + 1} analysis complete:`, {
         originalService: shipment.service,
@@ -655,8 +655,12 @@ const Analysis = () => {
                              <Badge variant="secondary" className="bg-green-100 text-green-800">
                                Save ${result.savings.toFixed(2)}
                              </Badge>
+                           ) : result.savings && result.savings < 0 ? (
+                             <Badge variant="secondary" className="bg-red-100 text-red-800">
+                               Loss ${Math.abs(result.savings).toFixed(2)}
+                             </Badge>
                            ) : (
-                             <Badge variant="outline">No savings</Badge>
+                             <Badge variant="outline">No change</Badge>
                            )}
                          </div>
                        </div>

@@ -1,18 +1,34 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { FileUpload } from '@/components/ui-lov/FileUpload';
+import { Button } from '@/components/ui-lov/Button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { parseCSV } from '@/utils/csvParser';
 import { useAuth } from '@/hooks/useAuth';
+import { generateTestData, generateCSVContent, downloadCSV, TEST_SCENARIOS, saveTestSession } from '@/utils/testDataGenerator';
+import { useTestMode } from '@/hooks/useTestMode';
 
 const Upload = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isTestMode } = useTestMode();
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Auto-trigger test data if URL parameters are present
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const testParam = urlParams.get('test');
+    const scenario = urlParams.get('scenario') as keyof typeof TEST_SCENARIOS || 'mixed_weights';
+    
+    if (testParam === 'true' && user && !isProcessing) {
+      toast.info('Auto-loading test data for development...');
+      setTimeout(() => handleUseTestData(scenario), 500);
+    }
+  }, [user]);
   
   const handleFileUpload = async (file: File) => {
     if (!user) {
@@ -70,6 +86,73 @@ const Upload = () => {
   const handleError = (error) => {
     console.error("Upload error:", error);
     toast.error(error || 'An error occurred while uploading the file.');
+  };
+
+  const handleUseTestData = async (scenario: keyof typeof TEST_SCENARIOS = 'mixed_weights') => {
+    if (!user) {
+      toast.error('Please log in to use test data');
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    try {
+      // Generate test data
+      const testData = TEST_SCENARIOS[scenario]();
+      
+      // Save test session
+      saveTestSession(testData, scenario);
+      
+      // Convert test data to CSV format for parsing
+      const csvContent = generateCSVContent(testData);
+      const parseResult = parseCSV(csvContent);
+      
+      // Store the test upload in the database
+      const { data: csvUpload, error } = await supabase
+        .from('csv_uploads')
+        .insert({
+          user_id: user.id,
+          file_name: `test-data-${scenario}.csv`,
+          file_size: csvContent.length,
+          detected_headers: parseResult.headers,
+          row_count: parseResult.rowCount,
+          status: 'parsed'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success(`Test data generated! ${parseResult.rowCount} shipments with ${parseResult.headers.length} columns.`);
+      
+      // Navigate to the mapping page with test data
+      navigate('/mapping', { 
+        state: { 
+          csvUploadId: csvUpload.id,
+          fileName: `test-data-${scenario}.csv`,
+          headers: parseResult.headers,
+          data: parseResult.data.slice(0, 10),
+          rowCount: parseResult.rowCount,
+          fileUploaded: true,
+          isTestData: true
+        } 
+      });
+      
+    } catch (error) {
+      console.error('Error generating test data:', error);
+      toast.error('Failed to generate test data');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    const sampleData = generateTestData(10);
+    const csvContent = generateCSVContent(sampleData);
+    downloadCSV(csvContent, 'shipping-data-template.csv');
+    toast.success('Sample CSV template downloaded');
   };
   
   return (
@@ -162,17 +245,85 @@ const Upload = () => {
               </table>
             </div>
             <div className="mt-4">
-              <a 
-                href="#"
-                className="text-sm text-primary hover:underline"
-                onClick={(e) => {
-                  e.preventDefault();
-                  toast.success('Sample CSV downloaded');
-                }}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadTemplate}
+                className="text-sm"
               >
                 Download sample CSV template
-              </a>
+              </Button>
             </div>
+          </CardContent>
+        </Card>
+        
+        {/* Development Testing Section */}
+        <Card className="mt-6 border-dashed border-primary/30 bg-primary/5">
+          <CardHeader>
+            <CardTitle className="text-primary">🚀 Development Testing</CardTitle>
+            <CardDescription>
+              Skip the upload process and use realistic test data for development and testing.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => handleUseTestData('mixed_weights')}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                Mixed Package Types
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleUseTestData('small_packages')}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                Small Packages
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleUseTestData('large_packages')}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                Large Packages
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleUseTestData('express_only')}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                Express Services Only
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleUseTestData('ground_only')}
+                disabled={isProcessing}
+                className="w-full"
+              >
+                Ground Services Only
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleDownloadTemplate}
+                className="w-full"
+              >
+                Download Test CSV
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Test data is automatically saved to localStorage and includes realistic tracking numbers, weights, dimensions, and pricing.
+            </p>
           </CardContent>
         </Card>
       </div>

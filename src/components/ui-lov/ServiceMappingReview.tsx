@@ -15,7 +15,7 @@ interface ServiceMappingReviewProps {
 }
 
 interface ExtendedServiceMapping extends ServiceMapping {
-  upsServiceCode?: string;
+  upsServiceCode: string;
   shipmentCount: number;
   isEdited: boolean;
 }
@@ -39,8 +39,30 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       return acc;
     }, {} as Record<string, number>);
 
+    // Map standardized service names to UPS service codes
+    const standardizedToUpsCode = (standardized: string): string => {
+      const mapping: Record<string, string> = {
+        'NEXT_DAY_AIR': '01',
+        'NEXT_DAY_AIR_SAVER': '13', 
+        'NEXT_DAY_AIR_EARLY': '14',
+        '2ND_DAY_AIR': '02',
+        '3_DAY_SELECT': '12',
+        'GROUND': '03',
+        'WORLDWIDE_EXPRESS': '07',
+        'WORLDWIDE_EXPRESS_PLUS': '54',
+        'WORLDWIDE_EXPEDITED': '08',
+        'UPS_STANDARD': '11',
+        'UPS_SAVER': '65',
+        'EXPRESS_SAVER': '13', // Map to Next Day Air Saver as closest equivalent
+        'EXPRESS_AIR': '01', // Map to Next Day Air as closest equivalent
+        'PRIORITY_MAIL': '02' // Map to 2nd Day Air as closest equivalent
+      };
+      return mapping[standardized] || '03'; // Default to Ground
+    };
+
     const extendedMappings = initialMappings.map(mapping => ({
       ...mapping,
+      upsServiceCode: mapping.upsServiceCode || standardizedToUpsCode(mapping.standardized),
       shipmentCount: serviceCounts[mapping.original] || 0,
       isEdited: false
     }));
@@ -188,7 +210,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
 
               <div className="flex-shrink-0 w-64">
                 <Select
-                  value={mapping.upsServiceCode || ''}
+                  value={mapping.upsServiceCode}
                   onValueChange={(value) => {
                     const selectedOption = serviceOptions
                       .flatMap(group => group.services)

@@ -320,8 +320,8 @@ const Analysis = () => {
         (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
       );
       
-      // Use the best rate for savings calculation (always choose cheapest option)
-      const comparisonRate = bestOverallRate;
+      // Use equivalent service for comparison if available, otherwise use best overall rate
+      const comparisonRate = equivalentServiceRate || bestOverallRate;
       
       // But track both for display purposes
       const equivalentServiceInfo = equivalentServiceRate ? {

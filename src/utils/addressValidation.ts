@@ -225,7 +225,20 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
     errors.height = heightResult.errors;
   }
 
-  // State validation removed - ZIP codes only approach
+  // Validate ZIP codes and auto-derive states
+  if (shipment.shipperState) {
+    const shipperStateResult = validateStateCode(shipment.shipperState);
+    if (!shipperStateResult.isValid) {
+      warnings.shipperState = shipperStateResult.errors;
+    }
+  }
+
+  if (shipment.recipientState) {
+    const recipientStateResult = validateStateCode(shipment.recipientState);
+    if (!recipientStateResult.isValid) {
+      warnings.recipientState = recipientStateResult.errors;
+    }
+  }
 
   // Check for missing optional but useful data
   if (!shipment.shipperCity && !shipment.recipientCity) {

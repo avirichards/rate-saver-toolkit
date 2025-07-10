@@ -168,72 +168,68 @@ export function detectServiceTypes(data: any[], serviceColumn: string): ServiceM
 function standardizeService(service: string): { service: string; carrier: string; confidence: number } {
   const serviceLower = service.toLowerCase().trim();
   
-  // UPS patterns - check for UPS first, then ground patterns
-  if (serviceLower.includes('ups')) {
-    if (serviceLower.includes('next') || serviceLower.includes('nda') || serviceLower.includes('overnight')) {
-      return { service: 'UPS_NEXT_DAY_AIR', carrier: 'UPS', confidence: 0.9 };
-    }
-    if (serviceLower.includes('2nd') || serviceLower.includes('2da') || serviceLower.includes('2day')) {
-      return { service: 'UPS_2ND_DAY_AIR', carrier: 'UPS', confidence: 0.9 };
-    }
-    if (serviceLower.includes('3rd') || serviceLower.includes('3day') || serviceLower.includes('select')) {
-      return { service: 'UPS_3_DAY_SELECT', carrier: 'UPS', confidence: 0.9 };
-    }
-    if (serviceLower.includes('ground') || serviceLower.includes('gnd')) {
-      return { service: 'UPS_GROUND', carrier: 'UPS', confidence: 0.9 };
-    }
-    // Default UPS service if no specific type found
-    return { service: 'UPS_GROUND', carrier: 'UPS', confidence: 0.7 };
+  // First, determine the carrier for reporting purposes
+  let carrier = 'UNKNOWN';
+  if (serviceLower.includes('ups')) carrier = 'UPS';
+  else if (serviceLower.includes('fedex') || serviceLower.includes('federal express')) carrier = 'FedEx';
+  else if (serviceLower.includes('usps') || serviceLower.includes('postal') || serviceLower.includes('mail')) carrier = 'USPS';
+  
+  // NOW PRIORITIZE SERVICE TYPE CLASSIFICATION FOR APPLE-TO-APPLES COMPARISON
+  
+  // NEXT DAY / OVERNIGHT services (highest priority for speed)
+  if (serviceLower.includes('next day') || serviceLower.includes('nextday') || 
+      serviceLower.includes('next air') || serviceLower.includes('nda') ||
+      serviceLower.includes('overnight') || serviceLower.includes('1 day') ||
+      serviceLower.includes('standard overnight') || serviceLower.includes('priority overnight') ||
+      serviceLower.includes('express mail') || serviceLower.includes('priority mail express')) {
+    return { service: 'NEXT_DAY_AIR', carrier, confidence: 0.95 };
   }
   
-  // FedEx patterns
-  if (serviceLower.includes('fedex') || serviceLower.includes('federal express')) {
-    if (serviceLower.includes('overnight') || serviceLower.includes('next') || serviceLower.includes('priority')) {
-      return { service: 'FEDEX_STANDARD_OVERNIGHT', carrier: 'FedEx', confidence: 0.9 };
-    }
-    if (serviceLower.includes('2day') || serviceLower.includes('2nd')) {
-      return { service: 'FEDEX_2DAY', carrier: 'FedEx', confidence: 0.9 };
-    }
-    if (serviceLower.includes('express') && !serviceLower.includes('ground')) {
-      return { service: 'FEDEX_EXPRESS_SAVER', carrier: 'FedEx', confidence: 0.8 };
-    }
-    if (serviceLower.includes('ground')) {
-      return { service: 'FEDEX_GROUND', carrier: 'FedEx', confidence: 0.9 };
-    }
-    return { service: 'FEDEX_EXPRESS_SAVER', carrier: 'FedEx', confidence: 0.7 };
+  // EARLY AM / SATURDAY services (premium next day)
+  if (serviceLower.includes('early') || serviceLower.includes('saturday') || 
+      serviceLower.includes('am') || serviceLower.includes('before')) {
+    return { service: 'NEXT_DAY_AIR_EARLY', carrier, confidence: 0.9 };
   }
   
-  // USPS patterns
-  if (serviceLower.includes('usps') || serviceLower.includes('postal') || serviceLower.includes('mail')) {
-    if (serviceLower.includes('priority') && serviceLower.includes('express')) {
-      return { service: 'USPS_PRIORITY_MAIL_EXPRESS', carrier: 'USPS', confidence: 0.9 };
-    }
-    if (serviceLower.includes('priority')) {
-      return { service: 'USPS_PRIORITY_MAIL', carrier: 'USPS', confidence: 0.9 };
-    }
-    if (serviceLower.includes('ground') || serviceLower.includes('advantage')) {
-      return { service: 'USPS_GROUND_ADVANTAGE', carrier: 'USPS', confidence: 0.8 };
-    }
-    return { service: 'USPS_PRIORITY_MAIL', carrier: 'USPS', confidence: 0.7 };
+  // 2ND DAY services
+  if (serviceLower.includes('2nd day') || serviceLower.includes('2 day') ||
+      serviceLower.includes('second day') || serviceLower.includes('2da') ||
+      serviceLower.includes('2day') || serviceLower.includes('two day')) {
+    return { service: '2ND_DAY_AIR', carrier, confidence: 0.95 };
   }
   
-  // Generic patterns (when no carrier is specified)
-  if (serviceLower.includes('next') || serviceLower.includes('overnight') || serviceLower.includes('nda')) {
-    return { service: 'NEXT_DAY_AIR', carrier: 'UNKNOWN', confidence: 0.6 };
-  }
-  if (serviceLower.includes('2nd') || serviceLower.includes('2day') || serviceLower.includes('2da')) {
-    return { service: '2ND_DAY_AIR', carrier: 'UNKNOWN', confidence: 0.6 };
-  }
-  if (serviceLower.includes('3rd') || serviceLower.includes('3day') || serviceLower.includes('select')) {
-    return { service: '3_DAY_SELECT', carrier: 'UNKNOWN', confidence: 0.6 };
-  }
-  if (serviceLower.includes('ground') || serviceLower.includes('gnd')) {
-    return { service: 'GROUND', carrier: 'UNKNOWN', confidence: 0.6 };
-  }
-  if (serviceLower.includes('express')) {
-    return { service: 'EXPRESS', carrier: 'UNKNOWN', confidence: 0.5 };
+  // 3RD DAY / SELECT services
+  if (serviceLower.includes('3rd day') || serviceLower.includes('3 day') ||
+      serviceLower.includes('third day') || serviceLower.includes('3da') ||
+      serviceLower.includes('3day') || serviceLower.includes('three day') ||
+      serviceLower.includes('select') || serviceLower.includes('3 select')) {
+    return { service: '3_DAY_SELECT', carrier, confidence: 0.95 };
   }
   
-  // Default fallback
-  return { service: service.toUpperCase().replace(/\s+/g, '_'), carrier: 'UNKNOWN', confidence: 0.3 };
+  // EXPRESS services (faster than ground, but not next day)
+  if (serviceLower.includes('express') && !serviceLower.includes('ground') && 
+      !serviceLower.includes('mail') && !serviceLower.includes('overnight')) {
+    return { service: 'EXPRESS_SAVER', carrier, confidence: 0.8 };
+  }
+  
+  // PRIORITY services (typically 1-3 days depending on carrier)
+  if (serviceLower.includes('priority') && !serviceLower.includes('express') && 
+      !serviceLower.includes('overnight') && !serviceLower.includes('mail express')) {
+    return { service: 'PRIORITY_MAIL', carrier, confidence: 0.8 };
+  }
+  
+  // GROUND services (slowest/cheapest)
+  if (serviceLower.includes('ground') || serviceLower.includes('gnd') ||
+      serviceLower.includes('surface') || serviceLower.includes('standard') ||
+      serviceLower.includes('advantage') || serviceLower.includes('basic')) {
+    return { service: 'GROUND', carrier, confidence: 0.9 };
+  }
+  
+  // Fallback patterns for common service names that don't fit above
+  if (serviceLower.includes('air') && !serviceLower.includes('ground')) {
+    return { service: 'EXPRESS_AIR', carrier, confidence: 0.6 };
+  }
+  
+  // Default fallback - assume ground for unknown services
+  return { service: 'GROUND', carrier, confidence: 0.3 };
 }

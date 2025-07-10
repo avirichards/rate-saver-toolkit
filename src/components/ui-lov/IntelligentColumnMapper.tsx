@@ -25,15 +25,15 @@ const REQUIRED_FIELDS: Field[] = [
   { id: 'trackingId', label: 'Tracking ID', description: 'Unique identifier for the shipment', required: true },
   { id: 'service', label: 'Service Type', description: 'Shipping service used (Ground, Express, etc.)', required: true },
   { id: 'weight', label: 'Weight (lbs)', description: 'Package weight in pounds', required: true },
-  { id: 'cost', label: 'Current Cost ($)', description: 'Amount charged for the shipment', required: true }
+  { id: 'cost', label: 'Current Cost ($)', description: 'Amount charged for the shipment', required: true },
+  { id: 'originZip', label: 'Origin ZIP', description: 'Shipment origin postal code (required for UPS rates)', required: true },
+  { id: 'destZip', label: 'Destination ZIP', description: 'Shipment destination postal code (required for UPS rates)', required: true },
+  { id: 'length', label: 'Length (in)', description: 'Package length in inches (required for UPS rates)', required: true },
+  { id: 'width', label: 'Width (in)', description: 'Package width in inches (required for UPS rates)', required: true },
+  { id: 'height', label: 'Height (in)', description: 'Package height in inches (required for UPS rates)', required: true }
 ];
 
 const OPTIONAL_FIELDS: Field[] = [
-  { id: 'originZip', label: 'Origin ZIP', description: 'Shipment origin postal code', required: false },
-  { id: 'destZip', label: 'Destination ZIP', description: 'Shipment destination postal code', required: false },
-  { id: 'length', label: 'Length (in)', description: 'Package length in inches', required: false },
-  { id: 'width', label: 'Width (in)', description: 'Package width in inches', required: false },
-  { id: 'height', label: 'Height (in)', description: 'Package height in inches', required: false },
   { id: 'zone', label: 'Shipping Zone', description: 'Carrier shipping zone', required: false },
   { id: 'shipDate', label: 'Ship Date', description: 'Date the package was shipped', required: false },
   { id: 'deliveryDate', label: 'Delivery Date', description: 'Date the package was delivered', required: false }
@@ -156,7 +156,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
     const error = validationErrors[field.id];
 
     return (
-      <div key={field.id} className="flex items-center py-3 border-b border-gray-100 last:border-b-0">
+      <div key={field.id} className="flex items-center py-3 border-b border-border/50 last:border-b-0">
         <div className="w-1/4">
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm">{field.label}</span>
@@ -188,7 +188,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
               <SelectValue placeholder="Select column" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__NONE__">None</SelectItem>
+              {!field.required && <SelectItem value="__NONE__">Skip Field</SelectItem>}
               {csvHeaders.map(header => (
                 <SelectItem key={header} value={header}>
                   {header}
@@ -289,7 +289,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
           <CardContent>
             <div className="grid gap-2">
               {serviceMappings.map((mapping, index) => (
-                <div key={index} className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                <div key={index} className="flex items-center justify-between py-2 px-3 bg-muted rounded-lg">
                   <div className="flex items-center gap-3">
                     <span className="font-medium text-sm">{mapping.original}</span>
                     <span className="text-gray-400">→</span>

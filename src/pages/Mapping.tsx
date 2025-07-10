@@ -59,14 +59,16 @@ const Mapping = () => {
 
     try {
       // Save column mappings to database
-      const mappingInserts = Object.entries(mappings).map(([fieldName, csvHeader]) => ({
-        csv_upload_id: csvUploadId,
-        field_name: fieldName,
-        csv_header: csvHeader,
-        is_required: ['trackingId', 'service', 'weight', 'cost'].includes(fieldName),
-        is_auto_detected: true,
-        confidence_score: 1.0
-      }));
+      const mappingInserts = Object.entries(mappings)
+        .filter(([_, csvHeader]) => csvHeader && csvHeader !== "__NONE__")
+        .map(([fieldName, csvHeader]) => ({
+          csv_upload_id: csvUploadId,
+          field_name: fieldName,
+          csv_header: csvHeader,
+          is_required: ['trackingId', 'service', 'weight', 'cost', 'originZip', 'destZip', 'length', 'width', 'height'].includes(fieldName),
+          is_auto_detected: true,
+          confidence_score: 1.0
+        }));
 
       const { error: mappingError } = await supabase
         .from('column_mappings')
@@ -76,9 +78,24 @@ const Mapping = () => {
         throw mappingError;
       }
 
+      // Process CSV data using mappings to create structured shipment records
+      const processedShipments = csvData.map((row, index) => {
+        const shipment: any = { id: index + 1 };
+        
+        Object.entries(mappings).forEach(([fieldName, csvHeader]) => {
+          if (csvHeader && csvHeader !== "__NONE__" && row[csvHeader] !== undefined) {
+            shipment[fieldName] = row[csvHeader];
+          }
+        });
+        
+        return shipment;
+      });
+
+      console.log('Processed shipments sample:', processedShipments.slice(0, 2));
+
       toast.success('Column mapping saved successfully!');
       
-      // Navigate to the analysis page
+      // Navigate to the analysis page with processed data
       navigate('/analysis', { 
         state: { 
           csvUploadId,
@@ -86,6 +103,7 @@ const Mapping = () => {
           mappings,
           serviceMappings,
           rowCount,
+          processedShipments,
           readyForAnalysis: true
         } 
       });
@@ -140,26 +158,26 @@ const Mapping = () => {
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    {csvHeaders.map((header, index) => (
-                      <th key={index} className="text-left py-2 px-3 font-medium">
-                        {header}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {csvData.slice(0, 3).map((row, rowIndex) => (
-                    <tr key={rowIndex} className="border-b">
-                      {csvHeaders.map((header, colIndex) => (
-                        <td key={colIndex} className="py-2 px-3 text-gray-600">
-                          {row[header] || '-'}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
+                 <thead>
+                   <tr className="border-b bg-muted/50">
+                     {csvHeaders.map((header, index) => (
+                       <th key={index} className="text-left py-2 px-3 font-medium">
+                         {header}
+                       </th>
+                     ))}
+                   </tr>
+                 </thead>
+                 <tbody>
+                   {csvData.slice(0, 3).map((row, rowIndex) => (
+                     <tr key={rowIndex} className="border-b border-border/50">
+                       {csvHeaders.map((header, colIndex) => (
+                         <td key={colIndex} className="py-2 px-3 text-muted-foreground">
+                           {row[header] || '-'}
+                         </td>
+                       ))}
+                     </tr>
+                   ))}
+                 </tbody>
               </table>
             </div>
           </CardContent>

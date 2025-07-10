@@ -1,110 +1,107 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui-lov/Button';
-import { Card, CardContent } from '@/components/ui-lov/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, RotateCw, AlertCircle } from 'lucide-react';
+import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-// Analysis steps with UPS API integration
-const ANALYSIS_STEPS = [
-  { id: 'parsing', label: 'Parsing shipping data', duration: 1000 },
-  { id: 'validating', label: 'Validating UPS configuration', duration: 1500 },
-  { id: 'rates', label: 'Retrieving UPS rates', duration: 4000 },
-  { id: 'calculating', label: 'Calculating potential savings', duration: 2000 },
-  { id: 'comparing', label: 'Comparing service options', duration: 1500 },
-  { id: 'generating', label: 'Generating optimization report', duration: 1000 },
-];
+interface ProcessedShipment {
+  id: number;
+  trackingId?: string;
+  service?: string;
+  weight?: string;
+  cost?: string;
+  originZip?: string;
+  destZip?: string;
+  length?: string;
+  width?: string;
+  height?: string;
+}
+
+interface AnalysisResult {
+  shipment: ProcessedShipment;
+  status: 'pending' | 'processing' | 'completed' | 'error';
+  currentCost?: number;
+  upsRates?: any[];
+  bestRate?: any;
+  savings?: number;
+  error?: string;
+}
 
 const Analysis = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const [currentStep, setCurrentStep] = useState(0);
+  const [shipments, setShipments] = useState<ProcessedShipment[]>([]);
+  const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
+  const [currentShipmentIndex, setCurrentShipmentIndex] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [totalSavings, setTotalSavings] = useState(0);
+  const [totalCurrentCost, setTotalCurrentCost] = useState(0);
   
   useEffect(() => {
-    // In a real application, we would get the mapping and data from the state or context
-    const state = location.state as { readyForAnalysis?: boolean } | null;
+    const state = location.state as { 
+      readyForAnalysis?: boolean, 
+      processedShipments?: ProcessedShipment[],
+      fileName?: string,
+      csvUploadId?: string
+    } | null;
     
-    if (!state || !state.readyForAnalysis) {
-      // If no mapping was done, redirect to mapping page
+    if (!state || !state.readyForAnalysis || !state.processedShipments) {
       toast.error('Please map columns first');
       navigate('/mapping');
       return;
     }
     
-    // Auto-start the analysis
-    startAnalysis();
+    console.log('Analysis received shipments:', state.processedShipments.slice(0, 2));
+    setShipments(state.processedShipments);
+    
+    // Initialize analysis results
+    const initialResults = state.processedShipments.map(shipment => ({
+      shipment,
+      status: 'pending' as const
+    }));
+    setAnalysisResults(initialResults);
+    
+    // Auto-start analysis
+    startAnalysis(state.processedShipments);
   }, [location, navigate]);
   
-  const startAnalysis = () => {
+  const startAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
     setIsAnalyzing(true);
-    setCurrentStep(0);
-    setProgress(0);
+    setCurrentShipmentIndex(0);
     setError(null);
-    setIsComplete(false);
-    
-    // Simulate analysis process
-    runAnalysisStep();
-  };
-  
-  const runAnalysisStep = async () => {
-    if (currentStep >= ANALYSIS_STEPS.length) {
-      setIsComplete(true);
-      setIsAnalyzing(false);
-      setProgress(100);
-      return;
-    }
-    
-    const step = ANALYSIS_STEPS[currentStep];
-    const stepProgress = 100 / ANALYSIS_STEPS.length;
     
     try {
-      // Handle specific analysis steps
-      if (step.id === 'validating') {
-        await validateUpsConfiguration();
-      } else if (step.id === 'rates') {
-        await fetchUpsRates();
-      } else if (step.id === 'calculating') {
-        await calculateSavings();
+      // Validate UPS configuration first
+      await validateUpsConfiguration();
+      
+      // Process shipments one by one
+      for (let i = 0; i < shipmentsToAnalyze.length; i++) {
+        setCurrentShipmentIndex(i);
+        await processShipment(i, shipmentsToAnalyze[i]);
+        
+        // Small delay to show progress
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      // Simulate progress within this step
-      let stepProgressInternal = 0;
-      const progressInterval = setInterval(() => {
-        stepProgressInternal += 10;
-        const calculatedProgress = Math.min(
-          ((currentStep * stepProgress) + (stepProgressInternal * stepProgress / 100)),
-          100
-        );
-        setProgress(calculatedProgress);
-        
-        if (stepProgressInternal >= 100) {
-          clearInterval(progressInterval);
-          setCurrentStep(prev => prev + 1);
-          
-          // Move to next step
-          setTimeout(() => {
-            runAnalysisStep();
-          }, 100);
-        }
-      }, step.duration / 10);
+      setIsComplete(true);
+      await saveAnalysisToDatabase();
       
-    } catch (error) {
-      console.error(`Error in step ${step.id}:`, error);
-      setError(`Analysis failed at step: ${step.label}. ${error.message}`);
+    } catch (error: any) {
+      console.error('Analysis error:', error);
+      setError(error.message);
+    } finally {
       setIsAnalyzing(false);
     }
   };
-
+  
   const validateUpsConfiguration = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -131,237 +128,351 @@ const Analysis = () => {
       throw new Error('Failed to authenticate with UPS. Please check your API credentials.');
     }
   };
-
-  const fetchUpsRates = async () => {
-    // Get mapping and data from location state
-    const state = location.state as { mappedData?: any[] } | null;
-    if (!state?.mappedData || state.mappedData.length === 0) {
-      throw new Error('No shipping data found for analysis');
-    }
-
-    const sampleShipments = state.mappedData.slice(0, 10); // Analyze first 10 shipments
-    const ratePromises = sampleShipments.map(async (shipment) => {
-      try {
-        const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
-          body: {
-            shipment: {
-              shipFrom: {
-                name: 'Sample Shipper',
-                address: shipment.origin_address || '123 Main St',
-                city: shipment.origin_city || 'Atlanta',
-                state: shipment.origin_state || 'GA',
-                zipCode: shipment.origin_zip || '30309',
-                country: 'US'
-              },
-              shipTo: {
-                name: 'Sample Recipient',
-                address: shipment.destination_address || '456 Oak Ave',
-                city: shipment.destination_city || 'Chicago',
-                state: shipment.destination_state || 'IL',
-                zipCode: shipment.destination_zip || '60601',
-                country: 'US'
-              },
-              package: {
-                weight: parseFloat(shipment.weight) || 1,
-                weightUnit: 'LBS',
-                length: parseFloat(shipment.length) || 12,
-                width: parseFloat(shipment.width) || 12,
-                height: parseFloat(shipment.height) || 6,
-                dimensionUnit: 'IN'
-              },
-              serviceTypes: ['01', '02', '03', '12', '13'] // Common UPS services
-            }
-          }
-        });
-
-        if (error) {
-          console.error('Rate quote error:', error);
-          return null;
-        }
-
-        return {
-          originalShipment: shipment,
-          upsRates: data.rates,
-          currentCost: parseFloat(shipment.cost) || 0
-        };
-      } catch (error) {
-        console.error('Error fetching rates for shipment:', error);
-        return null;
-      }
-    });
-
-    const results = await Promise.all(ratePromises);
-    const validResults = results.filter(result => result !== null);
+  
+  const processShipment = async (index: number, shipment: ProcessedShipment) => {
+    // Update status to processing
+    setAnalysisResults(prev => prev.map((result, i) => 
+      i === index ? { ...result, status: 'processing' } : result
+    ));
     
-    if (validResults.length === 0) {
-      throw new Error('No valid rate quotes received from UPS');
+    try {
+      // Validate required fields
+      if (!shipment.originZip || !shipment.destZip || !shipment.weight) {
+        throw new Error('Missing required fields for UPS rate quote');
+      }
+      
+      const currentCost = parseFloat(shipment.cost || '0');
+      
+      // Fetch UPS rates
+      const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
+        body: {
+          shipment: {
+            shipFrom: {
+              name: 'Sample Shipper',
+              address: '123 Main St',
+              city: 'Atlanta',
+              state: 'GA',
+              zipCode: shipment.originZip,
+              country: 'US'
+            },
+            shipTo: {
+              name: 'Sample Recipient',
+              address: '456 Oak Ave',
+              city: 'Chicago',
+              state: 'IL',
+              zipCode: shipment.destZip,
+              country: 'US'
+            },
+            package: {
+              weight: parseFloat(shipment.weight),
+              weightUnit: 'LBS',
+              length: parseFloat(shipment.length || '12'),
+              width: parseFloat(shipment.width || '12'),
+              height: parseFloat(shipment.height || '6'),
+              dimensionUnit: 'IN'
+            },
+            serviceTypes: ['01', '02', '03', '12', '13']
+          }
+        }
+      });
+
+      if (error || !data?.rates) {
+        throw new Error('Failed to fetch UPS rates');
+      }
+      
+      // Find best rate
+      const bestRate = data.rates.reduce((best: any, current: any) => 
+        current.totalCharges < best.totalCharges ? current : best
+      );
+      
+      const savings = Math.max(0, currentCost - bestRate.totalCharges);
+      
+      // Update totals
+      setTotalCurrentCost(prev => prev + currentCost);
+      setTotalSavings(prev => prev + savings);
+      
+      // Update result
+      setAnalysisResults(prev => prev.map((result, i) => 
+        i === index ? {
+          ...result,
+          status: 'completed',
+          currentCost,
+          upsRates: data.rates,
+          bestRate,
+          savings
+        } : result
+      ));
+      
+    } catch (error: any) {
+      console.error(`Error processing shipment ${index}:`, error);
+      setAnalysisResults(prev => prev.map((result, i) => 
+        i === index ? {
+          ...result,
+          status: 'error',
+          error: error.message
+        } : result
+      ));
     }
-
-    setAnalysisData({
-      shipments: validResults,
-      totalShipments: state.mappedData.length,
-      analyzedShipments: validResults.length
-    });
   };
-
-  const calculateSavings = async () => {
-    if (!analysisData) return;
-
+  
+  const saveAnalysisToDatabase = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
-    let totalCurrentCost = 0;
-    let totalPotentialSavings = 0;
-    const recommendations = [];
-
-    analysisData.shipments.forEach((shipment: any) => {
-      const currentCost = shipment.currentCost;
-      const cheapestUpsRate = Math.min(...shipment.upsRates.map((rate: any) => rate.totalCharges));
-      const savings = Math.max(0, currentCost - cheapestUpsRate);
-      
-      totalCurrentCost += currentCost;
-      totalPotentialSavings += savings;
-
-      if (savings > 0) {
-        const bestRate = shipment.upsRates.find((rate: any) => rate.totalCharges === cheapestUpsRate);
-        recommendations.push({
-          shipment: shipment.originalShipment,
-          currentCost,
-          recommendedCost: cheapestUpsRate,
-          savings,
-          recommendedService: bestRate?.serviceName
-        });
-      }
-    });
-
-    // Save analysis to database
+    
+    const state = location.state as any;
+    const completedResults = analysisResults.filter(r => r.status === 'completed');
+    
+    const recommendations = completedResults
+      .filter(r => r.savings && r.savings > 0)
+      .map(r => ({
+        shipment: r.shipment,
+        currentCost: r.currentCost,
+        recommendedCost: r.bestRate?.totalCharges,
+        savings: r.savings,
+        recommendedService: r.bestRate?.serviceName
+      }));
+    
     const { error } = await supabase
       .from('shipping_analyses')
       .insert({
         user_id: user.id,
-        file_name: 'Real-time Analysis',
-        original_data: analysisData.shipments.map((s: any) => s.originalShipment),
-        ups_quotes: analysisData.shipments.map((s: any) => s.upsRates),
+        file_name: state?.fileName || 'Real-time Analysis',
+        original_data: shipments as any,
+        ups_quotes: completedResults.map(r => r.upsRates) as any,
         savings_analysis: {
           totalCurrentCost,
-          totalPotentialSavings,
-          savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0
-        },
-        recommendations,
-        total_shipments: analysisData.totalShipments,
-        total_savings: totalPotentialSavings,
+          totalPotentialSavings: totalSavings,
+          savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0
+        } as any,
+        recommendations: recommendations as any,
+        total_shipments: shipments.length,
+        total_savings: totalSavings,
         status: 'completed'
       });
 
     if (error) {
       console.error('Error saving analysis:', error);
     }
-
-    // Store results for results page
-    setAnalysisData(prev => ({
-      ...prev,
-      totalCurrentCost,
-      totalPotentialSavings,
-      recommendations,
-      savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0
-    }));
   };
   
   const handleViewResults = () => {
+    const completedResults = analysisResults.filter(r => r.status === 'completed');
+    const recommendations = completedResults
+      .filter(r => r.savings && r.savings > 0)
+      .map(r => ({
+        shipment: r.shipment,
+        currentCost: r.currentCost,
+        recommendedCost: r.bestRate?.totalCharges,
+        savings: r.savings,
+        recommendedService: r.bestRate?.serviceName
+      }));
+    
     navigate('/results', { 
       state: { 
-        analysisComplete: true, 
-        analysisData 
+        analysisComplete: true,
+        analysisData: {
+          totalCurrentCost,
+          totalPotentialSavings: totalSavings,
+          recommendations,
+          savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+          totalShipments: shipments.length,
+          analyzedShipments: completedResults.length
+        }
       } 
     });
   };
   
+  const progress = shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
+  const completedCount = analysisResults.filter(r => r.status === 'completed').length;
+  const errorCount = analysisResults.filter(r => r.status === 'error').length;
+  
   return (
     <DashboardLayout>
-      <div className="max-w-2xl mx-auto p-6">
-        <h1 className="text-3xl font-semibold mb-2">Analyzing Shipping Data</h1>
-        <p className="text-muted-foreground mb-6">
-          Please wait while we analyze your shipping data and calculate potential savings.
-        </p>
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="mb-6">
+          <h1 className="text-3xl font-semibold mb-2">Real-Time Shipping Analysis</h1>
+          <p className="text-muted-foreground">
+            Processing {shipments.length} shipments and comparing current rates with UPS optimization.
+          </p>
+        </div>
         
+        {/* Progress Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Package className="h-8 w-8 text-primary" />
+                <div>
+                  <p className="text-2xl font-bold">{shipments.length}</p>
+                  <p className="text-sm text-muted-foreground">Total Shipments</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+                <div>
+                  <p className="text-2xl font-bold">{completedCount}</p>
+                  <p className="text-sm text-muted-foreground">Analyzed</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <DollarSign className="h-8 w-8 text-blue-600" />
+                <div>
+                  <p className="text-2xl font-bold">${totalCurrentCost.toFixed(2)}</p>
+                  <p className="text-sm text-muted-foreground">Current Cost</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <TrendingDown className="h-8 w-8 text-green-600" />
+                <div>
+                  <p className="text-2xl font-bold">${totalSavings.toFixed(2)}</p>
+                  <p className="text-sm text-muted-foreground">Potential Savings</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* Progress Bar */}
         <Card className="mb-6">
           <CardContent className="p-6">
-            <div className="mb-6">
-              <div className="flex justify-between mb-2 items-center">
-                <div className="text-sm font-medium">
-                  {isComplete 
-                    ? 'Analysis complete!' 
-                    : isAnalyzing 
-                      ? `${ANALYSIS_STEPS[currentStep]?.label || 'Processing'}...` 
-                      : 'Ready to analyze'
-                  }
-                </div>
-                <div className="text-sm font-medium">
-                  {Math.round(progress)}%
+            <div className="flex justify-between mb-2 items-center">
+              <div className="text-sm font-medium">
+                {isComplete 
+                  ? 'Analysis Complete!' 
+                  : isAnalyzing 
+                    ? `Processing shipment ${currentShipmentIndex + 1} of ${shipments.length}...` 
+                    : 'Ready to analyze'
+                }
+              </div>
+              <div className="text-sm font-medium">
+                {Math.round(progress)}%
+              </div>
+            </div>
+            <Progress value={progress} className="h-2" />
+          </CardContent>
+        </Card>
+        
+        {/* Error Display */}
+        {error && (
+          <Card className="mb-6 border-red-200">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-red-900">Analysis Error</p>
+                  <p className="text-sm text-red-700 mt-1">{error}</p>
                 </div>
               </div>
-              <Progress value={progress} className="h-2" />
-            </div>
-            
-            <div className="space-y-4 mb-6">
-              {ANALYSIS_STEPS.map((step, index) => {
-                const isActive = index === currentStep && isAnalyzing;
-                const isCompleted = index < currentStep || isComplete;
-                
-                return (
-                  <div key={step.id} className="flex items-center">
-                    <div className={`w-6 h-6 flex-shrink-0 rounded-full flex items-center justify-center mr-3 ${
-                      isActive ? 'bg-primary/20 text-primary' : 
-                      isCompleted ? 'bg-green-100 text-green-600' : 
-                      'bg-gray-100 text-gray-400'
-                    }`}>
-                      {isCompleted ? (
-                        <CheckCircle className="w-4 h-4" />
-                      ) : isActive ? (
-                        <RotateCw className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <span className="text-xs">{index + 1}</span>
+            </CardContent>
+          </Card>
+        )}
+        
+        {/* Real-time Results */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Live Analysis Results</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {analysisResults.map((result, index) => (
+                <div 
+                  key={index} 
+                  className="flex items-center justify-between p-3 border border-border rounded-lg bg-card"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0">
+                      {result.status === 'pending' && (
+                        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
+                          <span className="text-xs">{index + 1}</span>
+                        </div>
+                      )}
+                      {result.status === 'processing' && (
+                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
+                          <RotateCw className="w-4 h-4 text-primary animate-spin" />
+                        </div>
+                      )}
+                      {result.status === 'completed' && (
+                        <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                        </div>
+                      )}
+                      {result.status === 'error' && (
+                        <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
+                          <AlertCircle className="w-4 h-4 text-red-600" />
+                        </div>
                       )}
                     </div>
-                    <span className={`text-sm ${
-                      isActive ? 'text-primary font-medium' : 
-                      isCompleted ? 'text-green-600' : 
-                      'text-muted-foreground'
-                    }`}>
-                      {step.label}
-                    </span>
+                    
+                    <div>
+                      <p className="font-medium text-sm">
+                        {result.shipment.trackingId || `Shipment ${index + 1}`}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {result.shipment.originZip} → {result.shipment.destZip} | {result.shipment.weight}lbs
+                      </p>
+                    </div>
                   </div>
-                );
-              })}
+                  
+                  <div className="text-right">
+                    {result.status === 'completed' && (
+                      <div className="flex items-center gap-2">
+                        <div className="text-right">
+                          <p className="text-sm font-medium">
+                            ${result.currentCost?.toFixed(2)} → ${result.bestRate?.totalCharges?.toFixed(2)}
+                          </p>
+                          {result.savings && result.savings > 0 ? (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              Save ${result.savings.toFixed(2)}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">No savings</Badge>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {result.status === 'error' && (
+                      <Badge variant="destructive">Error</Badge>
+                    )}
+                    
+                    {result.status === 'processing' && (
+                      <Badge variant="secondary">Processing...</Badge>
+                    )}
+                    
+                    {result.status === 'pending' && (
+                      <Badge variant="outline">Pending</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
             
-            {error && (
-              <div className="bg-red-50 text-red-600 p-4 rounded-md flex items-start mb-4">
-                <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium">Analysis Error</p>
-                  <p className="text-sm mt-1">{error}</p>
-                </div>
-              </div>
-            )}
-            
-            <div className="flex justify-end gap-3">
-              {error && (
-                <Button onClick={startAnalysis} variant="primary">
-                  Retry Analysis
-                </Button>
-              )}
-              
-              {isComplete && (
+            {isComplete && (
+              <div className="flex justify-end mt-6">
                 <Button 
                   variant="primary" 
                   onClick={handleViewResults}
                   iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
                 >
-                  View Results
+                  View Detailed Results
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

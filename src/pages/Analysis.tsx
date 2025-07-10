@@ -94,7 +94,12 @@ const Analysis = () => {
       // Validate all shipments first
       console.log('Validating shipments...');
       const validationResults = await validateShipments(shipmentsToAnalyze);
-      const validShipments = getValidShipments(shipmentsToAnalyze);
+      
+      // Filter valid shipments using the validation results directly
+      const validShipments = shipmentsToAnalyze.filter((_, index) => {
+        const result = validationResults[index];
+        return result && result.isValid;
+      });
       
       const summary = {
         total: shipmentsToAnalyze.length,
@@ -104,6 +109,7 @@ const Analysis = () => {
       
       setValidationSummary(summary);
       console.log('Validation complete:', summary);
+      console.log('Valid shipments found:', validShipments.length);
       
       if (validShipments.length === 0) {
         throw new Error('No valid shipments found. Please check your data and field mappings.');

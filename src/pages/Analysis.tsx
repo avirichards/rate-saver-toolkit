@@ -365,10 +365,14 @@ const Analysis = () => {
       });
       
       console.log(`Using ${equivalentServiceRate ? 'equivalent' : 'best overall'} service for comparison:`, {
+        trackingId: shipment.trackingId,
         equivalentServiceAvailable: !!equivalentServiceRate,
         equivalentServiceName: equivalentServiceRate?.serviceName,
+        equivalentServiceCost: equivalentServiceRate?.totalCharges,
         bestServiceName: bestOverallRate?.serviceName,
+        bestServiceCost: bestOverallRate?.totalCharges,
         comparisonServiceName: comparisonRate.serviceName,
+        comparisonServiceCost: comparisonRate.totalCharges,
         savings
       });
       

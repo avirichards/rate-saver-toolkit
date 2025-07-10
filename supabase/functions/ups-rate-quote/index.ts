@@ -34,6 +34,7 @@ interface ShipmentRequest {
     packageType?: string;
   };
   serviceTypes?: string[];
+  equivalentServiceCode?: string;
 }
 
 serve(async (req) => {
@@ -278,16 +279,17 @@ serve(async (req) => {
 
     console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
 
-    // Service codes to quote - first code is the primary/equivalent service
+    // Service codes to quote and the equivalent service code for comparison
     const serviceCodes = shipment.serviceTypes || ['01', '02', '03', '12', '13'];
-    const primaryServiceCode = serviceCodes[0]; // The first code is the mapped equivalent service
+    const equivalentServiceCode = shipment.equivalentServiceCode || serviceCodes[0];
     const rates = [];
 
     console.log('Service codes to request:', {
       serviceCodes,
-      primaryServiceCode,
+      equivalentServiceCode,
       total: serviceCodes.length,
-      receivedServiceTypes: shipment.serviceTypes
+      receivedServiceTypes: shipment.serviceTypes,
+      receivedEquivalentCode: shipment.equivalentServiceCode
     });
 
     // Get rates for each service type
@@ -365,7 +367,7 @@ serve(async (req) => {
                 negotiatedRate: negotiatedCharges,
                 savingsAmount,
                 savingsPercentage,
-                isEquivalentService: serviceCode === primaryServiceCode // Mark the equivalent service
+                isEquivalentService: serviceCode === equivalentServiceCode // Mark the equivalent service
               });
             }
           }

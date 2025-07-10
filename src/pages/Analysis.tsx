@@ -241,6 +241,7 @@ const Analysis = () => {
       // Map the original service to UPS service codes
       const serviceMapping = mapServiceToUpsCode(shipment.service || '');
       const serviceCodesToRequest = getServiceCodesToRequest(shipment.service || '');
+      const equivalentServiceCode = serviceMapping.upsServiceCode;
       
       console.log(`Processing shipment ${index + 1}:`, {
         originZip: shipment.originZip,
@@ -250,7 +251,8 @@ const Analysis = () => {
         currentCost,
         originalService: shipment.service,
         mappedService: serviceMapping,
-        serviceCodes: serviceCodesToRequest
+        serviceCodes: serviceCodesToRequest,
+        equivalentServiceCode
       });
       
       // Use real address data from CSV or map ZIP codes to correct cities for test data
@@ -289,7 +291,8 @@ const Analysis = () => {
           height,
           dimensionUnit: 'IN'
         },
-        serviceTypes: serviceCodesToRequest
+        serviceTypes: serviceCodesToRequest,
+        equivalentServiceCode: equivalentServiceCode
       };
       
       // Fetch UPS rates with enhanced error handling

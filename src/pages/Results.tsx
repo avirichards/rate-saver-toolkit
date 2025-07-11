@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -22,6 +23,34 @@ interface AnalysisData {
   totalShipments: number;
   analyzedShipments: number;
 }
+
+// Custom slider component for All/Wins/Losses
+const ResultFilter = ({ value, onChange }: { value: 'all' | 'wins' | 'losses', onChange: (value: 'all' | 'wins' | 'losses') => void }) => {
+  const options = [
+    { value: 'all', label: 'All' },
+    { value: 'wins', label: 'Wins' },
+    { value: 'losses', label: 'Losses' }
+  ] as const;
+
+  return (
+    <div className="flex items-center bg-muted rounded-lg p-1">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          className={cn(
+            "px-4 py-2 text-sm font-medium rounded-md transition-all",
+            value === option.value
+              ? "bg-primary text-primary-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const Results = () => {
   const location = useLocation();
@@ -33,8 +62,10 @@ const Results = () => {
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [dataPeriodDays, setDataPeriodDays] = useState<number>(7);
-  const [showWinsOnly, setShowWinsOnly] = useState(false);
+  const [resultFilter, setResultFilter] = useState<'all' | 'wins' | 'losses'>('all');
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
+  const [availableServices, setAvailableServices] = useState<string[]>([]);
+  const [serviceFilters, setServiceFilters] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const loadAnalysisData = async () => {
@@ -74,6 +105,16 @@ const Results = () => {
             }));
           
           setOrphanedData(orphanedShipments);
+          
+          // Initialize service data
+          const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
+          setAvailableServices(services);
+          const initialFilters: Record<string, boolean> = {};
+          services.forEach(service => {
+            initialFilters[service] = true;
+          });
+          setServiceFilters(initialFilters);
+          
           setLoading(false);
         } else if (params.id) {
           await loadFromDatabase(params.id);
@@ -190,6 +231,16 @@ const Results = () => {
       }));
     
     setOrphanedData(orphanedShipments);
+    
+    // Initialize service data
+    const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
+    setAvailableServices(services);
+    const initialFilters: Record<string, boolean> = {};
+    services.forEach(service => {
+      initialFilters[service] = true;
+    });
+    setServiceFilters(initialFilters);
+    
     setLoading(false);
   };
 
@@ -197,9 +248,20 @@ const Results = () => {
   useEffect(() => {
     let filtered = [...shipmentData];
 
-    // Apply wins/losses filter
-    if (showWinsOnly) {
+    // Apply result filter (all/wins/losses)
+    if (resultFilter === 'wins') {
       filtered = filtered.filter(item => item.savings > 0);
+    } else if (resultFilter === 'losses') {
+      filtered = filtered.filter(item => item.savings < 0);
+    }
+
+    // Apply service filters
+    const enabledServices = Object.entries(serviceFilters)
+      .filter(([_, enabled]) => enabled)
+      .map(([service, _]) => service);
+    
+    if (enabledServices.length > 0 && enabledServices.length < availableServices.length) {
+      filtered = filtered.filter(item => enabledServices.includes(item.service));
     }
 
     // Apply search filter
@@ -235,7 +297,7 @@ const Results = () => {
     }
 
     setFilteredData(filtered);
-  }, [shipmentData, showWinsOnly, searchTerm, sortConfig]);
+  }, [shipmentData, resultFilter, serviceFilters, availableServices.length, searchTerm, sortConfig]);
 
   // Handle column sorting
   const handleSort = (key: string) => {
@@ -244,6 +306,22 @@ const Results = () => {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
+  };
+
+  // Service filter handlers
+  const toggleService = (service: string) => {
+    setServiceFilters(prev => ({
+      ...prev,
+      [service]: !prev[service]
+    }));
+  };
+
+  const toggleAllServices = (enabled: boolean) => {
+    const newFilters: Record<string, boolean> = {};
+    availableServices.forEach(service => {
+      newFilters[service] = enabled;
+    });
+    setServiceFilters(newFilters);
   };
 
   // Get filtered statistics
@@ -335,7 +413,7 @@ const Results = () => {
   const filteredStats = getFilteredStats();
   const serviceChartData = generateServiceChartData(filteredData);
   const serviceCostData = generateServiceCostData(filteredData);
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
+  const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
 
   return (
     <DashboardLayout>
@@ -435,6 +513,45 @@ const Results = () => {
           
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
+            {/* Filters */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Analysis Filters</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap items-center gap-6">
+                  {/* Result Filter */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium">Results:</label>
+                    <ResultFilter value={resultFilter} onChange={setResultFilter} />
+                  </div>
+                  
+                  {/* Service Type Filters */}
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium">Service Types:</label>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="all-services"
+                        checked={Object.values(serviceFilters).every(Boolean)}
+                        onCheckedChange={(checked) => toggleAllServices(checked as boolean)}
+                      />
+                      <label htmlFor="all-services" className="text-sm">All</label>
+                    </div>
+                    {availableServices.map(service => (
+                      <div key={service} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`service-${service}`}
+                          checked={serviceFilters[service] || false}
+                          onCheckedChange={() => toggleService(service)}
+                        />
+                        <label htmlFor={`service-${service}`} className="text-sm">{service}</label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Data Period Card */}
             <Card>
               <CardHeader>
@@ -539,16 +656,10 @@ const Results = () => {
                   Showing {filteredData.length} of {shipmentData.length} total shipments
                 </p>
                 <div className="flex flex-wrap items-center gap-4 mt-4">
-                  {/* Wins/Losses Toggle Slider */}
+                  {/* Result Filter Slider */}
                   <div className="flex items-center gap-3">
-                    <Switch
-                      id="show-wins-only"
-                      checked={showWinsOnly}
-                      onCheckedChange={setShowWinsOnly}
-                    />
-                    <label htmlFor="show-wins-only" className="text-sm font-medium">
-                      Show Wins Only
-                    </label>
+                    <label className="text-sm font-medium">Filter:</label>
+                    <ResultFilter value={resultFilter} onChange={setResultFilter} />
                   </div>
                   
                   {/* Search Input */}
@@ -563,10 +674,10 @@ const Results = () => {
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="hover:bg-transparent border-b border-border">
                         <TableHead 
-                          className="cursor-pointer select-none"
+                          className="cursor-pointer select-none text-foreground"
                           onClick={() => handleSort('trackingId')}
                         >
                           <div className="flex items-center gap-1">
@@ -575,7 +686,7 @@ const Results = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer select-none"
+                          className="cursor-pointer select-none text-foreground"
                           onClick={() => handleSort('originZip')}
                         >
                           <div className="flex items-center gap-1">
@@ -584,7 +695,7 @@ const Results = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer select-none"
+                          className="cursor-pointer select-none text-foreground"
                           onClick={() => handleSort('destinationZip')}
                         >
                           <div className="flex items-center gap-1">
@@ -593,7 +704,7 @@ const Results = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="text-right cursor-pointer select-none"
+                          className="text-right cursor-pointer select-none text-foreground"
                           onClick={() => handleSort('weight')}
                         >
                           <div className="flex items-center justify-end gap-1">
@@ -605,7 +716,7 @@ const Results = () => {
                         <TableHead className="text-right text-muted-foreground">Width</TableHead>
                         <TableHead className="text-right text-muted-foreground">Height</TableHead>
                         <TableHead 
-                          className="cursor-pointer select-none"
+                          className="cursor-pointer select-none text-foreground"
                           onClick={() => handleSort('service')}
                         >
                           <div className="flex items-center gap-1">
@@ -614,7 +725,7 @@ const Results = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="text-right cursor-pointer select-none"
+                          className="text-right cursor-pointer select-none text-foreground"
                           onClick={() => handleSort('currentRate')}
                         >
                           <div className="flex items-center justify-end gap-1">
@@ -623,7 +734,7 @@ const Results = () => {
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="text-right cursor-pointer select-none"
+                          className="text-right cursor-pointer select-none text-foreground"
                           onClick={() => handleSort('newRate')}
                         >
                           <div className="flex items-center justify-end gap-1">
@@ -631,7 +742,7 @@ const Results = () => {
                             <ArrowUpDown className="h-4 w-4" />
                           </div>
                         </TableHead>
-                        <TableHead>SP Service Type</TableHead>
+                        <TableHead className="text-foreground">SP Service Type</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -643,30 +754,32 @@ const Results = () => {
                           <TableRow 
                             key={index} 
                             className={cn(
-                              isWin && "bg-green-50/80 hover:bg-green-100/80 dark:bg-green-950/20 dark:hover:bg-green-900/30",
-                              isLoss && "bg-red-50/80 hover:bg-red-100/80 dark:bg-red-950/20 dark:hover:bg-red-900/30"
+                              "border-b border-border",
+                              isWin && "bg-green-500/10 hover:bg-green-500/20",
+                              isLoss && "bg-red-500/10 hover:bg-red-500/20",
+                              !isWin && !isLoss && "hover:bg-muted/50"
                             )}
                           >
-                            <TableCell className="font-medium">{row.trackingId}</TableCell>
-                            <TableCell>{row.originZip}</TableCell>
-                            <TableCell>{row.destinationZip}</TableCell>
-                            <TableCell className="text-right">{row.weight.toFixed(2)}</TableCell>
+                            <TableCell className="font-medium text-foreground">{row.trackingId}</TableCell>
+                            <TableCell className="text-foreground">{row.originZip}</TableCell>
+                            <TableCell className="text-foreground">{row.destinationZip}</TableCell>
+                            <TableCell className="text-right text-foreground">{row.weight.toFixed(2)}</TableCell>
                             <TableCell className="text-right text-muted-foreground">-</TableCell>
                             <TableCell className="text-right text-muted-foreground">-</TableCell>
                             <TableCell className="text-right text-muted-foreground">-</TableCell>
-                            <TableCell>{row.service}</TableCell>
-                            <TableCell className="text-right font-semibold">
+                            <TableCell className="text-foreground">{row.service}</TableCell>
+                            <TableCell className="text-right font-semibold text-foreground">
                               ${row.currentRate.toFixed(2)}
                             </TableCell>
                             <TableCell className={cn(
                               "text-right font-semibold",
-                              isWin && "text-green-700 dark:text-green-400",
-                              isLoss && "text-red-700 dark:text-red-400",
+                              isWin && "text-green-600 dark:text-green-400",
+                              isLoss && "text-red-600 dark:text-red-400",
                               !isWin && !isLoss && "text-foreground"
                             )}>
                               ${row.newRate.toFixed(2)}
                             </TableCell>
-                            <TableCell>UPS® Ground</TableCell>
+                            <TableCell className="text-foreground">UPS® Ground</TableCell>
                           </TableRow>
                         );
                       })}
@@ -706,25 +819,25 @@ const Results = () => {
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Tracking ID</TableHead>
-                          <TableHead>Origin Zip</TableHead>
-                          <TableHead>Destination Zip</TableHead>
-                          <TableHead className="text-right">Weight</TableHead>
-                          <TableHead>Service Type</TableHead>
-                          <TableHead>Error Type</TableHead>
-                          <TableHead>Error Details</TableHead>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow className="border-b border-border">
+                          <TableHead className="text-foreground">Tracking ID</TableHead>
+                          <TableHead className="text-foreground">Origin Zip</TableHead>
+                          <TableHead className="text-foreground">Destination Zip</TableHead>
+                          <TableHead className="text-right text-foreground">Weight</TableHead>
+                          <TableHead className="text-foreground">Service Type</TableHead>
+                          <TableHead className="text-foreground">Error Type</TableHead>
+                          <TableHead className="text-foreground">Error Details</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {orphanedData.map((row, index) => (
-                          <TableRow key={index}>
-                            <TableCell className="font-medium">{row.trackingId}</TableCell>
-                            <TableCell>{row.originZip}</TableCell>
-                            <TableCell>{row.destinationZip}</TableCell>
-                            <TableCell className="text-right">{row.weight.toFixed(1)}</TableCell>
-                            <TableCell>{row.service}</TableCell>
+                          <TableRow key={index} className="border-b border-border hover:bg-muted/50">
+                            <TableCell className="font-medium text-foreground">{row.trackingId}</TableCell>
+                            <TableCell className="text-foreground">{row.originZip}</TableCell>
+                            <TableCell className="text-foreground">{row.destinationZip}</TableCell>
+                            <TableCell className="text-right text-foreground">{row.weight.toFixed(1)}</TableCell>
+                            <TableCell className="text-foreground">{row.service}</TableCell>
                             <TableCell>
                               <Badge variant="destructive">{row.errorType}</Badge>
                             </TableCell>

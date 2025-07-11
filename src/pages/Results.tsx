@@ -181,7 +181,7 @@ const Results = () => {
       return;
     }
 
-    processAnalysisFromDatabase(data);
+    console.log('Raw database data:', data);
   };
 
   const processAnalysisFromDatabase = (data: any) => {
@@ -191,6 +191,12 @@ const Results = () => {
     
     // Use original_data if recommendations is incomplete
     const dataToUse = recommendations.length > 0 ? recommendations : originalData;
+    
+    console.log('Processing analysis from database:', {
+      recommendations: recommendations.length,
+      originalData: originalData.length,
+      dataToUse: dataToUse.length
+    });
     
     const analysisInfo: AnalysisData = {
       totalCurrentCost: savings.totalCurrentCost || 0,

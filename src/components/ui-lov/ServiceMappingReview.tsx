@@ -30,7 +30,6 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
 }) => {
   const [mappings, setMappings] = useState<ExtendedServiceMapping[]>([]);
   const [allMapped, setAllMapped] = useState(false);
-  const [globalResidentialSetting, setGlobalResidentialSetting] = useState(false);
 
   useEffect(() => {
     // Count shipments for each service and extend mappings
@@ -95,6 +94,14 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
     ));
   };
 
+  const updateResidentialSetting = (index: number, isResidential: boolean) => {
+    setMappings(prev => prev.map((mapping, i) => 
+      i === index 
+        ? { ...mapping, isResidential }
+        : mapping
+    ));
+  };
+
   const getConfidenceColor = (confidence: number) => {
     if (confidence >= 0.8) return 'text-green-600';
     if (confidence >= 0.5) return 'text-yellow-600';
@@ -143,14 +150,13 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       carrier: mapping.carrier,
       confidence: mapping.confidence,
       upsServiceCode: mapping.upsServiceCode,
-      isResidential: mapping.standardized === 'GROUND' ? globalResidentialSetting : undefined
+      isResidential: mapping.isResidential
     }));
     onMappingsConfirmed(confirmedMappings);
   };
 
   const totalShipments = mappings.reduce((sum, m) => sum + m.shipmentCount, 0);
   const lowConfidenceCount = mappings.filter(m => m.confidence < 0.5 && !m.isEdited).length;
-  const hasGroundServices = mappings.some(m => m.standardized === 'GROUND');
 
   return (
     <Card>
@@ -184,31 +190,6 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
             )}
           </div>
         </div>
-
-        {/* Residential/Commercial Setting for Ground Services */}
-        {hasGroundServices && (
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Checkbox
-                id="residential-setting"
-                checked={globalResidentialSetting}
-                onCheckedChange={(checked) => setGlobalResidentialSetting(checked as boolean)}
-              />
-              <div className="space-y-1">
-                <label 
-                  htmlFor="residential-setting" 
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                >
-                  Mark ground shipments as residential delivery
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  UPS charges different rates for residential vs commercial ground delivery. 
-                  Check this if most of your ground shipments are delivered to residential addresses.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -279,6 +260,23 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Residential/Commercial Checkbox for Ground Services */}
+              {mapping.standardized === 'GROUND' && (
+                <div className="flex-shrink-0 flex items-center gap-2 ml-4">
+                  <Checkbox
+                    id={`residential-${index}`}
+                    checked={mapping.isResidential || false}
+                    onCheckedChange={(checked) => updateResidentialSetting(index, checked as boolean)}
+                  />
+                  <label 
+                    htmlFor={`residential-${index}`} 
+                    className="text-sm font-medium leading-none cursor-pointer"
+                  >
+                    Residential
+                  </label>
+                </div>
+              )}
             </div>
           </div>
         ))}

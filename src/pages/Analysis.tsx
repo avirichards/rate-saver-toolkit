@@ -517,7 +517,37 @@ const Analysis = () => {
       } 
     });
   };
-  
+
+  const handleStopAndContinue = () => {
+    setIsPaused(true);
+    setIsAnalyzing(false);
+    
+    const completedResults = analysisResults.filter(r => r.status === 'completed');
+    const recommendations = completedResults.map(r => ({
+      shipment: r.shipment,
+      originalService: r.originalService,
+      currentCost: r.currentCost,
+      recommendedCost: r.bestRate?.totalCharges,
+      savings: r.savings,
+      recommendedService: r.bestRate?.serviceName,
+      status: r.status,
+      error: r.error
+    }));
+    
+    navigate('/results', { 
+      state: { 
+        analysisComplete: true, 
+        analysisData: {
+          totalCurrentCost,
+          totalPotentialSavings: totalSavings,
+          recommendations,
+          savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+          totalShipments: shipments.length,
+          analyzedShipments: completedResults.length
+        }
+      } 
+    });
+  };
   const progress = shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
   const completedCount = analysisResults.filter(r => r.status === 'completed').length;
   const errorCount = analysisResults.filter(r => r.status === 'error').length;
@@ -625,21 +655,31 @@ const Analysis = () => {
             <Progress value={progress} className="h-2" />
             
             {/* Control Buttons */}
-            {isAnalyzing && !isComplete && (
-              <div className="flex gap-2 mt-4">
+            {(isAnalyzing || completedCount > 0) && !isComplete && (
+              <div className="flex gap-4 mt-4">
                 <Button
-                  variant={isPaused ? "primary" : "outline"}
-                  size="sm"
                   onClick={() => setIsPaused(!isPaused)}
-                  iconLeft={isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                  variant="outline"
+                  disabled={!isAnalyzing}
                 >
-                  {isPaused ? 'Resume Analysis' : 'Pause Analysis'}
+                  {isPaused ? <Play className="h-4 w-4 mr-2" /> : <Pause className="h-4 w-4 mr-2" />}
+                  {isPaused ? 'Resume' : 'Pause'}
                 </Button>
-                {isPaused && (
-                  <div className="text-sm text-muted-foreground self-center">
-                    Analysis paused. Click Resume to continue.
-                  </div>
-                )}
+                
+                <Button
+                  onClick={handleStopAndContinue}
+                  variant="secondary"
+                  disabled={completedCount === 0}
+                >
+                  Stop & View Results
+                </Button>
+                
+                <Button
+                  onClick={() => navigate('/upload')}
+                  variant="outline"
+                >
+                  Start Over
+                </Button>
               </div>
             )}
           </CardContent>

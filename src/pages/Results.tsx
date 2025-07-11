@@ -4,14 +4,16 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useNavigate } from 'react-router-dom';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -51,6 +53,7 @@ const ResultFilter = ({ value, onChange }: { value: 'all' | 'wins' | 'losses', o
 };
 
 const Results = () => {
+  const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
@@ -62,7 +65,8 @@ const Results = () => {
   const [resultFilter, setResultFilter] = useState<'all' | 'wins' | 'losses'>('all');
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [availableServices, setAvailableServices] = useState<string[]>([]);
-  const [serviceFilters, setServiceFilters] = useState<Record<string, boolean>>({});
+  const [selectedService, setSelectedService] = useState<string>('all');
+  const [residentialSettings, setResidentialSettings] = useState<Record<string, 'residential' | 'commercial'>>({});
 
   useEffect(() => {
     const loadAnalysisData = async () => {
@@ -106,11 +110,8 @@ const Results = () => {
           // Initialize service data
           const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
           setAvailableServices(services);
-          const initialFilters: Record<string, boolean> = {};
-          services.forEach(service => {
-            initialFilters[service] = true;
-          });
-          setServiceFilters(initialFilters);
+          
+          setLoading(false);
           
           setLoading(false);
         } else if (params.id) {
@@ -242,11 +243,8 @@ const Results = () => {
     // Initialize service data
     const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
     setAvailableServices(services);
-    const initialFilters: Record<string, boolean> = {};
-    services.forEach(service => {
-      initialFilters[service] = true;
-    });
-    setServiceFilters(initialFilters);
+    
+    setLoading(false);
     
     setLoading(false);
   };
@@ -262,13 +260,9 @@ const Results = () => {
       filtered = filtered.filter(item => item.savings < 0);
     }
 
-    // Apply service filters
-    const enabledServices = Object.entries(serviceFilters)
-      .filter(([_, enabled]) => enabled)
-      .map(([service, _]) => service);
-    
-    if (enabledServices.length > 0 && enabledServices.length < availableServices.length) {
-      filtered = filtered.filter(item => enabledServices.includes(item.service));
+    // Apply service filter
+    if (selectedService !== 'all') {
+      filtered = filtered.filter(item => item.service === selectedService);
     }
 
     // Apply search filter
@@ -304,7 +298,7 @@ const Results = () => {
     }
 
     setFilteredData(filtered);
-  }, [shipmentData, resultFilter, serviceFilters, availableServices.length, searchTerm, sortConfig]);
+  }, [shipmentData, resultFilter, selectedService, availableServices.length, searchTerm, sortConfig]);
 
   // Handle column sorting
   const handleSort = (key: string) => {
@@ -315,20 +309,12 @@ const Results = () => {
     setSortConfig({ key, direction });
   };
 
-  // Service filter handlers
-  const toggleService = (service: string) => {
-    setServiceFilters(prev => ({
+  // Handle residential/commercial toggle
+  const toggleResidentialSetting = (trackingId: string) => {
+    setResidentialSettings(prev => ({
       ...prev,
-      [service]: !prev[service]
+      [trackingId]: prev[trackingId] === 'residential' ? 'commercial' : 'residential'
     }));
-  };
-
-  const toggleAllServices = (enabled: boolean) => {
-    const newFilters: Record<string, boolean> = {};
-    availableServices.forEach(service => {
-      newFilters[service] = enabled;
-    });
-    setServiceFilters(newFilters);
   };
 
   // Get filtered statistics
@@ -428,22 +414,36 @@ const Results = () => {
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                Analysis Results
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                Comprehensive shipping analysis for {analysisData.totalShipments} shipments
-              </p>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={() => navigate('/upload')}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back to Upload
+              </Button>
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  Analysis Results
+                </h1>
+                <p className="text-muted-foreground mt-2">
+                  Comprehensive shipping analysis for {analysisData.totalShipments} shipments
+                </p>
+              </div>
             </div>
             <div className="flex gap-3">
+              <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
+                <Home className="h-4 w-4 mr-2" />
+                Dashboard
+              </Button>
               <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 mr-2" />
                 Export Report
               </Button>
-              <Button size="sm">
-                <Target className="h-4 w-4 mr-2" />
-                View Action Items
+              <Button size="sm" onClick={() => navigate('/upload')}>
+                <Upload className="h-4 w-4 mr-2" />
+                New Analysis
               </Button>
             </div>
           </div>
@@ -517,31 +517,20 @@ const Results = () => {
                 <CardDescription>Filter results by service type</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-3">
-                  <Button
-                    variant={Object.values(serviceFilters).every(enabled => enabled) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleAllServices(true)}
-                  >
-                    All Services
-                  </Button>
-                  <Button
-                    variant={Object.values(serviceFilters).every(enabled => !enabled) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleAllServices(false)}
-                  >
-                    Clear All
-                  </Button>
-                  {availableServices.map((service) => (
-                    <Button
-                      key={service}
-                      variant={serviceFilters[service] ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => toggleService(service)}
-                    >
-                      {service} ({shipmentData.filter(item => item.service === service).length})
-                    </Button>
-                  ))}
+                <div className="flex items-center gap-4">
+                  <Select value={selectedService} onValueChange={setSelectedService}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Select service type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Services ({shipmentData.length})</SelectItem>
+                      {availableServices.map((service) => (
+                        <SelectItem key={service} value={service}>
+                          {service} ({shipmentData.filter(item => item.service === service).length})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </CardContent>
             </Card>
@@ -673,25 +662,19 @@ const Results = () => {
                 <CardTitle>Filter by Service Type</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant={Object.values(serviceFilters).every(enabled => enabled) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleAllServices(true)}
-                  >
-                    All
-                  </Button>
-                  {availableServices.map((service) => (
-                    <Button
-                      key={service}
-                      variant={serviceFilters[service] ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => toggleService(service)}
-                    >
-                      {service}
-                    </Button>
-                  ))}
-                </div>
+                <Select value={selectedService} onValueChange={setSelectedService}>
+                  <SelectTrigger className="w-[250px]">
+                    <SelectValue placeholder="Select service type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Services ({shipmentData.length})</SelectItem>
+                    {availableServices.map((service) => (
+                      <SelectItem key={service} value={service}>
+                        {service} ({shipmentData.filter(item => item.service === service).length})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </CardContent>
             </Card>
 
@@ -702,88 +685,26 @@ const Results = () => {
                   <Table>
                     <TableHeader className="bg-background">
                       <TableRow className="border-b border-border/50">
-                        <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
-                          onClick={() => handleSort('trackingId')}
-                        >
-                          <div className="flex items-center gap-2">
-                            Tracking ID
-                            <ArrowUpDown className="h-4 w-4" />
-                          </div>
-                        </TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
-                          onClick={() => handleSort('originZip')}
-                        >
-                          <div className="flex items-center gap-2">
-                            Origin
-                            <ArrowUpDown className="h-4 w-4" />
-                          </div>
-                        </TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
-                          onClick={() => handleSort('destinationZip')}
-                        >
-                          <div className="flex items-center gap-2">
-                            Destination
-                            <ArrowUpDown className="h-4 w-4" />
-                          </div>
-                        </TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
-                          onClick={() => handleSort('weight')}
-                        >
-                          <div className="flex items-center gap-2">
-                            Weight (lbs)
-                            <ArrowUpDown className="h-4 w-4" />
-                          </div>
-                        </TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
-                          onClick={() => handleSort('service')}
-                        >
-                          <div className="flex items-center gap-2">
-                            Service
-                            <ArrowUpDown className="h-4 w-4" />
-                          </div>
-                        </TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 transition-colors text-right text-foreground"
-                          onClick={() => handleSort('currentRate')}
-                        >
-                          <div className="flex items-center justify-end gap-2">
-                            Current Rate
-                            <ArrowUpDown className="h-4 w-4" />
-                          </div>
-                        </TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 transition-colors text-right text-foreground"
-                          onClick={() => handleSort('newRate')}
-                        >
-                          <div className="flex items-center justify-end gap-2">
-                            UPS Rate
-                            <ArrowUpDown className="h-4 w-4" />
-                          </div>
-                        </TableHead>
-                        <TableHead 
-                          className="cursor-pointer hover:bg-muted/50 transition-colors text-right text-foreground"
-                          onClick={() => handleSort('savings')}
-                        >
-                          <div className="flex items-center justify-end gap-2">
-                            Savings
-                            <ArrowUpDown className="h-4 w-4" />
-                          </div>
-                        </TableHead>
-                        <TableHead className="text-right text-foreground">
-                          Savings %
-                        </TableHead>
+                        <TableHead className="text-foreground">Tracking ID</TableHead>
+                        <TableHead className="text-foreground">Origin</TableHead>
+                        <TableHead className="text-foreground">Destination</TableHead>
+                        <TableHead className="text-foreground">Weight (lbs)</TableHead>
+                        <TableHead className="text-foreground">Service</TableHead>
+                        <TableHead className="text-right text-foreground">Current Rate</TableHead>
+                        <TableHead className="text-right text-foreground">UPS Rate</TableHead>
+                        <TableHead className="text-right text-foreground">Savings</TableHead>
+                        <TableHead className="text-right text-foreground">Savings %</TableHead>
+                        <TableHead className="text-center text-foreground">Delivery Type</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="bg-background">
-                      {filteredData.map((item) => (
+                      {filteredData.map((item, index) => (
                         <TableRow 
                           key={item.id} 
-                          className="hover:bg-muted/30 border-b border-border/30"
+                          className={cn(
+                            "hover:bg-muted/30 border-b border-border/30",
+                            index % 2 === 0 ? "bg-background" : "bg-muted/20"
+                          )}
                         >
                           <TableCell className="font-medium text-foreground">
                             {item.trackingId}
@@ -828,6 +749,20 @@ const Results = () => {
                             )}>
                               {item.savingsPercent.toFixed(1)}%
                             </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {item.service.toLowerCase().includes('ground') ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => toggleResidentialSetting(item.trackingId)}
+                                className="text-xs"
+                              >
+                                {residentialSettings[item.trackingId] || 'commercial'}
+                              </Button>
+                            ) : (
+                              <span className="text-muted-foreground text-sm">N/A</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}

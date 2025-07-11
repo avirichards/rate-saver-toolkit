@@ -4,7 +4,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, CheckCircle, Edit3, Users } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Edit3, Users, Home, Building } from 'lucide-react';
 import { UPS_SERVICE_CODES } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
 
@@ -20,6 +20,8 @@ interface ExtendedServiceMapping extends ServiceMapping {
   shipmentCount: number;
   isEdited: boolean;
   isResidential?: boolean;
+  residentialDetected?: number; // Count of shipments with auto-detected residential
+  commercialDetected?: number; // Count of shipments with auto-detected commercial
 }
 
 export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
@@ -62,13 +64,28 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       return mapping[standardized] || '03'; // Default to Ground
     };
 
-    const extendedMappings = initialMappings.map(mapping => ({
-      ...mapping,
-      upsServiceCode: mapping.upsServiceCode || standardizedToUpsCode(mapping.standardized),
-      shipmentCount: serviceCounts[mapping.original] || 0,
-      isEdited: false,
-      isResidential: mapping.isResidential || false
-    }));
+    const extendedMappings = initialMappings.map(mapping => {
+      // Count residential vs commercial detection for this service
+      const serviceShipments = csvData.filter(row => row[serviceColumn] === mapping.original);
+      const residentialDetected = serviceShipments.filter(shipment => {
+        // Simplified residential detection for display purposes
+        const address = shipment.recipientAddress || shipment.recipient_address || '';
+        return address.toLowerCase().includes('apt') || 
+               address.toLowerCase().includes('unit') || 
+               address.toLowerCase().includes('#');
+      }).length;
+      
+      return {
+        ...mapping,
+        upsServiceCode: mapping.upsServiceCode || standardizedToUpsCode(mapping.standardized),
+        shipmentCount: serviceCounts[mapping.original] || 0,
+        isEdited: false,
+        isResidential: mapping.isResidential !== undefined ? mapping.isResidential : 
+                      (mapping.isResidentialDetected ? true : false),
+        residentialDetected,
+        commercialDetected: (serviceCounts[mapping.original] || 0) - residentialDetected
+      };
+    });
 
     setMappings(extendedMappings);
   }, [csvData, serviceColumn, initialMappings]);
@@ -212,12 +229,35 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                   </Badge>
                 </div>
                 
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground mb-2">
                   Current mapping: <span className="font-medium">{mapping.standardized}</span>
                   {mapping.upsServiceCode && (
                     <span className="ml-2">({UPS_SERVICE_CODES[mapping.upsServiceCode as keyof typeof UPS_SERVICE_CODES]})</span>
                   )}
                 </div>
+                
+                {/* Residential Detection Summary */}
+                {(mapping.residentialDetected || mapping.commercialDetected) && (
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                    {mapping.residentialDetected > 0 && (
+                      <div className="flex items-center gap-1">
+                        <Home className="h-3 w-3 text-orange-500" />
+                        {mapping.residentialDetected} residential detected
+                      </div>
+                    )}
+                    {mapping.commercialDetected > 0 && (
+                      <div className="flex items-center gap-1">
+                        <Building className="h-3 w-3 text-blue-500" />
+                        {mapping.commercialDetected} commercial detected
+                      </div>
+                    )}
+                    {mapping.isResidentialDetected && (
+                      <Badge variant="outline" className="text-xs bg-blue-50">
+                        Auto-detected from service name
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex-shrink-0 w-64">
@@ -270,8 +310,9 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                 />
                 <label 
                   htmlFor={`residential-${index}`} 
-                  className="text-sm font-medium leading-none cursor-pointer"
+                  className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
                 >
+                  <Home className="h-3 w-3" />
                   Residential
                 </label>
               </div>

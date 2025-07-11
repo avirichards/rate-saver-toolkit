@@ -35,6 +35,8 @@ interface ShipmentRequest {
   };
   serviceTypes?: string[];
   equivalentServiceCode?: string;
+  isResidential?: boolean;
+  residentialSource?: string;
 }
 
 serve(async (req) => {
@@ -220,7 +222,7 @@ serve(async (req) => {
               StateProvinceCode: getStateFromZip(shipment.shipTo.zipCode),
               PostalCode: cleanZip(shipment.shipTo.zipCode),
               CountryCode: shipment.shipTo.country || 'US',
-              ResidentialAddressIndicator: "Y"
+              ...(shipment.isResidential ? { ResidentialAddressIndicator: "Y" } : {})
             }
           },
           PaymentDetails: {
@@ -278,6 +280,11 @@ serve(async (req) => {
 
 
     console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
+    console.log('Residential/Commercial Settings:', {
+      isResidential: shipment.isResidential,
+      residentialSource: shipment.residentialSource,
+      hasResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator
+    });
 
     // Service codes to quote and the equivalent service code for comparison
     const serviceCodes = shipment.serviceTypes || ['01', '02', '03', '12', '13'];

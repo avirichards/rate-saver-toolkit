@@ -17,7 +17,9 @@ export interface ServiceMapping {
   carrier: string;
   confidence: number;
   upsServiceCode?: string;
-  isResidential?: boolean; // For ground services
+  isResidential?: boolean; // For all services
+  isResidentialDetected?: boolean; // Auto-detected from service name
+  residentialDetectionSource?: 'service_name' | 'address_pattern' | 'csv_data' | 'manual';
 }
 
 // Enhanced field patterns with priority-based matching
@@ -115,6 +117,11 @@ const FIELD_PATTERNS: Record<string, {
     exact: ['zone', 'shipping_zone', 'rate_zone'],
     strong: ['delivery_zone', 'postal_zone'],
     partial: []
+  },
+  isResidential: {
+    exact: ['is_residential', 'residential', 'address_type', 'delivery_type'],
+    strong: ['residential_flag', 'res_flag', 'home_delivery'],
+    partial: ['type', 'classification']
   },
   shipDate: {
     exact: ['ship_date', 'shipping_date', 'date_shipped'],
@@ -272,12 +279,123 @@ export function detectServiceTypes(data: any[], serviceColumn: string): ServiceM
       original: service,
       standardized: standardized.service,
       carrier: standardized.carrier,
-      confidence: standardized.confidence
+      confidence: standardized.confidence,
+      isResidential: standardized.isResidential,
+      isResidentialDetected: standardized.isResidential !== undefined,
+      residentialDetectionSource: standardized.residentialSource as 'service_name' | 'address_pattern' | 'csv_data' | 'manual'
     };
   });
 }
 
-function standardizeService(service: string): { service: string; carrier: string; confidence: number } {
+// New function to detect residential/commercial from address patterns
+export function detectResidentialFromAddress(address: string): { isResidential: boolean; confidence: number } {
+  if (!address || typeof address !== 'string') {
+    return { isResidential: false, confidence: 0 };
+  }
+  
+  const addressLower = address.toLowerCase().trim();
+  
+  // Strong residential indicators
+  const residentialPatterns = [
+    /apt\s*\d+/i, /apartment\s*\d+/i, /unit\s*\d+/i, /suite\s*\d+/i,
+    /#\s*\d+/i, /\d+[a-z]\s*$/i, // apartment/unit numbers
+    /house/i, /home/i, /residence/i
+  ];
+  
+  // Strong commercial indicators  
+  const commercialPatterns = [
+    /\b(llc|inc|corp|ltd|company|co\.|corporation|incorporated)\b/i,
+    /\b(office|building|plaza|center|centre|tower|floor|fl\s*\d+)\b/i,
+    /\b(warehouse|distribution|fulfillment|dock|bay\s*\d+)\b/i,
+    /\b(business|store|shop|retail|mall)\b/i
+  ];
+  
+  // Check for commercial patterns first (higher confidence)
+  for (const pattern of commercialPatterns) {
+    if (pattern.test(addressLower)) {
+      return { isResidential: false, confidence: 0.8 };
+    }
+  }
+  
+  // Check for residential patterns
+  for (const pattern of residentialPatterns) {
+    if (pattern.test(addressLower)) {
+      return { isResidential: true, confidence: 0.7 };
+    }
+  }
+  
+  // Default to commercial with low confidence if unclear
+  return { isResidential: false, confidence: 0.2 };
+}
+
+// New function to determine residential status with hierarchical logic
+export function determineResidentialStatus(
+  shipment: any,
+  serviceMapping: ServiceMapping,
+  csvResidentialField?: string
+): { isResidential: boolean; source: string; confidence: number } {
+  
+  // 1. Primary: Use explicit CSV column data if available
+  if (csvResidentialField && shipment[csvResidentialField] !== undefined) {
+    const csvValue = shipment[csvResidentialField];
+    const isResidential = parseResidentialValue(csvValue);
+    return { 
+      isResidential, 
+      source: 'csv_data', 
+      confidence: 0.95 
+    };
+  }
+  
+  // 2. Secondary: Use service name intelligence (if detected from service name)
+  if (serviceMapping.isResidentialDetected && serviceMapping.isResidential !== undefined) {
+    return { 
+      isResidential: serviceMapping.isResidential, 
+      source: 'service_name', 
+      confidence: 0.8 
+    };
+  }
+  
+  // 3. Tertiary: Use address pattern analysis
+  if (shipment.recipientAddress) {
+    const addressAnalysis = detectResidentialFromAddress(shipment.recipientAddress);
+    if (addressAnalysis.confidence > 0.6) {
+      return {
+        isResidential: addressAnalysis.isResidential,
+        source: 'address_pattern',
+        confidence: addressAnalysis.confidence
+      };
+    }
+  }
+  
+  // 4. Fallback: Use service mapping page checkbox settings
+  if (serviceMapping.isResidential !== undefined) {
+    return { 
+      isResidential: serviceMapping.isResidential, 
+      source: 'manual', 
+      confidence: 0.5 
+    };
+  }
+  
+  // 5. Ultimate fallback: assume commercial
+  return { 
+    isResidential: false, 
+    source: 'default', 
+    confidence: 0.1 
+  };
+}
+
+// Helper function to parse residential values from CSV data
+function parseResidentialValue(value: any): boolean {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const lower = value.toLowerCase().trim();
+    return ['yes', 'y', 'true', '1', 'residential', 'home'].includes(lower);
+  }
+  if (typeof value === 'number') return value === 1;
+  return false;
+}
+
+function standardizeService(service: string): { service: string; carrier: string; confidence: number; isResidential?: boolean; residentialSource?: string } {
   const serviceLower = service.toLowerCase().trim();
   
   // First, determine the carrier for reporting purposes
@@ -286,28 +404,50 @@ function standardizeService(service: string): { service: string; carrier: string
   else if (serviceLower.includes('fedex') || serviceLower.includes('federal express')) carrier = 'FedEx';
   else if (serviceLower.includes('usps') || serviceLower.includes('postal') || serviceLower.includes('mail')) carrier = 'USPS';
   
+  // Detect residential vs commercial from service names
+  let isResidential: boolean | undefined = undefined;
+  let residentialSource = 'service_name';
+  
   // NOW PRIORITIZE SERVICE TYPE CLASSIFICATION FOR APPLE-TO-APPLES COMPARISON
   
+  // FEDEX-SPECIFIC RESIDENTIAL DETECTION
+  if (carrier === 'FedEx') {
+    if (serviceLower.includes('home delivery') || serviceLower.includes('fedex home')) {
+      isResidential = true;
+    } else if (serviceLower.includes('fedex ground') && !serviceLower.includes('home')) {
+      isResidential = false;
+    }
+  }
+  
+  // USPS RESIDENTIAL DETECTION
+  if (carrier === 'USPS') {
+    // Most USPS services are residential by nature
+    if (serviceLower.includes('priority mail') || serviceLower.includes('first-class') || 
+        serviceLower.includes('media mail') || serviceLower.includes('parcel select')) {
+      isResidential = true;
+    }
+  }
+
   // NEXT DAY / OVERNIGHT services (highest priority for speed)
   if (serviceLower.includes('next day') || serviceLower.includes('nextday') || 
       serviceLower.includes('next air') || serviceLower.includes('nda') ||
       serviceLower.includes('overnight') || serviceLower.includes('1 day') ||
       serviceLower.includes('standard overnight') || serviceLower.includes('priority overnight') ||
       serviceLower.includes('express mail') || serviceLower.includes('priority mail express')) {
-    return { service: 'NEXT_DAY_AIR', carrier, confidence: 0.95 };
+    return { service: 'NEXT_DAY_AIR', carrier, confidence: 0.95, isResidential, residentialSource };
   }
   
   // EARLY AM / SATURDAY services (premium next day)
   if (serviceLower.includes('early') || serviceLower.includes('saturday') || 
       serviceLower.includes('am') || serviceLower.includes('before')) {
-    return { service: 'NEXT_DAY_AIR_EARLY', carrier, confidence: 0.9 };
+    return { service: 'NEXT_DAY_AIR_EARLY', carrier, confidence: 0.9, isResidential, residentialSource };
   }
   
   // 2ND DAY services
   if (serviceLower.includes('2nd day') || serviceLower.includes('2 day') ||
       serviceLower.includes('second day') || serviceLower.includes('2da') ||
       serviceLower.includes('2day') || serviceLower.includes('two day')) {
-    return { service: '2ND_DAY_AIR', carrier, confidence: 0.95 };
+    return { service: '2ND_DAY_AIR', carrier, confidence: 0.95, isResidential, residentialSource };
   }
   
   // 3RD DAY / SELECT services
@@ -315,33 +455,33 @@ function standardizeService(service: string): { service: string; carrier: string
       serviceLower.includes('third day') || serviceLower.includes('3da') ||
       serviceLower.includes('3day') || serviceLower.includes('three day') ||
       serviceLower.includes('select') || serviceLower.includes('3 select')) {
-    return { service: '3_DAY_SELECT', carrier, confidence: 0.95 };
+    return { service: '3_DAY_SELECT', carrier, confidence: 0.95, isResidential, residentialSource };
   }
   
   // EXPRESS services (faster than ground, but not next day)
   if (serviceLower.includes('express') && !serviceLower.includes('ground') && 
       !serviceLower.includes('mail') && !serviceLower.includes('overnight')) {
-    return { service: 'EXPRESS_SAVER', carrier, confidence: 0.8 };
+    return { service: 'EXPRESS_SAVER', carrier, confidence: 0.8, isResidential, residentialSource };
   }
   
   // PRIORITY services (typically 1-3 days depending on carrier)
   if (serviceLower.includes('priority') && !serviceLower.includes('express') && 
       !serviceLower.includes('overnight') && !serviceLower.includes('mail express')) {
-    return { service: 'PRIORITY_MAIL', carrier, confidence: 0.8 };
+    return { service: 'PRIORITY_MAIL', carrier, confidence: 0.8, isResidential, residentialSource };
   }
   
   // GROUND services (slowest/cheapest)
   if (serviceLower.includes('ground') || serviceLower.includes('gnd') ||
       serviceLower.includes('surface') || serviceLower.includes('standard') ||
       serviceLower.includes('advantage') || serviceLower.includes('basic')) {
-    return { service: 'GROUND', carrier, confidence: 0.9 };
+    return { service: 'GROUND', carrier, confidence: 0.9, isResidential, residentialSource };
   }
   
   // Fallback patterns for common service names that don't fit above
   if (serviceLower.includes('air') && !serviceLower.includes('ground')) {
-    return { service: 'EXPRESS_AIR', carrier, confidence: 0.6 };
+    return { service: 'EXPRESS_AIR', carrier, confidence: 0.6, isResidential, residentialSource };
   }
   
   // Default fallback - assume ground for unknown services
-  return { service: 'GROUND', carrier, confidence: 0.3 };
+  return { service: 'GROUND', carrier, confidence: 0.3, isResidential, residentialSource };
 }

@@ -13,6 +13,7 @@ import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToUpsCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
+import { determineResidentialStatus } from '@/utils/csvParser';
 
 interface ProcessedShipment {
   id: number;
@@ -62,6 +63,7 @@ const Analysis = () => {
   const [totalCurrentCost, setTotalCurrentCost] = useState(0);
   const [validationSummary, setValidationSummary] = useState<any>(null);
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
+  const [csvResidentialField, setCsvResidentialField] = useState<string | undefined>(undefined);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
@@ -100,6 +102,15 @@ const Analysis = () => {
     console.log(`Analysis received ${processedShipments.length} shipments (sample):`, processedShipments.slice(0, 2));
     setShipments(processedShipments);
     setServiceMappings(state.serviceMappings || []);
+    
+    // Check if we have a residential field mapped from CSV
+    const residentialField = Object.entries(state.mappings).find(([fieldName, csvHeader]) => 
+      fieldName === 'isResidential' && csvHeader && csvHeader !== "__NONE__"
+    );
+    if (residentialField) {
+      setCsvResidentialField(residentialField[1]);
+      console.log('Found residential field mapping:', residentialField[1]);
+    }
     
     // Initialize analysis results
     const initialResults = processedShipments.map(shipment => ({
@@ -282,6 +293,28 @@ const Analysis = () => {
         equivalentServiceCode = serviceMapping.upsServiceCode;
       }
       
+      // Determine residential status using hierarchical logic
+      const residentialStatus = determineResidentialStatus(
+        shipment, 
+        confirmedMapping || { 
+          original: shipment.service || '',
+          standardized: serviceMapping.standardizedService,
+          carrier: 'UPS',
+          confidence: 0.5,
+          isResidential: false
+        }, 
+        csvResidentialField
+      );
+      
+      console.log(`Residential status for shipment ${index + 1}:`, {
+        shipmentId: shipment.id,
+        originalService: shipment.service,
+        isResidential: residentialStatus.isResidential,
+        source: residentialStatus.source,
+        confidence: residentialStatus.confidence,
+        recipientAddress: shipment.recipientAddress
+      });
+      
       console.log(`Processing shipment ${index + 1}:`, {
         originZip: shipment.originZip,
         destZip: shipment.destZip,
@@ -331,7 +364,9 @@ const Analysis = () => {
           dimensionUnit: 'IN'
         },
         serviceTypes: serviceCodesToRequest,
-        equivalentServiceCode: equivalentServiceCode
+        equivalentServiceCode: equivalentServiceCode,
+        isResidential: residentialStatus.isResidential,
+        residentialSource: residentialStatus.source
       };
       
       // Fetch UPS rates with enhanced error handling

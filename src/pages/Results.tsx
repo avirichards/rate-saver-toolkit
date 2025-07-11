@@ -619,6 +619,9 @@ const Results = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Detailed Shipment Analysis</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Showing {filteredData.length} of {shipmentData.length} total shipments
+                </p>
                 <div className="flex flex-wrap gap-4 mt-4">
                   <Select value={savingsFilter} onValueChange={setSavingsFilter}>
                     <SelectTrigger className="w-[140px]">
@@ -652,25 +655,25 @@ const Results = () => {
                   />
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-muted/50">
-                        <th className="text-left p-3 font-medium">Order / Tracking</th>
-                        <th className="text-left p-3 font-medium">Shipper Zip</th>
-                        <th className="text-left p-3 font-medium">Recipient Zip</th>
-                        <th className="text-right p-3 font-medium">Weight</th>
-                        <th className="text-right p-3 font-medium">Length</th>
-                        <th className="text-right p-3 font-medium">Width</th>
-                        <th className="text-right p-3 font-medium">Height</th>
-                        <th className="text-left p-3 font-medium">Current Service Type</th>
-                        <th className="text-right p-3 font-medium">Current Cost</th>
-                        <th className="text-right p-3 font-medium">SP Cost</th>
-                        <th className="text-left p-3 font-medium">SP Service Type</th>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto bg-background">
+                  <table className="w-full text-sm border-collapse">
+                    <thead className="sticky top-0 z-10">
+                      <tr className="border-b-2 border-border bg-muted/80 backdrop-blur-sm">
+                        <th className="text-left p-4 font-semibold text-foreground border-r border-border">Order / Tracking</th>
+                        <th className="text-left p-4 font-semibold text-foreground border-r border-border">Shipper Zip</th>
+                        <th className="text-left p-4 font-semibold text-foreground border-r border-border">Recipient Zip</th>
+                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Weight</th>
+                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Length</th>
+                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Width</th>
+                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Height</th>
+                        <th className="text-left p-4 font-semibold text-foreground border-r border-border">Current Service Type</th>
+                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Current Cost</th>
+                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">SP Cost</th>
+                        <th className="text-left p-4 font-semibold text-foreground">SP Service Type</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="bg-background">
                       {filteredData.map((row, index) => {
                         const isWin = row.savings > 0;
                         const isLoss = row.savings < 0;
@@ -679,30 +682,31 @@ const Results = () => {
                           <tr 
                             key={index} 
                             className={cn(
-                              "border-b hover:bg-muted/30 transition-colors",
-                              isWin && "bg-green-50 hover:bg-green-100",
-                              isLoss && "bg-red-50 hover:bg-red-100"
+                              "border-b border-border hover:bg-muted/50 transition-colors",
+                              isWin && "bg-green-50/80 hover:bg-green-100/80 dark:bg-green-950/20 dark:hover:bg-green-900/30",
+                              isLoss && "bg-red-50/80 hover:bg-red-100/80 dark:bg-red-950/20 dark:hover:bg-red-900/30"
                             )}
                           >
-                            <td className="p-3 font-medium">{row.trackingId}</td>
-                            <td className="p-3">{row.originZip}</td>
-                            <td className="p-3">{row.destinationZip}</td>
-                            <td className="p-3 text-right">{row.weight.toFixed(2)}</td>
-                            <td className="p-3 text-right">-</td>
-                            <td className="p-3 text-right">-</td>
-                            <td className="p-3 text-right">-</td>
-                            <td className="p-3">{row.service}</td>
-                            <td className="p-3 text-right font-medium">
+                            <td className="p-4 font-medium text-foreground border-r border-border">{row.trackingId}</td>
+                            <td className="p-4 text-foreground border-r border-border">{row.originZip}</td>
+                            <td className="p-4 text-foreground border-r border-border">{row.destinationZip}</td>
+                            <td className="p-4 text-right text-foreground border-r border-border">{row.weight.toFixed(2)}</td>
+                            <td className="p-4 text-right text-muted-foreground border-r border-border">-</td>
+                            <td className="p-4 text-right text-muted-foreground border-r border-border">-</td>
+                            <td className="p-4 text-right text-muted-foreground border-r border-border">-</td>
+                            <td className="p-4 text-foreground border-r border-border">{row.service}</td>
+                            <td className="p-4 text-right font-semibold text-foreground border-r border-border">
                               ${row.currentRate.toFixed(2)}
                             </td>
                             <td className={cn(
-                              "p-3 text-right font-medium",
-                              isWin && "text-green-700",
-                              isLoss && "text-red-700"
+                              "p-4 text-right font-semibold border-r border-border",
+                              isWin && "text-green-700 dark:text-green-400",
+                              isLoss && "text-red-700 dark:text-red-400",
+                              !isWin && !isLoss && "text-foreground"
                             )}>
                               ${row.newRate.toFixed(2)}
                             </td>
-                            <td className="p-3">UPS® Ground</td>
+                            <td className="p-4 text-foreground">UPS® Ground</td>
                           </tr>
                         );
                       })}

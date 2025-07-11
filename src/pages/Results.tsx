@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
 import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
@@ -11,9 +11,7 @@ import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Checkbox } from '@/components/ui/checkbox';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -61,7 +59,6 @@ const Results = () => {
   const [loading, setLoading] = useState(true);
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [dataPeriodDays, setDataPeriodDays] = useState<number>(7);
   const [resultFilter, setResultFilter] = useState<'all' | 'wins' | 'losses'>('all');
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [availableServices, setAvailableServices] = useState<string[]>([]);
@@ -190,19 +187,23 @@ const Results = () => {
   const processAnalysisFromDatabase = (data: any) => {
     const savings = data.savings_analysis || {};
     const recommendations = data.recommendations || [];
+    const originalData = data.original_data || [];
+    
+    // Use original_data if recommendations is incomplete
+    const dataToUse = recommendations.length > 0 ? recommendations : originalData;
     
     const analysisInfo: AnalysisData = {
       totalCurrentCost: savings.totalCurrentCost || 0,
       totalPotentialSavings: data.total_savings || 0,
-      recommendations,
+      recommendations: dataToUse,
       savingsPercentage: savings.savingsPercentage || 0,
       totalShipments: data.total_shipments || 0,
-      analyzedShipments: recommendations.length
+      analyzedShipments: dataToUse.length
     };
 
     setAnalysisData(analysisInfo);
 
-    const formattedData = recommendations.map((rec: any, index: number) => ({
+    const formattedData = dataToUse.map((rec: any, index: number) => ({
       id: index + 1,
       trackingId: rec.shipment?.trackingId || `Shipment-${index + 1}`,
       originZip: rec.shipment?.originZip || '',
@@ -484,9 +485,9 @@ const Results = () => {
                 <div className="flex items-center gap-3">
                   <Calendar className="h-8 w-8 text-purple-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Annualized Savings</p>
+                    <p className="text-sm text-muted-foreground">Current Costs</p>
                     <p className="text-2xl font-bold text-purple-600">
-                      ${((filteredStats.totalSavings * 365) / dataPeriodDays).toFixed(0)}
+                      ${filteredStats.totalCurrentCost.toFixed(0)}
                     </p>
                   </div>
                 </div>
@@ -494,105 +495,98 @@ const Results = () => {
             </Card>
           </div>
         </div>
-        
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="shipments" className="flex items-center gap-2">
-              <Package className="h-4 w-4" />
-              Shipment Data ({filteredStats.totalShipments})
-            </TabsTrigger>
-            <TabsTrigger value="orphans" className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4" />
-              Orphans ({orphanedData.length})
-            </TabsTrigger>
+
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="shipment-data">Shipment Data</TabsTrigger>
+            <TabsTrigger value="orphaned-data">Orphaned Data ({orphanedData.length})</TabsTrigger>
           </TabsList>
-          
-          {/* Overview Tab */}
+
           <TabsContent value="overview" className="space-y-6">
-            {/* Filters */}
+            {/* Service Type Filter for Overview */}
             <Card>
               <CardHeader>
-                <CardTitle>Analysis Filters</CardTitle>
+                <CardTitle>Service Type Filters</CardTitle>
+                <CardDescription>Filter results by service type</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap items-center gap-6">
-                  {/* Result Filter */}
-                  <div className="flex items-center gap-3">
-                    <label className="text-sm font-medium">Results:</label>
-                    <ResultFilter value={resultFilter} onChange={setResultFilter} />
-                  </div>
-                  
-                  {/* Service Type Filters */}
-                  <div className="flex items-center gap-3">
-                    <label className="text-sm font-medium">Service Types:</label>
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="all-services"
-                        checked={Object.values(serviceFilters).every(Boolean)}
-                        onCheckedChange={(checked) => toggleAllServices(checked as boolean)}
-                      />
-                      <label htmlFor="all-services" className="text-sm">All</label>
-                    </div>
-                    {availableServices.map(service => (
-                      <div key={service} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`service-${service}`}
-                          checked={serviceFilters[service] || false}
-                          onCheckedChange={() => toggleService(service)}
-                        />
-                        <label htmlFor={`service-${service}`} className="text-sm">{service}</label>
-                      </div>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant={Object.values(serviceFilters).every(enabled => enabled) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleAllServices(true)}
+                  >
+                    All Services
+                  </Button>
+                  <Button
+                    variant={Object.values(serviceFilters).every(enabled => !enabled) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleAllServices(false)}
+                  >
+                    Clear All
+                  </Button>
+                  {availableServices.map((service) => (
+                    <Button
+                      key={service}
+                      variant={serviceFilters[service] ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => toggleService(service)}
+                    >
+                      {service} ({shipmentData.filter(item => item.service === service).length})
+                    </Button>
+                  ))}
                 </div>
               </CardContent>
             </Card>
 
-            {/* Data Period Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={dataPeriodDays}
-                    onChange={(e) => setDataPeriodDays(parseInt(e.target.value) || 7)}
-                    className="w-20 h-8 text-base font-bold"
-                    min="1"
-                    max="365"
-                  />
-                  Day Analysis Period
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Adjust the time period to see projected annual savings
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Current Cost</p>
-                    <p className="text-xl font-bold">${filteredStats.totalCurrentCost.toFixed(2)}</p>
+            {/* Analysis Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-l-4 border-l-purple-500">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-purple-100 rounded-full">
+                      <TruckIcon className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Analyzed Shipments</p>
+                      <p className="text-2xl font-bold">{filteredStats.totalShipments}</p>
+                      <p className="text-xs text-muted-foreground">of {analysisData.totalShipments} total</p>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Ship Pro Cost</p>
-                    <p className="text-xl font-bold">${(filteredStats.totalCurrentCost - filteredStats.totalSavings).toFixed(2)}</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-l-4 border-l-red-500">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-red-100 rounded-full">
+                      <ArrowDownRight className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Current Total Cost</p>
+                      <p className="text-2xl font-bold">${filteredStats.totalCurrentCost.toFixed(0)}</p>
+                      <p className="text-xs text-muted-foreground">based on analysis</p>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Period Savings</p>
-                    <p className="text-xl font-bold text-green-600">${filteredStats.totalSavings.toFixed(2)}</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-l-4 border-l-emerald-500">
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-emerald-100 rounded-full">
+                      <Zap className="h-6 w-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Total Savings</p>
+                      <p className="text-2xl font-bold text-emerald-600">${filteredStats.totalSavings.toFixed(0)}</p>
+                      <p className="text-xs text-muted-foreground">{filteredStats.averageSavingsPercent.toFixed(1)}% reduction</p>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm text-muted-foreground">Annual Projection</p>
-                    <p className="text-xl font-bold text-green-600">
-                      ${((filteredStats.totalSavings * 365) / dataPeriodDays).toFixed(0)}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -646,166 +640,205 @@ const Results = () => {
               </Card>
             </div>
           </TabsContent>
-          
-          {/* Shipment Data Tab */}
-          <TabsContent value="shipments" className="space-y-6">
+
+          <TabsContent value="shipment-data" className="space-y-6">
+            {/* Filter Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <Input
+                  placeholder="Search tracking ID, ZIP codes, or service..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full sm:w-auto"
+                />
+                <ResultFilter value={resultFilter} onChange={setResultFilter} />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  Showing {filteredData.length} of {shipmentData.length} shipments
+                </span>
+              </div>
+            </div>
+
+            {/* Service Type Filter */}
             <Card>
               <CardHeader>
-                <CardTitle>Detailed Shipment Analysis</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Showing {filteredData.length} of {shipmentData.length} total shipments
-                </p>
-                <div className="flex flex-wrap items-center gap-4 mt-4">
-                  {/* Result Filter Slider */}
-                  <div className="flex items-center gap-3">
-                    <label className="text-sm font-medium">Filter:</label>
-                    <ResultFilter value={resultFilter} onChange={setResultFilter} />
-                  </div>
-                  
-                  {/* Search Input */}
-                  <Input
-                    placeholder="Search tracking ID, ZIP, or service..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-[250px]"
-                  />
-                </div>
+                <CardTitle>Filter by Service Type</CardTitle>
               </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={Object.values(serviceFilters).every(enabled => enabled) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleAllServices(true)}
+                  >
+                    All
+                  </Button>
+                  {availableServices.map((service) => (
+                    <Button
+                      key={service}
+                      variant={serviceFilters[service] ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => toggleService(service)}
+                    >
+                      {service}
+                    </Button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Data Table */}
+            <Card className="bg-background">
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow className="hover:bg-transparent border-b border-border">
+                    <TableHeader className="bg-background">
+                      <TableRow className="border-b border-border/50">
                         <TableHead 
-                          className="cursor-pointer select-none text-foreground"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
                           onClick={() => handleSort('trackingId')}
                         >
-                          <div className="flex items-center gap-1">
-                            Order / Tracking
+                          <div className="flex items-center gap-2">
+                            Tracking ID
                             <ArrowUpDown className="h-4 w-4" />
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer select-none text-foreground"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
                           onClick={() => handleSort('originZip')}
                         >
-                          <div className="flex items-center gap-1">
-                            Shipper Zip
+                          <div className="flex items-center gap-2">
+                            Origin
                             <ArrowUpDown className="h-4 w-4" />
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="cursor-pointer select-none text-foreground"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
                           onClick={() => handleSort('destinationZip')}
                         >
-                          <div className="flex items-center gap-1">
-                            Recipient Zip
+                          <div className="flex items-center gap-2">
+                            Destination
                             <ArrowUpDown className="h-4 w-4" />
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="text-right cursor-pointer select-none text-foreground"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
                           onClick={() => handleSort('weight')}
                         >
-                          <div className="flex items-center justify-end gap-1">
-                            Weight
+                          <div className="flex items-center gap-2">
+                            Weight (lbs)
                             <ArrowUpDown className="h-4 w-4" />
                           </div>
                         </TableHead>
-                        <TableHead className="text-right text-muted-foreground">Length</TableHead>
-                        <TableHead className="text-right text-muted-foreground">Width</TableHead>
-                        <TableHead className="text-right text-muted-foreground">Height</TableHead>
                         <TableHead 
-                          className="cursor-pointer select-none text-foreground"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors text-foreground"
                           onClick={() => handleSort('service')}
                         >
-                          <div className="flex items-center gap-1">
-                            Current Service Type
+                          <div className="flex items-center gap-2">
+                            Service
                             <ArrowUpDown className="h-4 w-4" />
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="text-right cursor-pointer select-none text-foreground"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors text-right text-foreground"
                           onClick={() => handleSort('currentRate')}
                         >
-                          <div className="flex items-center justify-end gap-1">
-                            Current Cost
+                          <div className="flex items-center justify-end gap-2">
+                            Current Rate
                             <ArrowUpDown className="h-4 w-4" />
                           </div>
                         </TableHead>
                         <TableHead 
-                          className="text-right cursor-pointer select-none text-foreground"
+                          className="cursor-pointer hover:bg-muted/50 transition-colors text-right text-foreground"
                           onClick={() => handleSort('newRate')}
                         >
-                          <div className="flex items-center justify-end gap-1">
-                            SP Cost
+                          <div className="flex items-center justify-end gap-2">
+                            UPS Rate
                             <ArrowUpDown className="h-4 w-4" />
                           </div>
                         </TableHead>
-                        <TableHead className="text-foreground">SP Service Type</TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-muted/50 transition-colors text-right text-foreground"
+                          onClick={() => handleSort('savings')}
+                        >
+                          <div className="flex items-center justify-end gap-2">
+                            Savings
+                            <ArrowUpDown className="h-4 w-4" />
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-right text-foreground">
+                          Savings %
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
-                    <TableBody>
-                      {filteredData.map((row, index) => {
-                        const isWin = row.savings > 0;
-                        const isLoss = row.savings < 0;
-                        
-                        return (
-                          <TableRow 
-                            key={index} 
-                            className={cn(
-                              "border-b border-border",
-                              isWin && "bg-green-500/10 hover:bg-green-500/20",
-                              isLoss && "bg-red-500/10 hover:bg-red-500/20",
-                              !isWin && !isLoss && "hover:bg-muted/50"
-                            )}
-                          >
-                            <TableCell className="font-medium text-foreground">{row.trackingId}</TableCell>
-                            <TableCell className="text-foreground">{row.originZip}</TableCell>
-                            <TableCell className="text-foreground">{row.destinationZip}</TableCell>
-                            <TableCell className="text-right text-foreground">{row.weight.toFixed(2)}</TableCell>
-                            <TableCell className="text-right text-muted-foreground">-</TableCell>
-                            <TableCell className="text-right text-muted-foreground">-</TableCell>
-                            <TableCell className="text-right text-muted-foreground">-</TableCell>
-                            <TableCell className="text-foreground">{row.service}</TableCell>
-                            <TableCell className="text-right font-semibold text-foreground">
-                              ${row.currentRate.toFixed(2)}
-                            </TableCell>
-                            <TableCell className={cn(
-                              "text-right font-semibold",
-                              isWin && "text-green-600 dark:text-green-400",
-                              isLoss && "text-red-600 dark:text-red-400",
-                              !isWin && !isLoss && "text-foreground"
+                    <TableBody className="bg-background">
+                      {filteredData.map((item) => (
+                        <TableRow 
+                          key={item.id} 
+                          className="hover:bg-muted/30 border-b border-border/30"
+                        >
+                          <TableCell className="font-medium text-foreground">
+                            {item.trackingId}
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {item.originZip}
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {item.destinationZip}
+                          </TableCell>
+                          <TableCell className="text-foreground">
+                            {item.weight.toFixed(1)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {item.service}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-foreground">
+                            ${item.currentRate.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium text-foreground">
+                            ${item.newRate.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className={cn(
+                              "flex items-center justify-end gap-1 font-medium",
+                              item.savings > 0 ? "text-green-600" : item.savings < 0 ? "text-red-600" : "text-muted-foreground"
                             )}>
-                              ${row.newRate.toFixed(2)}
-                            </TableCell>
-                            <TableCell className="text-foreground">UPS® Ground</TableCell>
-                          </TableRow>
-                        );
-                      })}
+                              {item.savings > 0 ? (
+                                <CheckCircle2 className="h-4 w-4" />
+                              ) : item.savings < 0 ? (
+                                <XCircle className="h-4 w-4" />
+                              ) : null}
+                              ${Math.abs(item.savings).toFixed(2)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className={cn(
+                              "font-medium",
+                              item.savings > 0 ? "text-green-600" : item.savings < 0 ? "text-red-600" : "text-muted-foreground"
+                            )}>
+                              {item.savingsPercent.toFixed(1)}%
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>
-                
-                {filteredData.length === 0 && (
-                  <div className="text-center py-12">
-                    <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No Shipments Found</h3>
-                    <p className="text-muted-foreground">Try adjusting your filters to see more results.</p>
-                  </div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
-          
-          {/* Orphans Tab */}
-          <TabsContent value="orphans" className="space-y-6">
+
+          <TabsContent value="orphaned-data" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>Orphaned Shipments</CardTitle>
-                <p className="text-sm text-muted-foreground">
+                <CardDescription>
                   Shipments that encountered errors during processing
-                </p>
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {orphanedData.length === 0 ? (

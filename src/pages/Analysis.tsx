@@ -454,23 +454,24 @@ const Analysis = () => {
     const state = location.state as any;
     const completedResults = analysisResults.filter(r => r.status === 'completed');
     
-    const recommendations = completedResults
-      .filter(r => r.savings && r.savings > 0)
-      .map(r => ({
-        shipment: r.shipment,
-        originalService: r.originalService, // Include original service
-        currentCost: r.currentCost,
-        recommendedCost: r.bestRate?.totalCharges,
-        savings: r.savings,
-        recommendedService: r.bestRate?.serviceName
-      }));
+    // Include ALL completed results, not just ones with positive savings
+    const recommendations = completedResults.map(r => ({
+      shipment: r.shipment,
+      originalService: r.originalService, // Include original service
+      currentCost: r.currentCost,
+      recommendedCost: r.bestRate?.totalCharges,
+      savings: r.savings,
+      recommendedService: r.bestRate?.serviceName,
+      status: r.status,
+      error: r.error
+    }));
     
     const { error } = await supabase
       .from('shipping_analyses')
       .insert({
         user_id: user.id,
         file_name: state?.fileName || 'Real-time Analysis',
-        original_data: shipments as any,
+        original_data: completedResults as any, // Store all completed analysis results
         ups_quotes: completedResults.map(r => r.upsRates) as any,
         savings_analysis: {
           totalCurrentCost,

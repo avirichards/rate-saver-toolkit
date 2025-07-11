@@ -116,6 +116,20 @@ const Dashboard = () => {
               <CardDescription>Distribution across service levels</CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-4">
+                <div className="flex flex-wrap gap-2">
+                  {serviceTypeData.map((service, index) => (
+                    <div key={service.name} className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                      <div 
+                        className="w-4 h-4 rounded-full" 
+                        style={{ backgroundColor: ['#8884d8', '#82ca9d', '#ffc658', '#ff7c7c', '#8dd1e1'][index] }}
+                      />
+                      <span className="font-medium text-sm">{service.name}</span>
+                      <span className="text-muted-foreground text-sm">({service.shipments})</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={serviceTypeData}>

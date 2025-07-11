@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { AlertTriangle, CheckCircle, Edit3, Users } from 'lucide-react';
 import { UPS_SERVICE_CODES } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
@@ -18,6 +19,7 @@ interface ExtendedServiceMapping extends ServiceMapping {
   upsServiceCode: string;
   shipmentCount: number;
   isEdited: boolean;
+  isResidential?: boolean;
 }
 
 export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
@@ -28,6 +30,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
 }) => {
   const [mappings, setMappings] = useState<ExtendedServiceMapping[]>([]);
   const [allMapped, setAllMapped] = useState(false);
+  const [globalResidentialSetting, setGlobalResidentialSetting] = useState(false);
 
   useEffect(() => {
     // Count shipments for each service and extend mappings
@@ -64,7 +67,8 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       ...mapping,
       upsServiceCode: mapping.upsServiceCode || standardizedToUpsCode(mapping.standardized),
       shipmentCount: serviceCounts[mapping.original] || 0,
-      isEdited: false
+      isEdited: false,
+      isResidential: mapping.isResidential || false
     }));
 
     setMappings(extendedMappings);
@@ -138,13 +142,15 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       standardized: mapping.standardized,
       carrier: mapping.carrier,
       confidence: mapping.confidence,
-      upsServiceCode: mapping.upsServiceCode
+      upsServiceCode: mapping.upsServiceCode,
+      isResidential: mapping.standardized === 'GROUND' ? globalResidentialSetting : undefined
     }));
     onMappingsConfirmed(confirmedMappings);
   };
 
   const totalShipments = mappings.reduce((sum, m) => sum + m.shipmentCount, 0);
   const lowConfidenceCount = mappings.filter(m => m.confidence < 0.5 && !m.isEdited).length;
+  const hasGroundServices = mappings.some(m => m.standardized === 'GROUND');
 
   return (
     <Card>
@@ -178,6 +184,31 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
             )}
           </div>
         </div>
+
+        {/* Residential/Commercial Setting for Ground Services */}
+        {hasGroundServices && (
+          <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Checkbox
+                id="residential-setting"
+                checked={globalResidentialSetting}
+                onCheckedChange={(checked) => setGlobalResidentialSetting(checked as boolean)}
+              />
+              <div className="space-y-1">
+                <label 
+                  htmlFor="residential-setting" 
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Mark ground shipments as residential delivery
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  UPS charges different rates for residential vs commercial ground delivery. 
+                  Check this if most of your ground shipments are delivered to residential addresses.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-4">

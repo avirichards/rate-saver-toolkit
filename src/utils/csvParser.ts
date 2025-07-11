@@ -17,6 +17,7 @@ export interface ServiceMapping {
   carrier: string;
   confidence: number;
   upsServiceCode?: string;
+  isResidential?: boolean; // For ground services
 }
 
 // Enhanced field patterns with priority-based matching

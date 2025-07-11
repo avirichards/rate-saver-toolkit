@@ -45,8 +45,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </div>
       <Toaster 
-        position="top-right"
+        position="top-center"
         closeButton
+        expand={false}
         toastOptions={{
           duration: 4000,
           className: 'toast-style',

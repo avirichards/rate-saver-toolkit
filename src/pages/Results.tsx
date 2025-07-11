@@ -66,7 +66,6 @@ const Results = () => {
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [availableServices, setAvailableServices] = useState<string[]>([]);
   const [selectedService, setSelectedService] = useState<string>('all');
-  const [residentialSettings, setResidentialSettings] = useState<Record<string, 'residential' | 'commercial'>>({});
 
   useEffect(() => {
     const loadAnalysisData = async () => {
@@ -309,13 +308,6 @@ const Results = () => {
     setSortConfig({ key, direction });
   };
 
-  // Handle residential/commercial toggle
-  const toggleResidentialSetting = (trackingId: string) => {
-    setResidentialSettings(prev => ({
-      ...prev,
-      [trackingId]: prev[trackingId] === 'residential' ? 'commercial' : 'residential'
-    }));
-  };
 
   // Get filtered statistics
   const getFilteredStats = () => {
@@ -694,7 +686,7 @@ const Results = () => {
                         <TableHead className="text-right text-foreground">UPS Rate</TableHead>
                         <TableHead className="text-right text-foreground">Savings</TableHead>
                         <TableHead className="text-right text-foreground">Savings %</TableHead>
-                        <TableHead className="text-center text-foreground">Delivery Type</TableHead>
+                        
                       </TableRow>
                     </TableHeader>
                     <TableBody className="bg-background">
@@ -749,20 +741,6 @@ const Results = () => {
                             )}>
                               {item.savingsPercent.toFixed(1)}%
                             </span>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {item.service.toLowerCase().includes('ground') ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => toggleResidentialSetting(item.trackingId)}
-                                className="text-xs"
-                              >
-                                {residentialSettings[item.trackingId] || 'commercial'}
-                              </Button>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">N/A</span>
-                            )}
                           </TableCell>
                         </TableRow>
                       ))}

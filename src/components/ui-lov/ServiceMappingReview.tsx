@@ -261,22 +261,20 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                 </Select>
               </div>
 
-              {/* Residential/Commercial Checkbox for Ground Services */}
-              {mapping.standardized === 'GROUND' && (
-                <div className="flex-shrink-0 flex items-center gap-2 ml-4">
-                  <Checkbox
-                    id={`residential-${index}`}
-                    checked={mapping.isResidential || false}
-                    onCheckedChange={(checked) => updateResidentialSetting(index, checked as boolean)}
-                  />
-                  <label 
-                    htmlFor={`residential-${index}`} 
-                    className="text-sm font-medium leading-none cursor-pointer"
-                  >
-                    Residential
-                  </label>
-                </div>
-              )}
+              {/* Residential/Commercial Checkbox for All Services */}
+              <div className="flex-shrink-0 flex items-center gap-2 ml-4">
+                <Checkbox
+                  id={`residential-${index}`}
+                  checked={mapping.isResidential || false}
+                  onCheckedChange={(checked) => updateResidentialSetting(index, checked as boolean)}
+                />
+                <label 
+                  htmlFor={`residential-${index}`} 
+                  className="text-sm font-medium leading-none cursor-pointer"
+                >
+                  Residential
+                </label>
+              </div>
             </div>
           </div>
         ))}

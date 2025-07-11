@@ -4,16 +4,15 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -31,14 +30,11 @@ const Results = () => {
   const [shipmentData, setShipmentData] = useState<any[]>([]);
   const [orphanedData, setOrphanedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [serviceFilters, setServiceFilters] = useState<Record<string, boolean>>({});
-  const [availableServices, setAvailableServices] = useState<string[]>([]);
   const [filteredData, setFilteredData] = useState<any[]>([]);
-  const [savingsFilter, setSavingsFilter] = useState<string>('all');
-  const [weightFilter, setWeightFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [dataPeriodDays, setDataPeriodDays] = useState<number>(7);
-  const [showAllServices, setShowAllServices] = useState(true);
+  const [showWinsOnly, setShowWinsOnly] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
 
   useEffect(() => {
     const loadAnalysisData = async () => {
@@ -78,17 +74,6 @@ const Results = () => {
             }));
           
           setOrphanedData(orphanedShipments);
-          
-          const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
-          setAvailableServices(services);
-          
-          // Initialize service filters - all enabled by default
-          const initialFilters: Record<string, boolean> = {};
-          services.forEach(service => {
-            initialFilters[service] = true;
-          });
-          setServiceFilters(initialFilters);
-          
           setLoading(false);
         } else if (params.id) {
           await loadFromDatabase(params.id);
@@ -205,85 +190,60 @@ const Results = () => {
       }));
     
     setOrphanedData(orphanedShipments);
-    
-    const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
-    setAvailableServices(services);
-    
-    // Initialize service filters
-    const initialFilters: Record<string, boolean> = {};
-    services.forEach(service => {
-      initialFilters[service] = true;
-    });
-    setServiceFilters(initialFilters);
-    
     setLoading(false);
   };
 
-  // New filtering logic
+  // New filtering and sorting logic
   useEffect(() => {
-    let filtered = shipmentData;
+    let filtered = [...shipmentData];
 
-    // Apply service filters only if not showing all services
-    if (!showAllServices) {
-      const enabledServices = Object.entries(serviceFilters)
-        .filter(([_, enabled]) => enabled)
-        .map(([service, _]) => service);
-      
-      if (enabledServices.length > 0) {
-        filtered = filtered.filter(item => enabledServices.includes(item.service));
-      }
+    // Apply wins/losses filter
+    if (showWinsOnly) {
+      filtered = filtered.filter(item => item.savings > 0);
     }
 
-    // Apply other filters
-    if (savingsFilter !== 'all') {
-      if (savingsFilter === 'wins') {
-        filtered = filtered.filter(item => item.savings > 0);
-      } else if (savingsFilter === 'losses') {
-        filtered = filtered.filter(item => item.savings < 0);
-      }
-    }
-
-    if (weightFilter !== 'all') {
-      const ranges = {
-        '0-5': [0, 5],
-        '5-10': [5, 10],
-        '10-15': [10, 15],
-        '15+': [15, Infinity]
-      };
-      const [min, max] = ranges[weightFilter as keyof typeof ranges] || [0, Infinity];
-      filtered = filtered.filter(item => item.weight >= min && item.weight < max);
-    }
-
+    // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(item => 
         item.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.originZip.includes(searchTerm) ||
-        item.destinationZip.includes(searchTerm)
+        item.destinationZip.includes(searchTerm) ||
+        item.service.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
-    setFilteredData(filtered);
-  }, [shipmentData, serviceFilters, showAllServices, savingsFilter, weightFilter, searchTerm]);
-
-  // Toggle individual service
-  const toggleService = (service: string) => {
-    setServiceFilters(prev => ({
-      ...prev,
-      [service]: !prev[service]
-    }));
-  };
-
-  // Toggle all services
-  const toggleAllServices = (enabled: boolean) => {
-    setShowAllServices(enabled);
-    if (!enabled) {
-      // When switching to selective mode, enable all services initially
-      const allEnabled: Record<string, boolean> = {};
-      availableServices.forEach(service => {
-        allEnabled[service] = true;
+    // Apply sorting
+    if (sortConfig) {
+      filtered.sort((a, b) => {
+        let aValue = a[sortConfig.key];
+        let bValue = b[sortConfig.key];
+        
+        // Handle numeric values
+        if (typeof aValue === 'number' && typeof bValue === 'number') {
+          return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
+        }
+        
+        // Handle string values
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          return sortConfig.direction === 'asc' 
+            ? aValue.localeCompare(bValue) 
+            : bValue.localeCompare(aValue);
+        }
+        
+        return 0;
       });
-      setServiceFilters(allEnabled);
     }
+
+    setFilteredData(filtered);
+  }, [shipmentData, showWinsOnly, searchTerm, sortConfig]);
+
+  // Handle column sorting
+  const handleSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
   };
 
   // Get filtered statistics
@@ -475,50 +435,6 @@ const Results = () => {
           
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
-            {/* Service Filter Controls */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Service Type Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Switch
-                      id="show-all-services"
-                      checked={showAllServices}
-                      onCheckedChange={toggleAllServices}
-                    />
-                    <label htmlFor="show-all-services" className="text-sm font-medium">
-                      Show All Service Types
-                    </label>
-                  </div>
-                  
-                  {!showAllServices && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-4 border-t">
-                      {availableServices.map((service) => (
-                        <div key={service} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={service}
-                            checked={serviceFilters[service] || false}
-                            onCheckedChange={() => toggleService(service)}
-                          />
-                          <label
-                            htmlFor={service}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
-                            {service}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
             {/* Data Period Card */}
             <Card>
               <CardHeader>
@@ -622,96 +538,140 @@ const Results = () => {
                 <p className="text-sm text-muted-foreground">
                   Showing {filteredData.length} of {shipmentData.length} total shipments
                 </p>
-                <div className="flex flex-wrap gap-4 mt-4">
-                  <Select value={savingsFilter} onValueChange={setSavingsFilter}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Savings" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Results</SelectItem>
-                      <SelectItem value="wins">Wins Only</SelectItem>
-                      <SelectItem value="losses">Losses Only</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="flex flex-wrap items-center gap-4 mt-4">
+                  {/* Wins/Losses Toggle Slider */}
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="show-wins-only"
+                      checked={showWinsOnly}
+                      onCheckedChange={setShowWinsOnly}
+                    />
+                    <label htmlFor="show-wins-only" className="text-sm font-medium">
+                      Show Wins Only
+                    </label>
+                  </div>
                   
-                  <Select value={weightFilter} onValueChange={setWeightFilter}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Weight" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Weights</SelectItem>
-                      <SelectItem value="0-5">0-5 lbs</SelectItem>
-                      <SelectItem value="5-10">5-10 lbs</SelectItem>
-                      <SelectItem value="10-15">10-15 lbs</SelectItem>
-                      <SelectItem value="15+">15+ lbs</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
+                  {/* Search Input */}
                   <Input
-                    placeholder="Search tracking ID or ZIP..."
+                    placeholder="Search tracking ID, ZIP, or service..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-[200px]"
+                    className="w-[250px]"
                   />
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto bg-background">
-                  <table className="w-full text-sm border-collapse">
-                    <thead className="sticky top-0 z-10">
-                      <tr className="border-b-2 border-border bg-muted/80 backdrop-blur-sm">
-                        <th className="text-left p-4 font-semibold text-foreground border-r border-border">Order / Tracking</th>
-                        <th className="text-left p-4 font-semibold text-foreground border-r border-border">Shipper Zip</th>
-                        <th className="text-left p-4 font-semibold text-foreground border-r border-border">Recipient Zip</th>
-                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Weight</th>
-                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Length</th>
-                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Width</th>
-                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Height</th>
-                        <th className="text-left p-4 font-semibold text-foreground border-r border-border">Current Service Type</th>
-                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">Current Cost</th>
-                        <th className="text-right p-4 font-semibold text-foreground border-r border-border">SP Cost</th>
-                        <th className="text-left p-4 font-semibold text-foreground">SP Service Type</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-background">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead 
+                          className="cursor-pointer select-none"
+                          onClick={() => handleSort('trackingId')}
+                        >
+                          <div className="flex items-center gap-1">
+                            Order / Tracking
+                            <ArrowUpDown className="h-4 w-4" />
+                          </div>
+                        </TableHead>
+                        <TableHead 
+                          className="cursor-pointer select-none"
+                          onClick={() => handleSort('originZip')}
+                        >
+                          <div className="flex items-center gap-1">
+                            Shipper Zip
+                            <ArrowUpDown className="h-4 w-4" />
+                          </div>
+                        </TableHead>
+                        <TableHead 
+                          className="cursor-pointer select-none"
+                          onClick={() => handleSort('destinationZip')}
+                        >
+                          <div className="flex items-center gap-1">
+                            Recipient Zip
+                            <ArrowUpDown className="h-4 w-4" />
+                          </div>
+                        </TableHead>
+                        <TableHead 
+                          className="text-right cursor-pointer select-none"
+                          onClick={() => handleSort('weight')}
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            Weight
+                            <ArrowUpDown className="h-4 w-4" />
+                          </div>
+                        </TableHead>
+                        <TableHead className="text-right text-muted-foreground">Length</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Width</TableHead>
+                        <TableHead className="text-right text-muted-foreground">Height</TableHead>
+                        <TableHead 
+                          className="cursor-pointer select-none"
+                          onClick={() => handleSort('service')}
+                        >
+                          <div className="flex items-center gap-1">
+                            Current Service Type
+                            <ArrowUpDown className="h-4 w-4" />
+                          </div>
+                        </TableHead>
+                        <TableHead 
+                          className="text-right cursor-pointer select-none"
+                          onClick={() => handleSort('currentRate')}
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            Current Cost
+                            <ArrowUpDown className="h-4 w-4" />
+                          </div>
+                        </TableHead>
+                        <TableHead 
+                          className="text-right cursor-pointer select-none"
+                          onClick={() => handleSort('newRate')}
+                        >
+                          <div className="flex items-center justify-end gap-1">
+                            SP Cost
+                            <ArrowUpDown className="h-4 w-4" />
+                          </div>
+                        </TableHead>
+                        <TableHead>SP Service Type</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {filteredData.map((row, index) => {
                         const isWin = row.savings > 0;
                         const isLoss = row.savings < 0;
                         
                         return (
-                          <tr 
+                          <TableRow 
                             key={index} 
                             className={cn(
-                              "border-b border-border hover:bg-muted/50 transition-colors",
                               isWin && "bg-green-50/80 hover:bg-green-100/80 dark:bg-green-950/20 dark:hover:bg-green-900/30",
                               isLoss && "bg-red-50/80 hover:bg-red-100/80 dark:bg-red-950/20 dark:hover:bg-red-900/30"
                             )}
                           >
-                            <td className="p-4 font-medium text-foreground border-r border-border">{row.trackingId}</td>
-                            <td className="p-4 text-foreground border-r border-border">{row.originZip}</td>
-                            <td className="p-4 text-foreground border-r border-border">{row.destinationZip}</td>
-                            <td className="p-4 text-right text-foreground border-r border-border">{row.weight.toFixed(2)}</td>
-                            <td className="p-4 text-right text-muted-foreground border-r border-border">-</td>
-                            <td className="p-4 text-right text-muted-foreground border-r border-border">-</td>
-                            <td className="p-4 text-right text-muted-foreground border-r border-border">-</td>
-                            <td className="p-4 text-foreground border-r border-border">{row.service}</td>
-                            <td className="p-4 text-right font-semibold text-foreground border-r border-border">
+                            <TableCell className="font-medium">{row.trackingId}</TableCell>
+                            <TableCell>{row.originZip}</TableCell>
+                            <TableCell>{row.destinationZip}</TableCell>
+                            <TableCell className="text-right">{row.weight.toFixed(2)}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">-</TableCell>
+                            <TableCell className="text-right text-muted-foreground">-</TableCell>
+                            <TableCell className="text-right text-muted-foreground">-</TableCell>
+                            <TableCell>{row.service}</TableCell>
+                            <TableCell className="text-right font-semibold">
                               ${row.currentRate.toFixed(2)}
-                            </td>
-                            <td className={cn(
-                              "p-4 text-right font-semibold border-r border-border",
+                            </TableCell>
+                            <TableCell className={cn(
+                              "text-right font-semibold",
                               isWin && "text-green-700 dark:text-green-400",
                               isLoss && "text-red-700 dark:text-red-400",
                               !isWin && !isLoss && "text-foreground"
                             )}>
                               ${row.newRate.toFixed(2)}
-                            </td>
-                            <td className="p-4 text-foreground">UPS® Ground</td>
-                          </tr>
+                            </TableCell>
+                            <TableCell>UPS® Ground</TableCell>
+                          </TableRow>
                         );
                       })}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
                 
                 {filteredData.length === 0 && (
@@ -745,38 +705,38 @@ const Results = () => {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b bg-muted/50">
-                          <th className="text-left p-3 font-medium">Tracking ID</th>
-                          <th className="text-left p-3 font-medium">Origin Zip</th>
-                          <th className="text-left p-3 font-medium">Destination Zip</th>
-                          <th className="text-right p-3 font-medium">Weight</th>
-                          <th className="text-left p-3 font-medium">Service Type</th>
-                          <th className="text-left p-3 font-medium">Error Type</th>
-                          <th className="text-left p-3 font-medium">Error Details</th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Tracking ID</TableHead>
+                          <TableHead>Origin Zip</TableHead>
+                          <TableHead>Destination Zip</TableHead>
+                          <TableHead className="text-right">Weight</TableHead>
+                          <TableHead>Service Type</TableHead>
+                          <TableHead>Error Type</TableHead>
+                          <TableHead>Error Details</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {orphanedData.map((row, index) => (
-                          <tr key={index} className="border-b hover:bg-muted/30">
-                            <td className="p-3 font-medium">{row.trackingId}</td>
-                            <td className="p-3">{row.originZip}</td>
-                            <td className="p-3">{row.destinationZip}</td>
-                            <td className="p-3 text-right">{row.weight.toFixed(1)}</td>
-                            <td className="p-3">{row.service}</td>
-                            <td className="p-3">
+                          <TableRow key={index}>
+                            <TableCell className="font-medium">{row.trackingId}</TableCell>
+                            <TableCell>{row.originZip}</TableCell>
+                            <TableCell>{row.destinationZip}</TableCell>
+                            <TableCell className="text-right">{row.weight.toFixed(1)}</TableCell>
+                            <TableCell>{row.service}</TableCell>
+                            <TableCell>
                               <Badge variant="destructive">{row.errorType}</Badge>
-                            </td>
-                            <td className="p-3">
+                            </TableCell>
+                            <TableCell>
                               <div className="max-w-xs truncate text-muted-foreground" title={row.error}>
                                 {row.error}
                               </div>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
               </CardContent>

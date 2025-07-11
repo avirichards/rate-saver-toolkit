@@ -38,6 +38,7 @@ const Results = () => {
   const [savingsFilter, setSavingsFilter] = useState<string>('all');
   const [weightFilter, setWeightFilter] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [dataPeriodDays, setDataPeriodDays] = useState<number>(7);
 
   useEffect(() => {
     const loadAnalysisData = async () => {
@@ -218,9 +219,9 @@ const Results = () => {
 
   // Filter data based on selected services and other filters
   useEffect(() => {
-    let filtered = shipmentData.filter(item => 
-      selectedServices.includes(item.service)
-    );
+    // If no services are selected, show all data to avoid empty state
+    let filtered = selectedServices.length === 0 ? shipmentData : 
+      shipmentData.filter(item => selectedServices.includes(item.service));
 
     // Apply savings filter
     if (savingsFilter !== 'all') {
@@ -416,10 +417,20 @@ const Results = () => {
           {/* Overview Tab */}
           <TabsContent value="overview" className="mt-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* 7 Day Snapshot */}
+              {/* Data Period Snapshot */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg font-semibold">7 Day Snapshot</CardTitle>
+                  <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={dataPeriodDays}
+                      onChange={(e) => setDataPeriodDays(parseInt(e.target.value) || 7)}
+                      className="w-16 h-6 text-sm"
+                      min="1"
+                      max="365"
+                    />
+                    Day Snapshot
+                  </CardTitle>
                   <p className="text-sm text-muted-foreground">{filteredStats.totalShipments} Total Shipments</p>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -438,6 +449,14 @@ const Results = () => {
                   <div className="flex justify-between">
                     <span className="text-sm">Savings (%)</span>
                     <span className="font-semibold text-green-600">{filteredStats.averageSavingsPercent.toFixed(2)}%</span>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <div className="flex justify-between">
+                      <span className="text-sm font-medium">Annualized Savings</span>
+                      <span className="font-semibold text-green-600">
+                        ${((filteredStats.totalSavings * 365) / dataPeriodDays).toFixed(0)}
+                      </span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

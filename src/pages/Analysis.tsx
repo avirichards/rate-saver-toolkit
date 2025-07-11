@@ -457,7 +457,7 @@ const Analysis = () => {
     // Include ALL completed results, not just ones with positive savings
     const recommendations = completedResults.map(r => ({
       shipment: r.shipment,
-      originalService: r.originalService, // Include original service
+      originalService: r.originalService,
       currentCost: r.currentCost,
       recommendedCost: r.bestRate?.totalCharges,
       savings: r.savings,
@@ -491,16 +491,17 @@ const Analysis = () => {
   
   const handleViewResults = () => {
     const completedResults = analysisResults.filter(r => r.status === 'completed');
-    const recommendations = completedResults
-      .filter(r => r.savings && r.savings > 0)
-      .map(r => ({
-        shipment: r.shipment,
-        originalService: r.originalService, // Include original service
-        currentCost: r.currentCost,
-        recommendedCost: r.bestRate?.totalCharges,
-        savings: r.savings,
-        recommendedService: r.bestRate?.serviceName
-      }));
+    // Include ALL completed results, not just positive savings
+    const recommendations = completedResults.map(r => ({
+      shipment: r.shipment,
+      originalService: r.originalService,
+      currentCost: r.currentCost,
+      recommendedCost: r.bestRate?.totalCharges,
+      savings: r.savings,
+      recommendedService: r.bestRate?.serviceName,
+      status: r.status,
+      error: r.error
+    }));
     
     navigate('/results', { 
       state: { 

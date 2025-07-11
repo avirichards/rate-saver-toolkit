@@ -111,8 +111,6 @@ const Results = () => {
           setAvailableServices(services);
           
           setLoading(false);
-          
-          setLoading(false);
         } else if (params.id) {
           await loadFromDatabase(params.id);
         } else {
@@ -182,6 +180,7 @@ const Results = () => {
     }
 
     console.log('Raw database data:', data);
+    processAnalysisFromDatabase(data);
   };
 
   const processAnalysisFromDatabase = (data: any) => {
@@ -242,8 +241,6 @@ const Results = () => {
     // Initialize service data
     const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
     setAvailableServices(services);
-    
-    setLoading(false);
     
     setLoading(false);
   };
@@ -307,7 +304,6 @@ const Results = () => {
     }
     setSortConfig({ key, direction });
   };
-
 
   // Get filtered statistics
   const getFilteredStats = () => {
@@ -471,7 +467,7 @@ const Results = () => {
                 <div className="flex items-center gap-3">
                   <TrendingUp className="h-8 w-8 text-orange-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Savings Percentage</p>
+                    <p className="text-sm text-muted-foreground">Average Savings</p>
                     <p className="text-2xl font-bold text-orange-600">{filteredStats.averageSavingsPercent.toFixed(1)}%</p>
                   </div>
                 </div>
@@ -481,12 +477,10 @@ const Results = () => {
             <Card className="border-l-4 border-l-purple-500">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <Calendar className="h-8 w-8 text-purple-500" />
+                  <Target className="h-8 w-8 text-purple-500" />
                   <div>
-                    <p className="text-sm text-muted-foreground">Current Costs</p>
-                    <p className="text-2xl font-bold text-purple-600">
-                      ${filteredStats.totalCurrentCost.toFixed(0)}
-                    </p>
+                    <p className="text-sm text-muted-foreground">Current Spend</p>
+                    <p className="text-2xl font-bold text-purple-600">${filteredStats.totalCurrentCost.toFixed(0)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -494,95 +488,34 @@ const Results = () => {
           </div>
         </div>
 
+        {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="shipment-data">Shipment Data</TabsTrigger>
-            <TabsTrigger value="orphaned-data">Orphaned Data ({orphanedData.length})</TabsTrigger>
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <BarChart className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="shipment-data" className="flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              Shipment Data
+            </TabsTrigger>
+            <TabsTrigger value="orphaned-data" className="flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Orphaned Data ({orphanedData.length})
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            {/* Service Type Filter for Overview */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Service Type Filters</CardTitle>
-                <CardDescription>Filter results by service type</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4">
-                  <Select value={selectedService} onValueChange={setSelectedService}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Select service type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Services ({shipmentData.length})</SelectItem>
-                      {availableServices.map((service) => (
-                        <SelectItem key={service} value={service}>
-                          {service} ({shipmentData.filter(item => item.service === service).length})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Analysis Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="border-l-4 border-l-purple-500">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-purple-100 rounded-full">
-                      <TruckIcon className="h-6 w-6 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Analyzed Shipments</p>
-                      <p className="text-2xl font-bold">{filteredStats.totalShipments}</p>
-                      <p className="text-xs text-muted-foreground">of {analysisData.totalShipments} total</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-l-4 border-l-red-500">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-red-100 rounded-full">
-                      <ArrowDownRight className="h-6 w-6 text-red-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Current Total Cost</p>
-                      <p className="text-2xl font-bold">${filteredStats.totalCurrentCost.toFixed(0)}</p>
-                      <p className="text-xs text-muted-foreground">based on analysis</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="border-l-4 border-l-emerald-500">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-emerald-100 rounded-full">
-                      <Zap className="h-6 w-6 text-emerald-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">Total Savings</p>
-                      <p className="text-2xl font-bold text-emerald-600">${filteredStats.totalSavings.toFixed(0)}</p>
-                      <p className="text-xs text-muted-foreground">{filteredStats.averageSavingsPercent.toFixed(1)}% reduction</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
             {/* Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Service Distribution Chart */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Service Volume Distribution</CardTitle>
+                  <CardTitle>Service Distribution</CardTitle>
+                  <CardDescription>Breakdown of shipments by service type</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -590,10 +523,10 @@ const Results = () => {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          outerRadius={100}
+                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
-                          label={({ name, value, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         >
                           {serviceChartData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
@@ -605,21 +538,23 @@ const Results = () => {
                   </div>
                 </CardContent>
               </Card>
-              
+
+              {/* Service Cost Comparison */}
               <Card>
                 <CardHeader>
                   <CardTitle>Cost Comparison by Service</CardTitle>
+                  <CardDescription>Current vs UPS rates by service type</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-[300px]">
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={serviceCostData}>
+                      <BarChart data={serviceCostData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="service" />
                         <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="currentCost" fill="#ef4444" name="Current Cost" />
-                        <Bar dataKey="newCost" fill="#22c55e" name="Ship Pro Cost" />
+                        <Tooltip formatter={(value, name) => [`$${Number(value).toFixed(2)}`, name]} />
+                        <Bar dataKey="currentCost" fill="hsl(var(--muted-foreground))" name="Current Cost" />
+                        <Bar dataKey="newCost" fill="hsl(var(--primary))" name="UPS Cost" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -629,54 +564,55 @@ const Results = () => {
           </TabsContent>
 
           <TabsContent value="shipment-data" className="space-y-6">
-            {/* Filter Controls */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <Input
-                  placeholder="Search tracking ID, ZIP codes, or service..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full sm:w-auto"
-                />
-                <ResultFilter value={resultFilter} onChange={setResultFilter} />
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  Showing {filteredData.length} of {shipmentData.length} shipments
-                </span>
-              </div>
-            </div>
-
-            {/* Service Type Filter */}
             <Card>
-              <CardHeader>
-                <CardTitle>Filter by Service Type</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select value={selectedService} onValueChange={setSelectedService}>
-                  <SelectTrigger className="w-[250px]">
-                    <SelectValue placeholder="Select service type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Services ({shipmentData.length})</SelectItem>
-                    {availableServices.map((service) => (
-                      <SelectItem key={service} value={service}>
-                        {service} ({shipmentData.filter(item => item.service === service).length})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl">Shipment Analysis</CardTitle>
+                    <CardDescription>
+                      Detailed view of all analyzed shipments with current vs UPS rates
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="text-sm">
+                    {filteredData.length} of {shipmentData.length} shipments
+                  </Badge>
+                </div>
 
-            {/* Data Table */}
-            <Card className="bg-background">
+                {/* Filters */}
+                <div className="flex flex-wrap gap-4 pt-4">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">Filters:</span>
+                  </div>
+                  
+                  <ResultFilter value={resultFilter} onChange={setResultFilter} />
+                  
+                  <Select value={selectedService} onValueChange={setSelectedService}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Filter by service" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Services</SelectItem>
+                      {availableServices.map(service => (
+                        <SelectItem key={service} value={service}>{service}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <Input
+                    placeholder="Search tracking ID, zip codes..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-64"
+                  />
+                </div>
+              </CardHeader>
+
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader className="bg-background">
-                      <TableRow className="border-b border-border/50">
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="border-b border-border">
                         <TableHead className="text-foreground">Tracking ID</TableHead>
                         <TableHead className="text-foreground">Origin</TableHead>
                         <TableHead className="text-foreground">Destination</TableHead>
@@ -686,7 +622,6 @@ const Results = () => {
                         <TableHead className="text-right text-foreground">UPS Rate</TableHead>
                         <TableHead className="text-right text-foreground">Savings</TableHead>
                         <TableHead className="text-right text-foreground">Savings %</TableHead>
-                        
                       </TableRow>
                     </TableHeader>
                     <TableBody className="bg-background">

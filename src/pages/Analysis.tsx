@@ -308,16 +308,22 @@ const Analysis = () => {
         equivalentServiceCode = serviceMapping.serviceCode;
       }
       
-      // Determine residential status using hierarchical logic
+      console.log('🏠 Analysis - Found confirmed mapping with residential data:', {
+        hasMapping: !!confirmedMapping,
+        original: confirmedMapping?.original,
+        isResidential: confirmedMapping?.isResidential,
+        residentialSource: confirmedMapping?.residentialSource,
+        isResidentialDetected: confirmedMapping?.isResidentialDetected
+      });
+
+      // Determine residential status using hierarchical logic - pass full mapping data
       const residentialStatus = determineResidentialStatus(
         shipment, 
         confirmedMapping || { 
           original: shipment.service || '',
           standardized: serviceMapping.standardizedService,
           carrier: 'UPS',
-          confidence: 0.5,
-          // Don't hardcode isResidential to false - let the function determine it
-          isResidential: undefined
+          confidence: 0.5
         }, 
         csvResidentialField
       );

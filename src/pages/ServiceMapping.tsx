@@ -75,9 +75,15 @@ const ServiceMapping = () => {
       confirmedMappings.map(m => ({
         original: m.original,
         isResidential: m.isResidential,
-        residentialSource: m.residentialSource
+        residentialSource: m.residentialSource,
+        isResidentialDetected: m.isResidentialDetected,
+        residentialDetectionSource: m.residentialDetectionSource
       }))
     );
+    
+    // CRITICAL CHECK: Verify that manual residential settings are preserved
+    const manualResidentialMappings = confirmedMappings.filter(m => m.residentialSource === 'manual');
+    console.log('🏠 ServiceMapping page - Manual residential mappings being passed to Analysis:', manualResidentialMappings);
     
     toast.success('Service mappings confirmed!');
     

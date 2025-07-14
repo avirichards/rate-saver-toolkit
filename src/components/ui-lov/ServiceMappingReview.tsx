@@ -18,6 +18,7 @@ interface ExtendedServiceMapping extends ServiceMapping {
   serviceCode: string;
   status: 'needs-review' | 'good-match';
   count: number;
+  // Override only to make required for UI display
   isResidential: boolean;
   residentialSource: string;
 }
@@ -147,10 +148,11 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       standardized: mapping.standardized,
       serviceCode: mapping.serviceCode || '',
       confidence: mapping.confidence,
-      count: mapping.count,
       carrier: mapping.carrier,
       isResidential: mapping.isResidential,
-      residentialSource: mapping.residentialSource
+      residentialSource: mapping.residentialSource,
+      isResidentialDetected: mapping.isResidentialDetected,
+      residentialDetectionSource: mapping.residentialDetectionSource
     }));
     
     console.log('🏠 ServiceMappingReview - Confirmed mappings with residential data:', confirmedMappings);

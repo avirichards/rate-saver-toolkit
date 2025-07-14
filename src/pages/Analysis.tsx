@@ -68,6 +68,73 @@ const Analysis = () => {
   const [csvResidentialField, setCsvResidentialField] = useState<string | undefined>(undefined);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
+  // Add service mappings validation and database fallback
+  useEffect(() => {
+    const checkServiceMappingsAndRedirect = async () => {
+      const state = location.state as { 
+        readyForAnalysis?: boolean, 
+        csvData?: any[],
+        mappings?: Record<string, string>,
+        serviceMappings?: ServiceMapping[],
+        fileName?: string,
+        csvUploadId?: string,
+        originZipOverride?: string
+      } | null;
+
+      // If no state or no service mappings, try to get from database or redirect
+      if (!state?.serviceMappings || state.serviceMappings.length === 0) {
+        console.log('🚫 No service mappings found in navigation state, checking database...');
+        
+        try {
+          // Try to get service mappings from database as fallback
+          const { data: dbMappings, error } = await supabase
+            .from('service_mappings')
+            .select('*')
+            .eq('is_verified', true);
+
+          if (error) {
+            console.error('Error fetching service mappings from database:', error);
+          }
+
+          if (!dbMappings || dbMappings.length === 0) {
+            console.log('🚫 No verified service mappings found in database either');
+            toast.error('No service mappings found. Please complete the service mapping step first.');
+            navigate('/service-mapping', { 
+              state: { 
+                csvData: state?.csvData,
+                mappings: state?.mappings,
+                fileName: state?.fileName,
+                csvUploadId: state?.csvUploadId,
+                originZipOverride: state?.originZipOverride
+              }
+            });
+            return;
+          }
+
+          console.log('✅ Found service mappings in database:', dbMappings.length);
+          setServiceMappings(dbMappings.map(mapping => ({
+            original: mapping.original_service,
+            standardized: mapping.standardized_service,
+            serviceCode: mapping.standardized_service,
+            carrier: mapping.carrier,
+            confidence: mapping.confidence_score || 0.5,
+            isResidential: false // Default value, could be enhanced later
+          })));
+        } catch (error) {
+          console.error('Error accessing database:', error);
+          toast.error('Unable to access service mappings. Please try again.');
+          navigate('/service-mapping');
+          return;
+        }
+      } else {
+        console.log('✅ Service mappings found in navigation state:', state.serviceMappings.length);
+        setServiceMappings(state.serviceMappings);
+      }
+    };
+
+    checkServiceMappingsAndRedirect();
+  }, [location.state, navigate]);
+
   useEffect(() => {
     const state = location.state as { 
       readyForAnalysis?: boolean, 

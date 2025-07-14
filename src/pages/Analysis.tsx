@@ -322,13 +322,19 @@ const Analysis = () => {
         csvResidentialField
       );
       
-      console.log(`Residential status for shipment ${index + 1}:`, {
+      console.log(`🏠 Residential status for shipment ${index + 1}:`, {
         shipmentId: shipment.id,
         originalService: shipment.service,
         isResidential: residentialStatus.isResidential,
         source: residentialStatus.source,
         confidence: residentialStatus.confidence,
-        recipientAddress: shipment.recipientAddress
+        recipientAddress: shipment.recipientAddress,
+        serviceMapping: {
+          isResidential: confirmedMapping?.isResidential,
+          residentialSource: confirmedMapping?.residentialSource,
+          original: confirmedMapping?.original,
+          standardized: confirmedMapping?.standardized
+        }
       });
       
       console.log(`Processing shipment ${index + 1}:`, {

@@ -341,10 +341,21 @@ export function determineResidentialStatus(
   csvResidentialField?: string
 ): { isResidential: boolean; source: string; confidence: number } {
   
+  console.log('🏠 Determining residential status:', {
+    shipmentId: shipment.trackingId || 'unknown',
+    hasManualSetting: serviceMapping.isResidential !== undefined,
+    manualSetting: serviceMapping.isResidential,
+    residentialSource: serviceMapping.residentialSource,
+    hasResidentialDetected: serviceMapping.isResidentialDetected,
+    csvResidentialField: csvResidentialField,
+    recipientAddress: shipment.recipientAddress
+  });
+  
   // 1. Primary: Use explicit CSV column data if available
   if (csvResidentialField && shipment[csvResidentialField] !== undefined) {
     const csvValue = shipment[csvResidentialField];
     const isResidential = parseResidentialValue(csvValue);
+    console.log('🏠 Using CSV data for residential status:', { csvValue, isResidential });
     return { 
       isResidential, 
       source: 'csv_data', 
@@ -352,8 +363,25 @@ export function determineResidentialStatus(
     };
   }
   
-  // 2. Secondary: Use service name intelligence (if detected from service name)
+  // 2. Secondary: Use manual settings from service mapping page (HIGHEST PRIORITY for user control)
+  if (serviceMapping.isResidential !== undefined && serviceMapping.residentialSource === 'manual') {
+    console.log('🏠 Using MANUAL residential setting from service mapping page:', { 
+      isResidential: serviceMapping.isResidential,
+      source: 'manual'
+    });
+    return { 
+      isResidential: serviceMapping.isResidential, 
+      source: 'manual', 
+      confidence: 0.9 
+    };
+  }
+  
+  // 3. Tertiary: Use service name intelligence (if detected from service name)
   if (serviceMapping.isResidentialDetected && serviceMapping.isResidential !== undefined) {
+    console.log('🏠 Using service name intelligence for residential status:', { 
+      isResidential: serviceMapping.isResidential,
+      source: 'service_name'
+    });
     return { 
       isResidential: serviceMapping.isResidential, 
       source: 'service_name', 
@@ -361,10 +389,16 @@ export function determineResidentialStatus(
     };
   }
   
-  // 3. Tertiary: Use address pattern analysis
+  // 4. Quaternary: Use address pattern analysis
   if (shipment.recipientAddress) {
     const addressAnalysis = detectResidentialFromAddress(shipment.recipientAddress);
     if (addressAnalysis.confidence > 0.6) {
+      console.log('🏠 Using address pattern analysis for residential status:', { 
+        isResidential: addressAnalysis.isResidential,
+        confidence: addressAnalysis.confidence,
+        address: shipment.recipientAddress,
+        source: 'address_pattern'
+      });
       return {
         isResidential: addressAnalysis.isResidential,
         source: 'address_pattern',
@@ -373,16 +407,21 @@ export function determineResidentialStatus(
     }
   }
   
-  // 4. Fallback: Use service mapping page checkbox settings
+  // 5. Fallback: Use any other service mapping settings
   if (serviceMapping.isResidential !== undefined) {
+    console.log('🏠 Using fallback service mapping residential setting:', { 
+      isResidential: serviceMapping.isResidential,
+      source: 'fallback_mapping'
+    });
     return { 
       isResidential: serviceMapping.isResidential, 
-      source: 'manual', 
+      source: 'fallback_mapping', 
       confidence: 0.5 
     };
   }
   
-  // 5. Ultimate fallback: assume commercial
+  // 6. Ultimate fallback: assume commercial
+  console.log('🏠 Using default commercial setting (no other data available)');
   return { 
     isResidential: false, 
     source: 'default', 

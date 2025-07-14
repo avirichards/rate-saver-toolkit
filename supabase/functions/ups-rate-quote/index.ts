@@ -279,16 +279,17 @@ serve(async (req) => {
     };
 
 
-    console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
-    console.log('Residential/Commercial Settings - DETAILED CHECK:', {
-      isResidential: shipment.isResidential,
+    console.log('🏠 UPS API - RESIDENTIAL STATUS VERIFICATION:', {
+      trackingId: shipment.trackingId,
+      inputResidential: shipment.isResidential,
       residentialSource: shipment.residentialSource,
-      hasResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
-      shipToAddress: ratingRequest.RateRequest.Shipment.ShipTo.Address,
+      upsResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
       residentialIndicatorValue: ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
-      originalCarrier: shipment.originalCarrier,
-      shipmentId: shipment.shipFrom?.zipCode + '-' + shipment.shipTo?.zipCode
+      shipToAddress: ratingRequest.RateRequest.Shipment.ShipTo.Address.AddressLine,
+      zipCode: ratingRequest.RateRequest.Shipment.ShipTo.Address.PostalCode
     });
+    
+    console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
 
     // Service codes to quote and the equivalent service code for comparison
     const serviceCodes = shipment.serviceTypes || ['01', '02', '03', '12', '13'];

@@ -295,8 +295,27 @@ const Analysis = () => {
       const width = parseFloat(shipment.width || '12'); 
       const height = parseFloat(shipment.height || '6');
       
-      // Use the confirmed service mapping from the service review step
-      const confirmedMapping = serviceMappings.find(m => m.original === shipment.service);
+      // Normalize service names for robust matching
+      const normalizeServiceName = (serviceName: string): string => {
+        return serviceName?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
+      };
+
+      // Use the confirmed service mapping from the service review step with normalized comparison
+      const confirmedMapping = serviceMappings.find(m => 
+        normalizeServiceName(m.original) === normalizeServiceName(shipment.service)
+      );
+      
+      console.log('🔍 Analysis - Looking for service mapping (with normalization):', {
+        shipmentService: shipment.service,
+        normalizedShipmentService: normalizeServiceName(shipment.service || ''),
+        availableMappings: serviceMappings.map(m => ({
+          original: m.original,
+          normalized: normalizeServiceName(m.original),
+          serviceCode: m.serviceCode
+        })),
+        foundMapping: confirmedMapping
+      });
+      
       let serviceMapping, serviceCodesToRequest, equivalentServiceCode, isConfirmedMapping = false;
       
       if (confirmedMapping && confirmedMapping.serviceCode) {

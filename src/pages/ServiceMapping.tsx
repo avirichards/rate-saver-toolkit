@@ -70,7 +70,14 @@ const ServiceMapping = () => {
   }, [location, navigate]);
   
   const handleServiceMappingsConfirmed = (confirmedMappings: ServiceMapping[]) => {
-    console.log('Service mappings confirmed:', confirmedMappings);
+    console.log('🏠 ServiceMapping page - Service mappings confirmed:', confirmedMappings);
+    console.log('🏠 ServiceMapping page - Residential data in confirmed mappings:', 
+      confirmedMappings.map(m => ({
+        original: m.original,
+        isResidential: m.isResidential,
+        residentialSource: m.residentialSource
+      }))
+    );
     
     toast.success('Service mappings confirmed!');
     

@@ -62,16 +62,38 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
     };
 
     const extendedMappings = initialMappings.map(mapping => {
-      // Get residential status from service analysis
+      // Get residential status from service analysis - but don't override existing manual settings
       const serviceAnalysis = standardizeService(mapping.original);
+      
+      // Preserve existing residential settings from initialMappings if they exist
+      // Only use serviceAnalysis as fallback if no existing settings
+      const hasExistingResidentialData = mapping.isResidential !== undefined || mapping.residentialSource;
+      const residentialData = hasExistingResidentialData 
+        ? {
+            isResidential: mapping.isResidential || false,
+            residentialSource: mapping.residentialSource || 'auto-detected'
+          }
+        : {
+            isResidential: serviceAnalysis.isResidential || false,
+            residentialSource: serviceAnalysis.residentialSource || 'auto-detected'
+          };
+      
+      console.log('🏠 ServiceMappingReview - Processing mapping for:', {
+        original: mapping.original,
+        hasExistingResidentialData,
+        existingIsResidential: mapping.isResidential,
+        existingResidentialSource: mapping.residentialSource,
+        serviceAnalysisIsResidential: serviceAnalysis.isResidential,
+        serviceAnalysisSource: serviceAnalysis.residentialSource,
+        finalResidentialData: residentialData
+      });
       
       return {
         ...mapping,
         serviceCode: mapping.serviceCode || standardizedToServiceCode(mapping.standardized),
         status: mapping.confidence >= 0.8 ? 'good-match' as const : 'needs-review' as const,
         count: serviceCounts[mapping.original] || 0,
-        isResidential: serviceAnalysis.isResidential || false,
-        residentialSource: serviceAnalysis.residentialSource || 'auto-detected'
+        ...residentialData
       };
     });
 
@@ -99,6 +121,11 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
   };
 
   const updateResidentialStatus = (originalService: string, isResidential: boolean) => {
+    console.log('🏠 ServiceMappingReview - Updating residential status:', { 
+      originalService, 
+      isResidential, 
+      residentialSource: 'manual' 
+    });
     setMappings(prev => prev.map(mapping => 
       mapping.original === originalService
         ? { ...mapping, isResidential, residentialSource: 'manual' }
@@ -126,6 +153,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       residentialSource: mapping.residentialSource
     }));
     
+    console.log('🏠 ServiceMappingReview - Confirmed mappings with residential data:', confirmedMappings);
     onMappingsConfirmed(confirmedMappings);
   };
 

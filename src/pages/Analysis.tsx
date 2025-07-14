@@ -318,16 +318,8 @@ const Analysis = () => {
           requestingOnlyMappedService: true
         });
       } else {
-        // Fallback to auto-mapping if no confirmed mapping found
-        serviceMapping = mapServiceToServiceCode(shipment.service || '');
-        serviceCodesToRequest = getServiceCodesToRequest(shipment.service || '');
-        equivalentServiceCode = serviceMapping.serviceCode;
-        
-        console.log(`⚠️ Using fallback auto-mapping for ${shipment.service}:`, {
-          originalService: shipment.service,
-          autoMappedServiceCode: equivalentServiceCode,
-          requestingMultipleServices: serviceCodesToRequest
-        });
+        // NO FALLBACKS - if no confirmed mapping, this shipment is invalid
+        throw new Error(`No confirmed service mapping found for "${shipment.service}". Please verify the service mapping on the mapping page.`);
       }
       
       console.log('🏠 Analysis - Found confirmed mapping with residential data:', {

@@ -291,19 +291,25 @@ serve(async (req) => {
     
     console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
 
-    // Use ONLY the service codes from the confirmed mapping, not defaults
-    const serviceCodes = shipment.serviceTypes && shipment.serviceTypes.length > 0 
-      ? shipment.serviceTypes 
-      : ['03']; // Only use Ground as absolute fallback
+    // Use ONLY the confirmed service codes - NO fallbacks
+    if (!shipment.serviceTypes || shipment.serviceTypes.length === 0) {
+      return new Response(JSON.stringify({ 
+        error: 'No service codes provided. All shipments must have confirmed service mappings.' 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    const serviceCodes = shipment.serviceTypes;
     const equivalentServiceCode = shipment.equivalentServiceCode || serviceCodes[0];
     
-    console.log('🔍 SERVICE CODE VALIDATION:', {
+    console.log('🔍 SERVICE CODE VALIDATION - NO FALLBACKS:', {
       receivedServiceTypes: shipment.serviceTypes,
       receivedEquivalentCode: shipment.equivalentServiceCode,
       finalServiceCodes: serviceCodes,
       finalEquivalentCode: equivalentServiceCode,
-      isConfirmedMapping: !!(shipment.serviceTypes && shipment.serviceTypes.length > 0),
-      fallbackUsed: !shipment.serviceTypes || shipment.serviceTypes.length === 0
+      confirmedMappingOnly: true
     });
     const rates = [];
 

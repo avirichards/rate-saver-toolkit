@@ -185,94 +185,85 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
     // Special handling for Origin ZIP field
     if (field.id === 'originZip') {
       return (
-        <div key={field.id} className="py-3 border-b border-border/50 last:border-b-0">
-          <div className="flex items-center mb-3">
-            <div className="w-1/4">
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-sm">{field.label}</span>
-                <span className="text-red-500">*</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setUseManualOriginZip(!useManualOriginZip)}
-                  className="h-6 w-6 p-0"
-                >
-                  <Pencil className="h-3 w-3" />
-                </Button>
-                {useManualOriginZip && (
-                  <Badge variant="secondary" className="text-xs">
-                    Manual Override
-                  </Badge>
-                )}
-                {autoMapping && !useManualOriginZip && (
-                  <div className="flex items-center gap-1">
-                    <Zap className="h-3 w-3 text-primary" />
-                    <Badge 
-                      variant="secondary" 
-                      className={`text-xs ${getConfidenceColor(autoMapping.confidence)}`}
-                    >
-                      {getConfidenceText(autoMapping.confidence)}
-                    </Badge>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            <div className="w-1/3 px-4">
-              <p className="text-xs text-muted-foreground">{field.description}</p>
-            </div>
-            
-            <div className="w-1/3">
-              <div className="flex items-center gap-2 mb-2">
+        <div key={field.id} className="flex items-center py-3 border-b border-border/50 last:border-b-0">
+          <div className="w-1/4">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm">{field.label}</span>
+              <span className="text-red-500">*</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setUseManualOriginZip(!useManualOriginZip)}
+                className="h-6 w-6 p-0"
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+              <div className="flex items-center gap-1">
                 <Switch
                   checked={useManualOriginZip}
                   onCheckedChange={setUseManualOriginZip}
                   id="manual-origin-toggle"
+                  className="scale-75"
                 />
                 <Label htmlFor="manual-origin-toggle" className="text-xs">
-                  {useManualOriginZip ? 'Use Fixed ZIP' : 'Use CSV Column'}
+                  {useManualOriginZip ? 'Fixed' : 'CSV'}
                 </Label>
               </div>
+              {useManualOriginZip && (
+                <Badge variant="secondary" className="text-xs">
+                  Manual
+                </Badge>
+              )}
+              {autoMapping && !useManualOriginZip && (
+                <div className="flex items-center gap-1">
+                  <Zap className="h-3 w-3 text-primary" />
+                  <Badge 
+                    variant="secondary" 
+                    className={`text-xs ${getConfidenceColor(autoMapping.confidence)}`}
+                  >
+                    {getConfidenceText(autoMapping.confidence)}
+                  </Badge>
+                </div>
+              )}
             </div>
           </div>
           
-          <div className="pl-8">
+          <div className="w-1/3 px-4">
+            <p className="text-xs text-muted-foreground">{field.description}</p>
+          </div>
+          
+          <div className="w-1/3">
             {useManualOriginZip ? (
-              <div className="w-1/3">
-                <Input
-                  placeholder="Enter ZIP code (e.g., 12345)"
-                  value={manualOriginZip}
-                  onChange={(e) => setManualOriginZip(e.target.value)}
-                  className={error ? 'border-red-500' : ''}
-                />
-                {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-              </div>
+              <Input
+                placeholder="Enter ZIP code (e.g., 12345)"
+                value={manualOriginZip}
+                onChange={(e) => setManualOriginZip(e.target.value)}
+                className={error ? 'border-red-500' : ''}
+              />
             ) : (
-              <div className="w-1/3">
-                <Select 
-                  value={selectedHeader || "__NONE__"} 
-                  onValueChange={(value) => handleMappingChange(field.id, value)}
-                >
-                  <SelectTrigger className={`w-full ${error ? 'border-red-500' : ''}`}>
-                    <SelectValue placeholder="Select column..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__NONE__" disabled>
-                      <div className="flex items-center gap-2">
-                        <X className="h-4 w-4 text-muted-foreground" />
-                        <span>Required field</span>
-                      </div>
+              <Select 
+                value={selectedHeader || "__NONE__"} 
+                onValueChange={(value) => handleMappingChange(field.id, value)}
+              >
+                <SelectTrigger className={`w-full ${error ? 'border-red-500' : ''}`}>
+                  <SelectValue placeholder="Select column..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__NONE__" disabled>
+                    <div className="flex items-center gap-2">
+                      <X className="h-4 w-4 text-muted-foreground" />
+                      <span>Required field</span>
+                    </div>
+                  </SelectItem>
+                  {csvHeaders.map((header) => (
+                    <SelectItem key={header} value={header}>
+                      {header}
                     </SelectItem>
-                    {csvHeaders.map((header) => (
-                      <SelectItem key={header} value={header}>
-                        {header}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-              </div>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
+            {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
           </div>
         </div>
       );

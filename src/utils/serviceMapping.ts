@@ -4,8 +4,8 @@
 
 export interface ServiceMapping {
   standardizedService: string;
-  upsServiceCode: string;
-  upsServiceName: string;
+  serviceCode: string;
+  serviceName: string;
   confidence: number;
 }
 
@@ -30,12 +30,12 @@ export const DEFAULT_SERVICE_CODES = ['01', '02', '03', '12', '13'];
 /**
  * Maps a service name to the most appropriate UPS service code
  */
-export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
+export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
   if (!serviceName) {
     return {
       standardizedService: 'Ground',
-      upsServiceCode: '03',
-      upsServiceName: 'UPS Ground',
+      serviceCode: '03',
+      serviceName: 'UPS Ground',
       confidence: 0.5
     };
   }
@@ -47,23 +47,23 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
     if (service.includes('saver') || service.includes('save')) {
       return {
         standardizedService: 'Next Day Air Saver',
-        upsServiceCode: '13',
-        upsServiceName: 'UPS Next Day Air Saver',
+        serviceCode: '13',
+        serviceName: 'UPS Next Day Air Saver',
         confidence: 0.95
       };
     }
     if (service.includes('early') || service.includes('am')) {
       return {
         standardizedService: 'Next Day Air Early',
-        upsServiceCode: '14',
-        upsServiceName: 'UPS Next Day Air Early',
+        serviceCode: '14',
+        serviceName: 'UPS Next Day Air Early',
         confidence: 0.95
       };
     }
     return {
       standardizedService: 'Next Day Air',
-      upsServiceCode: '01',
-      upsServiceName: 'UPS Next Day Air',
+      serviceCode: '01',
+      serviceName: 'UPS Next Day Air',
       confidence: 0.9
     };
   }
@@ -72,8 +72,8 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
   if (service.includes('2nd day') || service.includes('2 day') || service.includes('second day')) {
     return {
       standardizedService: '2nd Day Air',
-      upsServiceCode: '02',
-      upsServiceName: 'UPS 2nd Day Air',
+      serviceCode: '02',
+      serviceName: 'UPS 2nd Day Air',
       confidence: 0.9
     };
   }
@@ -82,8 +82,8 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
   if (service.includes('3 day') || service.includes('3-day') || service.includes('select')) {
     return {
       standardizedService: '3 Day Select',
-      upsServiceCode: '12',
-      upsServiceName: 'UPS 3 Day Select',
+      serviceCode: '12',
+      serviceName: 'UPS 3 Day Select',
       confidence: 0.9
     };
   }
@@ -92,8 +92,8 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
   if (service.includes('ground') || service.includes('standard') || service.includes('regular')) {
     return {
       standardizedService: 'Ground',
-      upsServiceCode: '03',
-      upsServiceName: 'UPS Ground',
+      serviceCode: '03',
+      serviceName: 'UPS Ground',
       confidence: 0.9
     };
   }
@@ -103,15 +103,15 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
     if (service.includes('plus') || service.includes('+')) {
       return {
         standardizedService: 'Worldwide Express Plus',
-        upsServiceCode: '54',
-        upsServiceName: 'UPS Worldwide Express Plus',
+        serviceCode: '54',
+        serviceName: 'UPS Worldwide Express Plus',
         confidence: 0.8
       };
     }
     return {
       standardizedService: 'Worldwide Express',
-      upsServiceCode: '07',
-      upsServiceName: 'UPS Worldwide Express',
+      serviceCode: '07',
+      serviceName: 'UPS Worldwide Express',
       confidence: 0.8
     };
   }
@@ -120,8 +120,8 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
   if (service.includes('priority')) {
     return {
       standardizedService: 'Next Day Air',
-      upsServiceCode: '01',
-      upsServiceName: 'UPS Next Day Air',
+      serviceCode: '01',
+      serviceName: 'UPS Next Day Air',
       confidence: 0.7
     };
   }
@@ -131,16 +131,16 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
     if (service.includes('overnight') || service.includes('priority overnight')) {
       return {
         standardizedService: 'Next Day Air',
-        upsServiceCode: '01',
-        upsServiceName: 'UPS Next Day Air',
+        serviceCode: '01',
+        serviceName: 'UPS Next Day Air',
         confidence: 0.85
       };
     }
     if (service.includes('2day') || service.includes('2 day')) {
       return {
         standardizedService: '2nd Day Air',
-        upsServiceCode: '02',
-        upsServiceName: 'UPS 2nd Day Air',
+        serviceCode: '02',
+        serviceName: 'UPS 2nd Day Air',
         confidence: 0.85
       };
     }
@@ -149,8 +149,8 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
   // Default to Ground with low confidence
   return {
     standardizedService: 'Ground',
-    upsServiceCode: '03',
-    upsServiceName: 'UPS Ground',
+    serviceCode: '03',
+    serviceName: 'UPS Ground',
     confidence: 0.3
   };
 }
@@ -159,8 +159,8 @@ export function mapServiceToUpsCode(serviceName: string): ServiceMapping {
  * Gets service codes to request, prioritizing the mapped service
  */
 export function getServiceCodesToRequest(originalService: string): string[] {
-  const mapping = mapServiceToUpsCode(originalService);
-  const primaryCode = mapping.upsServiceCode;
+  const mapping = mapServiceToServiceCode(originalService);
+  const primaryCode = mapping.serviceCode;
   
   // Always include the mapped service first, then add others
   const serviceCodes = [primaryCode];

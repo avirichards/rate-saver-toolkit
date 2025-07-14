@@ -17,7 +17,7 @@ interface ServiceMappingReviewProps {
 }
 
 interface ExtendedServiceMapping extends ServiceMapping {
-  upsServiceCode: string;
+  serviceCode: string;
   shipmentCount: number;
   isEdited: boolean;
   isConfirmed: boolean;
@@ -45,8 +45,8 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       return acc;
     }, {} as Record<string, number>);
 
-    // Map standardized service names to UPS service codes
-    const standardizedToUpsCode = (standardized: string): string => {
+    // Map standardized service names to service codes
+    const standardizedToServiceCode = (standardized: string): string => {
       const mapping: Record<string, string> = {
         'NEXT_DAY_AIR': '01',
         'NEXT_DAY_AIR_SAVER': '13', 
@@ -79,7 +79,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       
       return {
         ...mapping,
-        upsServiceCode: mapping.upsServiceCode || standardizedToUpsCode(mapping.standardized),
+        serviceCode: mapping.serviceCode || standardizedToServiceCode(mapping.standardized),
         shipmentCount: serviceCounts[mapping.original] || 0,
         isEdited: false,
         isConfirmed: false,
@@ -107,14 +107,14 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
     ));
   };
 
-  const updateMapping = (index: number, newStandardized: string, newCarrier: string, upsServiceCode?: string) => {
+  const updateMapping = (index: number, newStandardized: string, newCarrier: string, serviceCode?: string) => {
     setMappings(prev => prev.map((mapping, i) => 
       i === index 
         ? { 
             ...mapping, 
             standardized: newStandardized, 
             carrier: newCarrier,
-            upsServiceCode,
+            serviceCode,
             confidence: 1.0, // User confirmed
             isEdited: true 
           }
@@ -216,7 +216,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       standardized: mapping.standardized,
       carrier: mapping.carrier,
       confidence: mapping.confidence,
-      upsServiceCode: mapping.upsServiceCode,
+      serviceCode: mapping.serviceCode,
       isResidential: mapping.isResidential
     }));
     onMappingsConfirmed(confirmedMappings);
@@ -242,7 +242,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
             Service Mapping Review
           </CardTitle>
           <CardDescription>
-            Review and confirm how your shipping services map to UPS services to ensure accurate rate comparisons.
+            Review and confirm how your shipping services map to carrier services to ensure accurate rate comparisons.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -293,7 +293,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                 <div>
                   <div className="font-medium text-red-700 mb-1">Review Required</div>
                   <div className="text-sm text-muted-foreground">
-                    Please review the services marked below. Select the correct UPS service for each to ensure accurate rate comparisons.
+                    Please review the services marked below. Select the correct mapped service for each to ensure accurate rate comparisons.
                   </div>
                 </div>
               </div>
@@ -442,7 +442,7 @@ interface ServiceMappingCardProps {
   mapping: ExtendedServiceMapping;
   index: number;
   serviceOptions: any[];
-  updateMapping: (index: number, newStandardized: string, newCarrier: string, upsServiceCode?: string) => void;
+  updateMapping: (index: number, newStandardized: string, newCarrier: string, serviceCode?: string) => void;
   updateResidentialSetting: (index: number, isResidential: boolean) => void;
   confirmMapping?: (index: number) => void;
   getStatusBadge: (mapping: ExtendedServiceMapping) => JSX.Element;
@@ -487,13 +487,13 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
               <span className="font-medium text-foreground ml-2">{mapping.carrier}</span>
             </div>
             <div>
-              <span className="text-muted-foreground">UPS Service:</span>
+              <span className="text-muted-foreground">Mapped Service:</span>
               <span className="font-medium text-foreground ml-2">
-                {serviceOptions.flatMap(g => g.services).find(s => s.code === mapping.upsServiceCode)?.name || 'Not selected'}
+                {serviceOptions.flatMap(g => g.services).find(s => s.code === mapping.serviceCode)?.name || 'Not selected'}
               </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              {getServiceDescription(mapping.upsServiceCode)}
+              {getServiceDescription(mapping.serviceCode)}
             </div>
           </div>
           
@@ -519,7 +519,7 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
         <div className="flex items-center gap-3">
           <div className="w-64">
             <Select
-              value={mapping.upsServiceCode}
+              value={mapping.serviceCode}
               onValueChange={(value) => {
                 const selectedOption = serviceOptions
                   .flatMap(group => group.services)
@@ -536,7 +536,7 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
               }}
             >
               <SelectTrigger className="h-10">
-                <SelectValue placeholder="Select UPS service" />
+                <SelectValue placeholder="Select service" />
               </SelectTrigger>
               <SelectContent className="bg-background border border-border shadow-lg z-50">
                 {serviceOptions.map(group => (

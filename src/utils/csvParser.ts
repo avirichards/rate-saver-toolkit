@@ -16,7 +16,7 @@ export interface ServiceMapping {
   standardized: string;
   carrier: string;
   confidence: number;
-  upsServiceCode?: string;
+  serviceCode?: string;
   isResidential?: boolean; // For all services
   isResidentialDetected?: boolean; // Auto-detected from service name
   residentialDetectionSource?: 'service_name' | 'address_pattern' | 'csv_data' | 'manual';

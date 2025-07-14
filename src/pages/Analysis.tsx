@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
-import { mapServiceToUpsCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
+import { mapServiceToServiceCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
 
@@ -277,21 +277,21 @@ const Analysis = () => {
       const confirmedMapping = serviceMappings.find(m => m.original === shipment.service);
       let serviceMapping, serviceCodesToRequest, equivalentServiceCode;
       
-      if (confirmedMapping && confirmedMapping.upsServiceCode) {
+      if (confirmedMapping && confirmedMapping.serviceCode) {
         // Use the user-confirmed mapping
-        equivalentServiceCode = confirmedMapping.upsServiceCode;
+        equivalentServiceCode = confirmedMapping.serviceCode;
         serviceCodesToRequest = [equivalentServiceCode, '01', '02', '03', '12', '13'].filter((code, index, arr) => arr.indexOf(code) === index);
         serviceMapping = {
-          upsServiceCode: equivalentServiceCode,
-          upsServiceName: confirmedMapping.standardized,
+          serviceCode: equivalentServiceCode,
+          serviceName: confirmedMapping.standardized,
           standardizedService: confirmedMapping.standardized,
           confidence: confirmedMapping.confidence
         };
       } else {
         // Fallback to auto-mapping if no confirmed mapping found
-        serviceMapping = mapServiceToUpsCode(shipment.service || '');
+        serviceMapping = mapServiceToServiceCode(shipment.service || '');
         serviceCodesToRequest = getServiceCodesToRequest(shipment.service || '');
-        equivalentServiceCode = serviceMapping.upsServiceCode;
+        equivalentServiceCode = serviceMapping.serviceCode;
       }
       
       // Determine residential status using hierarchical logic

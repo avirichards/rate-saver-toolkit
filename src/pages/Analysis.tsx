@@ -316,7 +316,8 @@ const Analysis = () => {
           standardized: serviceMapping.standardizedService,
           carrier: 'UPS',
           confidence: 0.5,
-          isResidential: false
+          // Don't hardcode isResidential to false - let the function determine it
+          isResidential: undefined
         }, 
         csvResidentialField
       );

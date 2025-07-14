@@ -18,6 +18,7 @@ export interface ServiceMapping {
   confidence: number;
   serviceCode?: string;
   isResidential?: boolean; // For all services
+  residentialSource?: string; // How residential status was determined
   isResidentialDetected?: boolean; // Auto-detected from service name
   residentialDetectionSource?: 'service_name' | 'address_pattern' | 'csv_data' | 'manual';
 }
@@ -400,7 +401,7 @@ function parseResidentialValue(value: any): boolean {
   return false;
 }
 
-function standardizeService(service: string): { service: string; carrier: string; confidence: number; isResidential?: boolean; residentialSource?: string } {
+export function standardizeService(service: string): { service: string; carrier: string; confidence: number; isResidential?: boolean; residentialSource?: string } {
   const serviceLower = service.toLowerCase().trim();
   
   // First, determine the carrier for reporting purposes

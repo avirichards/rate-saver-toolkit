@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { AlertTriangle, CheckCircle, Home, Building } from 'lucide-react';
 import type { ServiceMapping } from '@/utils/csvParser';
+import { standardizeService } from '@/utils/csvParser';
 
 interface ServiceMappingReviewProps {
   csvData: any[];
@@ -16,6 +18,8 @@ interface ExtendedServiceMapping extends ServiceMapping {
   serviceCode: string;
   status: 'needs-review' | 'good-match';
   count: number;
+  isResidential: boolean;
+  residentialSource: string;
 }
 
 export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
@@ -57,12 +61,19 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       return mapping[standardized] || '03';
     };
 
-    const extendedMappings = initialMappings.map(mapping => ({
-      ...mapping,
-      serviceCode: mapping.serviceCode || standardizedToServiceCode(mapping.standardized),
-      status: mapping.confidence >= 0.8 ? 'good-match' as const : 'needs-review' as const,
-      count: serviceCounts[mapping.original] || 0
-    }));
+    const extendedMappings = initialMappings.map(mapping => {
+      // Get residential status from service analysis
+      const serviceAnalysis = standardizeService(mapping.original);
+      
+      return {
+        ...mapping,
+        serviceCode: mapping.serviceCode || standardizedToServiceCode(mapping.standardized),
+        status: mapping.confidence >= 0.8 ? 'good-match' as const : 'needs-review' as const,
+        count: serviceCounts[mapping.original] || 0,
+        isResidential: serviceAnalysis.isResidential || false,
+        residentialSource: serviceAnalysis.residentialSource || 'auto-detected'
+      };
+    });
 
     setMappings(extendedMappings);
   }, [csvData, serviceColumn, initialMappings]);
@@ -87,6 +98,14 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
     ));
   };
 
+  const updateResidentialStatus = (originalService: string, isResidential: boolean) => {
+    setMappings(prev => prev.map(mapping => 
+      mapping.original === originalService
+        ? { ...mapping, isResidential, residentialSource: 'manual' }
+        : mapping
+    ));
+  };
+
   const confirmMapping = (originalService: string) => {
     setMappings(prev => prev.map(mapping => 
       mapping.original === originalService
@@ -102,7 +121,9 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       serviceCode: mapping.serviceCode || '',
       confidence: mapping.confidence,
       count: mapping.count,
-      carrier: mapping.carrier
+      carrier: mapping.carrier,
+      isResidential: mapping.isResidential,
+      residentialSource: mapping.residentialSource
     }));
     
     onMappingsConfirmed(confirmedMappings);
@@ -149,6 +170,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                 mapping={mapping}
                 serviceOptions={allServiceOptions}
                 updateMapping={updateMapping}
+                updateResidentialStatus={updateResidentialStatus}
                 confirmMapping={confirmMapping}
                 showConfirmButton={true}
               />
@@ -172,6 +194,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                 mapping={mapping}
                 serviceOptions={allServiceOptions}
                 updateMapping={updateMapping}
+                updateResidentialStatus={updateResidentialStatus}
                 showConfirmButton={false}
               />
             ))}
@@ -198,6 +221,7 @@ interface ServiceMappingCardProps {
   mapping: ExtendedServiceMapping;
   serviceOptions: any[];
   updateMapping: (originalService: string, serviceCode: string | null) => void;
+  updateResidentialStatus: (originalService: string, isResidential: boolean) => void;
   confirmMapping?: (originalService: string) => void;
   showConfirmButton: boolean;
 }
@@ -206,6 +230,7 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
   mapping,
   serviceOptions,
   updateMapping,
+  updateResidentialStatus,
   confirmMapping,
   showConfirmButton
 }) => {
@@ -252,17 +277,38 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
                   </SelectContent>
                 </Select>
               </div>
-              
-              {showConfirmButton && confirmMapping && (
-                <Button
-                  onClick={() => confirmMapping(mapping.original)}
-                  variant="default"
-                  size="sm"
-                  className="mt-6"
-                >
-                  Confirm as Correct
-                </Button>
-              )}
+            </div>
+            
+            {/* Residential Toggle */}
+            <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+              <div className="flex items-center gap-2">
+                {mapping.isResidential ? (
+                  <Home className="h-4 w-4 text-primary" />
+                ) : (
+                  <Building className="h-4 w-4 text-muted-foreground" />
+                )}
+                <span className="text-sm font-medium">
+                  {mapping.isResidential ? 'Residential Delivery' : 'Commercial Delivery'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  ({mapping.residentialSource})
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={mapping.isResidential}
+                  onCheckedChange={(checked) => updateResidentialStatus(mapping.original, checked)}
+                />
+                {showConfirmButton && confirmMapping && (
+                  <Button
+                    onClick={() => confirmMapping(mapping.original)}
+                    variant="default"
+                    size="sm"
+                  >
+                    Confirm as Correct
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>

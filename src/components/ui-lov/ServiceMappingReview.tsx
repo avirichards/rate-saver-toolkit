@@ -4,7 +4,8 @@ import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, CheckCircle, Edit3, Users, Home, Building } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { AlertTriangle, CheckCircle, Edit3, Users, Home, Building, HelpCircle, Package, Search } from 'lucide-react';
 import { UPS_SERVICE_CODES } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
 
@@ -119,23 +120,48 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
     ));
   };
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'text-green-600';
-    if (confidence >= 0.5) return 'text-yellow-600';
-    return 'text-red-600';
+  // Helper functions for improved UX
+  const getStatusInfo = (mapping: ExtendedServiceMapping) => {
+    const needsReview = mapping.confidence < 0.5 && !mapping.isEdited;
+    const isConfirmed = mapping.confidence >= 0.8 || mapping.isEdited;
+    
+    return {
+      needsReview,
+      isConfirmed,
+      status: needsReview ? 'needs-review' : isConfirmed ? 'confirmed' : 'good'
+    };
   };
 
-  const getConfidenceBadge = (confidence: number, isEdited: boolean) => {
-    if (isEdited) {
-      return <Badge variant="default" className="bg-blue-100 text-blue-700">User Confirmed</Badge>;
+  const getStatusBadge = (mapping: ExtendedServiceMapping) => {
+    const { needsReview, isConfirmed } = getStatusInfo(mapping);
+    
+    if (mapping.isEdited) {
+      return <Badge variant="default" className="bg-success/10 text-success border-success/20">✓ Confirmed</Badge>;
     }
-    if (confidence >= 0.8) {
-      return <Badge variant="default" className="bg-green-100 text-green-700">High Confidence</Badge>;
+    if (needsReview) {
+      return <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">⚠ Needs Review</Badge>;
     }
-    if (confidence >= 0.5) {
-      return <Badge variant="secondary">Medium Confidence</Badge>;
+    if (isConfirmed) {
+      return <Badge variant="default" className="bg-success/10 text-success border-success/20">✓ Auto-Matched</Badge>;
     }
-    return <Badge variant="destructive">Low Confidence</Badge>;
+    return <Badge variant="secondary">✓ Good Match</Badge>;
+  };
+
+  const getServiceDescription = (serviceCode: string): string => {
+    const descriptions: Record<string, string> = {
+      '01': 'Next business day by 10:30 AM',
+      '13': 'Next business day by 3:00 PM (lower cost)',
+      '14': 'Next business day by 8:00 AM',
+      '02': '2nd business day by end of day',
+      '12': '3rd business day by end of day',
+      '03': '1-5 business days, most economical',
+      '07': 'Express international, 1-3 business days',
+      '54': 'Fastest international service',
+      '08': 'Expedited international, 2-5 business days',
+      '11': 'Standard international service',
+      '65': 'Express international with savings'
+    };
+    return descriptions[serviceCode] || 'UPS service';
   };
 
   const serviceOptions = [
@@ -173,181 +199,350 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
   };
 
   const totalShipments = mappings.reduce((sum, m) => sum + m.shipmentCount, 0);
-  const lowConfidenceCount = mappings.filter(m => m.confidence < 0.5 && !m.isEdited).length;
+  const needsReviewCount = mappings.filter(m => getStatusInfo(m).needsReview).length;
+  const confirmedCount = mappings.filter(m => getStatusInfo(m).isConfirmed).length;
+  const progressPercentage = Math.round((confirmedCount / mappings.length) * 100);
+
+  // Group mappings by status for better organization
+  const needsReviewMappings = mappings.filter(m => getStatusInfo(m).needsReview);
+  const confirmedMappings = mappings.filter(m => getStatusInfo(m).isConfirmed);
+  const goodMappings = mappings.filter(m => getStatusInfo(m).status === 'good');
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Edit3 className="h-5 w-5" />
-          Service Mapping Review
-        </CardTitle>
-        <CardDescription>
-          Review and confirm how your shipping services map to UPS services. 
-          This ensures accurate rate comparisons for your {totalShipments} shipments.
-        </CardDescription>
-        
-        {/* Summary Stats */}
-        <div className="flex gap-6 text-sm mt-4">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-blue-600" />
-            <span className="font-medium">{totalShipments}</span>
-            <span className="text-muted-foreground">total shipments</span>
-          </div>
-          <div className="flex items-center gap-2">
-            {lowConfidenceCount > 0 ? (
-              <>
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <span className="font-medium text-amber-700">{lowConfidenceCount}</span>
-                <span className="text-muted-foreground">need review</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-                <span className="font-medium text-green-700">All mappings confirmed</span>
-              </>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        {mappings.map((mapping, index) => (
-          <div 
-            key={mapping.original} 
-            className={`p-4 border rounded-lg transition-all ${
-              mapping.confidence < 0.5 && !mapping.isEdited 
-                ? 'border-amber-200 bg-amber-50/50 shadow-sm' 
-                : 'border-border hover:border-border/60'
-            }`}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="font-semibold text-base">{mapping.original}</span>
-                  {getConfidenceBadge(mapping.confidence, mapping.isEdited)}
-                  <Badge variant="outline" className="text-xs bg-blue-50">
-                    {mapping.shipmentCount} shipment{mapping.shipmentCount !== 1 ? 's' : ''}
-                  </Badge>
-                </div>
-                
-                <div className="text-sm mb-3">
-                  <span className="text-muted-foreground">Maps to:</span>
-                  <span className="font-medium text-foreground ml-2">{mapping.standardized}</span>
-                  {mapping.carrier && (
-                    <span className="text-muted-foreground ml-2">• {mapping.carrier}</span>
-                  )}
-                </div>
-                
-                {/* Residential Detection Summary */}
-                {(mapping.residentialDetected || mapping.commercialDetected) && (
-                  <div className="flex items-center gap-4 text-xs mb-2">
-                    {mapping.residentialDetected > 0 && (
-                      <div className="flex items-center gap-1 text-orange-600">
-                        <Home className="h-3 w-3" />
-                        {mapping.residentialDetected} residential
-                      </div>
-                    )}
-                    {mapping.commercialDetected > 0 && (
-                      <div className="flex items-center gap-1 text-blue-600">
-                        <Building className="h-3 w-3" />
-                        {mapping.commercialDetected} commercial
-                      </div>
-                    )}
-                    {mapping.isResidentialDetected && (
-                      <Badge variant="outline" className="text-xs bg-blue-50">
-                        Auto-detected from service name
-                      </Badge>
-                    )}
-                  </div>
-                )}
+    <div className="space-y-6">
+      {/* Progress and Instructions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Edit3 className="h-5 w-5" />
+            Service Mapping Review
+          </CardTitle>
+          <CardDescription>
+            Review and confirm how your shipping services map to UPS services to ensure accurate rate comparisons.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Progress Section */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-primary" />
+                <span className="text-sm font-medium">
+                  {confirmedCount} of {mappings.length} services confirmed
+                </span>
               </div>
+              <span className="text-sm text-muted-foreground">{progressPercentage}% complete</span>
+            </div>
+            <Progress value={progressPercentage} className="h-2" />
+          </div>
 
-              <div className="flex-shrink-0 w-64">
-                <Select
-                  value={mapping.upsServiceCode}
-                  onValueChange={(value) => {
-                    const selectedOption = serviceOptions
-                      .flatMap(group => group.services)
-                      .find(service => service.code === value);
-                    
-                    if (selectedOption) {
-                      updateMapping(
-                        index, 
-                        selectedOption.standardized, 
-                        'UPS',
-                        selectedOption.code
-                      );
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="Select UPS service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {serviceOptions.map(group => (
-                      <div key={group.group}>
-                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 border-b">
-                          {group.group}
-                        </div>
-                        {group.services.map(service => (
-                          <SelectItem key={service.code} value={service.code}>
-                            <div className="flex flex-col py-1">
-                              <span className="font-medium">{service.name}</span>
-                              <span className="text-xs text-muted-foreground">Code: {service.code}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </div>
-                    ))}
-                  </SelectContent>
-                </Select>
+          {/* Summary Stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+              <Users className="h-4 w-4 text-primary" />
+              <div>
+                <div className="text-sm font-medium">{totalShipments}</div>
+                <div className="text-xs text-muted-foreground">Total Shipments</div>
               </div>
-
-              {/* Residential/Commercial Checkbox for All Services */}
-              <div className="flex-shrink-0 flex items-center gap-2 ml-4">
-                <Checkbox
-                  id={`residential-${index}`}
-                  checked={mapping.isResidential || false}
-                  onCheckedChange={(checked) => updateResidentialSetting(index, checked as boolean)}
-                />
-                <label 
-                  htmlFor={`residential-${index}`} 
-                  className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
-                >
-                  <Home className="h-3 w-3" />
-                  Residential
-                </label>
+            </div>
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+              <CheckCircle className="h-4 w-4 text-success" />
+              <div>
+                <div className="text-sm font-medium">{confirmedCount}</div>
+                <div className="text-xs text-muted-foreground">Confirmed</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              <div>
+                <div className="text-sm font-medium">{needsReviewCount}</div>
+                <div className="text-xs text-muted-foreground">Needs Review</div>
               </div>
             </div>
           </div>
-        ))}
 
-        <div className="flex justify-between items-center pt-6 border-t">
-          <div className="text-sm">
-            {lowConfidenceCount > 0 ? (
-              <div className="flex items-center gap-2 text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
-                <AlertTriangle className="h-4 w-4" />
-                <span className="font-medium">Please review {lowConfidenceCount} low-confidence mapping{lowConfidenceCount !== 1 ? 's' : ''}</span>
+          {/* Instructions */}
+          {needsReviewCount > 0 && (
+            <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg">
+              <div className="flex items-start gap-3">
+                <HelpCircle className="h-5 w-5 text-warning mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="font-medium text-warning mb-1">Review Required</div>
+                  <div className="text-sm text-muted-foreground">
+                    Please review the services marked below. Select the correct UPS service for each to ensure accurate rate comparisons.
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="flex items-center gap-2 text-green-700 bg-green-50 px-3 py-2 rounded-lg">
-                <CheckCircle className="h-4 w-4" />
-                <span className="font-medium">All mappings confirmed</span>
-              </div>
-            )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Needs Review Section */}
+      {needsReviewMappings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-5 w-5" />
+              Needs Review ({needsReviewMappings.length})
+            </CardTitle>
+            <CardDescription>
+              These services need your attention to ensure accurate mapping.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {needsReviewMappings.map((mapping, originalIndex) => {
+              const index = mappings.findIndex(m => m.original === mapping.original);
+              return (
+                <ServiceMappingCard 
+                  key={mapping.original}
+                  mapping={mapping}
+                  index={index}
+                  serviceOptions={serviceOptions}
+                  updateMapping={updateMapping}
+                  updateResidentialSetting={updateResidentialSetting}
+                  getStatusBadge={getStatusBadge}
+                  getServiceDescription={getServiceDescription}
+                  priority="high"
+                />
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Confirmed Section */}
+      {confirmedMappings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-success">
+              <CheckCircle className="h-5 w-5" />
+              Confirmed ({confirmedMappings.length})
+            </CardTitle>
+            <CardDescription>
+              These services have been confirmed and are ready for analysis.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {confirmedMappings.map((mapping, originalIndex) => {
+              const index = mappings.findIndex(m => m.original === mapping.original);
+              return (
+                <ServiceMappingCard 
+                  key={mapping.original}
+                  mapping={mapping}
+                  index={index}
+                  serviceOptions={serviceOptions}
+                  updateMapping={updateMapping}
+                  updateResidentialSetting={updateResidentialSetting}
+                  getStatusBadge={getStatusBadge}
+                  getServiceDescription={getServiceDescription}
+                  priority="confirmed"
+                />
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Good Matches Section */}
+      {goodMappings.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-success" />
+              Good Matches ({goodMappings.length})
+            </CardTitle>
+            <CardDescription>
+              These services have been automatically matched with good confidence.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {goodMappings.map((mapping, originalIndex) => {
+              const index = mappings.findIndex(m => m.original === mapping.original);
+              return (
+                <ServiceMappingCard 
+                  key={mapping.original}
+                  mapping={mapping}
+                  index={index}
+                  serviceOptions={serviceOptions}
+                  updateMapping={updateMapping}
+                  updateResidentialSetting={updateResidentialSetting}
+                  getStatusBadge={getStatusBadge}
+                  getServiceDescription={getServiceDescription}
+                  priority="good"
+                />
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Action Section */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {needsReviewCount > 0 ? (
+                <div className="flex items-center gap-2 text-warning">
+                  <AlertTriangle className="h-4 w-4" />
+                  <span className="font-medium">
+                    {needsReviewCount} service{needsReviewCount !== 1 ? 's' : ''} need{needsReviewCount === 1 ? 's' : ''} review
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-success">
+                  <CheckCircle className="h-4 w-4" />
+                  <span className="font-medium">All services confirmed</span>
+                </div>
+              )}
+            </div>
+            
+            <Button 
+              onClick={handleConfirm}
+              disabled={!allMapped}
+              size="lg"
+              className="px-8"
+            >
+              {allMapped ? 'Continue to Analysis' : `Review ${needsReviewCount} Service${needsReviewCount !== 1 ? 's' : ''}`}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
+// Individual Service Mapping Card Component
+interface ServiceMappingCardProps {
+  mapping: ExtendedServiceMapping;
+  index: number;
+  serviceOptions: any[];
+  updateMapping: (index: number, newStandardized: string, newCarrier: string, upsServiceCode?: string) => void;
+  updateResidentialSetting: (index: number, isResidential: boolean) => void;
+  getStatusBadge: (mapping: ExtendedServiceMapping) => JSX.Element;
+  getServiceDescription: (serviceCode: string) => string;
+  priority: 'high' | 'confirmed' | 'good';
+}
+
+const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
+  mapping,
+  index,
+  serviceOptions,
+  updateMapping,
+  updateResidentialSetting,
+  getStatusBadge,
+  getServiceDescription,
+  priority
+}) => {
+  const priorityStyles = {
+    high: 'border-warning/30 bg-warning/5 shadow-sm',
+    confirmed: 'border-success/30 bg-success/5',
+    good: 'border-border hover:border-border/60'
+  };
+
+  return (
+    <div className={`p-4 border rounded-lg transition-all ${priorityStyles[priority]}`}>
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="font-semibold text-base">{mapping.original}</span>
+            {getStatusBadge(mapping)}
+            <Badge variant="outline" className="text-xs">
+              {mapping.shipmentCount} shipment{mapping.shipmentCount !== 1 ? 's' : ''}
+            </Badge>
           </div>
           
-          <Button 
-            onClick={handleConfirm}
-            disabled={!allMapped}
-            size="lg"
-            className="px-8"
-          >
-            {allMapped ? 'Continue to Analysis' : 'Review Required Services'}
-          </Button>
+          <div className="text-sm mb-3 space-y-1">
+            <div>
+              <span className="text-muted-foreground">UPS Service:</span>
+              <span className="font-medium text-foreground ml-2">
+                {serviceOptions.flatMap(g => g.services).find(s => s.code === mapping.upsServiceCode)?.name || 'Not selected'}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {getServiceDescription(mapping.upsServiceCode)}
+            </div>
+          </div>
+          
+          {/* Residential Detection Summary */}
+          {(mapping.residentialDetected || mapping.commercialDetected) && (
+            <div className="flex items-center gap-4 text-xs mb-2">
+              {mapping.residentialDetected > 0 && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Home className="h-3 w-3" />
+                  {mapping.residentialDetected} residential
+                </div>
+              )}
+              {mapping.commercialDetected > 0 && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Building className="h-3 w-3" />
+                  {mapping.commercialDetected} commercial
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+
+        <div className="flex items-center gap-3">
+          <div className="w-64">
+            <Select
+              value={mapping.upsServiceCode}
+              onValueChange={(value) => {
+                const selectedOption = serviceOptions
+                  .flatMap(group => group.services)
+                  .find(service => service.code === value);
+                
+                if (selectedOption) {
+                  updateMapping(
+                    index, 
+                    selectedOption.standardized, 
+                    'UPS',
+                    selectedOption.code
+                  );
+                }
+              }}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Select UPS service" />
+              </SelectTrigger>
+              <SelectContent className="bg-background border border-border shadow-lg z-50">
+                {serviceOptions.map(group => (
+                  <div key={group.group}>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 border-b">
+                      {group.group}
+                    </div>
+                    {group.services.map(service => (
+                      <SelectItem key={service.code} value={service.code}>
+                        <div className="flex flex-col py-1">
+                          <span className="font-medium">{service.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            Code: {service.code}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </div>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`residential-${index}`}
+              checked={mapping.isResidential || false}
+              onCheckedChange={(checked) => updateResidentialSetting(index, checked as boolean)}
+            />
+            <label 
+              htmlFor={`residential-${index}`} 
+              className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
+            >
+              <Home className="h-3 w-3" />
+              Residential
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };

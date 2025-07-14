@@ -76,18 +76,19 @@ const Results = () => {
           console.log('Using analysis data from navigation:', state.analysisData);
           setAnalysisData(state.analysisData);
           
-          const formattedData = state.analysisData.recommendations.map((rec: any, index: number) => ({
-            id: index + 1,
-            trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
-            originZip: rec.shipment.originZip,
-            destinationZip: rec.shipment.destZip,
-            weight: parseFloat(rec.shipment.weight || '0'),
-            service: rec.originalService || rec.shipment.service,
-            currentRate: rec.currentCost,
-            newRate: rec.recommendedCost,
-            savings: rec.savings,
-            savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
-          }));
+      const formattedData = state.analysisData.recommendations.map((rec: any, index: number) => ({
+        id: index + 1,
+        trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
+        originZip: rec.shipment.originZip,
+        destinationZip: rec.shipment.destZip,
+        weight: parseFloat(rec.shipment.weight || '0'),
+        carrier: rec.shipment.carrier || rec.carrier || 'Unknown',
+        service: rec.originalService || rec.shipment.service,
+        currentRate: rec.currentCost,
+        newRate: rec.recommendedCost,
+        savings: rec.savings,
+        savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
+      }));
           
           setShipmentData(formattedData);
           
@@ -214,6 +215,7 @@ const Results = () => {
       originZip: rec.shipment?.originZip || '',
       destinationZip: rec.shipment?.destZip || '',
       weight: parseFloat(rec.shipment?.weight || '0'),
+      carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
       service: rec.originalService || rec.shipment?.service || '',
       currentRate: rec.currentCost || 0,
       newRate: rec.recommendedCost || 0,
@@ -617,6 +619,7 @@ const Results = () => {
                         <TableHead className="text-foreground">Origin</TableHead>
                         <TableHead className="text-foreground">Destination</TableHead>
                         <TableHead className="text-foreground">Weight (lbs)</TableHead>
+                        <TableHead className="text-foreground">Carrier</TableHead>
                         <TableHead className="text-foreground">Service</TableHead>
                         <TableHead className="text-right text-foreground">Current Rate</TableHead>
                         <TableHead className="text-right text-foreground">UPS Rate</TableHead>
@@ -644,6 +647,11 @@ const Results = () => {
                           </TableCell>
                           <TableCell className="text-foreground">
                             {item.weight.toFixed(1)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {item.carrier || 'Unknown'}
+                            </Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">

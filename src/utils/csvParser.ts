@@ -36,7 +36,12 @@ const FIELD_PATTERNS: Record<string, {
   service: {
     exact: ['service_type', 'shipping_service', 'carrier_service', 'service', 'carrier_service_selected'],
     strong: ['ship_service', 'method', 'delivery_method', 'ship_method', 'shipping_method'],
-    partial: ['type', 'carrier', 'delivery']
+    partial: ['type', 'delivery']
+  },
+  carrier: {
+    exact: ['carrier', 'carrier_name', 'shipping_carrier', 'shipper_carrier', 'provider'],
+    strong: ['shipper', 'courier', 'company', 'vendor', 'ship_via'],
+    partial: ['ups', 'fedex', 'usps', 'dhl', 'mail']
   },
   weight: {
     exact: ['weight', 'package_weight', 'pkg_weight', 'shipment_weight_lbs', 'weight_lbs'],

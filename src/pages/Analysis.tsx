@@ -19,6 +19,7 @@ interface ProcessedShipment {
   id: number;
   trackingId?: string;
   service?: string;
+  carrier?: string;
   weight?: string;
   weightUnit?: string;
   cost?: string;
@@ -366,7 +367,8 @@ const Analysis = () => {
         serviceTypes: serviceCodesToRequest,
         equivalentServiceCode: equivalentServiceCode,
         isResidential: residentialStatus.isResidential,
-        residentialSource: residentialStatus.source
+        residentialSource: residentialStatus.source,
+        originalCarrier: shipment.carrier || 'Unknown'
       };
       
       // Fetch UPS rates with enhanced error handling

@@ -24,6 +24,7 @@ interface IntelligentColumnMapperProps {
 const REQUIRED_FIELDS: Field[] = [
   { id: 'trackingId', label: 'Tracking ID', description: 'Shipment tracking number', required: false },
   { id: 'service', label: 'Service Type', description: 'Shipping service used', required: false },
+  { id: 'carrier', label: 'Carrier (optional)', description: 'Shipping carrier (UPS, FedEx, etc.)', required: false },
   { id: 'weight', label: 'Weight', description: 'Package weight (lbs/oz)', required: true },
   { id: 'cost', label: 'Current Cost', description: 'Current shipping cost ($)', required: false },
   { id: 'originZip', label: 'Origin ZIP', description: 'Pickup ZIP code', required: true },

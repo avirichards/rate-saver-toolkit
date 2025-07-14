@@ -184,71 +184,74 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
         </CardTitle>
         <CardDescription>
           Review and confirm how your shipping services map to UPS services. 
-          This ensures accurate rate comparisons.
+          This ensures accurate rate comparisons for your {totalShipments} shipments.
         </CardDescription>
         
         {/* Summary Stats */}
-        <div className="flex gap-4 text-sm text-muted-foreground mt-4">
-          <div className="flex items-center gap-1">
-            <Users className="h-4 w-4" />
-            {totalShipments} total shipments
+        <div className="flex gap-6 text-sm mt-4">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-blue-600" />
+            <span className="font-medium">{totalShipments}</span>
+            <span className="text-muted-foreground">total shipments</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             {lowConfidenceCount > 0 ? (
               <>
-                <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                {lowConfidenceCount} need review
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                <span className="font-medium text-amber-700">{lowConfidenceCount}</span>
+                <span className="text-muted-foreground">need review</span>
               </>
             ) : (
               <>
                 <CheckCircle className="h-4 w-4 text-green-600" />
-                All mappings confirmed
+                <span className="font-medium text-green-700">All mappings confirmed</span>
               </>
             )}
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {mappings.map((mapping, index) => (
           <div 
             key={mapping.original} 
-            className={`p-4 border rounded-lg transition-colors ${
+            className={`p-4 border rounded-lg transition-all ${
               mapping.confidence < 0.5 && !mapping.isEdited 
-                ? 'border-yellow-200 bg-yellow-50' 
-                : 'border-border'
+                ? 'border-amber-200 bg-amber-50/50 shadow-sm' 
+                : 'border-border hover:border-border/60'
             }`}
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="font-medium truncate">{mapping.original}</span>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="font-semibold text-base">{mapping.original}</span>
                   {getConfidenceBadge(mapping.confidence, mapping.isEdited)}
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs bg-blue-50">
                     {mapping.shipmentCount} shipment{mapping.shipmentCount !== 1 ? 's' : ''}
                   </Badge>
                 </div>
                 
-                <div className="text-sm text-muted-foreground mb-2">
-                  Current mapping: <span className="font-medium">{mapping.standardized}</span>
-                  {mapping.upsServiceCode && (
-                    <span className="ml-2">({UPS_SERVICE_CODES[mapping.upsServiceCode as keyof typeof UPS_SERVICE_CODES]})</span>
+                <div className="text-sm mb-3">
+                  <span className="text-muted-foreground">Maps to:</span>
+                  <span className="font-medium text-foreground ml-2">{mapping.standardized}</span>
+                  {mapping.carrier && (
+                    <span className="text-muted-foreground ml-2">• {mapping.carrier}</span>
                   )}
                 </div>
                 
                 {/* Residential Detection Summary */}
                 {(mapping.residentialDetected || mapping.commercialDetected) && (
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-4 text-xs mb-2">
                     {mapping.residentialDetected > 0 && (
-                      <div className="flex items-center gap-1">
-                        <Home className="h-3 w-3 text-orange-500" />
-                        {mapping.residentialDetected} residential detected
+                      <div className="flex items-center gap-1 text-orange-600">
+                        <Home className="h-3 w-3" />
+                        {mapping.residentialDetected} residential
                       </div>
                     )}
                     {mapping.commercialDetected > 0 && (
-                      <div className="flex items-center gap-1">
-                        <Building className="h-3 w-3 text-blue-500" />
-                        {mapping.commercialDetected} commercial detected
+                      <div className="flex items-center gap-1 text-blue-600">
+                        <Building className="h-3 w-3" />
+                        {mapping.commercialDetected} commercial
                       </div>
                     )}
                     {mapping.isResidentialDetected && (
@@ -278,19 +281,19 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                     }
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-10">
                     <SelectValue placeholder="Select UPS service" />
                   </SelectTrigger>
                   <SelectContent>
                     {serviceOptions.map(group => (
                       <div key={group.group}>
-                        <div className="px-2 py-1 text-xs font-medium text-muted-foreground border-b">
+                        <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 border-b">
                           {group.group}
                         </div>
                         {group.services.map(service => (
                           <SelectItem key={service.code} value={service.code}>
-                            <div className="flex flex-col">
-                              <span>{service.name}</span>
+                            <div className="flex flex-col py-1">
+                              <span className="font-medium">{service.name}</span>
                               <span className="text-xs text-muted-foreground">Code: {service.code}</span>
                             </div>
                           </SelectItem>
@@ -321,11 +324,16 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
         ))}
 
         <div className="flex justify-between items-center pt-6 border-t">
-          <div className="text-sm text-muted-foreground">
-            {lowConfidenceCount > 0 && (
-              <div className="flex items-center gap-1 text-yellow-700">
+          <div className="text-sm">
+            {lowConfidenceCount > 0 ? (
+              <div className="flex items-center gap-2 text-amber-700 bg-amber-50 px-3 py-2 rounded-lg">
                 <AlertTriangle className="h-4 w-4" />
-                Please review {lowConfidenceCount} low-confidence mapping{lowConfidenceCount !== 1 ? 's' : ''}
+                <span className="font-medium">Please review {lowConfidenceCount} low-confidence mapping{lowConfidenceCount !== 1 ? 's' : ''}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-green-700 bg-green-50 px-3 py-2 rounded-lg">
+                <CheckCircle className="h-4 w-4" />
+                <span className="font-medium">All mappings confirmed</span>
               </div>
             )}
           </div>
@@ -334,6 +342,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
             onClick={handleConfirm}
             disabled={!allMapped}
             size="lg"
+            className="px-8"
           >
             {allMapped ? 'Continue to Analysis' : 'Review Required Services'}
           </Button>

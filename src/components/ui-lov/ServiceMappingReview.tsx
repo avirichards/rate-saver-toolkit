@@ -20,6 +20,7 @@ interface ExtendedServiceMapping extends ServiceMapping {
   upsServiceCode: string;
   shipmentCount: number;
   isEdited: boolean;
+  isConfirmed: boolean;
   isResidential?: boolean;
   residentialDetected?: number; // Count of shipments with auto-detected residential
   commercialDetected?: number; // Count of shipments with auto-detected commercial
@@ -81,6 +82,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
         upsServiceCode: mapping.upsServiceCode || standardizedToUpsCode(mapping.standardized),
         shipmentCount: serviceCounts[mapping.original] || 0,
         isEdited: false,
+        isConfirmed: false,
         isResidential: mapping.isResidential !== undefined ? mapping.isResidential : 
                       (mapping.isResidentialDetected ? true : false),
         residentialDetected,
@@ -92,10 +94,18 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
   }, [csvData, serviceColumn, initialMappings]);
 
   useEffect(() => {
-    // Check if all mappings have confidence > 0.5 or have been edited
-    const allValid = mappings.every(m => m.confidence > 0.5 || m.isEdited);
+    // Check if all mappings are confirmed or edited
+    const allValid = mappings.every(m => m.isConfirmed || m.isEdited || m.confidence > 0.5);
     setAllMapped(allValid);
   }, [mappings]);
+
+  const confirmMapping = (index: number) => {
+    setMappings(prev => prev.map((mapping, i) => 
+      i === index 
+        ? { ...mapping, isConfirmed: true }
+        : mapping
+    ));
+  };
 
   const updateMapping = (index: number, newStandardized: string, newCarrier: string, upsServiceCode?: string) => {
     setMappings(prev => prev.map((mapping, i) => 
@@ -122,29 +132,43 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
 
   // Helper functions for improved UX
   const getStatusInfo = (mapping: ExtendedServiceMapping) => {
-    const needsReview = mapping.confidence < 0.5 && !mapping.isEdited;
-    const isConfirmed = mapping.confidence >= 0.8 || mapping.isEdited;
-    
-    return {
-      needsReview,
-      isConfirmed,
-      status: needsReview ? 'needs-review' : isConfirmed ? 'confirmed' : 'good'
-    };
+    if (mapping.isEdited || mapping.isConfirmed) {
+      return {
+        status: 'confirmed',
+        label: 'Confirmed',
+        needsReview: false,
+        isConfirmed: true
+      };
+    } else if (mapping.confidence > 0.5) {
+      return {
+        status: 'good-match',
+        label: 'Good Match',
+        needsReview: false,
+        isConfirmed: false
+      };
+    } else {
+      return {
+        status: 'needs-review',
+        label: 'Needs Review',
+        needsReview: true,
+        isConfirmed: false
+      };
+    }
   };
 
   const getStatusBadge = (mapping: ExtendedServiceMapping) => {
-    const { needsReview, isConfirmed } = getStatusInfo(mapping);
+    const statusInfo = getStatusInfo(mapping);
     
     if (mapping.isEdited) {
       return <Badge variant="default" className="bg-success/10 text-success border-success/20">✓ Confirmed</Badge>;
     }
-    if (needsReview) {
-      return <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">⚠ Needs Review</Badge>;
+    if (mapping.isConfirmed) {
+      return <Badge variant="default" className="bg-success/10 text-success border-success/20">✓ Confirmed</Badge>;
     }
-    if (isConfirmed) {
-      return <Badge variant="default" className="bg-success/10 text-success border-success/20">✓ Auto-Matched</Badge>;
+    if (statusInfo.needsReview) {
+      return <Badge variant="destructive" className="bg-red-50 text-red-700 border-red-200">⚠ Needs Review</Badge>;
     }
-    return <Badge variant="secondary">✓ Good Match</Badge>;
+    return <Badge variant="secondary" className="bg-amber-50 text-amber-700 border-amber-200">Good Match</Badge>;
   };
 
   const getServiceDescription = (serviceCode: string): string => {
@@ -253,7 +277,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
-              <AlertTriangle className="h-4 w-4 text-warning" />
+              <AlertTriangle className="h-4 w-4 text-red-600" />
               <div>
                 <div className="text-sm font-medium">{needsReviewCount}</div>
                 <div className="text-xs text-muted-foreground">Needs Review</div>
@@ -263,11 +287,11 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
 
           {/* Instructions */}
           {needsReviewCount > 0 && (
-            <div className="p-4 bg-warning/10 border border-warning/20 rounded-lg">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
               <div className="flex items-start gap-3">
-                <HelpCircle className="h-5 w-5 text-warning mt-0.5 flex-shrink-0" />
+                <HelpCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
                 <div>
-                  <div className="font-medium text-warning mb-1">Review Required</div>
+                  <div className="font-medium text-red-700 mb-1">Review Required</div>
                   <div className="text-sm text-muted-foreground">
                     Please review the services marked below. Select the correct UPS service for each to ensure accurate rate comparisons.
                   </div>
@@ -367,6 +391,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                   serviceOptions={serviceOptions}
                   updateMapping={updateMapping}
                   updateResidentialSetting={updateResidentialSetting}
+                  confirmMapping={confirmMapping}
                   getStatusBadge={getStatusBadge}
                   getServiceDescription={getServiceDescription}
                   priority="good"
@@ -419,6 +444,7 @@ interface ServiceMappingCardProps {
   serviceOptions: any[];
   updateMapping: (index: number, newStandardized: string, newCarrier: string, upsServiceCode?: string) => void;
   updateResidentialSetting: (index: number, isResidential: boolean) => void;
+  confirmMapping?: (index: number) => void;
   getStatusBadge: (mapping: ExtendedServiceMapping) => JSX.Element;
   getServiceDescription: (serviceCode: string) => string;
   priority: 'high' | 'confirmed' | 'good';

@@ -22,6 +22,7 @@ interface AnalysisData {
   savingsPercentage: number;
   totalShipments: number;
   analyzedShipments: number;
+  orphanedShipments?: any[];
 }
 
 // Custom slider component for All/Wins/Losses
@@ -106,6 +107,28 @@ const Results = () => {
             }));
           
           setOrphanedData(orphanedShipments);
+          
+          // Also handle orphans from analysisData if available
+          if (state.analysisData.orphanedShipments && state.analysisData.orphanedShipments.length > 0) {
+            const additionalOrphans = state.analysisData.orphanedShipments.map((orphan: any, index: number) => ({
+              id: orphanedShipments.length + index + 1,
+              trackingId: orphan.shipment?.trackingId || `Orphan-${index + 1}`,
+              originZip: orphan.shipment?.originZip || '',
+              destinationZip: orphan.shipment?.destZip || '',
+              weight: parseFloat(orphan.shipment?.weight || '0'),
+              service: orphan.originalService || orphan.shipment?.service || '',
+              error: orphan.error || 'Processing failed',
+              errorType: orphan.errorType || 'Unknown'
+            }));
+            
+            setOrphanedData(prev => [...prev, ...additionalOrphans]);
+            
+            console.log('Loaded orphaned shipments:', {
+              fromRecommendations: orphanedShipments.length,
+              fromOrphanedShipments: additionalOrphans.length,
+              total: orphanedShipments.length + additionalOrphans.length
+            });
+          }
           
           // Initialize service data
           const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];

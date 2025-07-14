@@ -47,6 +47,7 @@ interface AnalysisResult {
   bestRate?: any;
   savings?: number;
   error?: string;
+  errorType?: string;
 }
 
 const Analysis = () => {
@@ -480,11 +481,31 @@ const Analysis = () => {
       
     } catch (error: any) {
       console.error(`Error processing shipment ${index + 1}:`, error);
+      
+      // Categorize the error type for better orphan handling
+      let errorType = 'processing_error';
+      if (error.message.includes('Missing required fields')) {
+        errorType = 'missing_data';
+      } else if (error.message.includes('Invalid')) {
+        errorType = 'invalid_data';
+      } else if (error.message.includes('UPS API')) {
+        errorType = 'api_error';
+      } else if (error.message.includes('No rates returned')) {
+        errorType = 'no_rates';
+      }
+      
+      console.log(`Shipment ${index + 1} will be moved to orphans:`, {
+        trackingId: shipment.trackingId,
+        errorType,
+        errorMessage: error.message
+      });
+      
       setAnalysisResults(prev => prev.map((result, i) => 
         i === index ? {
           ...result,
           status: 'error',
-          error: error.message
+          error: error.message,
+          errorType
         } : result
       ));
     }
@@ -533,61 +554,117 @@ const Analysis = () => {
   };
   
   const handleViewResults = () => {
+    if (analysisResults.length === 0) {
+      toast.error('No analysis results to view');
+      return;
+    }
+
     const completedResults = analysisResults.filter(r => r.status === 'completed');
-    // Include ALL completed results, not just positive savings
-    const recommendations = completedResults.map(r => ({
-      shipment: r.shipment,
-      originalService: r.originalService,
-      currentCost: r.currentCost,
-      recommendedCost: r.bestRate?.totalCharges,
-      savings: r.savings,
-      recommendedService: r.bestRate?.serviceName,
-      status: r.status,
-      error: r.error
+    const errorResults = analysisResults.filter(r => r.status === 'error');
+
+    if (completedResults.length === 0) {
+      toast.error('No completed shipments to analyze');
+      return;
+    }
+
+    console.log('Preparing results data:', {
+      totalShipments: analysisResults.length,
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      orphanShipments: errorResults.length
+    });
+
+    // Format data for Results component - completed shipments
+    const recommendations = completedResults.map((result, index) => ({
+      shipment: result.shipment,
+      currentCost: result.currentCost || 0,
+      recommendedCost: result.bestRate?.totalCharges || 0,
+      savings: result.savings || 0,
+      originalService: result.originalService || result.shipment.service,
+      recommendedService: result.bestRate?.serviceName || 'Unknown',
+      carrier: 'UPS',
+      status: 'completed'
     }));
-    
+
+    // Format orphaned shipments (errors)
+    const orphanedShipments = errorResults.map((result, index) => ({
+      shipment: result.shipment,
+      error: result.error,
+      errorType: result.errorType || 'unknown_error',
+      originalService: result.originalService || result.shipment.service,
+      status: 'error'
+    }));
+
+    const analysisData = {
+      totalShipments: analysisResults.length,
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      totalCurrentCost,
+      totalPotentialSavings: totalSavings,
+      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+      recommendations,
+      orphanedShipments
+    };
+
     navigate('/results', { 
       state: { 
-        analysisComplete: true,
-        analysisData: {
-          totalCurrentCost,
-          totalPotentialSavings: totalSavings,
-          recommendations,
-          savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-          totalShipments: shipments.length,
-          analyzedShipments: completedResults.length
-        }
+        analysisComplete: true, 
+        analysisData 
       } 
     });
   };
 
   const handleStopAndContinue = () => {
-    setIsPaused(true);
-    setIsAnalyzing(false);
-    
     const completedResults = analysisResults.filter(r => r.status === 'completed');
-    const recommendations = completedResults.map(r => ({
-      shipment: r.shipment,
-      originalService: r.originalService,
-      currentCost: r.currentCost,
-      recommendedCost: r.bestRate?.totalCharges,
-      savings: r.savings,
-      recommendedService: r.bestRate?.serviceName,
-      status: r.status,
-      error: r.error
-    }));
+    const errorResults = analysisResults.filter(r => r.status === 'error');
     
+    if (completedResults.length === 0) {
+      toast.error('No completed shipments to analyze');
+      return;
+    }
+
+    console.log('Stopping analysis and continuing with partial results:', {
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      orphanShipments: errorResults.length
+    });
+
+    // Format data for Results component - completed shipments
+    const recommendations = completedResults.map((result, index) => ({
+      shipment: result.shipment,
+      currentCost: result.currentCost || 0,
+      recommendedCost: result.bestRate?.totalCharges || 0,
+      savings: result.savings || 0,
+      originalService: result.originalService || result.shipment.service,
+      recommendedService: result.bestRate?.serviceName || 'Unknown',
+      carrier: 'UPS',
+      status: 'completed'
+    }));
+
+    // Format orphaned shipments (errors)
+    const orphanedShipments = errorResults.map((result, index) => ({
+      shipment: result.shipment,
+      error: result.error,
+      errorType: result.errorType || 'unknown_error',
+      originalService: result.originalService || result.shipment.service,
+      status: 'error'
+    }));
+
+    const analysisData = {
+      totalShipments: analysisResults.length,
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      totalCurrentCost,
+      totalPotentialSavings: totalSavings,
+      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+      recommendations,
+      orphanedShipments
+    };
+
     navigate('/results', { 
       state: { 
         analysisComplete: true, 
-        analysisData: {
-          totalCurrentCost,
-          totalPotentialSavings: totalSavings,
-          recommendations,
-          savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-          totalShipments: shipments.length,
-          analyzedShipments: completedResults.length
-        }
+        analysisData 
       } 
     });
   };

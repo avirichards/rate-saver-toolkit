@@ -280,10 +280,14 @@ serve(async (req) => {
 
 
     console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
-    console.log('Residential/Commercial Settings:', {
+    console.log('Residential/Commercial Settings - DETAILED CHECK:', {
       isResidential: shipment.isResidential,
       residentialSource: shipment.residentialSource,
-      hasResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator
+      hasResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
+      shipToAddress: ratingRequest.RateRequest.Shipment.ShipTo.Address,
+      residentialIndicatorValue: ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
+      originalCarrier: shipment.originalCarrier,
+      shipmentId: shipment.shipFrom?.zipCode + '-' + shipment.shipTo?.zipCode
     });
 
     // Service codes to quote and the equivalent service code for comparison
@@ -349,13 +353,17 @@ serve(async (req) => {
             const savingsAmount = hasNegotiatedRates && publishedCharges > 0 ? publishedCharges - negotiatedCharges : 0;
             const savingsPercentage = savingsAmount > 0 ? ((savingsAmount / publishedCharges) * 100) : 0;
 
-            console.log(`Rate analysis for service ${serviceCode}:`, {
+            console.log(`Rate analysis for service ${serviceCode} - RESIDENTIAL IMPACT:`, {
               published: publishedCharges,
               negotiated: negotiatedCharges,
               final: finalCharges,
               rateType,
               savings: savingsAmount,
-              hasAccount: !!config?.account_number
+              hasAccount: !!config?.account_number,
+              isResidential: shipment.isResidential,
+              residentialSource: shipment.residentialSource,
+              chargeBreakdown: ratedShipment.RatedShipmentAlert || 'No alerts',
+              allCharges: ratedShipment
             });
 
             if (finalCharges > 0) {
@@ -374,7 +382,13 @@ serve(async (req) => {
                 negotiatedRate: negotiatedCharges,
                 savingsAmount,
                 savingsPercentage,
-                isEquivalentService: serviceCode === equivalentServiceCode // Mark the equivalent service
+                isEquivalentService: serviceCode === equivalentServiceCode, // Mark the equivalent service
+                // Add residential tracking for debugging
+                residentialInfo: {
+                  isResidential: shipment.isResidential,
+                  residentialSource: shipment.residentialSource,
+                  hasResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator
+                }
               });
             }
           }

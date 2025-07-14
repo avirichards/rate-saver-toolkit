@@ -197,8 +197,8 @@ const Upload = () => {
                 <li>File must be in CSV format</li>
                 <li>Maximum file size is 10MB</li>
                 <li>Headers should be included in the first row</li>
-                <li>Required columns: tracking ID, weight, service type, origin ZIP, destination ZIP</li>
-                <li>Optional columns: dimensions, cost, zones, and accessorial charges</li>
+                <li>Required columns: tracking ID, weight, service type, origin ZIP, destination ZIP, dimensions</li>
+                <li>Optional columns: cost, zones, and accessorial charges</li>
               </ul>
             </div>
           </CardContent>

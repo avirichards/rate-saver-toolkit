@@ -291,9 +291,20 @@ serve(async (req) => {
     
     console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
 
-    // Service codes to quote and the equivalent service code for comparison
-    const serviceCodes = shipment.serviceTypes || ['01', '02', '03', '12', '13'];
+    // Use ONLY the service codes from the confirmed mapping, not defaults
+    const serviceCodes = shipment.serviceTypes && shipment.serviceTypes.length > 0 
+      ? shipment.serviceTypes 
+      : ['03']; // Only use Ground as absolute fallback
     const equivalentServiceCode = shipment.equivalentServiceCode || serviceCodes[0];
+    
+    console.log('🔍 SERVICE CODE VALIDATION:', {
+      receivedServiceTypes: shipment.serviceTypes,
+      receivedEquivalentCode: shipment.equivalentServiceCode,
+      finalServiceCodes: serviceCodes,
+      finalEquivalentCode: equivalentServiceCode,
+      isConfirmedMapping: !!(shipment.serviceTypes && shipment.serviceTypes.length > 0),
+      fallbackUsed: !shipment.serviceTypes || shipment.serviceTypes.length === 0
+    });
     const rates = [];
 
     console.log('Service codes to request:', {

@@ -198,8 +198,11 @@ const Analysis = () => {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      setIsComplete(true);
-      await saveAnalysisToDatabase();
+      // Only mark complete if we processed all shipments and weren't paused
+      if (!isPaused) {
+        setIsComplete(true);
+        await saveAnalysisToDatabase();
+      }
       
     } catch (error: any) {
       console.error('Analysis error:', error);

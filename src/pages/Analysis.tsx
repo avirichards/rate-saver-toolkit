@@ -248,6 +248,11 @@ const Analysis = () => {
       if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
       if (!shipment.destZip?.trim()) missingFields.push('Destination ZIP');
       
+      // Validate service type field - CRITICAL for proper analysis
+      if (!shipment.service?.trim()) {
+        missingFields.push('Service Type');
+      }
+      
       let weight = 0;
       if (!shipment.weight || shipment.weight === '') {
         missingFields.push('Weight');
@@ -264,10 +269,10 @@ const Analysis = () => {
       
       // Validate ZIP codes format (basic US ZIP validation)
       const zipRegex = /^\d{5}(-\d{4})?$/;
-      if (!zipRegex.test(shipment.originZip.trim())) {
+      if (shipment.originZip?.trim() && !zipRegex.test(shipment.originZip.trim())) {
         throw new Error(`Invalid origin ZIP code format: ${shipment.originZip}`);
       }
-      if (!zipRegex.test(shipment.destZip.trim())) {
+      if (shipment.destZip?.trim() && !zipRegex.test(shipment.destZip.trim())) {
         throw new Error(`Invalid destination ZIP code format: ${shipment.destZip}`);
       }
       
@@ -289,23 +294,37 @@ const Analysis = () => {
       
       // Use the confirmed service mapping from the service review step
       const confirmedMapping = serviceMappings.find(m => m.original === shipment.service);
-      let serviceMapping, serviceCodesToRequest, equivalentServiceCode;
+      let serviceMapping, serviceCodesToRequest, equivalentServiceCode, isConfirmedMapping = false;
       
       if (confirmedMapping && confirmedMapping.serviceCode) {
-        // Use the user-confirmed mapping
+        // Use the user-confirmed mapping - REQUEST ONLY THE MAPPED SERVICE for accurate comparison
+        isConfirmedMapping = true;
         equivalentServiceCode = confirmedMapping.serviceCode;
-        serviceCodesToRequest = [equivalentServiceCode, '01', '02', '03', '12', '13'].filter((code, index, arr) => arr.indexOf(code) === index);
+        serviceCodesToRequest = [equivalentServiceCode]; // ONLY request the confirmed service code
         serviceMapping = {
           serviceCode: equivalentServiceCode,
           serviceName: confirmedMapping.standardized,
           standardizedService: confirmedMapping.standardized,
           confidence: confirmedMapping.confidence
         };
+        
+        console.log(`✅ Using confirmed mapping for ${shipment.service} → UPS Service Code ${equivalentServiceCode}:`, {
+          originalService: shipment.service,
+          mappedServiceCode: equivalentServiceCode,
+          mappedServiceName: confirmedMapping.standardized,
+          requestingOnlyMappedService: true
+        });
       } else {
         // Fallback to auto-mapping if no confirmed mapping found
         serviceMapping = mapServiceToServiceCode(shipment.service || '');
         serviceCodesToRequest = getServiceCodesToRequest(shipment.service || '');
         equivalentServiceCode = serviceMapping.serviceCode;
+        
+        console.log(`⚠️ Using fallback auto-mapping for ${shipment.service}:`, {
+          originalService: shipment.service,
+          autoMappedServiceCode: equivalentServiceCode,
+          requestingMultipleServices: serviceCodesToRequest
+        });
       }
       
       console.log('🏠 Analysis - Found confirmed mapping with residential data:', {
@@ -418,40 +437,57 @@ const Analysis = () => {
         throw new Error('No rates returned from UPS. This may indicate:\n• Invalid ZIP codes\n• Package dimensions exceed limits\n• Service unavailable for this route\n• UPS API configuration issues');
       }
       
-      // Find equivalent service rate (for apples-to-apples comparison)
-      const equivalentServiceRate = data.rates.find((rate: any) => rate.isEquivalentService);
+      // For confirmed mappings, use the specific service the user mapped to
+      // For auto-mappings, use UPS's equivalent service detection
+      let comparisonRate;
       
-      console.log('Service rate analysis:', {
-        totalRates: data.rates.length,
-        ratesWithEquivalentFlag: data.rates.filter((r: any) => r.isEquivalentService).length,
-        equivalentServiceFound: !!equivalentServiceRate,
-        equivalentServiceDetails: equivalentServiceRate ? {
-          serviceName: equivalentServiceRate.serviceName,
-          serviceCode: equivalentServiceRate.serviceCode,
-          cost: equivalentServiceRate.totalCharges
-        } : null,
-        allRates: data.rates.map((r: any) => ({
-          code: r.serviceCode,
-          name: r.serviceName,
-          cost: r.totalCharges,
-          isEquivalent: r.isEquivalentService
-        }))
-      });
+      if (isConfirmedMapping) {
+        // User confirmed this mapping - use the specific service rate they mapped to
+        comparisonRate = data.rates.find((rate: any) => rate.serviceCode === equivalentServiceCode);
+        
+        if (!comparisonRate) {
+          throw new Error(`No rate returned for user-mapped service code ${equivalentServiceCode} (${serviceMapping.serviceName})`);
+        }
+        
+        console.log(`✅ Using confirmed mapping rate for comparison:`, {
+          originalService: shipment.service,
+          mappedServiceCode: equivalentServiceCode,
+          mappedServiceName: comparisonRate.serviceName,
+          cost: comparisonRate.totalCharges,
+          userConfirmedMapping: true
+        });
+      } else {
+        // Auto-mapping - find equivalent service rate (for apples-to-apples comparison)
+        const equivalentServiceRate = data.rates.find((rate: any) => rate.isEquivalentService);
+        
+        // Find best overall rate (lowest cost)
+        const bestOverallRate = data.rates.reduce((best: any, current: any) => 
+          (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
+        );
+        
+        // Use equivalent service for comparison if available, otherwise use best overall rate
+        comparisonRate = equivalentServiceRate || bestOverallRate;
+        
+        console.log('🤖 Auto-mapping service rate analysis:', {
+          totalRates: data.rates.length,
+          ratesWithEquivalentFlag: data.rates.filter((r: any) => r.isEquivalentService).length,
+          equivalentServiceFound: !!equivalentServiceRate,
+          equivalentServiceDetails: equivalentServiceRate ? {
+            serviceName: equivalentServiceRate.serviceName,
+            serviceCode: equivalentServiceRate.serviceCode,
+            cost: equivalentServiceRate.totalCharges
+          } : null,
+          allRates: data.rates.map((r: any) => ({
+            code: r.serviceCode,
+            name: r.serviceName,
+            cost: r.totalCharges,
+            isEquivalent: r.isEquivalentService
+          })),
+          usingEquivalentService: !!equivalentServiceRate
+        });
+      }
       
-      // Find best overall rate (lowest cost)
-      const bestOverallRate = data.rates.reduce((best: any, current: any) => 
-        (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
-      );
-      
-      // Use equivalent service for comparison if available, otherwise use best overall rate
-      const comparisonRate = equivalentServiceRate || bestOverallRate;
-      
-      // But track both for display purposes
-      const equivalentServiceInfo = equivalentServiceRate ? {
-        serviceName: equivalentServiceRate.serviceName,
-        cost: equivalentServiceRate.totalCharges,
-        isEquivalent: true
-      } : null;
+      // Comparison rate is now properly defined above based on mapping type
       
       if (!comparisonRate || comparisonRate.totalCharges === undefined) {
         throw new Error('Invalid rate data returned from UPS');
@@ -461,25 +497,25 @@ const Analysis = () => {
       
       console.log(`Shipment ${index + 1} analysis complete:`, {
         originalService: shipment.service,
-        equivalentService: serviceMapping.upsServiceName,
+        comparisonService: comparisonRate.serviceName,
+        comparisonServiceCode: comparisonRate.serviceCode,
         currentCost,
         comparisonRate: comparisonRate.totalCharges,
         savings,
         recommendedUpsService: comparisonRate.serviceName,
-        isEquivalentService: equivalentServiceRate ? true : false,
-        usedEquivalentService: !!equivalentServiceRate // Add flag to track if equivalent service was used
+        isConfirmedMapping,
+        usedMappedService: isConfirmedMapping
       });
       
-      console.log(`Using ${equivalentServiceRate ? 'equivalent' : 'best overall'} service for comparison:`, {
+      console.log(`Using ${isConfirmedMapping ? 'user-confirmed mapping' : 'auto-detected equivalent'} service for comparison:`, {
         trackingId: shipment.trackingId,
-        equivalentServiceAvailable: !!equivalentServiceRate,
-        equivalentServiceName: equivalentServiceRate?.serviceName,
-        equivalentServiceCost: equivalentServiceRate?.totalCharges,
-        bestServiceName: bestOverallRate?.serviceName,
-        bestServiceCost: bestOverallRate?.totalCharges,
+        originalService: shipment.service,
+        comparisonMethod: isConfirmedMapping ? 'confirmed_mapping' : 'auto_detection',
         comparisonServiceName: comparisonRate.serviceName,
+        comparisonServiceCode: comparisonRate.serviceCode,
         comparisonServiceCost: comparisonRate.totalCharges,
-        savings
+        savings,
+        userConfirmedMapping: isConfirmedMapping
       });
       
       // Update totals

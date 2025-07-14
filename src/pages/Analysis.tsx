@@ -74,7 +74,8 @@ const Analysis = () => {
       mappings?: Record<string, string>,
       serviceMappings?: ServiceMapping[],
       fileName?: string,
-      csvUploadId?: string
+      csvUploadId?: string,
+      originZipOverride?: string
     } | null;
     
     if (!state || !state.readyForAnalysis || !state.csvData || !state.mappings) {
@@ -96,6 +97,11 @@ const Analysis = () => {
           (shipment as any)[fieldName] = value;
         }
       });
+      
+      // Apply origin ZIP override if provided
+      if (state.originZipOverride && state.originZipOverride.trim()) {
+        shipment.originZip = state.originZipOverride.trim();
+      }
       
       return shipment;
     });

@@ -16,6 +16,7 @@ interface LocationState {
   rowCount?: number;
   serviceColumn?: string;
   readyForServiceMapping?: boolean;
+  originZipOverride?: string;
 }
 
 const ServiceMapping = () => {
@@ -29,6 +30,7 @@ const ServiceMapping = () => {
   const [mappings, setMappings] = useState<Record<string, string>>({});
   const [serviceColumn, setServiceColumn] = useState<string>('');
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
+  const [originZipOverride, setOriginZipOverride] = useState<string>('');
   
   // Check if we have the required data from column mapping
   useEffect(() => {
@@ -47,6 +49,7 @@ const ServiceMapping = () => {
     setCsvUploadId(state.csvUploadId || '');
     setRowCount(state.rowCount || 0);
     setMappings(state.mappings);
+    setOriginZipOverride(state.originZipOverride || '');
     
     // Find the service column from mappings
     const serviceCol = Object.entries(state.mappings).find(([field]) => field === 'service')?.[1];
@@ -80,6 +83,7 @@ const ServiceMapping = () => {
         serviceMappings: confirmedMappings,
         rowCount,
         csvData,
+        originZipOverride,
         readyForAnalysis: true
       } 
     });

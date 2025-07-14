@@ -343,7 +343,15 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
 
   const mappedCount = Object.keys(mappings).filter(key => mappings[key] && mappings[key] !== "__NONE__").length;
   const requiredCount = REQUIRED_FIELDS.filter(f => f.required).length;
-  const requiredMappedCount = REQUIRED_FIELDS.filter(f => f.required && mappings[f.id] && mappings[f.id] !== "__NONE__").length;
+  const requiredMappedCount = REQUIRED_FIELDS.filter(f => {
+    if (!f.required) return false;
+    if (f.id === 'originZip') {
+      // Count Origin ZIP as mapped if either CSV mapping exists or manual override is valid
+      return (mappings[f.id] && mappings[f.id] !== "__NONE__") || 
+             (useManualOriginZip && manualOriginZip.trim() && /^\d{5}(-\d{4})?$/.test(manualOriginZip.trim()));
+    }
+    return mappings[f.id] && mappings[f.id] !== "__NONE__";
+  }).length;
 
   return (
     <div className={className}>

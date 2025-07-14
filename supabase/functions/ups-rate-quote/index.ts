@@ -353,6 +353,12 @@ serve(async (req) => {
             const savingsAmount = hasNegotiatedRates && publishedCharges > 0 ? publishedCharges - negotiatedCharges : 0;
             const savingsPercentage = savingsAmount > 0 ? ((savingsAmount / publishedCharges) * 100) : 0;
 
+            // Extract surcharge details for residential analysis
+            const surcharges = ratedShipment.ItemizedCharges || [];
+            const residentialSurcharge = surcharges.find((charge: any) => 
+              charge.Code === 'RES' || charge.Description?.toLowerCase().includes('residential')
+            );
+            
             console.log(`Rate analysis for service ${serviceCode} - RESIDENTIAL IMPACT:`, {
               published: publishedCharges,
               negotiated: negotiatedCharges,
@@ -362,8 +368,17 @@ serve(async (req) => {
               hasAccount: !!config?.account_number,
               isResidential: shipment.isResidential,
               residentialSource: shipment.residentialSource,
-              chargeBreakdown: ratedShipment.RatedShipmentAlert || 'No alerts',
-              allCharges: ratedShipment
+              residentialSurcharge: residentialSurcharge ? {
+                amount: residentialSurcharge.MonetaryValue,
+                code: residentialSurcharge.Code,
+                description: residentialSurcharge.Description
+              } : 'No residential surcharge found',
+              allSurcharges: surcharges.map((s: any) => ({ 
+                code: s.Code, 
+                amount: s.MonetaryValue, 
+                desc: s.Description 
+              })),
+              chargeBreakdown: ratedShipment.RatedShipmentAlert || 'No alerts'
             });
 
             if (finalCharges > 0) {

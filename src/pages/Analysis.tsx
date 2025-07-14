@@ -262,10 +262,6 @@ const Analysis = () => {
         }
       }
       
-      if (missingFields.length > 0) {
-        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-      }
-      
       // Validate ZIP codes format (basic US ZIP validation)
       const zipRegex = /^\d{5}(-\d{4})?$/;
       if (!zipRegex.test(shipment.originZip.trim())) {
@@ -276,6 +272,17 @@ const Analysis = () => {
       }
       
       const currentCost = parseFloat(shipment.cost || '0');
+      
+      // Add validation for zero or invalid costs - move to orphans
+      if (isNaN(currentCost) || currentCost <= 0) {
+        missingFields.push('Valid Cost (greater than $0)');
+      }
+      
+      // Check if we have any missing fields (including zero cost) and throw error
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+      
       const length = parseFloat(shipment.length || '12');
       const width = parseFloat(shipment.width || '12'); 
       const height = parseFloat(shipment.height || '6');

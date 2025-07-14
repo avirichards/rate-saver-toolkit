@@ -325,6 +325,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                   serviceOptions={serviceOptions}
                   updateMapping={updateMapping}
                   updateResidentialSetting={updateResidentialSetting}
+                  confirmMapping={confirmMapping}
                   getStatusBadge={getStatusBadge}
                   getServiceDescription={getServiceDescription}
                   priority="high"
@@ -358,7 +359,6 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
                   serviceOptions={serviceOptions}
                   updateMapping={updateMapping}
                   updateResidentialSetting={updateResidentialSetting}
-                  confirmMapping={confirmMapping}
                   getStatusBadge={getStatusBadge}
                   getServiceDescription={getServiceDescription}
                   priority="good"
@@ -462,61 +462,33 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
   priority
 }) => {
   const priorityStyles = {
-    high: 'border-red-300 bg-red-50 shadow-sm',
+    high: 'border-red-300 bg-red-50/50 shadow-sm',
     confirmed: 'border-success/30 bg-success/5',
-    good: 'border-amber-300 bg-amber-50 hover:border-amber-400'
+    good: 'border-amber-300 bg-amber-50/50'
   };
 
-  const showConfirmButton = priority === 'good' && confirmMapping && !mapping.isConfirmed && !mapping.isEdited;
+  const showConfirmButton = priority === 'high' && confirmMapping && !mapping.isConfirmed && !mapping.isEdited;
 
   return (
     <div className={`p-4 border rounded-lg transition-all ${priorityStyles[priority]}`}>
-      {/* Client's Original Service Section */}
-      <div className="mb-4 p-3 bg-background/50 rounded border">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-          <span className="text-sm font-medium text-muted-foreground">Client's Service</span>
-        </div>
-        <div className="flex items-center gap-3 mb-2">
-          <span className="font-semibold text-lg">{mapping.original}</span>
-          <Badge variant="outline" className="text-xs">
-            {mapping.shipmentCount} shipment{mapping.shipmentCount !== 1 ? 's' : ''}
-          </Badge>
-          {getStatusBadge(mapping)}
-        </div>
-        <div className="text-sm text-muted-foreground">
-          Carrier: <span className="font-medium">{mapping.carrier}</span>
-        </div>
-        
-        {/* Residential Detection Summary */}
-        {(mapping.residentialDetected || mapping.commercialDetected) && (
-          <div className="flex items-center gap-4 text-xs mt-2">
-            {mapping.residentialDetected > 0 && (
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Home className="h-3 w-3" />
-                {mapping.residentialDetected} residential
-              </div>
-            )}
-            {mapping.commercialDetected > 0 && (
-              <div className="flex items-center gap-1 text-muted-foreground">
-                <Building className="h-3 w-3" />
-                {mapping.commercialDetected} commercial
-              </div>
-            )}
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="font-semibold text-base">{mapping.original}</span>
+            {getStatusBadge(mapping)}
+            <Badge variant="outline" className="text-xs">
+              {mapping.shipmentCount} shipment{mapping.shipmentCount !== 1 ? 's' : ''}
+            </Badge>
           </div>
-        )}
-      </div>
-
-      {/* UPS Mapping Section */}
-      <div className="mb-4 p-3 bg-background/50 rounded border">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-          <span className="text-sm font-medium text-muted-foreground">UPS Mapping</span>
-        </div>
-        <div className="flex items-start gap-3">
-          <div className="flex-1">
-            <div className="text-sm mb-1">
-              <span className="font-medium text-foreground">
+          
+          <div className="text-sm mb-3 space-y-1">
+            <div>
+              <span className="text-muted-foreground">Carrier:</span>
+              <span className="font-medium text-foreground ml-2">{mapping.carrier}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">UPS Service:</span>
+              <span className="font-medium text-foreground ml-2">
                 {serviceOptions.flatMap(g => g.services).find(s => s.code === mapping.upsServiceCode)?.name || 'Not selected'}
               </span>
             </div>
@@ -525,77 +497,95 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="w-64">
-              <Select
-                value={mapping.upsServiceCode}
-                onValueChange={(value) => {
-                  const selectedOption = serviceOptions
-                    .flatMap(group => group.services)
-                    .find(service => service.code === value);
-                  
-                  if (selectedOption) {
-                    updateMapping(
-                      index, 
-                      selectedOption.standardized, 
-                      'UPS',
-                      selectedOption.code
-                    );
-                  }
-                }}
-              >
-                <SelectTrigger className="h-10">
-                  <SelectValue placeholder="Select UPS service" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border border-border shadow-lg z-50">
-                  {serviceOptions.map(group => (
-                    <div key={group.group}>
-                      <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 border-b">
-                        {group.group}
-                      </div>
-                      {group.services.map(service => (
-                        <SelectItem key={service.code} value={service.code}>
-                          <div className="flex flex-col py-1">
-                            <span className="font-medium">{service.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              Code: {service.code}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
+          {/* Residential Detection Summary */}
+          {(mapping.residentialDetected || mapping.commercialDetected) && (
+            <div className="flex items-center gap-4 text-xs mb-2">
+              {mapping.residentialDetected > 0 && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Home className="h-3 w-3" />
+                  {mapping.residentialDetected} residential
+                </div>
+              )}
+              {mapping.commercialDetected > 0 && (
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Building className="h-3 w-3" />
+                  {mapping.commercialDetected} commercial
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="w-64">
+            <Select
+              value={mapping.upsServiceCode}
+              onValueChange={(value) => {
+                const selectedOption = serviceOptions
+                  .flatMap(group => group.services)
+                  .find(service => service.code === value);
+                
+                if (selectedOption) {
+                  updateMapping(
+                    index, 
+                    selectedOption.standardized, 
+                    'UPS',
+                    selectedOption.code
+                  );
+                }
+              }}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder="Select UPS service" />
+              </SelectTrigger>
+              <SelectContent className="bg-background border border-border shadow-lg z-50">
+                {serviceOptions.map(group => (
+                  <div key={group.group}>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 border-b">
+                      {group.group}
                     </div>
-                  ))}
-                </SelectContent>
-                </Select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id={`residential-${index}`}
-                checked={mapping.isResidential || false}
-                onCheckedChange={(checked) => updateResidentialSetting(index, checked as boolean)}
-              />
-              <label 
-                htmlFor={`residential-${index}`} 
-                className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
-              >
-                <Home className="h-3 w-3" />
-                Residential
-              </label>
-            </div>
-
-            {showConfirmButton && (
-              <Button
-                onClick={() => confirmMapping(index)}
-                variant="default"
-                size="sm"
-                className="bg-success hover:bg-success/90 text-white"
-              >
-                <CheckCircle className="h-4 w-4 mr-1" />
-                Confirm as Correct
-              </Button>
-            )}
+                    {group.services.map(service => (
+                      <SelectItem key={service.code} value={service.code}>
+                        <div className="flex flex-col py-1">
+                          <span className="font-medium">{service.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            Code: {service.code}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </div>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`residential-${index}`}
+              checked={mapping.isResidential || false}
+              onCheckedChange={(checked) => updateResidentialSetting(index, checked as boolean)}
+            />
+            <label 
+              htmlFor={`residential-${index}`} 
+              className="text-sm font-medium leading-none cursor-pointer flex items-center gap-1"
+            >
+              <Home className="h-3 w-3" />
+              Residential
+            </label>
+          </div>
+
+          {showConfirmButton && (
+            <Button
+              onClick={() => confirmMapping(index)}
+              variant="default"
+              size="sm"
+              className="bg-success hover:bg-success/90 text-white"
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              Confirm as Correct
+            </Button>
+          )}
         </div>
       </div>
     </div>

@@ -3,8 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui-lov/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Zap, CheckCircle, AlertCircle, RotateCw, X } from 'lucide-react';
+import { Zap, CheckCircle, AlertCircle, RotateCw, X, Pencil } from 'lucide-react';
 import { generateColumnMappings, detectServiceTypes, type FieldMapping, type ServiceMapping } from '@/utils/csvParser';
 
 interface Field {
@@ -17,7 +20,7 @@ interface Field {
 interface IntelligentColumnMapperProps {
   csvHeaders: string[];
   csvData: any[];
-  onMappingComplete: (mappings: Record<string, string>, serviceMappings: ServiceMapping[]) => void;
+  onMappingComplete: (mappings: Record<string, string>, serviceMappings: ServiceMapping[], originZipOverride?: string) => void;
   className?: string;
 }
 
@@ -60,6 +63,8 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showOptionalFields, setShowOptionalFields] = useState(false);
+  const [useManualOriginZip, setUseManualOriginZip] = useState(false);
+  const [manualOriginZip, setManualOriginZip] = useState('');
 
   useEffect(() => {
     console.log('IntelligentColumnMapper - Starting auto-detection with headers:', csvHeaders);
@@ -112,10 +117,21 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
     
     // Check required fields
     REQUIRED_FIELDS.forEach(field => {
-      if (field.required && (!mappings[field.id] || mappings[field.id] === "__NONE__")) {
+      if (field.required && field.id !== 'originZip' && (!mappings[field.id] || mappings[field.id] === "__NONE__")) {
         errors[field.id] = `${field.label} is required for UPS rate calculations`;
       }
     });
+    
+    // Special validation for Origin ZIP
+    if (!useManualOriginZip && (!mappings.originZip || mappings.originZip === "__NONE__")) {
+      errors.originZip = 'Origin ZIP is required for UPS rate calculations';
+    }
+    if (useManualOriginZip && !manualOriginZip.trim()) {
+      errors.originZip = 'Please enter a manual Origin ZIP code';
+    }
+    if (useManualOriginZip && manualOriginZip.trim() && !/^\d{5}(-\d{4})?$/.test(manualOriginZip.trim())) {
+      errors.originZip = 'Please enter a valid ZIP code (12345 or 12345-6789)';
+    }
     
     // Check for duplicate mappings
     const usedHeaders = new Set<string>();
@@ -165,6 +181,102 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
     const autoMapping = autoMappings.find(m => m.fieldName === field.id);
     const selectedHeader = mappings[field.id];
     const error = validationErrors[field.id];
+
+    // Special handling for Origin ZIP field
+    if (field.id === 'originZip') {
+      return (
+        <div key={field.id} className="py-3 border-b border-border/50 last:border-b-0">
+          <div className="flex items-center mb-3">
+            <div className="w-1/4">
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-sm">{field.label}</span>
+                <span className="text-red-500">*</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setUseManualOriginZip(!useManualOriginZip)}
+                  className="h-6 w-6 p-0"
+                >
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                {useManualOriginZip && (
+                  <Badge variant="secondary" className="text-xs">
+                    Manual Override
+                  </Badge>
+                )}
+                {autoMapping && !useManualOriginZip && (
+                  <div className="flex items-center gap-1">
+                    <Zap className="h-3 w-3 text-primary" />
+                    <Badge 
+                      variant="secondary" 
+                      className={`text-xs ${getConfidenceColor(autoMapping.confidence)}`}
+                    >
+                      {getConfidenceText(autoMapping.confidence)}
+                    </Badge>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="w-1/3 px-4">
+              <p className="text-xs text-muted-foreground">{field.description}</p>
+            </div>
+            
+            <div className="w-1/3">
+              <div className="flex items-center gap-2 mb-2">
+                <Switch
+                  checked={useManualOriginZip}
+                  onCheckedChange={setUseManualOriginZip}
+                  id="manual-origin-toggle"
+                />
+                <Label htmlFor="manual-origin-toggle" className="text-xs">
+                  {useManualOriginZip ? 'Use Fixed ZIP' : 'Use CSV Column'}
+                </Label>
+              </div>
+            </div>
+          </div>
+          
+          <div className="pl-8">
+            {useManualOriginZip ? (
+              <div className="w-1/3">
+                <Input
+                  placeholder="Enter ZIP code (e.g., 12345)"
+                  value={manualOriginZip}
+                  onChange={(e) => setManualOriginZip(e.target.value)}
+                  className={error ? 'border-red-500' : ''}
+                />
+                {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+              </div>
+            ) : (
+              <div className="w-1/3">
+                <Select 
+                  value={selectedHeader || "__NONE__"} 
+                  onValueChange={(value) => handleMappingChange(field.id, value)}
+                >
+                  <SelectTrigger className={`w-full ${error ? 'border-red-500' : ''}`}>
+                    <SelectValue placeholder="Select column..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__NONE__" disabled>
+                      <div className="flex items-center gap-2">
+                        <X className="h-4 w-4 text-muted-foreground" />
+                        <span>Required field</span>
+                      </div>
+                    </SelectItem>
+                    {csvHeaders.map((header) => (
+                      <SelectItem key={header} value={header}>
+                        {header}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div key={field.id} className="flex items-center py-3 border-b border-border/50 last:border-b-0">
@@ -235,7 +347,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
       }
     }
     
-    onMappingComplete(mappings, detectedServiceMappings);
+    onMappingComplete(mappings, detectedServiceMappings, useManualOriginZip ? manualOriginZip.trim() : undefined);
   };
 
   const mappedCount = Object.keys(mappings).filter(key => mappings[key] && mappings[key] !== "__NONE__").length;

@@ -51,7 +51,7 @@ const Mapping = () => {
     setRowCount(state.rowCount || 0);
   }, [location, navigate]);
   
-  const handleMappingComplete = async (mappings: Record<string, string>, serviceMappings: ServiceMapping[]) => {
+  const handleMappingComplete = async (mappings: Record<string, string>, serviceMappings: ServiceMapping[], originZipOverride?: string) => {
     if (!user || !csvUploadId) {
       toast.error('Missing required data');
       return;
@@ -93,6 +93,11 @@ const Mapping = () => {
           }
         });
         
+        // Apply origin ZIP override if provided
+        if (originZipOverride && originZipOverride.trim()) {
+          shipment.originZip = originZipOverride.trim();
+        }
+        
         return shipment;
       });
 
@@ -109,7 +114,8 @@ const Mapping = () => {
           csvData,
           rowCount,
           serviceColumn: mappings.service, // Pass the mapped service column
-          readyForServiceMapping: true
+          readyForServiceMapping: true,
+          originZipOverride
         } 
       });
       

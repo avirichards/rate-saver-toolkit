@@ -473,6 +473,12 @@ export function standardizeService(service: string): { service: string; carrier:
     }
   }
 
+  // NEXT DAY AIR SAVER (check for saver first before general next day)
+  if ((serviceLower.includes('next day') || serviceLower.includes('nextday') || serviceLower.includes('next air')) && 
+      (serviceLower.includes('saver') || serviceLower.includes('save'))) {
+    return { service: 'NEXT_DAY_AIR_SAVER', carrier, confidence: 0.95, isResidential, residentialSource };
+  }
+  
   // NEXT DAY / OVERNIGHT services (highest priority for speed)
   if (serviceLower.includes('next day') || serviceLower.includes('nextday') || 
       serviceLower.includes('next air') || serviceLower.includes('nda') ||

@@ -695,6 +695,7 @@ const Results = () => {
     );
   }
 
+  // Calculate filtered stats and chart data before rendering
   const filteredStats = getFilteredStats();
   const serviceChartData = generateServiceChartData();
   const serviceCostData = generateServiceCostData();

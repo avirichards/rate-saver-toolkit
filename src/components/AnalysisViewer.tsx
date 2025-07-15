@@ -284,8 +284,10 @@ export function AnalysisViewer({
       {/* Day Snapshot - Colored Summary Cards */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Day Snapshot</h2>
-          {onSnapshotDaysChange && (
+          <h2 className="text-xl font-semibold">
+            {activeView === 'client' ? `${snapshotDays} Day Snapshot` : 'Day Snapshot'}
+          </h2>
+          {activeView === 'internal' && onSnapshotDaysChange && (
             <div className="flex items-center gap-2">
               <Label htmlFor="snapshot-days" className="text-sm">Days:</Label>
               <Input
@@ -375,9 +377,6 @@ export function AnalysisViewer({
         </div>
       </div>
 
-      {/* Service Checkbox Filters */}
-      {onSelectedServicesChange && <ServiceCheckboxFilters />}
-
       {/* Service Analysis Overview - Full Width */}
       <Card>
         <CardHeader>
@@ -385,7 +384,7 @@ export function AnalysisViewer({
         </CardHeader>
         <CardContent className="p-0">
           {/* Result Filter positioned right above the table */}
-          <div className="px-6 pt-6 pb-4">
+          <div className="px-6 pt-6 pb-4 flex items-center justify-between">
             <ResultFilter value={resultFilter} onChange={onResultFilterChange || (() => {})} />
           </div>
           <div className="px-6 pb-6">
@@ -393,6 +392,7 @@ export function AnalysisViewer({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
+                  <th className="text-left py-3 px-2 w-8"></th>
                   <th className="text-left py-3 px-2">Current Service</th>
                   <th className="text-right py-3 px-2">Avg Cost Current</th>
                   <th className="text-right py-3 px-2">Ship Pros Cost</th>
@@ -408,32 +408,62 @@ export function AnalysisViewer({
                 </tr>
               </thead>
               <tbody>
-                {serviceAnalysisData.map((service, index) => (
-                  <tr key={index} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-2">
-                      <Badge variant="secondary">{service.currentService}</Badge>
-                    </td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(service.avgCurrentCost)}</td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(service.avgFinalRate)}</td>
-                    <td className="py-3 px-2 text-right">
-                      <Badge variant="outline">{service.shipProsService}</Badge>
-                    </td>
-                    <td className="py-3 px-2 text-right">{service.shipmentCount}</td>
-                    <td className="py-3 px-2 text-right">{formatPercentage(service.volumePercent)}</td>
-                    <td className="py-3 px-2 text-right">{service.avgWeight.toFixed(1)} lbs</td>
-                    <td className={cn(
-                      "py-3 px-2 text-right font-medium",
-                      service.avgSavings >= 0 ? "text-green-600" : "text-red-600"
-                    )}>
-                      {formatCurrency(service.avgSavings)}
-                    </td>
-                    <td className={cn(
-                      "py-3 px-2 text-right font-medium",
-                      service.avgSavingsPercent >= 0 ? "text-green-600" : "text-red-600"
-                    )}>
-                      {formatPercentage(service.avgSavingsPercent)}
-                    </td>
-                    {activeView === 'internal' && (
+                {serviceAnalysisData.map((service, index) => {
+                  const isSelected = selectedServices.includes(service.currentService);
+                  const toggleService = () => {
+                    if (!onSelectedServicesChange) return;
+                    const newSelection = selectedServices.includes(service.currentService) 
+                      ? selectedServices.filter(s => s !== service.currentService)
+                      : [...selectedServices, service.currentService];
+                    onSelectedServicesChange(newSelection);
+                  };
+                  
+                  return (
+                    <tr key={index} className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-2">
+                        {onSelectedServicesChange && (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={toggleService}
+                            className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2"
+                          />
+                        )}
+                      </td>
+                      <td className="py-3 px-2">
+                        <Badge variant="secondary">{service.currentService}</Badge>
+                      </td>
+                      <td className={cn(
+                        "py-3 px-2 text-right",
+                        service.avgCurrentCost >= service.avgFinalRate ? "text-foreground" : "text-red-600"
+                      )}>
+                        {formatCurrency(service.avgCurrentCost)}
+                      </td>
+                      <td className={cn(
+                        "py-3 px-2 text-right",
+                        service.avgFinalRate <= service.avgCurrentCost ? "text-green-600" : "text-red-600"
+                      )}>
+                        {formatCurrency(service.avgFinalRate)}
+                      </td>
+                      <td className="py-3 px-2 text-right">
+                        <Badge variant="outline">{service.shipProsService}</Badge>
+                      </td>
+                      <td className="py-3 px-2 text-right">{service.shipmentCount}</td>
+                      <td className="py-3 px-2 text-right">{formatPercentage(service.volumePercent)}</td>
+                      <td className="py-3 px-2 text-right">{service.avgWeight.toFixed(1)} lbs</td>
+                      <td className={cn(
+                        "py-3 px-2 text-right font-medium",
+                        service.avgSavings >= 0 ? "text-green-600" : "text-red-600"
+                      )}>
+                        {formatCurrency(service.avgSavings)}
+                      </td>
+                      <td className={cn(
+                        "py-3 px-2 text-right font-medium",
+                        service.avgSavingsPercent >= 0 ? "text-green-600" : "text-red-600"
+                      )}>
+                        {formatPercentage(service.avgSavingsPercent)}
+                      </td>
+                      {activeView === 'internal' && (
                       <td className="py-3 px-2 text-right">
                         {markupConfig.type === 'per-service' ? (
                           <Input
@@ -449,133 +479,186 @@ export function AnalysisViewer({
                           <span>{formatPercentage(service.markupPercentage)}</span>
                         )}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+            </div>
           </div>
-        </div>
         </CardContent>
       </Card>
 
-      {/* Charts Section */}
-      {chartData && (
-        <div>
-          <h2 className="text-xl font-semibold mb-4">Analytics Overview</h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Service Distribution Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Service Distribution</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={chartData.serviceChartData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                      label={(entry) => `${entry.name}: ${entry.value}`}
-                    >
-                      {chartData.serviceChartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: any, name: any) => [`${value} shipments`, name]} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Distribution of shipments across different service types
-                </p>
-              </CardContent>
-            </Card>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Service Distribution Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Service Distribution</CardTitle>
+            <p className="text-sm text-muted-foreground">Shows the percentage breakdown of shipments by service type</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData?.serviceChartData || []}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    fill="hsl(var(--primary))"
+                    dataKey="value"
+                    label={({name, value}) => `${name}: ${value}`}
+                  >
+                    {(chartData?.serviceChartData || []).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--background))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '6px',
+                      color: 'white'
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Cost Comparison by Service */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Cost Comparison by Service</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData.serviceCostData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="currentService" 
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                      fontSize={12}
-                    />
-                    <YAxis />
-                    <Tooltip 
-                      formatter={(value: any, name: any, props: any) => {
-                        const { payload } = props;
-                        if (name === 'avgCurrentCost') return [`$${value.toFixed(2)}`, 'Current Avg Cost'];
-                        if (name === 'avgNewCost') return [`$${value.toFixed(2)}`, `${payload.shipProsService} Avg Cost`];
-                        return [value, name];
-                      }}
-                      labelFormatter={(label: any) => `Service: ${label}`}
-                    />
-                    <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
-                    <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Avg Cost" />
-                  </BarChart>
-                </ResponsiveContainer>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Comparison of current shipping costs vs proposed Ship Pros rates by service type
-                </p>
-              </CardContent>
-            </Card>
+        {/* Cost Comparison Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Cost Comparison by Service</CardTitle>
+            <p className="text-sm text-muted-foreground">Compares current shipping costs vs Ship Pros rates by service type</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData?.serviceCostData || []}
+                  margin={{
+                    top: 20,
+                    right: 30,
+                    left: 20,
+                    bottom: 5,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="service" tick={{ fill: 'white', fontSize: 12 }} />
+                  <YAxis tick={{ fill: 'white', fontSize: 12 }} />
+                  <Tooltip 
+                    formatter={(value, name) => [formatCurrency(Number(value)), name === 'currentCost' ? 'Current Cost' : 'Ship Pros Cost']}
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--background))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '6px',
+                      color: 'white'
+                    }}
+                  />
+                  <Bar dataKey="currentCost" fill="hsl(var(--destructive))" name="Current Cost" />
+                  <Bar dataKey="shipProsCost" fill="hsl(var(--primary))" name="Ship Pros Cost" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Rate Comparison by Weight */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Rate Comparison by Weight</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData.weightChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="weightRange" />
-                    <YAxis />
-                    <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
-                    <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
-                    <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
-                  </BarChart>
-                </ResponsiveContainer>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Rate comparison across different weight ranges showing potential savings
-                </p>
-              </CardContent>
-            </Card>
+        {/* Rate Comparison by Weight */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Rate Comparison by Weight</CardTitle>
+            <p className="text-sm text-muted-foreground">Shows rate differences across various weight ranges</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData?.weightChartData || []}
+                  margin={{
+                    top: 20,
+                    right: 30,
+                    left: 20,
+                    bottom: 5,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="range" tick={{ fill: 'white', fontSize: 12 }} />
+                  <YAxis tick={{ fill: 'white', fontSize: 12 }} />
+                  <Tooltip 
+                    formatter={(value, name) => [formatCurrency(Number(value)), name === 'current' ? 'Current Rate' : 'Ship Pros Rate']}
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--background))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '6px',
+                      color: 'white'
+                    }}
+                  />
+                  <Bar dataKey="current" fill="hsl(var(--destructive))" name="Current Rate" />
+                  <Bar dataKey="shipPros" fill="hsl(var(--primary))" name="Ship Pros Rate" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Rate Comparison by Zone */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Rate Comparison by Zone</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={chartData.zoneChartData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="zone" />
-                    <YAxis />
-                    <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
-                    <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
-                    <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
-                  </BarChart>
-                </ResponsiveContainer>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Rate comparison by shipping zone showing cost differences across distance ranges
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
+        {/* Rate Comparison by Zone */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Rate Comparison by Zone</CardTitle>
+            <p className="text-sm text-muted-foreground">Analyzes shipping rate performance across different delivery zones</p>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={(chartData?.zoneChartData || []).map(item => ({
+                    ...item,
+                    zoneDisplay: `Zone ${item.zone}\n${item.shipmentCount || 0} Shipments`
+                  }))}
+                  margin={{
+                    top: 20,
+                    right: 30,
+                    left: 20,
+                    bottom: 5,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis 
+                    dataKey="zoneDisplay" 
+                    tick={{ fill: 'white', fontSize: 11 }} 
+                    interval={0}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                  />
+                  <YAxis tick={{ fill: 'white', fontSize: 12 }} />
+                  <Tooltip 
+                    formatter={(value, name) => [formatCurrency(Number(value)), name === 'current' ? 'Current Rate' : 'Ship Pros Rate']}
+                    labelFormatter={(label) => {
+                      const zone = label.split('\n')[0];
+                      const shipments = label.split('\n')[1];
+                      return `${zone} (${shipments})`;
+                    }}
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--background))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '6px',
+                      color: 'white'
+                    }}
+                  />
+                  <Bar dataKey="current" fill="hsl(var(--destructive))" name="Current Rate" />
+                  <Bar dataKey="shipPros" fill="hsl(var(--primary))" name="Ship Pros Rate" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

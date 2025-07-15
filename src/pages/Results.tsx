@@ -180,6 +180,13 @@ const Results = () => {
     console.log('Current analysis ID:', currentAnalysisId);
     console.log('Analysis data exists:', !!analysisData);
     
+    // Check if user is authenticated first
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('Please log in to save reports');
+      return;
+    }
+    
     // Always try to open the dialog, ensure analysis is auto-saved if needed
     let analysisIdToUse = currentAnalysisId;
     
@@ -190,15 +197,13 @@ const Results = () => {
     }
     
     if (analysisIdToUse) {
+      console.log('Opening save dialog with analysis ID:', analysisIdToUse);
       setCurrentAnalysisId(analysisIdToUse);
-      console.log('Setting showSaveDialog to true with analysis ID:', analysisIdToUse);
-      setShowSaveDialog(true);
-      console.log('=== showSaveDialog state updated to TRUE ===');
-      
-      // Add a timeout to check if state actually changed
+      // Force the dialog to show by using a small timeout
       setTimeout(() => {
-        console.log('Delayed state check - showSaveDialog:', showSaveDialog);
-      }, 50);
+        setShowSaveDialog(true);
+        console.log('Dialog state set to true');
+      }, 100);
     } else {
       console.error('Failed to get analysis ID for saving');
       toast.error('Failed to prepare analysis for saving');
@@ -373,6 +378,29 @@ const Results = () => {
 
     loadAnalysisData();
   }, [location, params.id, searchParams]);
+
+  // Auto-save effect - triggers when analysis data is loaded and user is authenticated
+  useEffect(() => {
+    const performAutoSave = async () => {
+      // Only auto-save if we have analysis data but no current analysis ID (not already saved)
+      if (analysisData && !currentAnalysisId) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          console.log('🔄 Auto-saving analysis data...');
+          const savedId = await autoSaveAnalysis(false);
+          if (savedId) {
+            console.log('✅ Analysis auto-saved with ID:', savedId);
+          }
+        }
+      }
+    };
+
+    // Add a small delay to ensure all data is loaded
+    if (analysisData && !currentAnalysisId) {
+      const timer = setTimeout(performAutoSave, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [analysisData, currentAnalysisId]);
 
   const loadFromDatabase = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();

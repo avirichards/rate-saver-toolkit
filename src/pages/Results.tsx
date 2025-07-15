@@ -636,12 +636,25 @@ const Results = () => {
     const dataToUse = getOverviewFilteredData();
     const totalShipments = dataToUse.length;
     const totalCurrentCost = dataToUse.reduce((sum, item) => sum + item.currentRate, 0);
-    const totalSavings = dataToUse.reduce((sum, item) => sum + item.savings, 0);
+    
+    // Calculate Ship Pros Cost and Savings with markup
+    const totalShipProsCost = dataToUse.reduce((sum, item) => {
+      const markupInfo = getShipmentMarkup(item);
+      return sum + markupInfo.markedUpPrice;
+    }, 0);
+    
+    const totalSavings = dataToUse.reduce((sum, item) => {
+      const markupInfo = getShipmentMarkup(item);
+      const savings = item.currentRate - markupInfo.markedUpPrice;
+      return sum + savings;
+    }, 0);
+    
     const averageSavingsPercent = totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0;
     
     return {
       totalShipments,
       totalCurrentCost,
+      totalShipProsCost,
       totalSavings,
       averageSavingsPercent
     };
@@ -799,10 +812,14 @@ const Results = () => {
           bestServices: [] as string[]
         };
       }
+      
+      const markupInfo = getShipmentMarkup(item);
+      const savings = item.currentRate - markupInfo.markedUpPrice;
+      
       acc[service].totalCurrent += item.currentRate;
-      acc[service].totalNew += item.newRate;
+      acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
-      acc[service].totalSavings += item.savings;
+      acc[service].totalSavings += savings;
       acc[service].bestServices.push(item.bestService || 'UPS Ground');
       return acc;
     }, {});
@@ -861,8 +878,9 @@ const Results = () => {
       
       if (range) {
         const stats = weightStats.get(range.label);
+        const markupInfo = getShipmentMarkup(shipment);
         stats.totalCurrent += shipment.currentRate || 0;
-        stats.totalNew += shipment.newRate || 0;
+        stats.totalNew += markupInfo.markedUpPrice || 0;
         stats.count += 1;
       }
     });
@@ -901,8 +919,9 @@ const Results = () => {
       }
       
       const stats = zoneStats.get(zoneLabel);
+      const markupInfo = getShipmentMarkup(shipment);
       stats.totalCurrent += shipment.currentRate || 0;
-      stats.totalNew += shipment.newRate || 0;
+      stats.totalNew += markupInfo.markedUpPrice || 0;
       stats.count += 1;
     });
     
@@ -1082,7 +1101,7 @@ const Results = () => {
                         <Zap className="h-8 w-8 text-blue-500" />
                         <div>
                           <p className="text-sm text-muted-foreground">Ship Pros Cost</p>
-                          <p className="text-2xl font-bold text-primary">{formatCurrency(filteredStats.totalCurrentCost - filteredStats.totalSavings)}</p>
+                          <p className="text-2xl font-bold text-primary">{formatCurrency(filteredStats.totalShipProsCost)}</p>
                         </div>
                       </div>
                     </CardContent>

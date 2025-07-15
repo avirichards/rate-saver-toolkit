@@ -36,6 +36,12 @@ export function SaveReportDialog({
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   
+  // Debug logging
+  console.log('=== SaveReportDialog Render ===');
+  console.log('Dialog open prop:', open);
+  console.log('Analysis ID:', analysisId);
+  console.log('Report name:', currentReportName);
+  
 
   useEffect(() => {
     if (open) {
@@ -86,6 +92,10 @@ export function SaveReportDialog({
       setLoading(false);
     }
   };
+
+  console.log('=== Dialog Render Check ===');
+  console.log('Should dialog be visible?', open);
+  console.log('Analysis ID for saving:', analysisId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

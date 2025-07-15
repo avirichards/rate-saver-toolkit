@@ -175,7 +175,10 @@ const Results = () => {
 
   // Handle save report button click
   const handleSaveReport = async () => {
-    console.log('Save report clicked, current analysis ID:', currentAnalysisId);
+    console.log('=== SAVE REPORT CLICKED ===');
+    console.log('Current showSaveDialog state:', showSaveDialog);
+    console.log('Current analysis ID:', currentAnalysisId);
+    console.log('Analysis data exists:', !!analysisData);
     
     // Always try to open the dialog, ensure analysis is auto-saved if needed
     let analysisIdToUse = currentAnalysisId;
@@ -188,9 +191,14 @@ const Results = () => {
     
     if (analysisIdToUse) {
       setCurrentAnalysisId(analysisIdToUse);
-      console.log('Opening save dialog with analysis ID:', analysisIdToUse);
+      console.log('Setting showSaveDialog to true with analysis ID:', analysisIdToUse);
       setShowSaveDialog(true);
-      console.log('showSaveDialog state set to true');
+      console.log('=== showSaveDialog state updated to TRUE ===');
+      
+      // Add a timeout to check if state actually changed
+      setTimeout(() => {
+        console.log('Delayed state check - showSaveDialog:', showSaveDialog);
+      }, 50);
     } else {
       console.error('Failed to get analysis ID for saving');
       toast.error('Failed to prepare analysis for saving');

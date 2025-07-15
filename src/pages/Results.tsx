@@ -16,6 +16,7 @@ import { getStateFromZip } from '@/utils/zipToStateMapping';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
+import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfiguration';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -75,21 +76,49 @@ const Results = () => {
   const [selectedServicesOverview, setSelectedServicesOverview] = useState<string[]>([]);
   const [snapshotDays, setSnapshotDays] = useState(30);
   const [error, setError] = useState<string | null>(null);
+  const [markupData, setMarkupData] = useState<MarkupData | null>(null);
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+
+  // Calculate markup for individual shipment
+  const getShipmentMarkup = (shipment: any) => {
+    if (!markupData) return { markedUpPrice: shipment.newRate, margin: 0, marginPercent: 0 };
+    
+    const shipProsCost = shipment.newRate || 0;
+    let markupPercent = 0;
+    
+    if (markupData.markupType === 'global') {
+      markupPercent = markupData.globalMarkup;
+    } else {
+      markupPercent = markupData.perServiceMarkup[shipment.service] || 0;
+    }
+    
+    const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
+    const margin = markedUpPrice - shipProsCost;
+    const marginPercent = shipProsCost > 0 ? (margin / shipProsCost) * 100 : 0;
+    
+    return { markedUpPrice, margin, marginPercent };
+  };
 
   // Export functionality
   const exportToCSV = () => {
-    const csvData = filteredData.map(item => ({
-      'Tracking ID': item.trackingId,
-      'Origin ZIP': item.originZip,
-      'Destination ZIP': item.destinationZip,
-      'Weight': item.weight,
-      'Carrier': item.carrier,
-      'Service': item.service,
-      'Current Rate': formatCurrency(item.currentRate),
-      'Ship Pros Cost': formatCurrency(item.newRate),
-      'Savings': formatCurrency(item.savings),
-      'Savings Percentage': formatPercentage(item.savingsPercent)
-    }));
+    const csvData = filteredData.map(item => {
+      const markupInfo = getShipmentMarkup(item);
+      return {
+        'Tracking ID': item.trackingId,
+        'Origin ZIP': item.originZip,
+        'Destination ZIP': item.destinationZip,
+        'Weight': item.weight,
+        'Carrier': item.carrier,
+        'Service': item.service,
+        'Current Rate': formatCurrency(item.currentRate),
+        'Ship Pros Cost': formatCurrency(item.newRate),
+        'Marked-Up Price': formatCurrency(markupInfo.markedUpPrice),
+        'Savings': formatCurrency(item.savings),
+        'Margin': formatCurrency(markupInfo.margin),
+        'Savings Percentage': formatPercentage(item.savingsPercent),
+        'Margin Percentage': formatPercentage(markupInfo.marginPercent)
+      };
+    });
 
     const csvContent = [
       Object.keys(csvData[0]).join(','),
@@ -322,6 +351,12 @@ const Results = () => {
         fileName: data.file_name || 'Unknown',
         analysisDate: data.analysis_date || data.created_at
       };
+
+      // Set current analysis ID and load markup data
+      setCurrentAnalysisId(data.id);
+      if (data.markup_data) {
+        setMarkupData(data.markup_data as MarkupData);
+      }
 
       // CRITICAL: Check if original_data or recommendations are missing/empty and recover from rate_quotes
       const hasValidOriginalData = Array.isArray(data.original_data) && data.original_data.length > 0;
@@ -1056,6 +1091,14 @@ const Results = () => {
               </CardContent>
             </Card>
 
+            {/* Markup Configuration Section */}
+            <MarkupConfiguration
+              shipmentData={shipmentData}
+              analysisId={currentAnalysisId}
+              onMarkupChange={setMarkupData}
+              initialMarkupData={markupData}
+            />
+
             {/* Service Analysis Table */}
             <Card>
               <CardHeader>
@@ -1082,12 +1125,15 @@ const Results = () => {
                         <TableHead className="text-foreground">Current Service Type</TableHead>
                         <TableHead className="text-right text-foreground">Avg Cost Current</TableHead>
                         <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
+                        <TableHead className="text-right text-foreground">Marked-Up Price</TableHead>
                         <TableHead className="text-foreground">Ship Pros Service Type</TableHead>
                         <TableHead className="text-right text-foreground">Shipment Count</TableHead>
                         <TableHead className="text-right text-foreground">Volume %</TableHead>
                         <TableHead className="text-right text-foreground">Avg Weight</TableHead>
                         <TableHead className="text-right text-foreground">Avg Savings ($)</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Margin ($)</TableHead>
                         <TableHead className="text-right text-foreground">Avg Savings (%)</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Margin (%)</TableHead>
                         <TableHead className="text-foreground">Notes</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1131,51 +1177,71 @@ const Results = () => {
                             const spServiceType = Object.entries(mostCommonUpsService)
                               .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
                            
-                           return (
-                             <TableRow key={service} className="hover:bg-muted/30 border-b border-border/30">
-                               <TableCell className="w-12">
-                                 <Checkbox 
-                                   checked={selectedServicesOverview.includes(service)}
-                                   onCheckedChange={(checked) => {
-                                     if (checked) {
-                                       setSelectedServicesOverview(prev => [...prev, service]);
-                                     } else {
-                                       setSelectedServicesOverview(prev => prev.filter(s => s !== service));
-                                     }
-                                   }}
-                                 />
-                               </TableCell>
-                               <TableCell className="font-medium text-foreground">{service}</TableCell>
-                                <TableCell className="text-right font-medium">{formatCurrency(avgCurrentCost)}</TableCell>
-                                <TableCell className="text-right font-medium text-primary">{formatCurrency(avgNewCost)}</TableCell>
-                               <TableCell>
-                                 <Badge variant="outline" className="text-xs">
-                                   {spServiceType}
-                                 </Badge>
-                               </TableCell>
-                                <TableCell className="text-right font-medium">{data.count.toLocaleString()}</TableCell>
-                                <TableCell className="text-right">{formatPercentage(volumePercent)}</TableCell>
-                                <TableCell className="text-right">{avgWeight.toFixed(1)}</TableCell>
-                                <TableCell className="text-right">
-                                  <span className={cn("font-medium", getSavingsColor(avgSavings))}>
-                                    {formatCurrency(avgSavings)}
-                                  </span>
+                            // Calculate markup info for this service
+                            const serviceShipments = shipmentData.filter(item => item.service === service);
+                            const avgMarkedUpPrice = serviceShipments.reduce((sum, item) => {
+                              const markupInfo = getShipmentMarkup(item);
+                              return sum + markupInfo.markedUpPrice;
+                            }, 0) / serviceShipments.length;
+                            const avgMargin = avgMarkedUpPrice - avgNewCost;
+                            const avgMarginPercent = avgNewCost > 0 ? (avgMargin / avgNewCost) * 100 : 0;
+
+                            return (
+                              <TableRow key={service} className="hover:bg-muted/30 border-b border-border/30">
+                                <TableCell className="w-12">
+                                  <Checkbox 
+                                    checked={selectedServicesOverview.includes(service)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedServicesOverview(prev => [...prev, service]);
+                                      } else {
+                                        setSelectedServicesOverview(prev => prev.filter(s => s !== service));
+                                      }
+                                    }}
+                                  />
                                 </TableCell>
-                                <TableCell className="text-right">
-                                  <span className={cn("font-medium", getSavingsColor(avgSavings))}>
-                                    {formatPercentage(avgSavingsPercent)}
-                                  </span>
+                                <TableCell className="font-medium text-foreground">{service}</TableCell>
+                                 <TableCell className="text-right font-medium">{formatCurrency(avgCurrentCost)}</TableCell>
+                                 <TableCell className="text-right font-medium text-blue-500">{formatCurrency(avgNewCost)}</TableCell>
+                                 <TableCell className="text-right font-medium text-primary">{formatCurrency(avgMarkedUpPrice)}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline" className="text-xs">
+                                    {spServiceType}
+                                  </Badge>
                                 </TableCell>
-                               <TableCell>
-                                 <div className="text-xs text-muted-foreground">
-                                   {avgSavingsPercent > 20 ? "High savings potential" : 
-                                    avgSavingsPercent > 10 ? "Good savings" : 
-                                    avgSavingsPercent > 0 ? "Moderate savings" : 
-                                    "Review needed"}
-                                 </div>
-                               </TableCell>
-                             </TableRow>
-                           );
+                                 <TableCell className="text-right font-medium">{data.count.toLocaleString()}</TableCell>
+                                 <TableCell className="text-right">{formatPercentage(volumePercent)}</TableCell>
+                                 <TableCell className="text-right">{avgWeight.toFixed(1)}</TableCell>
+                                 <TableCell className="text-right">
+                                   <span className={cn("font-medium", getSavingsColor(avgSavings))}>
+                                     {formatCurrency(avgSavings)}
+                                   </span>
+                                 </TableCell>
+                                 <TableCell className="text-right">
+                                   <span className="font-medium text-green-500">
+                                     {formatCurrency(avgMargin)}
+                                   </span>
+                                 </TableCell>
+                                 <TableCell className="text-right">
+                                   <span className={cn("font-medium", getSavingsColor(avgSavings))}>
+                                     {formatPercentage(avgSavingsPercent)}
+                                   </span>
+                                 </TableCell>
+                                 <TableCell className="text-right">
+                                   <span className="font-medium text-green-500">
+                                     {formatPercentage(avgMarginPercent)}
+                                   </span>
+                                 </TableCell>
+                                <TableCell>
+                                  <div className="text-xs text-muted-foreground">
+                                    {avgSavingsPercent > 20 ? "High savings potential" : 
+                                     avgSavingsPercent > 10 ? "Good savings" : 
+                                     avgSavingsPercent > 0 ? "Moderate savings" : 
+                                     "Review needed"}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
                          });
                        })()}
                      </TableBody>
@@ -1468,8 +1534,11 @@ const Results = () => {
                         <TableHead className="text-foreground">Service</TableHead>
                         <TableHead className="text-right text-foreground">Current Rate</TableHead>
                         <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
+                        <TableHead className="text-right text-foreground">Marked-Up Price</TableHead>
                         <TableHead className="text-right text-foreground">Savings</TableHead>
+                        <TableHead className="text-right text-foreground">Margin</TableHead>
                         <TableHead className="text-right text-foreground">Savings %</TableHead>
+                        <TableHead className="text-right text-foreground">Margin %</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="bg-background">
@@ -1509,6 +1578,12 @@ const Results = () => {
                           <TableCell className="text-right font-medium text-foreground">
                             {formatCurrency(item.newRate)}
                           </TableCell>
+                          <TableCell className="text-right font-medium text-primary">
+                            {(() => {
+                              const markupInfo = getShipmentMarkup(item);
+                              return formatCurrency(markupInfo.markedUpPrice);
+                            })()}
+                          </TableCell>
                           <TableCell className="text-right">
                             <div className={cn(
                               "flex items-center justify-end gap-1 font-medium",
@@ -1523,8 +1598,24 @@ const Results = () => {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1 font-medium text-green-500">
+                              {(() => {
+                                const markupInfo = getShipmentMarkup(item);
+                                return formatCurrency(markupInfo.margin);
+                              })()}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
                             <span className={cn("font-medium", getSavingsColor(item.savings))}>
                               {formatPercentage(item.savingsPercent)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="font-medium text-green-500">
+                              {(() => {
+                                const markupInfo = getShipmentMarkup(item);
+                                return formatPercentage(markupInfo.marginPercent);
+                              })()}
                             </span>
                           </TableCell>
                         </TableRow>

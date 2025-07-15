@@ -13,6 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
 
 interface AnalysisData {
@@ -70,6 +71,7 @@ const Results = () => {
   const [sortConfig, setSortConfig] = useState<{key: string, direction: 'asc' | 'desc'} | null>(null);
   const [availableServices, setAvailableServices] = useState<string[]>([]);
   const [selectedService, setSelectedService] = useState<string>('all');
+  const [selectedServicesOverview, setSelectedServicesOverview] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -547,11 +549,20 @@ const Results = () => {
     setSortConfig({ key, direction });
   };
 
+  // Get filtered statistics for overview page
+  const getOverviewFilteredData = () => {
+    if (selectedServicesOverview.length === 0) {
+      return shipmentData; // Show all data if no services selected
+    }
+    return shipmentData.filter(item => selectedServicesOverview.includes(item.service));
+  };
+
   // Get filtered statistics
   const getFilteredStats = () => {
-    const totalShipments = filteredData.length;
-    const totalCurrentCost = filteredData.reduce((sum, item) => sum + item.currentRate, 0);
-    const totalSavings = filteredData.reduce((sum, item) => sum + item.savings, 0);
+    const dataToUse = getOverviewFilteredData();
+    const totalShipments = dataToUse.length;
+    const totalCurrentCost = dataToUse.reduce((sum, item) => sum + item.currentRate, 0);
+    const totalSavings = dataToUse.reduce((sum, item) => sum + item.savings, 0);
     const averageSavingsPercent = totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0;
     
     return {
@@ -562,9 +573,59 @@ const Results = () => {
     };
   };
 
-  // Chart data generators
-  const generateServiceChartData = (data: any[]) => {
-    const serviceCount = data.reduce((acc, item) => {
+  // Service multi-select component for overview
+  const ServiceMultiSelect = () => {
+    const toggleService = (service: string) => {
+      setSelectedServicesOverview(prev => 
+        prev.includes(service) 
+          ? prev.filter(s => s !== service)
+          : [...prev, service]
+      );
+    };
+
+    const selectAll = () => {
+      setSelectedServicesOverview(availableServices);
+    };
+
+    const clearAll = () => {
+      setSelectedServicesOverview([]);
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium">Filter by Service Type</h3>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={selectAll}>
+              Select All
+            </Button>
+            <Button variant="outline" size="sm" onClick={clearAll}>
+              Clear All
+            </Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {availableServices.map(service => (
+            <div key={service} className="flex items-center space-x-2">
+              <Checkbox
+                id={service}
+                checked={selectedServicesOverview.includes(service)}
+                onCheckedChange={() => toggleService(service)}
+              />
+              <label htmlFor={service} className="text-sm font-medium cursor-pointer">
+                {service}
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  // Chart data generators - use overview filtered data
+  const generateServiceChartData = () => {
+    const dataToUse = getOverviewFilteredData();
+    const serviceCount = dataToUse.reduce((acc, item) => {
       const service = item.service || 'Unknown';
       acc[service] = (acc[service] || 0) + 1;
       return acc;
@@ -573,8 +634,9 @@ const Results = () => {
     return Object.entries(serviceCount).map(([name, value]) => ({ name, value }));
   };
 
-  const generateServiceCostData = (data: any[]) => {
-    const serviceStats = data.reduce((acc, item) => {
+  const generateServiceCostData = () => {
+    const dataToUse = getOverviewFilteredData();
+    const serviceStats = dataToUse.reduce((acc, item) => {
       const service = item.service || 'Unknown';
       if (!acc[service]) {
         acc[service] = { 
@@ -634,8 +696,8 @@ const Results = () => {
   }
 
   const filteredStats = getFilteredStats();
-  const serviceChartData = generateServiceChartData(filteredData);
-  const serviceCostData = generateServiceCostData(filteredData);
+  const serviceChartData = generateServiceChartData();
+  const serviceCostData = generateServiceCostData();
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
 
   return (
@@ -748,12 +810,23 @@ const Results = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
+            {/* Service Type Filter */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Service Type Filter</CardTitle>
+                <CardDescription>Select specific service types to focus your analysis</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ServiceMultiSelect />
+              </CardContent>
+            </Card>
+
             {/* 30 Day Snapshot */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-2xl">30 Day Snapshot</CardTitle>
                 <CardDescription>
-                  {filteredStats.totalShipments} Total Shipments • {filteredStats.totalShipments} Selected Shipments
+                  {filteredStats.totalShipments} Total Shipments • {selectedServicesOverview.length > 0 ? `${selectedServicesOverview.join(', ')} Selected` : 'All Services'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -807,7 +880,8 @@ const Results = () => {
                     </TableHeader>
                     <TableBody className="bg-background">
                       {(() => {
-                        const serviceAnalysis = filteredData.reduce((acc, item) => {
+                        const dataToUse = getOverviewFilteredData();
+                        const serviceAnalysis = dataToUse.reduce((acc, item) => {
                           const service = item.service || 'Unknown';
                           if (!acc[service]) {
                             acc[service] = {

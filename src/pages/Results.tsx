@@ -1191,8 +1191,8 @@ const Results = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={serviceCostData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                         <XAxis dataKey="service" />
-                         <YAxis tickFormatter={(value) => `$${value}`} />
+                         <XAxis dataKey="service" tick={{ fill: 'white' }} />
+                         <YAxis tickFormatter={(value) => `$${value}`} tick={{ fill: 'white' }} />
                          <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
                         <Bar dataKey="currentCost" fill="hsl(var(--muted-foreground))" name="Current Cost" />
                         <Bar dataKey="newCost" fill="hsl(var(--primary))" name="Ship Pros Cost" />
@@ -1220,12 +1220,12 @@ const Results = () => {
                          <CartesianGrid strokeDasharray="3 3" />
                          <XAxis 
                            dataKey="weightRange" 
-                           tick={{ fontSize: 12 }}
+                           tick={{ fontSize: 12, fill: 'white' }}
                            angle={-45}
                            textAnchor="end"
                            height={60}
                          />
-                         <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `$${value}`} />
+                         <YAxis tick={{ fontSize: 12, fill: 'white' }} tickFormatter={(value) => `$${value}`} />
                          <Tooltip 
                            formatter={(value: any, name: string) => [
                              formatCurrency(value), 
@@ -1254,14 +1254,17 @@ const Results = () => {
                 <CardContent>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                       <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
                          <CartesianGrid strokeDasharray="3 3" />
                          <XAxis 
                            dataKey="zone" 
-                           tick={{ fontSize: 11 }}
+                           tick={{ fontSize: 10, fill: 'white' }}
                            interval={0}
+                           angle={-15}
+                           textAnchor="end"
+                           height={80}
                          />
-                         <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `$${value}`} />
+                         <YAxis tick={{ fontSize: 12, fill: 'white' }} tickFormatter={(value) => `$${value}`} />
                          <Tooltip 
                            formatter={(value: any, name: string) => [
                              formatCurrency(value), 

@@ -3,11 +3,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
+import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 
 interface Client {
   id: string;
@@ -34,36 +34,15 @@ export function SaveReportDialog({
   const [reportName, setReportName] = useState(currentReportName);
   const [selectedClientId, setSelectedClientId] = useState(currentClientId);
   const [description, setDescription] = useState('');
-  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingClients, setLoadingClients] = useState(true);
   
 
   useEffect(() => {
     if (open) {
-      loadClients();
       setReportName(currentReportName);
       setSelectedClientId(currentClientId);
     }
   }, [open, currentReportName, currentClientId]);
-
-  const loadClients = async () => {
-    setLoadingClients(true);
-    try {
-      const { data, error } = await supabase
-        .from('clients')
-        .select('id, company_name')
-        .order('company_name');
-
-      if (error) throw error;
-      setClients(data || []);
-    } catch (error) {
-      console.error('Error loading clients:', error);
-      toast.error("Failed to load clients");
-    } finally {
-      setLoadingClients(false);
-    }
-  };
 
   const handleSave = async () => {
     if (!reportName.trim()) {
@@ -128,25 +107,12 @@ export function SaveReportDialog({
 
           <div className="space-y-2">
             <Label htmlFor="client-select">Client</Label>
-            {loadingClients ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </div>
-            ) : (
-              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a client (optional)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">No client assigned</SelectItem>
-                  {clients.map((client) => (
-                    <SelectItem key={client.id} value={client.id}>
-                      {client.company_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+            <ClientCombobox
+              value={selectedClientId}
+              onValueChange={setSelectedClientId}
+              placeholder="Select or create client (optional)"
+              disabled={loading}
+            />
           </div>
 
           <div className="space-y-2">

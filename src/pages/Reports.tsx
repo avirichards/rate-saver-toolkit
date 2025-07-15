@@ -6,10 +6,14 @@ import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { FileBarChart, Filter, Search, Calendar, ArrowUpDown, Download, Eye, Percent, DollarSign } from 'lucide-react';
+import { FileBarChart, Filter, Search, Calendar, ArrowUpDown, Download, Eye, Percent, DollarSign, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { ReportsTable } from '@/components/ui-lov/ReportsTable';
+import { GroupedReportsView } from '@/components/ui-lov/GroupedReportsView';
 
 interface ShippingAnalysis {
   id: string;
@@ -21,12 +25,20 @@ interface ShippingAnalysis {
   created_at: string;
   status: string;
   updated_at: string;
+  report_name: string | null;
+  client_id: string | null;
+  client?: {
+    id: string;
+    company_name: string;
+  } | null;
 }
 
 const ReportsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [reports, setReports] = useState<ShippingAnalysis[]>([]);
   const [loading, setLoading] = useState(true);
+  const [groupByClient, setGroupByClient] = useState(false);
+  const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const { user } = useAuth();
 
   useEffect(() => {
@@ -40,12 +52,25 @@ const ReportsPage = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('shipping_analyses')
-        .select('id, file_name, analysis_date, total_shipments, total_savings, markup_data, created_at, status, updated_at')
+        .select(`
+          id, 
+          file_name, 
+          analysis_date, 
+          total_shipments, 
+          total_savings, 
+          markup_data, 
+          created_at, 
+          status, 
+          updated_at,
+          report_name,
+          client_id,
+          client:clients(id, company_name)
+        `)
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setReports(data || []);
+      setReports((data || []) as any);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {
@@ -53,9 +78,13 @@ const ReportsPage = () => {
     }
   };
 
-  const filteredReports = reports.filter(report => 
-    report.file_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredReports = reports.filter(report => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      (report.report_name || report.file_name).toLowerCase().includes(searchLower) ||
+      (report.client?.company_name || '').toLowerCase().includes(searchLower)
+    );
+  });
 
   const getMarkupStatus = (markupData: any) => {
     if (!markupData) return { hasMarkup: false, totalMargin: 0, marginPercentage: 0 };
@@ -78,6 +107,32 @@ const ReportsPage = () => {
     return filteredReports.filter(report => 
       getMarkupStatus(report.markup_data).hasMarkup
     );
+  };
+
+  const getGroupedReports = () => {
+    if (!groupByClient) return { ungrouped: filteredReports };
+    
+    const grouped: { [key: string]: ShippingAnalysis[] } = {};
+    
+    filteredReports.forEach(report => {
+      const clientKey = report.client?.company_name || 'No Client Assigned';
+      if (!grouped[clientKey]) {
+        grouped[clientKey] = [];
+      }
+      grouped[clientKey].push(report);
+    });
+    
+    return grouped;
+  };
+
+  const toggleClientExpansion = (clientName: string) => {
+    const newExpanded = new Set(expandedClients);
+    if (newExpanded.has(clientName)) {
+      newExpanded.delete(clientName);
+    } else {
+      newExpanded.add(clientName);
+    }
+    setExpandedClients(newExpanded);
   };
 
   return (
@@ -126,6 +181,19 @@ const ReportsPage = () => {
             </div>
           </CardHeader>
           <CardContent>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="group-by-client"
+                  checked={groupByClient}
+                  onCheckedChange={setGroupByClient}
+                />
+                <Label htmlFor="group-by-client" className="text-sm">
+                  Group by Client
+                </Label>
+              </div>
+            </div>
+
             <Tabs defaultValue="all" className="w-full">
               <TabsList className="mb-4">
                 <TabsTrigger value="all">All Reports ({filteredReports.length})</TabsTrigger>
@@ -150,103 +218,18 @@ const ReportsPage = () => {
                       </Button>
                     </Link>
                   </div>
+                ) : groupByClient ? (
+                  <GroupedReportsView
+                    groupedReports={getGroupedReports()}
+                    expandedClients={expandedClients}
+                    toggleClientExpansion={toggleClientExpansion}
+                    getMarkupStatus={getMarkupStatus}
+                  />
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-3 px-2">
-                            <div className="flex items-center gap-1">
-                              Report Name
-                              <ArrowUpDown className="h-3 w-3" />
-                            </div>
-                          </th>
-                          <th className="text-left py-3 px-2">
-                            <div className="flex items-center gap-1">
-                              Date
-                              <Calendar className="h-3 w-3" />
-                            </div>
-                          </th>
-                          <th className="text-left py-3 px-2">Status</th>
-                          <th className="text-right py-3 px-2">Items</th>
-                          <th className="text-right py-3 px-2">
-                            <div className="flex items-center justify-end gap-1">
-                              <DollarSign className="h-3 w-3" />
-                              Savings
-                            </div>
-                          </th>
-                          <th className="text-right py-3 px-2">
-                            <div className="flex items-center justify-end gap-1">
-                              <Percent className="h-3 w-3" />
-                              Margin
-                            </div>
-                          </th>
-                          <th className="text-right py-3 px-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredReports.map((report) => {
-                          const markupStatus = getMarkupStatus(report.markup_data);
-                          return (
-                            <tr key={report.id} className="border-b hover:bg-muted/50">
-                              <td className="py-3 px-2 font-medium">{report.file_name}</td>
-                              <td className="py-3 px-2">{new Date(report.analysis_date).toLocaleDateString()}</td>
-                              <td className="py-3 px-2">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={report.status === 'completed' ? 'default' : 'secondary'}>
-                                    {report.status}
-                                  </Badge>
-                                  {markupStatus.hasMarkup && (
-                                    <Badge variant="outline">
-                                      With Markup
-                                    </Badge>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-3 px-2 text-right">{report.total_shipments}</td>
-                              <td className="py-3 px-2 text-right font-medium">
-                                {report.total_savings ? `$${report.total_savings.toFixed(2)}` : '-'}
-                              </td>
-                              <td className="py-3 px-2 text-right">
-                                {markupStatus.hasMarkup ? (
-                                  <div className="text-right">
-                                    <div className="font-medium">${markupStatus.totalMargin.toFixed(2)}</div>
-                                    <div className="text-xs text-muted-foreground">{markupStatus.marginPercentage.toFixed(1)}%</div>
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-2">
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => {
-                                      // TODO: Implement export functionality
-                                      console.log('Export report:', report.id);
-                                    }}
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                  <Link to={`/results?analysisId=${report.id}`}>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      className="h-8 w-8"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                  </Link>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ReportsTable
+                    reports={filteredReports}
+                    getMarkupStatus={getMarkupStatus}
+                  />
                 )}
               </TabsContent>
               

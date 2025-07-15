@@ -173,6 +173,23 @@ const Results = () => {
   // Legacy function for backward compatibility
   const saveAnalysisToDatabase = () => autoSaveAnalysis(true);
 
+  // Handle save report button click
+  const handleSaveReport = async () => {
+    // Always try to open the dialog, ensure analysis is auto-saved if needed
+    let analysisIdToUse = currentAnalysisId;
+    
+    if (!analysisIdToUse) {
+      analysisIdToUse = await autoSaveAnalysis(true);
+    }
+    
+    if (analysisIdToUse) {
+      setCurrentAnalysisId(analysisIdToUse);
+      setShowSaveDialog(true);
+    } else {
+      toast.error('Failed to prepare analysis for saving');
+    }
+  };
+
   // Calculate markup for individual shipment
   const getShipmentMarkup = (shipment: any) => {
     if (!markupData) return { markedUpPrice: shipment.newRate, margin: 0, marginPercent: 0 };
@@ -1177,13 +1194,7 @@ const Results = () => {
             </div>
             <div className="flex gap-3">
               {analysisData && (
-                <Button variant="default" size="sm" onClick={async () => {
-                  // Ensure analysis is saved to database before showing save dialog
-                  const analysisId = await autoSaveAnalysis(true);
-                  if (analysisId) {
-                    setShowSaveDialog(true);
-                  }
-                }}>
+                <Button variant="default" size="sm" onClick={handleSaveReport}>
                   <Save className="h-4 w-4 mr-2" />
                   Save Report
                 </Button>

@@ -737,23 +737,35 @@ const Results = () => {
           totalCurrent: 0, 
           totalNew: 0, 
           shipments: 0,
-          totalSavings: 0
+          totalSavings: 0,
+          bestServices: [] as string[]
         };
       }
       acc[service].totalCurrent += item.currentRate;
       acc[service].totalNew += item.newRate;
       acc[service].shipments += 1;
       acc[service].totalSavings += item.savings;
+      acc[service].bestServices.push(item.bestService || 'UPS Ground');
       return acc;
     }, {});
     
-    return Object.entries(serviceStats).map(([name, stats]: [string, any]) => ({
-      service: name,
-      currentCost: stats.totalCurrent,
-      newCost: stats.totalNew,
-      savings: stats.totalSavings,
-      shipments: stats.shipments
-    }));
+    return Object.entries(serviceStats).map(([name, stats]: [string, any]) => {
+      // Find the most common Ship Pros service for this current service
+      const serviceCounts = stats.bestServices.reduce((acc: any, srv: string) => {
+        acc[srv] = (acc[srv] || 0) + 1;
+        return acc;
+      }, {});
+      const mostCommonShipProsService = Object.entries(serviceCounts)
+        .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
+      
+      return {
+        service: `${name} → ${mostCommonShipProsService}`,
+        currentCost: stats.totalCurrent,
+        newCost: stats.totalNew,
+        savings: stats.totalSavings,
+        shipments: stats.shipments
+      };
+    });
   };
 
   // Generate chart data for weight breakdown
@@ -830,7 +842,8 @@ const Results = () => {
     return Array.from(zoneStats.values())
       .sort((a, b) => parseInt(a.zone.replace('Zone ', '')) - parseInt(b.zone.replace('Zone ', '')))
       .map(stats => ({
-        zone: `${stats.zone} (${stats.count} shipments)`,
+        zone: stats.zone,
+        zoneDisplay: `${stats.zone}\n${stats.count} shipments`,
         avgCurrentCost: stats.totalCurrent / stats.count,
         avgNewCost: stats.totalNew / stats.count,
         shipmentCount: stats.count
@@ -1191,7 +1204,13 @@ const Results = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={serviceCostData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                         <XAxis dataKey="service" tick={{ fill: 'white' }} />
+                         <XAxis 
+                           dataKey="service" 
+                           tick={{ fill: 'white', fontSize: 12 }}
+                           angle={-15}
+                           textAnchor="end"
+                           height={80}
+                         />
                          <YAxis tickFormatter={(value) => `$${value}`} tick={{ fill: 'white' }} />
                          <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
                         <Bar dataKey="currentCost" fill="hsl(var(--muted-foreground))" name="Current Cost" />
@@ -1257,11 +1276,9 @@ const Results = () => {
                        <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
                          <CartesianGrid strokeDasharray="3 3" />
                          <XAxis 
-                           dataKey="zone" 
-                           tick={{ fontSize: 10, fill: 'white' }}
+                           dataKey="zoneDisplay" 
+                           tick={{ fontSize: 14, fill: 'white' }}
                            interval={0}
-                           angle={-15}
-                           textAnchor="end"
                            height={80}
                          />
                          <YAxis tick={{ fontSize: 12, fill: 'white' }} tickFormatter={(value) => `$${value}`} />
@@ -1270,6 +1287,7 @@ const Results = () => {
                              formatCurrency(value), 
                              name === 'Current Cost' ? 'Current Cost' : 'Ship Pros Cost'
                            ]}
+                           labelFormatter={(label) => label.split('\n')[0]}
                          />
                         <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Current Cost" />
                         <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" />

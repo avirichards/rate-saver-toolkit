@@ -554,7 +554,7 @@ const Results = () => {
   // Get filtered statistics for overview page (for stats calculation, not table display)
   const getOverviewFilteredData = () => {
     if (selectedServicesOverview.length === 0) {
-      return []; // Return empty array if no services selected
+      return shipmentData; // Return all data if no services selected (treat as all selected)
     }
     return shipmentData.filter(item => selectedServicesOverview.includes(item.service));
   };

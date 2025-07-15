@@ -2,10 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Eye, Users, DollarSign, TrendingDown, Package } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Eye, Users, DollarSign, TrendingDown, Package, Target, TrendingUp, Calendar } from 'lucide-react';
 import { useMarkupCalculation } from '@/hooks/useMarkupCalculation';
-import { MarkupEditor } from '@/components/MarkupEditor';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import type { MarkupConfig } from '@/hooks/useShippingAnalyses';
 
@@ -50,255 +51,377 @@ export function AnalysisViewer({
     return `${percentage.toFixed(1)}%`;
   };
 
+  // Aggregate results by service type for overview table
+  const serviceAnalysisData = useMemo(() => {
+    const serviceGroups = new Map();
+    
+    calculatedResults.forEach(result => {
+      const service = result.bestRate?.service || 'Unknown';
+      if (!serviceGroups.has(service)) {
+        serviceGroups.set(service, {
+          currentService: service,
+          shipProsService: service, // Using same service for now
+          totalCurrentCost: 0,
+          totalFinalRate: 0,
+          totalBaseUpsRate: 0,
+          totalMarkupAmount: 0,
+          shipmentCount: 0,
+          totalWeight: 0,
+          totalSavings: 0
+        });
+      }
+      
+      const group = serviceGroups.get(service);
+      group.totalCurrentCost += result.currentCost;
+      group.totalFinalRate += result.finalRate;
+      group.totalBaseUpsRate += result.baseUpsRate;
+      group.totalMarkupAmount += result.markupAmount;
+      group.shipmentCount += 1;
+      group.totalWeight += (result.shipment?.weight || 0);
+      group.totalSavings += result.savings;
+    });
+
+    return Array.from(serviceGroups.values()).map(group => ({
+      ...group,
+      avgCurrentCost: group.totalCurrentCost / group.shipmentCount,
+      avgFinalRate: group.totalFinalRate / group.shipmentCount,
+      avgBaseUpsRate: group.totalBaseUpsRate / group.shipmentCount,
+      avgMarkupAmount: group.totalMarkupAmount / group.shipmentCount,
+      avgWeight: group.totalWeight / group.shipmentCount,
+      avgSavings: group.totalSavings / group.shipmentCount,
+      avgSavingsPercent: group.totalCurrentCost > 0 ? (group.totalSavings / group.totalCurrentCost) * 100 : 0,
+      volumePercent: calculatedResults.length > 0 ? (group.shipmentCount / calculatedResults.length) * 100 : 0,
+      markupPercentage: markupConfig.type === 'global' ? markupConfig.globalPercentage || 0 : markupConfig.serviceMarkups?.[group.currentService] || 0
+    }));
+  }, [calculatedResults, markupConfig]);
+
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
+
+  const handleMarkupChange = (service: string, value: number) => {
+    if (!onUpdateMarkup) return;
+    
+    if (markupConfig.type === 'global') {
+      onUpdateMarkup({ ...markupConfig, globalPercentage: value });
+    } else {
+      onUpdateMarkup({
+        ...markupConfig,
+        serviceMarkups: {
+          ...markupConfig.serviceMarkups,
+          [service]: value
+        }
+      });
+    }
+  };
+
+  const handleGlobalMarkupChange = (value: number) => {
+    if (!onUpdateMarkup) return;
+    onUpdateMarkup({ ...markupConfig, globalPercentage: value });
+  };
+
+  const handleMarkupTypeChange = (type: 'global' | 'per-service') => {
+    if (!onUpdateMarkup) return;
+    onUpdateMarkup({ ...markupConfig, type });
+  };
 
   return (
     <div className="space-y-6">
+      {/* Day Snapshot - Colored Summary Cards */}
+      <div>
+        <h2 className="text-xl font-semibold mb-4">Day Snapshot</h2>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <Card className="border-l-4 border-l-purple-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-purple-600" />
+                <span className="text-sm font-medium">Total Shipments</span>
+              </div>
+              <div className="text-2xl font-bold mt-2">{calculatedResults.length}</div>
+            </CardContent>
+          </Card>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Total Shipments</span>
-            </div>
-            <div className="text-2xl font-bold mt-2">{calculatedResults.length}</div>
-          </CardContent>
-        </Card>
+          <Card className="border-l-4 border-l-blue-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium">Current Cost</span>
+              </div>
+              <div className="text-2xl font-bold mt-2">{formatCurrency(totals.totalCurrentCost)}</div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Current Cost</span>
-            </div>
-            <div className="text-2xl font-bold mt-2">{formatCurrency(totals.totalCurrentCost)}</div>
-          </CardContent>
-        </Card>
+          <Card className="border-l-4 border-l-green-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium">Ship Pros Cost</span>
+              </div>
+              <div className="text-2xl font-bold mt-2">{formatCurrency(totals.totalFinalRate)}</div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">
-                {activeView === 'internal' ? 'Base UPS Rate' : 'Ship Pros Rate'}
-              </span>
-            </div>
-            <div className="text-2xl font-bold mt-2">
-              {formatCurrency(activeView === 'internal' ? totals.totalBaseUpsRate : totals.totalFinalRate)}
-            </div>
-          </CardContent>
-        </Card>
+          <Card className="border-l-4 border-l-orange-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-orange-600" />
+                <span className="text-sm font-medium">Total Savings</span>
+              </div>
+              <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(totals.totalSavings)}</div>
+              <div className="text-sm text-muted-foreground">{formatPercentage(totals.savingsPercentage)}</div>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium">Total Savings</span>
-            </div>
-            <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(totals.totalSavings)}</div>
-            <div className="text-sm text-muted-foreground">{formatPercentage(totals.savingsPercentage)}</div>
-          </CardContent>
-        </Card>
+          <Card className="border-l-4 border-l-indigo-500">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-indigo-600" />
+                <span className="text-sm font-medium">Est. Annual Savings</span>
+              </div>
+              <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(totals.totalSavings * 365)}</div>
+              <div className="text-sm text-muted-foreground">Based on daily average</div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
-      {/* Internal View Only - Markup Configuration */}
-      {activeView === 'internal' && onUpdateMarkup && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Markup Configuration</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <MarkupEditor 
-              markupConfig={markupConfig}
-              onUpdateMarkup={onUpdateMarkup}
-              services={availableServices}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Internal View Only - Margin Summary */}
-      {activeView === 'internal' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Margin Analysis</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Total Margin</div>
-                <div className="text-xl font-bold">{formatCurrency(totals.totalMargin)}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Margin Percentage</div>
-                <div className="text-xl font-bold">{formatPercentage(totals.marginPercentage)}</div>
-              </div>
-              <div>
-                <div className="text-sm font-medium text-muted-foreground">Markup Type</div>
-                <div className="text-xl font-bold capitalize">{markupConfig.type.replace('-', ' ')}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Results Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Shipment Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-2">Service</th>
-                  <th className="text-right py-3 px-2">Current Cost</th>
-                  {activeView === 'internal' && (
-                    <>
-                      <th className="text-right py-3 px-2">Base UPS Rate</th>
-                      <th className="text-right py-3 px-2">Markup</th>
-                    </>
-                  )}
-                  <th className="text-right py-3 px-2">
-                    {activeView === 'internal' ? 'Final Rate' : 'Ship Pros Rate'}
-                  </th>
-                  <th className="text-right py-3 px-2">Savings</th>
-                </tr>
-              </thead>
-              <tbody>
-                {calculatedResults.map((result, index) => (
-                  <tr key={index} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-2">
-                      <Badge variant="secondary">{result.bestRate?.service || 'Unknown'}</Badge>
-                    </td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(result.currentCost)}</td>
-                    {activeView === 'internal' && (
-                      <>
-                        <td className="py-3 px-2 text-right">{formatCurrency(result.baseUpsRate)}</td>
-                        <td className="py-3 px-2 text-right">
-                          {formatCurrency(result.markupAmount)} ({formatPercentage(result.markupPercentage)})
+      {/* Service Analysis Overview with Markup Controls */}
+      <div className="grid grid-cols-12 gap-6">
+        {/* Service Analysis Table */}
+        <div className="col-span-8">
+          <Card>
+            <CardHeader>
+              <CardTitle>Service Analysis Overview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-2">Current Service</th>
+                      <th className="text-right py-3 px-2">Avg Cost Current</th>
+                      <th className="text-right py-3 px-2">Ship Pros Cost</th>
+                      <th className="text-right py-3 px-2">Ship Pros Service</th>
+                      <th className="text-right py-3 px-2">Shipment Count</th>
+                      <th className="text-right py-3 px-2">Volume %</th>
+                      <th className="text-right py-3 px-2">Avg Weight</th>
+                      <th className="text-right py-3 px-2">Avg Savings ($)</th>
+                      <th className="text-right py-3 px-2">Avg Savings (%)</th>
+                      {activeView === 'internal' && (
+                        <th className="text-right py-3 px-2">Markup %</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {serviceAnalysisData.map((service, index) => (
+                      <tr key={index} className="border-b hover:bg-muted/50">
+                        <td className="py-3 px-2">
+                          <Badge variant="secondary">{service.currentService}</Badge>
                         </td>
-                      </>
-                    )}
-                    <td className="py-3 px-2 text-right font-medium">{formatCurrency(result.finalRate)}</td>
-                    <td className="py-3 px-2 text-right font-medium text-green-600">
-                      {formatCurrency(result.savings)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        <td className="py-3 px-2 text-right">{formatCurrency(service.avgCurrentCost)}</td>
+                        <td className="py-3 px-2 text-right">{formatCurrency(service.avgFinalRate)}</td>
+                        <td className="py-3 px-2 text-right">
+                          <Badge variant="outline">{service.shipProsService}</Badge>
+                        </td>
+                        <td className="py-3 px-2 text-right">{service.shipmentCount}</td>
+                        <td className="py-3 px-2 text-right">{formatPercentage(service.volumePercent)}</td>
+                        <td className="py-3 px-2 text-right">{service.avgWeight.toFixed(1)} lbs</td>
+                        <td className="py-3 px-2 text-right font-medium text-green-600">
+                          {formatCurrency(service.avgSavings)}
+                        </td>
+                        <td className="py-3 px-2 text-right font-medium text-green-600">
+                          {formatPercentage(service.avgSavingsPercent)}
+                        </td>
+                        {activeView === 'internal' && (
+                          <td className="py-3 px-2 text-right">
+                            {markupConfig.type === 'per-service' ? (
+                              <Input
+                                type="number"
+                                value={service.markupPercentage}
+                                onChange={(e) => handleMarkupChange(service.currentService, Number(e.target.value))}
+                                className="w-16 text-right"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                              />
+                            ) : (
+                              <span>{formatPercentage(service.markupPercentage)}</span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Global Markup Configuration (Internal View Only) */}
+        {activeView === 'internal' && onUpdateMarkup && (
+          <div className="col-span-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Global Markup</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="markup-type">Markup Type</Label>
+                  <Select 
+                    value={markupConfig.type} 
+                    onValueChange={(value: 'global' | 'per-service') => handleMarkupTypeChange(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="global">Global Markup</SelectItem>
+                      <SelectItem value="per-service">Per-Service Markup</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {markupConfig.type === 'global' && (
+                  <div>
+                    <Label htmlFor="global-markup">Global Markup %</Label>
+                    <Input
+                      id="global-markup"
+                      type="number"
+                      value={markupConfig.globalPercentage || 0}
+                      onChange={(e) => handleGlobalMarkupChange(Number(e.target.value))}
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+
+                <div className="pt-4 border-t">
+                  <div className="text-sm font-medium text-muted-foreground mb-2">Margin Summary</div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm">Total Margin:</span>
+                      <span className="text-sm font-medium">{formatCurrency(totals.totalMargin)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm">Margin %:</span>
+                      <span className="text-sm font-medium">{formatPercentage(totals.marginPercentage)}</span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
       {/* Charts Section */}
       {chartData && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Service Distribution Chart */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Service Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={chartData.serviceChartData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    label={(entry) => `${entry.name}: ${entry.value}`}
-                  >
-                    {chartData.serviceChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: any, name: any) => [`${value} shipments`, name]} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+        <div>
+          <h2 className="text-xl font-semibold mb-4">Analytics Overview</h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Service Distribution Chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Service Distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={chartData.serviceChartData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      label={(entry) => `${entry.name}: ${entry.value}`}
+                    >
+                      {chartData.serviceChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: any, name: any) => [`${value} shipments`, name]} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-          {/* Cost Comparison by Service */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Cost Comparison by Service</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData.serviceCostData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="currentService" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                    fontSize={12}
-                  />
-                  <YAxis />
-                  <Tooltip 
-                    formatter={(value: any, name: any, props: any) => {
-                      const { payload } = props;
-                      if (name === 'avgCurrentCost') return [`$${value.toFixed(2)}`, 'Current Avg Cost'];
-                      if (name === 'avgNewCost') return [`$${value.toFixed(2)}`, `${payload.shipProsService} Avg Cost`];
-                      return [value, name];
-                    }}
-                    labelFormatter={(label: any) => `Service: ${label}`}
-                  />
-                  <Legend />
-                  <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
-                  <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Avg Cost" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            {/* Cost Comparison by Service */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Cost Comparison by Service</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData.serviceCostData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="currentService" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      fontSize={12}
+                    />
+                    <YAxis />
+                    <Tooltip 
+                      formatter={(value: any, name: any, props: any) => {
+                        const { payload } = props;
+                        if (name === 'avgCurrentCost') return [`$${value.toFixed(2)}`, 'Current Avg Cost'];
+                        if (name === 'avgNewCost') return [`$${value.toFixed(2)}`, `${payload.shipProsService} Avg Cost`];
+                        return [value, name];
+                      }}
+                      labelFormatter={(label: any) => `Service: ${label}`}
+                    />
+                    <Legend />
+                    <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
+                    <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Avg Cost" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-          {/* Rate Comparison by Weight */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Rate Comparison by Weight</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData.weightChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="weightRange" />
-                  <YAxis />
-                  <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
-                  <Legend />
-                  <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
-                  <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            {/* Rate Comparison by Weight */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Rate Comparison by Weight</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData.weightChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="weightRange" />
+                    <YAxis />
+                    <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
+                    <Legend />
+                    <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
+                    <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
 
-          {/* Rate Comparison by Zone */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Rate Comparison by Zone</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chartData.zoneChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="zone" />
-                  <YAxis />
-                  <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
-                  <Legend />
-                  <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
-                  <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+            {/* Rate Comparison by Zone */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Rate Comparison by Zone</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={chartData.zoneChartData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="zone" />
+                    <YAxis />
+                    <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
+                    <Legend />
+                    <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
+                    <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
         </div>
       )}
     </div>

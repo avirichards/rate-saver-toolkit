@@ -779,7 +779,7 @@ const Results = () => {
                   <span>Day Snapshot</span>
                 </CardTitle>
                 <CardDescription>
-                  {selectedServicesOverview.length > 0 ? `${selectedServicesOverview.length} services selected` : 'No services selected'} out of {shipmentData.length} total shipments
+                  {filteredStats.totalShipments} shipments selected out of {shipmentData.length} total shipments
                 </CardDescription>
               </CardHeader>
               <CardContent>

@@ -656,6 +656,24 @@ const Results = () => {
     );
   };
 
+  // Custom tick component for zone chart
+  const ZoneTick = (props: any) => {
+    const { x, y, payload } = props;
+    const data = generateZoneChartData().find(item => item.zone === payload.value);
+    if (!data) return null;
+    
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text x={0} y={0} dy={16} textAnchor="middle" fill="white" fontSize="16" fontWeight="bold">
+          {data.zoneName}
+        </text>
+        <text x={0} y={20} dy={16} textAnchor="middle" fill="white" fontSize="14">
+          {data.shipmentCount} shipments
+        </text>
+      </g>
+    );
+  };
+
   // Chart data generators - use overview filtered data
   const generateServiceChartData = () => {
     const dataToUse = getOverviewFilteredData();
@@ -759,7 +777,8 @@ const Results = () => {
         .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
       
       return {
-        service: `${name} → ${mostCommonShipProsService}`,
+        currentService: name,
+        shipProsService: mostCommonShipProsService,
         currentCost: stats.totalCurrent,
         newCost: stats.totalNew,
         savings: stats.totalSavings,
@@ -843,10 +862,10 @@ const Results = () => {
       .sort((a, b) => parseInt(a.zone.replace('Zone ', '')) - parseInt(b.zone.replace('Zone ', '')))
       .map(stats => ({
         zone: stats.zone,
-        zoneDisplay: `${stats.zone}\n${stats.count} shipments`,
+        zoneName: stats.zone,
+        shipmentCount: stats.count,
         avgCurrentCost: stats.totalCurrent / stats.count,
-        avgNewCost: stats.totalNew / stats.count,
-        shipmentCount: stats.count
+        avgNewCost: stats.totalNew / stats.count
       }));
   };
 
@@ -867,9 +886,9 @@ const Results = () => {
   }
 
   if (!analysisData || shipmentData.length === 0) {
-    return (
-      <DashboardLayout>
-        <div className="max-w-7xl mx-auto p-6">
+  return (
+    <DashboardLayout>
+      <div className="max-w-7xl mx-auto p-6">
           <div className="text-center">
             <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-2xl font-semibold mb-2">No Analysis Results Found</h2>
@@ -1202,19 +1221,24 @@ const Results = () => {
                 <CardContent>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={serviceCostData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <BarChart data={serviceCostData} margin={{ top: 20, right: 30, left: 20, bottom: 120 }}>
                         <CartesianGrid strokeDasharray="3 3" />
                          <XAxis 
-                           dataKey="service" 
-                           tick={{ fill: 'white', fontSize: 12 }}
-                           angle={-15}
-                           textAnchor="end"
-                           height={80}
+                           dataKey="currentService" 
+                           tick={{ fill: 'white', fontSize: 14 }}
+                           interval={0}
+                           height={100}
                          />
                          <YAxis tickFormatter={(value) => `$${value}`} tick={{ fill: 'white' }} />
-                         <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
-                        <Bar dataKey="currentCost" fill="hsl(var(--muted-foreground))" name="Current Cost" />
-                        <Bar dataKey="newCost" fill="hsl(var(--primary))" name="Ship Pros Cost" />
+                         <Tooltip 
+                           formatter={(value, name) => [formatCurrency(Number(value)), name]} 
+                           labelFormatter={(label) => {
+                             const item = serviceCostData.find(d => d.currentService === label);
+                             return item ? `${item.currentService} → ${item.shipProsService}` : label;
+                           }}
+                         />
+                        <Bar dataKey="currentCost" fill="#ef4444" name="Current Cost" />
+                        <Bar dataKey="newCost" fill="#22c55e" name="Ship Pros Cost" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1273,21 +1297,24 @@ const Results = () => {
                 <CardContent>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                       <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
                          <CartesianGrid strokeDasharray="3 3" />
                          <XAxis 
-                           dataKey="zoneDisplay" 
-                           tick={{ fontSize: 14, fill: 'white' }}
+                           dataKey="zone" 
+                           tick={<ZoneTick />}
                            interval={0}
-                           height={80}
+                           height={100}
                          />
                          <YAxis tick={{ fontSize: 12, fill: 'white' }} tickFormatter={(value) => `$${value}`} />
                          <Tooltip 
                            formatter={(value: any, name: string) => [
                              formatCurrency(value), 
-                             name === 'Current Cost' ? 'Current Cost' : 'Ship Pros Cost'
+                             name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
                            ]}
-                           labelFormatter={(label) => label.split('\n')[0]}
+                           labelFormatter={(label) => {
+                             const item = generateZoneChartData().find(d => d.zone === label);
+                             return item ? `${item.zoneName} (${item.shipmentCount} shipments)` : label;
+                           }}
                          />
                         <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Current Cost" />
                         <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" />

@@ -10,10 +10,13 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
+import { ReportConfiguration } from '@/components/ReportConfiguration';
+import { AnalysisViewer } from '@/components/AnalysisViewer';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToServiceCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
+import { useShippingAnalyses, type ReportConfig } from '@/hooks/useShippingAnalyses';
 
 interface ProcessedShipment {
   id: number;
@@ -79,7 +82,11 @@ const Analysis = () => {
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [csvResidentialField, setCsvResidentialField] = useState<string | undefined>(undefined);
   const [readyToAnalyze, setReadyToAnalyze] = useState(false);
+  const [showConfiguration, setShowConfiguration] = useState(false);
+  const [reportConfig, setReportConfig] = useState<ReportConfig | null>(null);
+  const [showViewer, setShowViewer] = useState(false);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
+  const { saveAnalysis } = useShippingAnalyses();
   
   useEffect(() => {
     const state = location.state as { 
@@ -407,9 +414,9 @@ const Analysis = () => {
       
       // Only mark complete if we processed all shipments and weren't paused
       if (!isPaused) {
-        console.log('✅ Analysis complete, saving to database');
+        console.log('✅ Analysis complete');
         setIsComplete(true);
-        await saveAnalysisToDatabase();
+        setShowConfiguration(true);
       }
       
     } catch (error: any) {
@@ -1191,6 +1198,38 @@ const Analysis = () => {
     });
   };
 
+  const handleConfigurationSave = async (config: ReportConfig) => {
+    try {
+      const completedResults = analysisResults.filter(r => r.status === 'completed');
+      const errorResults = analysisResults.filter(r => r.status === 'error');
+
+      const analysisData = {
+        results: completedResults,
+        totalSavings,
+        totalCurrentCost,
+        recommendations: completedResults.map((result, index) => ({
+          shipment: result.shipment,
+          currentCost: result.currentCost || 0,
+          recommendedCost: result.bestRate?.totalCharges || 0,
+          savings: result.savings || 0,
+          originalService: result.originalService || result.shipment.service,
+          recommendedService: result.bestRate?.serviceName || 'Unknown',
+          carrier: 'UPS',
+          status: 'completed'
+        })),
+        orphanedShipments: errorResults
+      };
+
+      await saveAnalysis(analysisData, config);
+      setReportConfig(config);
+      setShowConfiguration(false);
+      setShowViewer(true);
+      toast.success('Report saved successfully!');
+    } catch (error) {
+      console.error('Error saving report:', error);
+    }
+  };
+
   const handleStopAndContinue = () => {
     const completedResults = analysisResults.filter(r => r.status === 'completed');
     const errorResults = analysisResults.filter(r => r.status === 'error');
@@ -1548,19 +1587,51 @@ const Analysis = () => {
               ))}
             </div>
             
-            {isComplete && (
-              <div className="flex justify-end mt-6">
+            {isComplete && !showConfiguration && !showViewer && (
+              <div className="flex justify-end gap-3 mt-6">
+                <Button 
+                  variant="outline" 
+                  onClick={handleViewResults}
+                >
+                  View Raw Results
+                </Button>
                 <Button 
                   variant="primary" 
-                  onClick={handleViewResults}
+                  onClick={() => setShowConfiguration(true)}
                   iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
                 >
-                  View Detailed Results
+                  Configure & Save Report
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Report Configuration Modal */}
+        {showConfiguration && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-background rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <ReportConfiguration
+                onSave={handleConfigurationSave}
+                onCancel={() => setShowConfiguration(false)}
+                services={Array.from(new Set(analysisResults
+                  .filter(r => r.status === 'completed' && r.bestRate?.serviceName)
+                  .map(r => r.bestRate!.serviceName)
+                ))}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Analysis Viewer */}
+        {showViewer && reportConfig && (
+          <AnalysisViewer
+            results={analysisResults.filter(r => r.status === 'completed')}
+            markupConfig={reportConfig.markupConfig}
+            reportName={reportConfig.reportName}
+            clientName={reportConfig.clientName}
+          />
+        )}
       </div>
     </DashboardLayout>
   );

@@ -91,21 +91,42 @@ const Results = () => {
         savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
       }));
           
-          setShipmentData(formattedData);
+          // Separate valid shipments from orphaned ones based on data completeness
+          const validShipments: any[] = [];
+          const orphanedShipments: any[] = [];
           
-          const orphanedShipments = state.analysisData.recommendations
-            .filter((rec: any) => rec.status === 'error' || rec.error)
-            .map((rec: any, index: number) => ({
+          state.analysisData.recommendations.forEach((rec: any, index: number) => {
+            const shipmentData = rec.shipment || rec;
+            const validation = validateShipmentData(shipmentData);
+            
+            const formattedShipment = {
               id: index + 1,
-              trackingId: rec.shipment?.trackingId || `Error-${index + 1}`,
-              originZip: rec.shipment?.originZip || '',
-              destinationZip: rec.shipment?.destZip || '',
-              weight: parseFloat(rec.shipment?.weight || '0'),
-              service: rec.shipment?.service || '',
-              error: rec.error || 'Processing failed',
-              errorType: rec.errorType || 'Unknown'
-            }));
+              trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
+              originZip: shipmentData.originZip || '',
+              destinationZip: shipmentData.destZip || '',
+              weight: parseFloat(shipmentData.weight || '0'),
+              carrier: shipmentData.carrier || rec.carrier || 'Unknown',
+              service: rec.originalService || shipmentData.service || '',
+              currentRate: rec.currentCost || 0,
+              newRate: rec.recommendedCost || 0,
+              savings: rec.savings || 0,
+              savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
+            };
+            
+            // Check if shipment has explicit error status OR missing data
+            if (rec.status === 'error' || rec.error || !validation.isValid) {
+              orphanedShipments.push({
+                ...formattedShipment,
+                error: rec.error || `Missing required data: ${validation.missingFields.join(', ')}`,
+                errorType: rec.errorType || validation.errorType,
+                missingFields: validation.missingFields
+              });
+            } else {
+              validShipments.push(formattedShipment);
+            }
+          });
           
+          setShipmentData(validShipments);
           setOrphanedData(orphanedShipments);
           
           // Also handle orphans from analysisData if available
@@ -207,6 +228,40 @@ const Results = () => {
     processAnalysisFromDatabase(data);
   };
 
+  // Data validation function to check for missing critical data
+  const validateShipmentData = (shipment: any): { isValid: boolean; missingFields: string[]; errorType: string } => {
+    const missingFields: string[] = [];
+    
+    // Check for missing tracking ID
+    if (!shipment.trackingId || shipment.trackingId.trim() === '') {
+      missingFields.push('Tracking ID');
+    }
+    
+    // Check for missing ZIP codes
+    if (!shipment.originZip || shipment.originZip.trim() === '') {
+      missingFields.push('Origin ZIP');
+    }
+    if (!shipment.destZip || shipment.destZip.trim() === '') {
+      missingFields.push('Destination ZIP');
+    }
+    
+    // Check for missing or invalid weight
+    const weight = parseFloat(shipment.weight || '0');
+    if (!shipment.weight || weight <= 0) {
+      missingFields.push('Weight');
+    }
+    
+    // Check for missing service
+    if (!shipment.service || shipment.service.trim() === '') {
+      missingFields.push('Service');
+    }
+    
+    const isValid = missingFields.length === 0;
+    const errorType = missingFields.length > 0 ? 'Missing Data' : 'Valid';
+    
+    return { isValid, missingFields, errorType };
+  };
+
   const processAnalysisFromDatabase = (data: any) => {
     const savings = data.savings_analysis || {};
     const recommendations = data.recommendations || [];
@@ -221,50 +276,81 @@ const Results = () => {
       dataToUse: dataToUse.length
     });
     
+    // Separate valid shipments from orphaned ones based on data completeness
+    const validShipments: any[] = [];
+    const orphanedShipments: any[] = [];
+    
+    dataToUse.forEach((rec: any, index: number) => {
+      const shipmentData = rec.shipment || rec;
+      const validation = validateShipmentData(shipmentData);
+      
+      // Log validation details for debugging
+      console.log(`Validating shipment ${shipmentData.trackingId || `Shipment-${index + 1}`}:`, {
+        isValid: validation.isValid,
+        missingFields: validation.missingFields,
+        errorType: validation.errorType,
+        data: {
+          trackingId: shipmentData.trackingId,
+          originZip: shipmentData.originZip,
+          destZip: shipmentData.destZip,
+          weight: shipmentData.weight,
+          service: shipmentData.service
+        }
+      });
+      
+      const formattedShipment = {
+        id: index + 1,
+        trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
+        originZip: shipmentData.originZip || '',
+        destinationZip: shipmentData.destZip || '',
+        weight: parseFloat(shipmentData.weight || '0'),
+        carrier: shipmentData.carrier || rec.carrier || 'Unknown',
+        service: rec.originalService || shipmentData.service || '',
+        currentRate: rec.currentCost || 0,
+        newRate: rec.recommendedCost || 0,
+        savings: rec.savings || 0,
+        savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
+      };
+      
+      // Check if shipment has explicit error status OR missing data
+      if (rec.status === 'error' || rec.error || !validation.isValid) {
+        orphanedShipments.push({
+          ...formattedShipment,
+          error: rec.error || `Missing required data: ${validation.missingFields.join(', ')}`,
+          errorType: rec.errorType || validation.errorType,
+          missingFields: validation.missingFields
+        });
+      } else {
+        validShipments.push(formattedShipment);
+      }
+    });
+    
+    console.log('Data integrity summary:', {
+      totalShipments: dataToUse.length,
+      validShipments: validShipments.length,
+      orphanedShipments: orphanedShipments.length,
+      orphanReasons: orphanedShipments.map(o => ({ 
+        trackingId: o.trackingId, 
+        errorType: o.errorType,
+        missingFields: o.missingFields 
+      }))
+    });
+    
     const analysisInfo: AnalysisData = {
       totalCurrentCost: savings.totalCurrentCost || 0,
       totalPotentialSavings: data.total_savings || 0,
-      recommendations: dataToUse,
+      recommendations: validShipments,
       savingsPercentage: savings.savingsPercentage || 0,
       totalShipments: data.total_shipments || 0,
-      analyzedShipments: dataToUse.length
+      analyzedShipments: validShipments.length
     };
 
     setAnalysisData(analysisInfo);
-
-    const formattedData = dataToUse.map((rec: any, index: number) => ({
-      id: index + 1,
-      trackingId: rec.shipment?.trackingId || `Shipment-${index + 1}`,
-      originZip: rec.shipment?.originZip || '',
-      destinationZip: rec.shipment?.destZip || '',
-      weight: parseFloat(rec.shipment?.weight || '0'),
-      carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-      service: rec.originalService || rec.shipment?.service || '',
-      currentRate: rec.currentCost || 0,
-      newRate: rec.recommendedCost || 0,
-      savings: rec.savings || 0,
-      savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
-    }));
-
-    setShipmentData(formattedData);
-    
-    const orphanedShipments = recommendations
-      .filter((rec: any) => rec.status === 'error' || rec.error)
-      .map((rec: any, index: number) => ({
-        id: index + 1,
-        trackingId: rec.shipment?.trackingId || `Error-${index + 1}`,
-        originZip: rec.shipment?.originZip || '',
-        destinationZip: rec.shipment?.destZip || '',
-        weight: parseFloat(rec.shipment?.weight || '0'),
-        service: rec.shipment?.service || '',
-        error: rec.error || 'Processing failed',
-        errorType: rec.errorType || 'Unknown'
-      }));
-    
+    setShipmentData(validShipments);
     setOrphanedData(orphanedShipments);
     
-    // Initialize service data
-    const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
+    // Initialize service data from valid shipments only
+    const services = [...new Set(validShipments.map(item => item.service).filter(Boolean))] as string[];
     setAvailableServices(services);
     
     setLoading(false);
@@ -739,33 +825,55 @@ const Results = () => {
                     <Table>
                       <TableHeader className="bg-muted/50">
                         <TableRow className="border-b border-border">
-                          <TableHead className="text-foreground">Tracking ID</TableHead>
-                          <TableHead className="text-foreground">Origin Zip</TableHead>
-                          <TableHead className="text-foreground">Destination Zip</TableHead>
-                          <TableHead className="text-right text-foreground">Weight</TableHead>
-                          <TableHead className="text-foreground">Service Type</TableHead>
-                          <TableHead className="text-foreground">Error Type</TableHead>
-                          <TableHead className="text-foreground">Error Details</TableHead>
+                           <TableHead className="text-foreground">Tracking ID</TableHead>
+                           <TableHead className="text-foreground">Origin Zip</TableHead>
+                           <TableHead className="text-foreground">Destination Zip</TableHead>
+                           <TableHead className="text-right text-foreground">Weight</TableHead>
+                           <TableHead className="text-foreground">Service Type</TableHead>
+                           <TableHead className="text-foreground">Missing Fields</TableHead>
+                           <TableHead className="text-foreground">Error Type</TableHead>
+                           <TableHead className="text-foreground">Error Details</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {orphanedData.map((row, index) => (
-                          <TableRow key={index} className="border-b border-border hover:bg-muted/50">
-                            <TableCell className="font-medium text-foreground">{row.trackingId}</TableCell>
-                            <TableCell className="text-foreground">{row.originZip}</TableCell>
-                            <TableCell className="text-foreground">{row.destinationZip}</TableCell>
-                            <TableCell className="text-right text-foreground">{row.weight.toFixed(1)}</TableCell>
-                            <TableCell className="text-foreground">{row.service}</TableCell>
-                            <TableCell>
-                              <Badge variant="destructive">{row.errorType}</Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="max-w-xs truncate text-muted-foreground" title={row.error}>
-                                {row.error}
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                         {orphanedData.map((row, index) => (
+                           <TableRow key={index} className="border-b border-border hover:bg-muted/50">
+                             <TableCell className="font-medium text-foreground">{row.trackingId}</TableCell>
+                             <TableCell className="text-foreground">
+                               {row.originZip || <span className="text-muted-foreground italic">Missing</span>}
+                             </TableCell>
+                             <TableCell className="text-foreground">
+                               {row.destinationZip || <span className="text-muted-foreground italic">Missing</span>}
+                             </TableCell>
+                             <TableCell className="text-right text-foreground">
+                               {row.weight > 0 ? row.weight.toFixed(1) : <span className="text-muted-foreground italic">Missing</span>}
+                             </TableCell>
+                             <TableCell className="text-foreground">
+                               {row.service || <span className="text-muted-foreground italic">Missing</span>}
+                             </TableCell>
+                             <TableCell>
+                               {row.missingFields && row.missingFields.length > 0 ? (
+                                 <div className="flex flex-wrap gap-1">
+                                   {row.missingFields.map((field: string, idx: number) => (
+                                     <Badge key={idx} variant="outline" className="text-xs text-orange-600 border-orange-300">
+                                       {field}
+                                     </Badge>
+                                   ))}
+                                 </div>
+                               ) : (
+                                 <span className="text-muted-foreground">-</span>
+                               )}
+                             </TableCell>
+                             <TableCell>
+                               <Badge variant="destructive">{row.errorType}</Badge>
+                             </TableCell>
+                             <TableCell>
+                               <div className="max-w-xs truncate text-muted-foreground" title={row.error}>
+                                 {row.error}
+                               </div>
+                             </TableCell>
+                           </TableRow>
+                         ))}
                       </TableBody>
                     </Table>
                   </div>

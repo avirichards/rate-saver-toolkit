@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home, AlertTriangle } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -92,8 +92,7 @@ const Results = () => {
         currentRate: rec.currentCost,
         newRate: rec.recommendedCost,
         savings: rec.savings,
-        savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0,
-        serviceSubstitution: rec.serviceSubstitution || null
+        savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
       }));
           
           // Separate valid shipments from orphaned ones based on data completeness
@@ -749,41 +748,6 @@ const Results = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            {/* Service Substitutions Summary */}
-            {shipmentData.some(item => item.serviceSubstitution) && (
-              <Card className="border-amber-200 bg-amber-50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-amber-800">
-                    <AlertTriangle className="h-5 w-5" />
-                    Service Substitutions
-                  </CardTitle>
-                  <CardDescription className="text-amber-700">
-                    Some shipments required service substitutions due to rate unavailability
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {shipmentData
-                      .filter(item => item.serviceSubstitution)
-                      .map((item, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-white rounded border border-amber-200">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">
-                              {item.trackingId}
-                            </Badge>
-                            <span className="text-sm">
-                              {item.serviceSubstitution.originalServiceName} → {item.serviceSubstitution.actualServiceName}
-                            </span>
-                          </div>
-                          <span className="text-xs text-amber-600">{item.serviceSubstitution.reason}</span>
-                        </div>
-                      ))
-                    }
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Service Distribution Chart */}
@@ -930,19 +894,9 @@ const Results = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex flex-col gap-1">
-                              <Badge variant="outline" className="text-xs">
-                                {item.service}
-                              </Badge>
-                              {item.serviceSubstitution && (
-                                <div className="flex items-center gap-1">
-                                  <AlertTriangle className="h-3 w-3 text-amber-500" />
-                                  <span className="text-xs text-amber-600">
-                                    Substituted from {item.serviceSubstitution.originalServiceName}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
+                            <Badge variant="outline" className="text-xs">
+                              {item.service}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-right font-medium text-foreground">
                             ${item.currentRate.toFixed(2)}

@@ -48,6 +48,16 @@ interface AnalysisResult {
   savings?: number;
   error?: string;
   errorType?: string;
+  // Add validation fields for debugging
+  expectedServiceCode?: string;
+      mappingValidation?: {
+        isValid: boolean;
+        expectedService: string;
+        actualService: string;
+        expectedServiceCode?: string;
+        actualServiceCode?: string;
+        message?: string;
+      };
 }
 
 const Analysis = () => {
@@ -309,14 +319,14 @@ const Analysis = () => {
       cost: shipment.cost
     });
     
-    // Update status to processing using functional update to prevent race conditions
-    setAnalysisResults(prev => {
-      const newResults = [...prev];
-      if (newResults[index]) {
-        newResults[index] = { ...newResults[index], status: 'processing' };
-      }
-      return newResults;
-    });
+      // Update status to processing using shipment ID-based update to prevent race conditions
+      setAnalysisResults(prev => {
+        return prev.map(result => 
+          result.shipment.id === shipment.id 
+            ? { ...result, status: 'processing' }
+            : result
+        );
+      });
     
     try {
       // Enhanced validation with better error messages
@@ -656,21 +666,59 @@ const Analysis = () => {
       setTotalCurrentCost(prev => prev + currentCost);
       setTotalSavings(prev => prev + savings);
       
-      // Update result using functional update to prevent race conditions
-      setAnalysisResults(prev => {
-        const newResults = [...prev];
-        if (newResults[index]) {
-          newResults[index] = {
-            ...newResults[index],
-            status: 'completed',
-            currentCost,
-            originalService: shipment.service, // Store original service from CSV
-            upsRates: data.rates,
-            bestRate: comparisonRate,
-            savings
-          };
+      // Validation that the comparison rate matches expected service mapping
+      const mappingValidation = {
+        isValid: isConfirmedMapping ? comparisonRate.serviceCode === equivalentServiceCode : true,
+        expectedService: serviceMapping.serviceName,
+        actualService: comparisonRate.serviceName || comparisonRate.Service?.Description || 'Unknown',
+        expectedServiceCode: equivalentServiceCode,
+        actualServiceCode: comparisonRate.serviceCode,
+        message: isConfirmedMapping 
+          ? (comparisonRate.serviceCode === equivalentServiceCode 
+              ? 'Service mapping is correct' 
+              : `Expected service code ${equivalentServiceCode}, got ${comparisonRate.serviceCode}`)
+          : 'No confirmed mapping validation'
+      };
+
+      console.log(`🔍 Final validation for shipment ${shipment.id}:`, {
+        originalService: shipment.service,
+        mappingValidation,
+        isConfirmedMapping,
+        comparisonRate: {
+          serviceCode: comparisonRate.serviceCode,
+          serviceName: comparisonRate.serviceName
         }
-        return newResults;
+      });
+
+      // Update result using shipment ID-based update to prevent race conditions
+      setAnalysisResults(prev => {
+        return prev.map(result => {
+          if (result.shipment.id === shipment.id) {
+            const updatedResult = {
+              ...result,
+              status: 'completed' as const,
+              currentCost,
+              originalService: shipment.service, // Store original service from CSV
+              upsRates: data.rates,
+              bestRate: comparisonRate,
+              savings,
+              expectedServiceCode: equivalentServiceCode,
+              mappingValidation
+            };
+            
+            // Final validation log
+            console.log(`✅ Storing validated result for shipment ${shipment.id}:`, {
+              originalService: updatedResult.originalService,
+              bestRateService: updatedResult.bestRate?.serviceName,
+              bestRateCode: updatedResult.bestRate?.serviceCode,
+              expectedCode: updatedResult.expectedServiceCode,
+              mappingValid: updatedResult.mappingValidation?.isValid
+            });
+            
+            return updatedResult;
+          }
+          return result;
+        });
       });
       
     } catch (error: any) {
@@ -1081,20 +1129,40 @@ const Analysis = () => {
                            <p className="text-sm font-medium">
                              ${result.currentCost?.toFixed(2)} → ${result.bestRate?.totalCharges?.toFixed(2)}
                            </p>
-                           <div className="text-xs text-muted-foreground mb-1">
-                             via {result.bestRate?.serviceName || 'UPS Service'}
-                           </div>
-                           {result.savings && result.savings > 0 ? (
-                             <Badge variant="secondary" className="bg-green-100 text-green-800">
-                               Save ${result.savings.toFixed(2)}
-                             </Badge>
-                           ) : result.savings && result.savings < 0 ? (
-                             <Badge variant="secondary" className="bg-red-100 text-red-800">
-                               Loss ${Math.abs(result.savings).toFixed(2)}
-                             </Badge>
-                           ) : (
-                             <Badge variant="outline">No change</Badge>
-                           )}
+                            <div className="text-xs text-muted-foreground mb-1">
+                              via {result.bestRate?.serviceName || 'UPS Service'}
+                              {result.expectedServiceCode && (
+                                <span className="text-xs ml-1 text-gray-500">({result.expectedServiceCode})</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 justify-end mb-1">
+                              {result.savings && result.savings > 0 ? (
+                                <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                  Save ${result.savings.toFixed(2)}
+                                </Badge>
+                              ) : result.savings && result.savings < 0 ? (
+                                <Badge variant="secondary" className="bg-red-100 text-red-800">
+                                  Loss ${Math.abs(result.savings).toFixed(2)}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline">No change</Badge>
+                              )}
+                              {/* Validation indicator */}
+                              {result.mappingValidation && !result.mappingValidation.isValid && (
+                                <Badge variant="destructive" className="text-xs">MISMATCH</Badge>
+                              )}
+                              {result.mappingValidation && result.mappingValidation.isValid && (
+                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">VALID</Badge>
+                              )}
+                            </div>
+                            {/* Debug information for mapping validation */}
+                            {result.mappingValidation && !result.mappingValidation.isValid && (
+                              <div className="text-xs text-red-600 mt-1 p-1 bg-red-50 rounded">
+                                Expected: {result.mappingValidation.expectedService} ({result.mappingValidation.expectedServiceCode})
+                                <br />
+                                Got: {result.mappingValidation.actualService} ({result.mappingValidation.actualServiceCode})
+                              </div>
+                            )}
                          </div>
                        </div>
                      )}

@@ -79,6 +79,15 @@ export function SaveReportDialog({
       return;
     }
 
+    if (!analysisId || analysisId.trim() === '') {
+      toast({
+        title: "Error", 
+        description: "No analysis data available to save",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const updateData: any = {

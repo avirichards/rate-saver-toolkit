@@ -84,6 +84,45 @@ const Results = () => {
   const [markupData, setMarkupData] = useState<MarkupData | null>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
+  
+  // Function to save current analysis data to database for first time
+  const saveAnalysisToDatabase = async () => {
+    if (!analysisData || currentAnalysisId) return currentAnalysisId;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('Please log in to save reports');
+      return null;
+    }
+
+    try {
+      const analysisRecord = {
+        user_id: user.id,
+        file_name: analysisData.file_name || 'Untitled Analysis',
+        total_shipments: analysisData.totalShipments,
+        total_savings: analysisData.totalPotentialSavings,
+        status: 'completed',
+        original_data: analysisData.recommendations as any,
+        recommendations: analysisData.recommendations as any,
+        markup_data: markupData as any
+      };
+
+      const { data, error } = await supabase
+        .from('shipping_analyses')
+        .insert(analysisRecord)
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      setCurrentAnalysisId(data.id);
+      return data.id;
+    } catch (error) {
+      console.error('Error saving analysis:', error);
+      toast.error('Failed to save analysis to database');
+      return null;
+    }
+  };
 
   // Calculate markup for individual shipment
   const getShipmentMarkup = (shipment: any) => {
@@ -257,19 +296,31 @@ const Results = () => {
       return;
     }
 
+    console.log('Loading analysis from database:', analysisId);
+
     const { data, error } = await supabase
       .from('shipping_analyses')
       .select('*')
       .eq('id', analysisId)
       .eq('user_id', user.id)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      toast.error('Analysis not found');
+    if (error) {
+      console.error('Database error loading analysis:', error);
+      toast.error('Failed to load analysis: ' + error.message);
       setLoading(false);
       return;
     }
 
+    if (!data) {
+      console.warn('No analysis found with ID:', analysisId);
+      toast.error('Analysis not found or you do not have permission to view it');
+      navigate('/reports');
+      setLoading(false);
+      return;
+    }
+
+    console.log('Successfully loaded analysis:', data);
     setCurrentAnalysisId(analysisId);
     processAnalysisFromDatabase(data);
   };
@@ -958,7 +1009,7 @@ const Results = () => {
       <SaveReportDialog
         open={showSaveDialog}
         onOpenChange={setShowSaveDialog}
-        analysisId={searchParams.get('analysisId') || currentAnalysisId || ''}
+        analysisId={currentAnalysisId || searchParams.get('analysisId') || ''}
         currentReportName={analysisData?.report_name || analysisData?.file_name || ''}
         currentClientId={analysisData?.client_id || ''}
         onSaved={async () => {
@@ -991,24 +1042,6 @@ const Results = () => {
           </div>
       </div>
 
-      <SaveReportDialog
-        open={showSaveDialog}
-        onOpenChange={setShowSaveDialog}
-        analysisId={searchParams.get('analysisId') || ''}
-        currentReportName={analysisData?.report_name || analysisData?.file_name || ''}
-        currentClientId={analysisData?.client_id || ''}
-        onSaved={async () => {
-          // Reload analysis data to show updated status
-          const analysisId = searchParams.get('analysisId');
-          if (analysisId) {
-            try {
-              await loadFromDatabase(analysisId);
-            } catch (error) {
-              console.error('Error reloading analysis data:', error);
-            }
-          }
-        }}
-      />
     </DashboardLayout>
   );
 }
@@ -1072,8 +1105,14 @@ const Results = () => {
               </div>
             </div>
             <div className="flex gap-3">
-              {(searchParams.get('analysisId') || currentAnalysisId) && (
-                <Button variant="default" size="sm" onClick={() => setShowSaveDialog(true)}>
+              {analysisData && (
+                <Button variant="default" size="sm" onClick={async () => {
+                  // Ensure analysis is saved to database before showing save dialog
+                  const analysisId = await saveAnalysisToDatabase();
+                  if (analysisId) {
+                    setShowSaveDialog(true);
+                  }
+                }}>
                   <Save className="h-4 w-4 mr-2" />
                   Save Report
                 </Button>

@@ -551,25 +551,33 @@ const Results = () => {
         console.warn(`❌ MOVING TO ORPHANS: ${trackingId} - ${orphanReason}`);
         
         orphanedShipments.push({
-          shipment: shipmentData,
+          id: index + 1,
+          trackingId: shipmentData?.trackingId || `Orphan-${index + 1}`,
+          originZip: shipmentData?.originZip || '',
+          destinationZip: shipmentData?.destZip || '',
+          weight: parseFloat(shipmentData?.weight || '0'),
+          service: shipmentData?.service || rec.originalService || 'Unknown',
           error: orphanReason,
           errorType: validation.errorType || 'Processing Error',
-          originalService: shipmentData?.service || rec.originalService || 'Unknown',
-          status: 'error'
+          missingFields: validation.missingFields
         });
       } else {
         dataIntegrityLog.validShipments++;
         console.log(`✅ VALID SHIPMENT: ${trackingId}`);
         
         validShipments.push({
-          shipment: shipmentData,
-          currentCost: rec.currentCost || rec.published_rate || 0,
-          recommendedCost: rec.recommendedCost || rec.negotiated_rate || rec.published_rate || 0,
+          id: index + 1,
+          trackingId: shipmentData?.trackingId || `Shipment-${index + 1}`,
+          originZip: shipmentData?.originZip || '',
+          destinationZip: shipmentData?.destZip || '',
+          weight: parseFloat(shipmentData?.weight || '0'),
+          carrier: shipmentData?.carrier || rec.carrier || 'Unknown',
+          service: rec.originalService || shipmentData?.service || 'Unknown',
+          currentRate: rec.currentCost || rec.published_rate || 0,
+          newRate: rec.recommendedCost || rec.negotiated_rate || rec.published_rate || 0,
           savings: rec.savings || rec.savings_amount || 0,
-          originalService: rec.originalService || shipmentData.service || 'Unknown',
-          recommendedService: rec.recommendedService || 'UPS Optimized',
-          carrier: rec.carrier || 'UPS',
-          status: rec.status || 'completed'
+          savingsPercent: (rec.currentCost || rec.published_rate || 0) > 0 ? 
+            ((rec.savings || rec.savings_amount || 0) / (rec.currentCost || rec.published_rate || 1)) * 100 : 0
         });
       }
     });
@@ -592,6 +600,14 @@ const Results = () => {
     setShipmentData(validShipments);
     setOrphanedData(orphanedShipments);
     
+    // Initialize service data for filtering
+    const services = [...new Set(validShipments.map(item => item.service).filter(Boolean))] as string[];
+    setAvailableServices(services);
+    setSelectedServicesOverview([]);
+    
+    // Update filtered data for display
+    setFilteredData(validShipments);
+    
     // Update analysis summary
     const totalSavings = validShipments.reduce((sum, s) => sum + (s.savings || 0), 0);
     const totalCurrentCost = validShipments.reduce((sum, s) => sum + (s.currentCost || 0), 0);
@@ -606,7 +622,8 @@ const Results = () => {
       savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
       averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
       recommendations: validShipments,
-      orphanedShipments
+      orphanedShipments: orphanedShipments,
+      file_name: analysisMetadata.fileName
     });
     
     setLoading(false);
@@ -1350,7 +1367,7 @@ const Results = () => {
                                 </TableCell>
                                  <TableCell className="text-right font-medium">{data.count.toLocaleString()}</TableCell>
                                  <TableCell className="text-right">{formatPercentage(volumePercent)}</TableCell>
-                                 <TableCell className="text-right">{avgWeight.toFixed(1)}</TableCell>
+                                 <TableCell className="text-right">{(avgWeight || 0).toFixed(1)}</TableCell>
                                  <TableCell className="text-right">
                                    <span className={cn("font-medium", getSavingsColor(avgSavingsWithMarkup))}>
                                      {formatCurrency(avgSavingsWithMarkup)}
@@ -1398,7 +1415,7 @@ const Results = () => {
                           labelLine={false}
                            label={({ name, percent }) => {
                              const shortName = name.length > 12 ? name.split(' ').slice(0, 2).join(' ') : name;
-                             return `${shortName}\n${(percent * 100).toFixed(0)}%`;
+                             return `${shortName}\n${((percent || 0) * 100).toFixed(0)}%`;
                            }}
                           outerRadius={80}
                           fill="#8884d8"
@@ -1686,7 +1703,7 @@ const Results = () => {
                             {item.destinationZip}
                           </TableCell>
                           <TableCell className="text-foreground">
-                            {item.weight.toFixed(1)}
+                            {(item.weight || 0).toFixed(1)}
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs">
@@ -1796,9 +1813,9 @@ const Results = () => {
                              <TableCell className="text-foreground">
                                {row.destinationZip || <span className="text-muted-foreground italic">Missing</span>}
                              </TableCell>
-                             <TableCell className="text-right text-foreground">
-                               {row.weight > 0 ? row.weight.toFixed(1) : <span className="text-muted-foreground italic">Missing</span>}
-                             </TableCell>
+                              <TableCell className="text-right text-foreground">
+                                {(row.weight && row.weight > 0) ? row.weight.toFixed(1) : <span className="text-muted-foreground italic">Missing</span>}
+                              </TableCell>
                              <TableCell className="text-foreground">
                                {row.service || <span className="text-muted-foreground italic">Missing</span>}
                              </TableCell>

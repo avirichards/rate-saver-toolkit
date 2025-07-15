@@ -195,35 +195,107 @@ const Analysis = () => {
     setError(null);
     
     try {
-      // Validate all shipments first
-      console.log('Validating shipments...');
+      // Enhanced validation with detailed tracking
+      console.log('🔍 DATA INTEGRITY: Starting validation of shipments:', {
+        totalShipments: shipmentsToAnalyze.length,
+        sampleShipments: shipmentsToAnalyze.slice(0, 3).map(s => ({
+          id: s.id,
+          trackingId: s.trackingId,
+          service: s.service,
+          originZip: s.originZip,
+          destZip: s.destZip,
+          weight: s.weight,
+          cost: s.cost
+        }))
+      });
+      
       const validationResults = await validateShipments(shipmentsToAnalyze);
       
-      // Filter valid shipments using the validation results directly
-      const validShipments = shipmentsToAnalyze.filter((_, index) => {
+      // Track both valid and invalid shipments with detailed reasons
+      const validShipments: ProcessedShipment[] = [];
+      const invalidShipments: { shipment: ProcessedShipment; reasons: string[] }[] = [];
+      
+      shipmentsToAnalyze.forEach((shipment, index) => {
         const result = validationResults[index];
-        return result && result.isValid;
+        if (result && result.isValid) {
+          validShipments.push(shipment);
+        } else {
+          const reasons = result?.errors ? Object.values(result.errors).flat() : ['Validation failed'];
+          invalidShipments.push({ shipment, reasons });
+          
+          // Log each dropped shipment for tracking
+          console.warn('🚫 DATA INTEGRITY: Dropping invalid shipment during validation:', {
+            shipmentId: shipment.id,
+            trackingId: shipment.trackingId,
+            reasons,
+            rawData: {
+              service: shipment.service,
+              originZip: shipment.originZip,
+              destZip: shipment.destZip,
+              weight: shipment.weight,
+              cost: shipment.cost
+            }
+          });
+        }
       });
       
       const summary = {
         total: shipmentsToAnalyze.length,
         valid: validShipments.length,
-        invalid: shipmentsToAnalyze.length - validShipments.length
+        invalid: invalidShipments.length
       };
       
       setValidationSummary(summary);
-      console.log('Validation complete:', summary);
-      console.log('Valid shipments found:', validShipments.length);
+      
+      // Critical data integrity check
+      if (summary.total !== summary.valid + summary.invalid) {
+        console.error('🚨 DATA INTEGRITY ERROR: Shipment count mismatch!', {
+          original: summary.total,
+          valid: summary.valid,
+          invalid: summary.invalid,
+          sum: summary.valid + summary.invalid
+        });
+      }
+      
+      console.log('✅ DATA INTEGRITY: Validation complete:', {
+        summary,
+        validShipmentIds: validShipments.map(s => s.id),
+        invalidShipmentDetails: invalidShipments.map(i => ({
+          id: i.shipment.id,
+          trackingId: i.shipment.trackingId,
+          reasons: i.reasons
+        }))
+      });
+      
+      // Store invalid shipments in analysis results for tracking
+      const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
+        shipment,
+        status: 'error' as const,
+        error: `Validation failed: ${reasons.join(', ')}`,
+        errorType: 'validation_error',
+        errorCategory: 'Data Validation'
+      }));
+      
+      // Initialize results with both valid (pending) and invalid (error) shipments
+      const initialResults = [
+        ...validShipments.map(shipment => ({
+          shipment,
+          status: 'pending' as const
+        })),
+        ...invalidResults
+      ];
+      
+      setAnalysisResults(initialResults);
       
       if (validShipments.length === 0) {
         throw new Error('No valid shipments found. Please check your data and field mappings.');
       }
       
       if (summary.invalid > 0) {
-        toast.warning(`${summary.invalid} shipments have validation errors and will be skipped.`);
+        toast.warning(`${summary.invalid} shipments have validation errors and will be moved to orphans.`);
       }
       
-      // Process only valid shipments
+      // Process only valid shipments, but track ALL shipments in results
       await startAnalysis(validShipments);
       
     } catch (error: any) {
@@ -920,8 +992,19 @@ const Analysis = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     
+    console.log('🗄️ DATA INTEGRITY: Saving analysis to database:', {
+      totalAnalysisResults: analysisResults.length,
+      completedResults: analysisResults.filter(r => r.status === 'completed').length,
+      errorResults: analysisResults.filter(r => r.status === 'error').length,
+      originalShipmentCount: shipments.length
+    });
+    
     const state = location.state as any;
     const completedResults = analysisResults.filter(r => r.status === 'completed');
+    const errorResults = analysisResults.filter(r => r.status === 'error');
+    
+    // Store ALL analysis results (completed + errors) for complete data integrity
+    const allResults = [...completedResults, ...errorResults];
     
     // Include ALL completed results, not just ones with positive savings
     const recommendations = completedResults.map(r => ({
@@ -935,26 +1018,51 @@ const Analysis = () => {
       error: r.error
     }));
     
+    // Also store error shipments for complete tracking
+    const orphanedShipments = errorResults.map(r => ({
+      shipment: r.shipment,
+      error: r.error,
+      errorType: r.errorType,
+      errorCategory: r.errorCategory,
+      status: r.status
+    }));
+    
+    const analysisRecord = {
+      user_id: user.id,
+      file_name: state?.fileName || 'Real-time Analysis',
+      original_data: allResults as any, // Store ALL analysis results (completed + errors)
+      ups_quotes: completedResults.map(r => r.upsRates) as any,
+      savings_analysis: {
+        totalCurrentCost,
+        totalPotentialSavings: totalSavings,
+        savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+        totalShipments: shipments.length,
+        completedShipments: completedResults.length,
+        errorShipments: errorResults.length,
+        orphanedShipments: orphanedShipments // Include orphan data
+      } as any,
+      recommendations: recommendations as any,
+      total_shipments: shipments.length,
+      total_savings: totalSavings,
+      status: 'completed'
+    };
+    
+    console.log('🗄️ DATA INTEGRITY: Database record being saved:', {
+      totalShipments: analysisRecord.total_shipments,
+      originalDataCount: allResults.length,
+      recommendationsCount: recommendations.length,
+      orphanedCount: orphanedShipments.length,
+      hasAllData: allResults.length === shipments.length
+    });
+
     const { error } = await supabase
       .from('shipping_analyses')
-      .insert({
-        user_id: user.id,
-        file_name: state?.fileName || 'Real-time Analysis',
-        original_data: completedResults as any, // Store all completed analysis results
-        ups_quotes: completedResults.map(r => r.upsRates) as any,
-        savings_analysis: {
-          totalCurrentCost,
-          totalPotentialSavings: totalSavings,
-          savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0
-        } as any,
-        recommendations: recommendations as any,
-        total_shipments: shipments.length,
-        total_savings: totalSavings,
-        status: 'completed'
-      });
+      .insert(analysisRecord);
 
     if (error) {
-      console.error('Error saving analysis:', error);
+      console.error('❌ Error saving analysis:', error);
+    } else {
+      console.log('✅ DATA INTEGRITY: Analysis saved successfully');
     }
   };
   

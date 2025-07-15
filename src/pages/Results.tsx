@@ -86,7 +86,7 @@ const Results = () => {
       'Carrier': item.carrier,
       'Service': item.service,
       'Current Rate': formatCurrency(item.currentRate),
-      'UPS Rate': formatCurrency(item.newRate),
+      'Ship Pros Cost': formatCurrency(item.newRate),
       'Savings': formatCurrency(item.savings),
       'Savings Percentage': formatPercentage(item.savingsPercent)
     }));
@@ -1041,8 +1041,8 @@ const Results = () => {
                         </TableHead>
                         <TableHead className="text-foreground">Current Service Type</TableHead>
                         <TableHead className="text-right text-foreground">Avg Cost Current</TableHead>
-                        <TableHead className="text-right text-foreground">Avg SP Cost</TableHead>
-                        <TableHead className="text-foreground">SP Service Type</TableHead>
+                        <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
+                        <TableHead className="text-foreground">Ship Pros Service Type</TableHead>
                         <TableHead className="text-right text-foreground">Shipment Count</TableHead>
                         <TableHead className="text-right text-foreground">Volume %</TableHead>
                         <TableHead className="text-right text-foreground">Avg Weight</TableHead>
@@ -1173,7 +1173,7 @@ const Results = () => {
               <Card>
                 <CardHeader>
                   <CardTitle>Cost Comparison by Service</CardTitle>
-                  <CardDescription>Current vs UPS rates by service type</CardDescription>
+                  <CardDescription>Current vs Ship Pros rates by service type</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="h-80">
@@ -1184,7 +1184,7 @@ const Results = () => {
                         <YAxis />
                         <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
                         <Bar dataKey="currentCost" fill="hsl(var(--muted-foreground))" name="Current Cost" />
-                        <Bar dataKey="newCost" fill="hsl(var(--primary))" name="UPS Cost" />
+                        <Bar dataKey="newCost" fill="hsl(var(--primary))" name="Ship Pros Cost" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1215,11 +1215,11 @@ const Results = () => {
                         <Tooltip 
                           formatter={(value: any, name: string) => [
                             formatCurrency(value), 
-                            name === 'avgCurrentCost' ? 'Avg Cust Cost' : 'Avg SP Cost'
+                            name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
                           ]}
                         />
-                        <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Avg Cust Cost" />
-                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Avg SP Cost" />
+                        <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Current Cost" />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1250,11 +1250,11 @@ const Results = () => {
                         <Tooltip 
                           formatter={(value: any, name: string) => [
                             formatCurrency(value), 
-                            name === 'avgCurrentCost' ? 'Avg Cust Cost' : 'Avg SP Cost'
+                            name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
                           ]}
                         />
-                        <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Avg Cust Cost" />
-                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Avg SP Cost" />
+                        <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Current Cost" />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1270,7 +1270,7 @@ const Results = () => {
                   <div>
                     <CardTitle className="text-xl">Shipment Analysis</CardTitle>
                     <CardDescription>
-                      Detailed view of all analyzed shipments with current vs UPS rates
+                      Detailed view of all analyzed shipments with current vs Ship Pros rates
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="text-sm">
@@ -1320,7 +1320,7 @@ const Results = () => {
                         <TableHead className="text-foreground">Carrier</TableHead>
                         <TableHead className="text-foreground">Service</TableHead>
                         <TableHead className="text-right text-foreground">Current Rate</TableHead>
-                        <TableHead className="text-right text-foreground">UPS Rate</TableHead>
+                        <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
                         <TableHead className="text-right text-foreground">Savings</TableHead>
                         <TableHead className="text-right text-foreground">Savings %</TableHead>
                       </TableRow>

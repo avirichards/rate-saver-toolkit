@@ -226,17 +226,29 @@ const Analysis = () => {
     setCurrentShipmentIndex(0);
     setError(null);
     
+    console.log('🚀 Starting sequential analysis of shipments:', {
+      totalShipments: shipmentsToAnalyze.length,
+      serviceMappingsAvailable: serviceMappings.length,
+      firstShipment: shipmentsToAnalyze[0]
+    });
+    
     try {
       // Validate UPS configuration first
       await validateUpsConfiguration();
       
-      // Process shipments one by one
+      // Process shipments sequentially (one at a time) to prevent race conditions
       for (let i = 0; i < shipmentsToAnalyze.length; i++) {
         // Check if paused before processing each shipment
         if (isPaused) {
           console.log('Analysis paused, stopping processing');
           break;
         }
+        
+        console.log(`🔄 Processing shipment ${i + 1}/${shipmentsToAnalyze.length}`, {
+          shipmentId: shipmentsToAnalyze[i].id,
+          service: shipmentsToAnalyze[i].service,
+          weight: shipmentsToAnalyze[i].weight
+        });
         
         setCurrentShipmentIndex(i);
         await processShipment(i, shipmentsToAnalyze[i]);
@@ -247,6 +259,7 @@ const Analysis = () => {
       
       // Only mark complete if we processed all shipments and weren't paused
       if (!isPaused) {
+        console.log('✅ Analysis complete, saving to database');
         setIsComplete(true);
         await saveAnalysisToDatabase();
       }
@@ -287,10 +300,23 @@ const Analysis = () => {
   };
   
   const processShipment = async (index: number, shipment: ProcessedShipment) => {
-    // Update status to processing
-    setAnalysisResults(prev => prev.map((result, i) => 
-      i === index ? { ...result, status: 'processing' } : result
-    ));
+    console.log(`🔍 Processing shipment ${index + 1}:`, {
+      shipmentId: shipment.id,
+      service: shipment.service,
+      originZip: shipment.originZip,
+      destZip: shipment.destZip,
+      weight: shipment.weight,
+      cost: shipment.cost
+    });
+    
+    // Update status to processing using functional update to prevent race conditions
+    setAnalysisResults(prev => {
+      const newResults = [...prev];
+      if (newResults[index]) {
+        newResults[index] = { ...newResults[index], status: 'processing' };
+      }
+      return newResults;
+    });
     
     try {
       // Enhanced validation with better error messages
@@ -498,15 +524,31 @@ const Analysis = () => {
         throw new Error('No rates returned from UPS. This may indicate:\n• Invalid ZIP codes\n• Package dimensions exceed limits\n• Service unavailable for this route\n• UPS API configuration issues');
       }
       
-      // For confirmed mappings, use the specific service the user mapped to
-      // For auto-mappings, use UPS's equivalent service detection
+      // Enhanced rate selection with detailed debugging
       let comparisonRate;
+      
+      console.log(`🔍 Rate selection for shipment ${index + 1}:`, {
+        originalService: shipment.service,
+        isConfirmedMapping,
+        equivalentServiceCode,
+        totalRatesReturned: data.rates.length,
+        allReturnedRates: data.rates.map((r: any) => ({
+          serviceCode: r.serviceCode,
+          serviceName: r.serviceName,
+          cost: r.totalCharges
+        }))
+      });
       
       if (isConfirmedMapping) {
         // User confirmed this mapping - use the specific service rate they mapped to
         comparisonRate = data.rates.find((rate: any) => rate.serviceCode === equivalentServiceCode);
         
         if (!comparisonRate) {
+          console.error(`❌ No rate found for mapped service code:`, {
+            requestedServiceCode: equivalentServiceCode,
+            availableServiceCodes: data.rates.map(r => r.serviceCode),
+            originalService: shipment.service
+          });
           throw new Error(`No rate returned for user-mapped service code ${equivalentServiceCode} (${serviceMapping.serviceName})`);
         }
         
@@ -515,7 +557,11 @@ const Analysis = () => {
           mappedServiceCode: equivalentServiceCode,
           mappedServiceName: comparisonRate.serviceName,
           cost: comparisonRate.totalCharges,
-          userConfirmedMapping: true
+          userConfirmedMapping: true,
+          rateValidation: {
+            serviceCodeMatches: comparisonRate.serviceCode === equivalentServiceCode,
+            hasValidCost: typeof comparisonRate.totalCharges === 'number'
+          }
         });
       } else {
         // Auto-mapping - find equivalent service rate (for apples-to-apples comparison)
@@ -579,22 +625,53 @@ const Analysis = () => {
         userConfirmedMapping: isConfirmedMapping
       });
       
-      // Update totals
+      // Validate the result before updating state
+      const resultValidation = {
+        originalServiceMatches: shipment.service === shipment.service,
+        bestRateServiceCode: comparisonRate.serviceCode,
+        expectedServiceCode: isConfirmedMapping ? equivalentServiceCode : comparisonRate.serviceCode,
+        serviceCodeMatches: isConfirmedMapping ? comparisonRate.serviceCode === equivalentServiceCode : true,
+        hasValidSavings: typeof savings === 'number' && !isNaN(savings)
+      };
+      
+      console.log(`✅ Result validation for shipment ${index + 1}:`, {
+        originalService: shipment.service,
+        bestRateService: comparisonRate.serviceName,
+        bestRateServiceCode: comparisonRate.serviceCode,
+        currentCost,
+        bestRateCost: comparisonRate.totalCharges,
+        savings,
+        validation: resultValidation
+      });
+      
+      if (isConfirmedMapping && !resultValidation.serviceCodeMatches) {
+        console.warn(`⚠️ Service code mismatch for shipment ${index + 1}:`, {
+          expected: equivalentServiceCode,
+          actual: comparisonRate.serviceCode,
+          originalService: shipment.service
+        });
+      }
+      
+      // Update totals using functional updates
       setTotalCurrentCost(prev => prev + currentCost);
       setTotalSavings(prev => prev + savings);
       
-      // Update result
-      setAnalysisResults(prev => prev.map((result, i) => 
-        i === index ? {
-          ...result,
-          status: 'completed',
-          currentCost,
-          originalService: shipment.service, // Store original service from CSV
-          upsRates: data.rates,
-          bestRate: comparisonRate,
-          savings
-        } : result
-      ));
+      // Update result using functional update to prevent race conditions
+      setAnalysisResults(prev => {
+        const newResults = [...prev];
+        if (newResults[index]) {
+          newResults[index] = {
+            ...newResults[index],
+            status: 'completed',
+            currentCost,
+            originalService: shipment.service, // Store original service from CSV
+            upsRates: data.rates,
+            bestRate: comparisonRate,
+            savings
+          };
+        }
+        return newResults;
+      });
       
     } catch (error: any) {
       console.error(`Error processing shipment ${index + 1}:`, error);
@@ -617,14 +694,19 @@ const Analysis = () => {
         errorMessage: error.message
       });
       
-      setAnalysisResults(prev => prev.map((result, i) => 
-        i === index ? {
-          ...result,
-          status: 'error',
-          error: error.message,
-          errorType
-        } : result
-      ));
+      // Update error result using functional update to prevent race conditions
+      setAnalysisResults(prev => {
+        const newResults = [...prev];
+        if (newResults[index]) {
+          newResults[index] = {
+            ...newResults[index],
+            status: 'error',
+            error: error.message,
+            errorType
+          };
+        }
+        return newResults;
+      });
     }
   };
   

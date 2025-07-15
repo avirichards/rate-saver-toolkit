@@ -355,9 +355,7 @@ const Analysis = () => {
         throw new Error('No valid shipments found. Please check your data and field mappings.');
       }
       
-      if (summary.invalid > 0) {
-        toast.warning(`${summary.invalid} shipments have validation errors and will be moved to orphans.`);
-      }
+      // Note: Validation errors are already shown in the validation summary below
       
       // Process only valid shipments, but track ALL shipments in results
       await startAnalysis(validShipments);
@@ -1259,40 +1257,6 @@ const Analysis = () => {
           </p>
         </div>
         
-        {/* Data Freshness Indicator */}
-        {location.state?.uploadTimestamp && (
-          <Card className="mb-6 border-blue-200 bg-blue-50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-blue-600" />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-blue-900">
-                        📊 Processing Current CSV Data: {location.state.fileName}
-                      </p>
-                      <p className="text-sm text-blue-700">
-                        Uploaded {Math.round((Date.now() - location.state.uploadTimestamp) / 1000)} seconds ago
-                      </p>
-                    </div>
-                    {shipments.find(s => s.trackingId === "1ZJ74F34YW27282266") && (
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-blue-900">
-                          ✅ Target Shipment Found
-                        </p>
-                        <p className="text-xs text-blue-700">
-                          Dimensions: {shipments.find(s => s.trackingId === "1ZJ74F34YW27282266")?.length || 'N/A'} x {' '}
-                          {shipments.find(s => s.trackingId === "1ZJ74F34YW27282266")?.width || 'N/A'} x {' '}
-                          {shipments.find(s => s.trackingId === "1ZJ74F34YW27282266")?.height || 'N/A'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
         
         {/* Progress Overview */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">

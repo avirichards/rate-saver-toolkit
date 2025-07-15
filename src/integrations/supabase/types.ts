@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      clients: {
+        Row: {
+          branding_config: Json | null
+          company_name: string
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          id: string
+          industry: string | null
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          branding_config?: Json | null
+          company_name: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          industry?: string | null
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          branding_config?: Json | null
+          company_name?: string
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          id?: string
+          industry?: string | null
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       column_mappings: {
         Row: {
           confidence_score: number | null
@@ -58,6 +100,7 @@ export type Database = {
       csv_uploads: {
         Row: {
           created_at: string
+          csv_content: string | null
           detected_headers: string[]
           file_name: string
           file_size: number
@@ -69,6 +112,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          csv_content?: string | null
           detected_headers: string[]
           file_name: string
           file_size: number
@@ -80,12 +124,49 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          csv_content?: string | null
           detected_headers?: string[]
           file_name?: string
           file_size?: number
           id?: string
           row_count?: number
           status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      markup_profiles: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean | null
+          markup_config: Json
+          markup_type: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          markup_config?: Json
+          markup_type?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          markup_config?: Json
+          markup_type?: string
+          name?: string
           updated_at?: string
           user_id?: string
         }
@@ -154,6 +235,45 @@ export type Database = {
         }
         Relationships: []
       }
+      report_shares: {
+        Row: {
+          analysis_id: string
+          client_id: string | null
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean | null
+          last_viewed_at: string | null
+          password_hash: string | null
+          share_token: string
+          view_count: number | null
+        }
+        Insert: {
+          analysis_id: string
+          client_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_viewed_at?: string | null
+          password_hash?: string | null
+          share_token: string
+          view_count?: number | null
+        }
+        Update: {
+          analysis_id?: string
+          client_id?: string | null
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          last_viewed_at?: string | null
+          password_hash?: string | null
+          share_token?: string
+          view_count?: number | null
+        }
+        Relationships: []
+      }
       service_mappings: {
         Row: {
           carrier: string
@@ -187,11 +307,21 @@ export type Database = {
       shipping_analyses: {
         Row: {
           analysis_date: string
+          base_data: Json | null
+          client_facing_data: Json | null
+          client_id: string | null
           created_at: string
+          csv_upload_id: string | null
+          deleted_at: string | null
           file_name: string
           id: string
+          is_deleted: boolean | null
+          markup_data: Json | null
+          markup_profile_id: string | null
           original_data: Json
           recommendations: Json | null
+          report_status: string | null
+          sales_rep_id: string | null
           savings_analysis: Json | null
           status: string
           total_savings: number | null
@@ -202,11 +332,21 @@ export type Database = {
         }
         Insert: {
           analysis_date?: string
+          base_data?: Json | null
+          client_facing_data?: Json | null
+          client_id?: string | null
           created_at?: string
+          csv_upload_id?: string | null
+          deleted_at?: string | null
           file_name: string
           id?: string
+          is_deleted?: boolean | null
+          markup_data?: Json | null
+          markup_profile_id?: string | null
           original_data: Json
           recommendations?: Json | null
+          report_status?: string | null
+          sales_rep_id?: string | null
           savings_analysis?: Json | null
           status?: string
           total_savings?: number | null
@@ -217,11 +357,21 @@ export type Database = {
         }
         Update: {
           analysis_date?: string
+          base_data?: Json | null
+          client_facing_data?: Json | null
+          client_id?: string | null
           created_at?: string
+          csv_upload_id?: string | null
+          deleted_at?: string | null
           file_name?: string
           id?: string
+          is_deleted?: boolean | null
+          markup_data?: Json | null
+          markup_profile_id?: string | null
           original_data?: Json
           recommendations?: Json | null
+          report_status?: string | null
+          sales_rep_id?: string | null
           savings_analysis?: Json | null
           status?: string
           total_savings?: number | null
@@ -230,7 +380,15 @@ export type Database = {
           ups_quotes?: Json | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shipping_analyses_csv_upload_id_fkey"
+            columns: ["csv_upload_id"]
+            isOneToOne: false
+            referencedRelation: "csv_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ups_configs: {
         Row: {

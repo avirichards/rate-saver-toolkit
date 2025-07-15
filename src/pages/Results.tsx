@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn, formatCurrency, formatPercentage, getSavingsColor } from '@/lib/utils';
+import { getStateFromZip } from '@/utils/zipToStateMapping';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
@@ -667,6 +668,66 @@ const Results = () => {
     return Object.entries(serviceCount).map(([name, value]) => ({ name, value }));
   };
 
+  // Weight ranges configuration
+  const WEIGHT_RANGES = [
+    { min: 1, max: 9, label: '01-09' },
+    { min: 10, max: 19, label: '10-19' },
+    { min: 20, max: 29, label: '20-29' },
+    { min: 30, max: 39, label: '30-39' },
+    { min: 40, max: 49, label: '40-49' },
+    { min: 50, max: 69, label: '50-69' },
+    { min: 70, max: 99, label: '70-99' },
+    { min: 100, max: 139, label: '100-139' },
+    { min: 140, max: 149, label: '140-149' },
+    { min: 150, max: 999, label: '150+' }
+  ];
+
+  // Calculate shipping zone based on origin and destination ZIP codes
+  const calculateShippingZone = (originZip: string, destZip: string): number => {
+    const originState = getStateFromZip(originZip)?.state;
+    const destState = getStateFromZip(destZip)?.state;
+    
+    if (!originState || !destState) return 8; // Default to highest zone for invalid ZIPs
+    
+    if (originState === destState) return 2; // Same state
+    
+    // Define regional zones
+    const regions = {
+      northeast: ['CT', 'ME', 'MA', 'NH', 'NJ', 'NY', 'PA', 'RI', 'VT'],
+      southeast: ['AL', 'AR', 'DE', 'FL', 'GA', 'KY', 'LA', 'MD', 'MS', 'NC', 'OK', 'SC', 'TN', 'TX', 'VA', 'WV'],
+      midwest: ['IL', 'IN', 'IA', 'KS', 'MI', 'MN', 'MO', 'NE', 'ND', 'OH', 'SD', 'WI'],
+      west: ['AK', 'AZ', 'CA', 'CO', 'HI', 'ID', 'MT', 'NV', 'NM', 'OR', 'UT', 'WA', 'WY']
+    };
+    
+    const getRegion = (state: string) => {
+      for (const [region, states] of Object.entries(regions)) {
+        if (states.includes(state)) return region;
+      }
+      return 'other';
+    };
+    
+    const originRegion = getRegion(originState);
+    const destRegion = getRegion(destState);
+    
+    if (originRegion === destRegion) return 3; // Same region
+    
+    // Adjacent regions
+    const adjacentRegions: Record<string, string[]> = {
+      northeast: ['southeast', 'midwest'],
+      southeast: ['northeast', 'midwest'],
+      midwest: ['northeast', 'southeast', 'west'],
+      west: ['midwest']
+    };
+    
+    if (adjacentRegions[originRegion]?.includes(destRegion)) return 4;
+    
+    // Coast to coast
+    if ((originRegion === 'northeast' && destRegion === 'west') || 
+        (originRegion === 'west' && destRegion === 'northeast')) return 7;
+    
+    return 5; // Default for other combinations
+  };
+
   const generateServiceCostData = () => {
     const dataToUse = getOverviewFilteredData();
     const serviceStats = dataToUse.reduce((acc, item) => {
@@ -693,6 +754,87 @@ const Results = () => {
       savings: stats.totalSavings,
       shipments: stats.shipments
     }));
+  };
+
+  // Generate chart data for weight breakdown
+  const generateWeightChartData = () => {
+    const filteredShipments = getOverviewFilteredData();
+    
+    if (filteredShipments.length === 0) {
+      return [];
+    }
+
+    const weightStats = new Map();
+    
+    // Initialize all weight ranges
+    WEIGHT_RANGES.forEach(range => {
+      weightStats.set(range.label, {
+        weightRange: range.label,
+        totalCurrent: 0,
+        totalNew: 0,
+        count: 0
+      });
+    });
+    
+    filteredShipments.forEach(shipment => {
+      const weight = shipment.weight || 0;
+      const range = WEIGHT_RANGES.find(r => weight >= r.min && weight <= r.max);
+      
+      if (range) {
+        const stats = weightStats.get(range.label);
+        stats.totalCurrent += shipment.currentRate || 0;
+        stats.totalNew += shipment.newRate || 0;
+        stats.count += 1;
+      }
+    });
+    
+    return Array.from(weightStats.values())
+      .filter(stats => stats.count > 0)
+      .map(stats => ({
+        weightRange: stats.weightRange,
+        avgCurrentCost: stats.totalCurrent / stats.count,
+        avgNewCost: stats.totalNew / stats.count,
+        shipmentCount: stats.count
+      }));
+  };
+
+  // Generate chart data for zone breakdown
+  const generateZoneChartData = () => {
+    const filteredShipments = getOverviewFilteredData();
+    
+    if (filteredShipments.length === 0) {
+      return [];
+    }
+
+    const zoneStats = new Map();
+    
+    filteredShipments.forEach(shipment => {
+      const zone = calculateShippingZone(shipment.originZip || '', shipment.destinationZip || '');
+      const zoneLabel = `Zone ${zone}`;
+      
+      if (!zoneStats.has(zoneLabel)) {
+        zoneStats.set(zoneLabel, {
+          zone: zoneLabel,
+          totalCurrent: 0,
+          totalNew: 0,
+          count: 0
+        });
+      }
+      
+      const stats = zoneStats.get(zoneLabel);
+      stats.totalCurrent += shipment.currentRate || 0;
+      stats.totalNew += shipment.newRate || 0;
+      stats.count += 1;
+    });
+    
+    return Array.from(zoneStats.values())
+      .sort((a, b) => parseInt(a.zone.replace('Zone ', '')) - parseInt(b.zone.replace('Zone ', '')))
+      .map(stats => ({
+        zone: stats.zone,
+        avgCurrentCost: stats.totalCurrent / stats.count,
+        avgNewCost: stats.totalNew / stats.count,
+        shipmentCount: stats.count
+      }));
   };
 
   if (loading) {
@@ -1043,6 +1185,76 @@ const Results = () => {
                         <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
                         <Bar dataKey="currentCost" fill="hsl(var(--muted-foreground))" name="Current Cost" />
                         <Bar dataKey="newCost" fill="hsl(var(--primary))" name="UPS Cost" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Weight Breakdown Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Rate Comparison by Weight
+                  </CardTitle>
+                  <CardDescription>
+                    Average cost comparison by weight ranges (lbs)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={generateWeightChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="weightRange" 
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis tick={{ fontSize: 12 }} />
+                        <Tooltip 
+                          formatter={(value: any, name: string) => [
+                            formatCurrency(value), 
+                            name === 'avgCurrentCost' ? 'Avg Cust Cost' : 'Avg SP Cost'
+                          ]}
+                        />
+                        <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Avg Cust Cost" />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Avg SP Cost" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Zone Breakdown Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Rate Comparison by Zone
+                  </CardTitle>
+                  <CardDescription>
+                    Average cost comparison by shipping zones
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="zone" 
+                          tick={{ fontSize: 12 }}
+                        />
+                        <YAxis tick={{ fontSize: 12 }} />
+                        <Tooltip 
+                          formatter={(value: any, name: string) => [
+                            formatCurrency(value), 
+                            name === 'avgCurrentCost' ? 'Avg Cust Cost' : 'Avg SP Cost'
+                          ]}
+                        />
+                        <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Avg Cust Cost" />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Avg SP Cost" />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

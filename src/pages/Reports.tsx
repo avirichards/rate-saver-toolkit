@@ -50,6 +50,8 @@ const ReportsPage = () => {
   const loadReports = async () => {
     try {
       setLoading(true);
+      console.log('Loading reports for user:', user?.id);
+      
       const { data, error } = await supabase
         .from('shipping_analyses')
         .select(`
@@ -67,9 +69,15 @@ const ReportsPage = () => {
           client:clients(id, company_name)
         `)
         .eq('user_id', user?.id)
+        .eq('is_deleted', false)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
+      
+      console.log('Loaded reports:', data?.length || 0, 'reports');
       setReports((data || []) as any);
     } catch (error) {
       console.error('Error loading reports:', error);

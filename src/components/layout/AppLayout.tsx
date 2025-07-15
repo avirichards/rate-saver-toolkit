@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { Toaster } from 'sonner';
 import { useLocation, Link } from 'react-router-dom';
 import { ProgressIndicator, type Step } from '../ui-lov/ProgressIndicator';
 import { Package, ArrowLeft } from 'lucide-react';
@@ -84,14 +83,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         </div>
       </footer>
       
-      <Toaster 
-        position="top-right"
-        closeButton
-        toastOptions={{
-          duration: 4000,
-          className: 'toast-style',
-        }}
-      />
     </div>
   );
 };

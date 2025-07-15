@@ -175,17 +175,23 @@ const Results = () => {
 
   // Handle save report button click
   const handleSaveReport = async () => {
+    console.log('Save report clicked, current analysis ID:', currentAnalysisId);
+    
     // Always try to open the dialog, ensure analysis is auto-saved if needed
     let analysisIdToUse = currentAnalysisId;
     
-    if (!analysisIdToUse) {
+    if (!analysisIdToUse && analysisData) {
+      console.log('Auto-saving analysis before opening dialog...');
       analysisIdToUse = await autoSaveAnalysis(true);
+      console.log('Auto-save result:', analysisIdToUse);
     }
     
     if (analysisIdToUse) {
       setCurrentAnalysisId(analysisIdToUse);
+      console.log('Opening save dialog with analysis ID:', analysisIdToUse);
       setShowSaveDialog(true);
     } else {
+      console.error('Failed to get analysis ID for saving');
       toast.error('Failed to prepare analysis for saving');
     }
   };

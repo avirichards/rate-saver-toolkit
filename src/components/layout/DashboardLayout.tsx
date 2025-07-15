@@ -2,7 +2,6 @@
 import React from 'react';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
-import { Toaster } from 'sonner';
 import { Package, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui-lov/Button';
@@ -44,15 +43,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </main>
         </div>
       </div>
-      <Toaster 
-        position="top-center"
-        closeButton
-        expand={false}
-        toastOptions={{
-          duration: 4000,
-          className: 'toast-style',
-        }}
-      />
     </SidebarProvider>
   );
 }

@@ -664,20 +664,10 @@ const Results = () => {
     
     return (
       <g transform={`translate(${x},${y})`}>
-        <rect 
-          x={-30} 
-          y={4} 
-          width={60} 
-          height={40} 
-          fill="hsl(var(--popover))" 
-          stroke="hsl(var(--border))" 
-          rx={4}
-          opacity={0.95}
-        />
-        <text x={0} y={0} dy={20} textAnchor="middle" fill="hsl(var(--popover-foreground))" fontSize="12" fontWeight="600">
+        <text x={0} y={0} dy={20} textAnchor="middle" fill="hsl(var(--foreground))" fontSize="16" fontWeight="700">
           {data.zoneName}
         </text>
-        <text x={0} y={0} dy={35} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="10">
+        <text x={0} y={0} dy={38} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="12" fontWeight="500">
           {data.shipmentCount} shipments
         </text>
       </g>
@@ -786,13 +776,21 @@ const Results = () => {
       const mostCommonShipProsService = Object.entries(serviceCounts)
         .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
       
+      const avgCurrentCost = stats.totalCurrent / stats.shipments;
+      const avgNewCost = stats.totalNew / stats.shipments;
+      const isWin = avgNewCost < avgCurrentCost;
+      
       return {
         currentService: name,
         shipProsService: mostCommonShipProsService,
         currentCost: stats.totalCurrent,
         newCost: stats.totalNew,
+        avgCurrentCost,
+        avgNewCost,
         savings: stats.totalSavings,
-        shipments: stats.shipments
+        shipments: stats.shipments,
+        isWin,
+        newCostColor: isWin ? "#22c55e" : "#ef4444"
       };
     });
   };
@@ -1229,15 +1227,30 @@ const Results = () => {
                   <CardDescription>Current vs Ship Pros rates by service type</CardDescription>
                 </CardHeader>
                 <CardContent className="p-2">
-                  <div className="h-96">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Savings (Green = Lower Cost)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-red-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Increase (Red = Higher Cost)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={serviceCostData} margin={{ top: 5, right: 5, left: 5, bottom: 100 }}>
+                      <BarChart data={serviceCostData} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="currentService" 
                            tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }}
                            interval={0}
-                           height={90}
+                           height={50}
                            angle={-45}
                            textAnchor="end"
                            axisLine={{ stroke: 'hsl(var(--border))' }}
@@ -1260,8 +1273,12 @@ const Results = () => {
                              color: 'hsl(var(--popover-foreground))'
                            }}
                          />
-                        <Bar dataKey="currentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="newCost" fill="hsl(var(--chart-2))" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
+                         <Bar dataKey="currentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
+                         <Bar dataKey="newCost" name="Ship Pros Cost" radius={[2, 2, 0, 0]}>
+                           {serviceCostData.map((entry, index) => (
+                             <Cell key={`cell-${index}`} fill={entry.newCostColor} />
+                           ))}
+                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1280,16 +1297,27 @@ const Results = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-2">
-                  <div className="h-96">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Cost (Lower = Green)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={generateWeightChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
+                       <BarChart data={generateWeightChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 50 }}>
                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="weightRange" 
                            tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
                            angle={-45}
                            textAnchor="end"
-                           height={60}
+                           height={50}
                            axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
                          <YAxis 
@@ -1310,7 +1338,7 @@ const Results = () => {
                            }}
                          />
                         <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="avgNewCost" fill="hsl(var(--chart-2))" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1329,15 +1357,26 @@ const Results = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-2">
-                  <div className="h-96">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Cost (Lower = Green)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={generateZoneChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
+                       <BarChart data={generateZoneChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 50 }}>
                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="zone" 
                            tick={ZoneTick}
                            interval={0}
-                           height={60}
+                           height={50}
                            axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
                          <YAxis 
@@ -1362,7 +1401,7 @@ const Results = () => {
                            }}
                          />
                         <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="avgNewCost" fill="hsl(var(--chart-2))" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

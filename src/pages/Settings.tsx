@@ -8,10 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, User, Shield, BellRing, Truck, Cog, Database, CheckCircle, AlertTriangle, Zap, Building2, Percent } from 'lucide-react';
+import { Save, User, Shield, BellRing, Truck, Cog, Database, CheckCircle, AlertTriangle, Zap } from 'lucide-react';
 import { UpsTestButton } from '@/components/ui-lov/UpsTestButton';
-import { ClientManager } from '@/components/ClientManager';
-import { MarkupManager } from '@/components/MarkupManager';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
@@ -145,18 +143,10 @@ const SettingsPage = () => {
         </div>
 
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid grid-cols-4 lg:grid-cols-8 w-full h-auto md:w-auto">
+          <TabsList className="grid grid-cols-3 lg:grid-cols-6 w-full h-auto md:w-auto">
             <TabsTrigger value="account" className="flex gap-2 items-center">
               <User className="h-4 w-4" />
               <span className="hidden md:inline">Account</span>
-            </TabsTrigger>
-            <TabsTrigger value="clients" className="flex gap-2 items-center">
-              <Building2 className="h-4 w-4" />
-              <span className="hidden md:inline">Clients</span>
-            </TabsTrigger>
-            <TabsTrigger value="markup" className="flex gap-2 items-center">
-              <Percent className="h-4 w-4" />
-              <span className="hidden md:inline">Markup</span>
             </TabsTrigger>
             <TabsTrigger value="carriers" className="flex gap-2 items-center">
               <Truck className="h-4 w-4" />
@@ -177,6 +167,10 @@ const SettingsPage = () => {
             <TabsTrigger value="security" className="flex gap-2 items-center">
               <Shield className="h-4 w-4" />
               <span className="hidden md:inline">Security</span>
+            </TabsTrigger>
+            <TabsTrigger value="preferences" className="flex gap-2 items-center">
+              <Cog className="h-4 w-4" />
+              <span className="hidden md:inline">Preferences</span>
             </TabsTrigger>
           </TabsList>
           
@@ -216,14 +210,6 @@ const SettingsPage = () => {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="clients">
-            <ClientManager />
-          </TabsContent>
-
-          <TabsContent value="markup">
-            <MarkupManager />
           </TabsContent>
           
           <TabsContent value="carriers">

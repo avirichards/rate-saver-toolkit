@@ -748,6 +748,141 @@ const Results = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
+            {/* 30 Day Snapshot */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">30 Day Snapshot</CardTitle>
+                <CardDescription>
+                  {filteredStats.totalShipments} Total Shipments • {filteredStats.totalShipments} Selected Shipments
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Current Cost</p>
+                    <p className="text-2xl font-bold">${filteredStats.totalCurrentCost.toFixed(2)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Ship Pros Cost</p>
+                    <p className="text-2xl font-bold text-primary">${(filteredStats.totalCurrentCost - filteredStats.totalSavings).toFixed(2)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Savings ($)</p>
+                    <p className="text-2xl font-bold text-green-600">${filteredStats.totalSavings.toFixed(2)}</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Savings (%)</p>
+                    <p className="text-2xl font-bold text-green-600">{filteredStats.averageSavingsPercent.toFixed(1)}%</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-muted-foreground">Estimated Annual Savings</p>
+                    <p className="text-2xl font-bold text-green-600">${(filteredStats.totalSavings * 12).toFixed(0)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Service Analysis Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Service Analysis Overview</CardTitle>
+                <CardDescription>Detailed breakdown by service type with savings analysis</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="border-b border-border">
+                        <TableHead className="text-foreground">Current Service Type</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Cost Current</TableHead>
+                        <TableHead className="text-right text-foreground">Avg SP Cost</TableHead>
+                        <TableHead className="text-foreground">SP Service Type</TableHead>
+                        <TableHead className="text-right text-foreground">Shipment Count</TableHead>
+                        <TableHead className="text-right text-foreground">Volume %</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Weight</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Savings ($)</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Savings (%)</TableHead>
+                        <TableHead className="text-foreground">Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="bg-background">
+                      {(() => {
+                        const serviceAnalysis = filteredData.reduce((acc, item) => {
+                          const service = item.service || 'Unknown';
+                          if (!acc[service]) {
+                            acc[service] = {
+                              currentCost: 0,
+                              newCost: 0,
+                              savings: 0,
+                              weight: 0,
+                              count: 0,
+                              carrier: item.carrier || 'Unknown'
+                            };
+                          }
+                          acc[service].currentCost += item.currentRate;
+                          acc[service].newCost += item.newRate;
+                          acc[service].savings += item.savings;
+                          acc[service].weight += item.weight;
+                          acc[service].count += 1;
+                          return acc;
+                        }, {} as Record<string, any>);
+
+                        return Object.entries(serviceAnalysis).map(([service, data]: [string, any]) => {
+                          const avgCurrentCost = data.currentCost / data.count;
+                          const avgNewCost = data.newCost / data.count;
+                          const avgSavings = data.savings / data.count;
+                          const avgWeight = data.weight / data.count;
+                          const volumePercent = (data.count / filteredStats.totalShipments) * 100;
+                          const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
+                          const spServiceType = data.carrier === 'UPS' ? service : 'UPS Ground';
+                          
+                          return (
+                            <TableRow key={service} className="hover:bg-muted/30 border-b border-border/30">
+                              <TableCell className="font-medium text-foreground">{service}</TableCell>
+                              <TableCell className="text-right font-medium">${avgCurrentCost.toFixed(2)}</TableCell>
+                              <TableCell className="text-right font-medium text-primary">${avgNewCost.toFixed(2)}</TableCell>
+                              <TableCell>
+                                <Badge variant="outline" className="text-xs">
+                                  {spServiceType}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right font-medium">{data.count}</TableCell>
+                              <TableCell className="text-right">{volumePercent.toFixed(1)}%</TableCell>
+                              <TableCell className="text-right">{avgWeight.toFixed(1)}</TableCell>
+                              <TableCell className="text-right">
+                                <span className={cn(
+                                  "font-medium",
+                                  avgSavings > 0 ? "text-green-600" : avgSavings < 0 ? "text-red-600" : "text-muted-foreground"
+                                )}>
+                                  ${avgSavings.toFixed(2)}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <span className={cn(
+                                  "font-medium",
+                                  avgSavingsPercent > 0 ? "text-green-600" : avgSavingsPercent < 0 ? "text-red-600" : "text-muted-foreground"
+                                )}>
+                                  {avgSavingsPercent.toFixed(1)}%
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-xs text-muted-foreground">
+                                  {avgSavingsPercent > 20 ? "High savings potential" : 
+                                   avgSavingsPercent > 10 ? "Good savings" : 
+                                   avgSavingsPercent > 0 ? "Moderate savings" : 
+                                   "Review needed"}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        });
+                      })()}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Service Distribution Chart */}

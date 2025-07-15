@@ -160,6 +160,7 @@ const Results = () => {
           // Initialize service data
           const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
           setAvailableServices(services);
+          setSelectedServicesOverview(services);
           
           setLoading(false);
         } else if (params.id) {
@@ -851,15 +852,24 @@ const Results = () => {
               <CardHeader>
                 <CardTitle>Service Analysis Overview</CardTitle>
                 <CardDescription>Detailed breakdown by service type with savings analysis</CardDescription>
-                <div className="mt-4">
-                  <ServiceMultiSelect />
-                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader className="bg-muted/50">
                       <TableRow className="border-b border-border">
+                        <TableHead className="text-foreground w-12">
+                          <Checkbox 
+                            checked={selectedServicesOverview.length === availableServices.length}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedServicesOverview(availableServices);
+                              } else {
+                                setSelectedServicesOverview([]);
+                              }
+                            }}
+                          />
+                        </TableHead>
                         <TableHead className="text-foreground">Current Service Type</TableHead>
                         <TableHead className="text-right text-foreground">Avg Cost Current</TableHead>
                         <TableHead className="text-right text-foreground">Avg SP Cost</TableHead>
@@ -906,6 +916,18 @@ const Results = () => {
                           
                           return (
                             <TableRow key={service} className="hover:bg-muted/30 border-b border-border/30">
+                              <TableCell className="w-12">
+                                <Checkbox 
+                                  checked={selectedServicesOverview.includes(service)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedServicesOverview(prev => [...prev, service]);
+                                    } else {
+                                      setSelectedServicesOverview(prev => prev.filter(s => s !== service));
+                                    }
+                                  }}
+                                />
+                              </TableCell>
                               <TableCell className="font-medium text-foreground">{service}</TableCell>
                               <TableCell className="text-right font-medium">${avgCurrentCost.toFixed(2)}</TableCell>
                               <TableCell className="text-right font-medium text-primary">${avgNewCost.toFixed(2)}</TableCell>

@@ -1,27 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useParams, useNavigate } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home, Eye, Users } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { MarkupEditor } from '@/components/MarkupEditor';
-import { AnalysisViewer } from '@/components/AnalysisViewer';
-import { useShippingAnalyses, type MarkupConfig, type ReportConfig } from '@/hooks/useShippingAnalyses';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Copy, Save, Share2 } from 'lucide-react';
 import { cn, formatCurrency, formatPercentage, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-
+import { useNavigate } from 'react-router-dom';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -81,18 +75,6 @@ const Results = () => {
   const [selectedServicesOverview, setSelectedServicesOverview] = useState<string[]>([]);
   const [snapshotDays, setSnapshotDays] = useState(30);
   const [error, setError] = useState<string | null>(null);
-  
-  // New markup and save functionality
-  const [markupConfig, setMarkupConfig] = useState<MarkupConfig>({
-    type: 'global',
-    globalPercentage: 15
-  });
-  const [reportName, setReportName] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [activeView, setActiveView] = useState<'internal' | 'client'>('internal');
-  const { saveAnalysis, getShareLink } = useShippingAnalyses();
 
   // Export functionality
   const exportToCSV = () => {
@@ -123,67 +105,6 @@ const Results = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  // Save report functionality
-  const handleSaveReport = async () => {
-    if (!reportName.trim()) {
-      toast.error('Please enter a report name');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const reportConfig: ReportConfig = {
-        reportName: reportName.trim(),
-        clientName: clientName.trim() || undefined,
-        markupConfig
-      };
-
-      const analysisData = {
-        results: filteredData,
-        totalSavings: filteredData.reduce((sum, item) => sum + item.savings, 0),
-        totalCurrentCost: filteredData.reduce((sum, item) => sum + item.currentRate, 0),
-        recommendations: filteredData.map(item => ({
-          shipment: {
-            trackingId: item.trackingId,
-            originZip: item.originZip,
-            destZip: item.destinationZip,
-            weight: item.weight,
-            service: item.service,
-            carrier: item.carrier
-          },
-          currentCost: item.currentRate,
-          recommendedCost: item.newRate,
-          savings: item.savings,
-          originalService: item.service,
-          recommendedService: item.service,
-          carrier: item.carrier,
-          status: 'completed'
-        })),
-        orphanedShipments: orphanedData
-      };
-
-      const savedAnalysis = await saveAnalysis(analysisData, reportConfig);
-      
-      if (savedAnalysis) {
-        const shareLink = await getShareLink(savedAnalysis.id);
-        if (shareLink) {
-          await navigator.clipboard.writeText(shareLink);
-          toast.success('Report saved and share link copied to clipboard!');
-        } else {
-          toast.success('Report saved successfully!');
-        }
-      }
-      
-      setShowSaveDialog(false);
-      navigate('/reports');
-    } catch (error) {
-      console.error('Error saving report:', error);
-      toast.error('Failed to save report');
-    } finally {
-      setSaving(false);
-    }
   };
 
   useEffect(() => {
@@ -1028,10 +949,6 @@ const Results = () => {
                 <Download className="h-4 w-4 mr-2" />
                 Export Report
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)}>
-                <Save className="h-4 w-4 mr-2" />
-                Save Report
-              </Button>
               <Button size="sm" onClick={() => navigate('/upload')}>
                 <Upload className="h-4 w-4 mr-2" />
                 New Analysis
@@ -1039,36 +956,6 @@ const Results = () => {
             </div>
           </div>
 
-        </div>
-
-        {/* Global Internal/Client View Toggle */}
-        <div className="flex items-center justify-center mb-8">
-          <div className="flex items-center bg-muted rounded-lg p-1">
-            <button
-              onClick={() => setActiveView('internal')}
-              className={cn(
-                "px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2",
-                activeView === 'internal'
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Eye className="h-4 w-4" />
-              Internal View
-            </button>
-            <button
-              onClick={() => setActiveView('client')}
-              className={cn(
-                "px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2",
-                activeView === 'client'
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              <Users className="h-4 w-4" />
-              Client View
-            </button>
-          </div>
         </div>
 
         {/* Main Content Tabs */}
@@ -1089,48 +976,439 @@ const Results = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            <AnalysisViewer
-              results={getOverviewFilteredData().map(item => ({
-                shipment: {
-                  trackingId: item.trackingId,
-                  originZip: item.originZip,
-                  destZip: item.destinationZip,
-                  weight: item.weight,
-                  service: item.service,
-                  carrier: item.carrier
-                },
-                currentCost: item.currentRate,
-                bestRate: {
-                  service: item.service,
-                  serviceCode: item.service,
-                  cost: item.newRate,
-                  savings: item.savings
-                }
-              }))}
-              markupConfig={markupConfig}
-              reportName={reportName || 'Shipping Analysis'}
-              clientName={clientName}
-              onUpdateMarkup={setMarkupConfig}
-              showEditOptions={true}
-              activeView={activeView}
-              availableServices={availableServices}
-              chartData={{
-                serviceChartData,
-                serviceCostData,
-                weightChartData: generateWeightChartData(),
-                zoneChartData: generateZoneChartData()
-              }}
-              selectedServices={selectedServicesOverview}
-              onSelectedServicesChange={setSelectedServicesOverview}
-              resultFilter={resultFilter}
-              onResultFilterChange={setResultFilter}
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              snapshotDays={snapshotDays}
-              onSnapshotDaysChange={setSnapshotDays}
-            />
-          </TabsContent>
 
+            {/* Snapshot Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={snapshotDays}
+                    onChange={(e) => setSnapshotDays(parseInt(e.target.value) || 30)}
+                    className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
+                    min="1"
+                    max="365"
+                  />
+                  <span>Day Snapshot</span>
+                </CardTitle>
+                <CardDescription>
+                  {filteredStats.totalShipments} shipments selected out of {shipmentData.length} total shipments
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                  <Card className="border-l-4 border-l-purple-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Target className="h-8 w-8 text-purple-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Current Cost</p>
+                          <p className="text-2xl font-bold">{formatCurrency(filteredStats.totalCurrentCost)}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-blue-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Zap className="h-8 w-8 text-blue-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Ship Pros Cost</p>
+                          <p className="text-2xl font-bold text-primary">{formatCurrency(filteredStats.totalCurrentCost - filteredStats.totalSavings)}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-green-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <DollarSign className="h-8 w-8 text-green-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Savings ($)</p>
+                          <p className={cn("text-2xl font-bold", getSavingsColor(filteredStats.totalSavings))}>{formatCurrency(filteredStats.totalSavings)}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-orange-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <TrendingUp className="h-8 w-8 text-orange-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Savings (%)</p>
+                          <p className={cn("text-2xl font-bold", getSavingsColor(filteredStats.totalSavings))}>{formatPercentage(filteredStats.averageSavingsPercent)}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-green-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-8 w-8 text-green-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Estimated Annual Savings</p>
+                          <p className={cn("text-2xl font-bold", getSavingsColor((filteredStats.totalSavings * 365) / snapshotDays))}>{formatCurrency((filteredStats.totalSavings * 365) / snapshotDays)}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Service Analysis Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Service Analysis Overview</CardTitle>
+                <CardDescription>Detailed breakdown by service type with savings analysis</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow className="border-b border-border">
+                        <TableHead className="text-foreground w-12">
+                          <Checkbox 
+                            checked={selectedServicesOverview.length === availableServices.length}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedServicesOverview(availableServices);
+                              } else {
+                                setSelectedServicesOverview([]);
+                              }
+                            }}
+                          />
+                        </TableHead>
+                        <TableHead className="text-foreground">Current Service Type</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Cost Current</TableHead>
+                        <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
+                        <TableHead className="text-foreground">Ship Pros Service Type</TableHead>
+                        <TableHead className="text-right text-foreground">Shipment Count</TableHead>
+                        <TableHead className="text-right text-foreground">Volume %</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Weight</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Savings ($)</TableHead>
+                        <TableHead className="text-right text-foreground">Avg Savings (%)</TableHead>
+                        <TableHead className="text-foreground">Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                     <TableBody className="bg-background">
+                       {(() => {
+                         // Show ALL services in the table, not just selected ones
+                         const serviceAnalysis = shipmentData.reduce((acc, item) => {
+                           const service = item.service || 'Unknown';
+                           if (!acc[service]) {
+                             acc[service] = {
+                               currentCost: 0,
+                               newCost: 0,
+                               savings: 0,
+                               weight: 0,
+                               count: 0,
+                               carrier: item.carrier || 'Unknown'
+                             };
+                           }
+                           acc[service].currentCost += item.currentRate;
+                           acc[service].newCost += item.newRate;
+                           acc[service].savings += item.savings;
+                           acc[service].weight += item.weight;
+                           acc[service].count += 1;
+                           return acc;
+                         }, {} as Record<string, any>);
+
+                         return Object.entries(serviceAnalysis).map(([service, data]: [string, any]) => {
+                           const avgCurrentCost = data.currentCost / data.count;
+                           const avgNewCost = data.newCost / data.count;
+                           const avgSavings = data.savings / data.count;
+                           const avgWeight = data.weight / data.count;
+                           const volumePercent = (data.count / shipmentData.length) * 100;
+                           const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
+                            // Determine the most common Ship Pros service for this current service
+                            const shipProsSample = shipmentData.filter(item => item.service === service);
+                            const upsServices = shipProsSample.map(item => item.bestService || 'UPS Ground');
+                            const mostCommonUpsService = upsServices.reduce((acc, srv) => {
+                              acc[srv] = (acc[srv] || 0) + 1;
+                              return acc;
+                            }, {} as Record<string, number>);
+                            const spServiceType = Object.entries(mostCommonUpsService)
+                              .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
+                           
+                           return (
+                             <TableRow key={service} className="hover:bg-muted/30 border-b border-border/30">
+                               <TableCell className="w-12">
+                                 <Checkbox 
+                                   checked={selectedServicesOverview.includes(service)}
+                                   onCheckedChange={(checked) => {
+                                     if (checked) {
+                                       setSelectedServicesOverview(prev => [...prev, service]);
+                                     } else {
+                                       setSelectedServicesOverview(prev => prev.filter(s => s !== service));
+                                     }
+                                   }}
+                                 />
+                               </TableCell>
+                               <TableCell className="font-medium text-foreground">{service}</TableCell>
+                                <TableCell className="text-right font-medium">{formatCurrency(avgCurrentCost)}</TableCell>
+                                <TableCell className="text-right font-medium text-primary">{formatCurrency(avgNewCost)}</TableCell>
+                               <TableCell>
+                                 <Badge variant="outline" className="text-xs">
+                                   {spServiceType}
+                                 </Badge>
+                               </TableCell>
+                                <TableCell className="text-right font-medium">{data.count.toLocaleString()}</TableCell>
+                                <TableCell className="text-right">{formatPercentage(volumePercent)}</TableCell>
+                                <TableCell className="text-right">{avgWeight.toFixed(1)}</TableCell>
+                                <TableCell className="text-right">
+                                  <span className={cn("font-medium", getSavingsColor(avgSavings))}>
+                                    {formatCurrency(avgSavings)}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <span className={cn("font-medium", getSavingsColor(avgSavings))}>
+                                    {formatPercentage(avgSavingsPercent)}
+                                  </span>
+                                </TableCell>
+                               <TableCell>
+                                 <div className="text-xs text-muted-foreground">
+                                   {avgSavingsPercent > 20 ? "High savings potential" : 
+                                    avgSavingsPercent > 10 ? "Good savings" : 
+                                    avgSavingsPercent > 0 ? "Moderate savings" : 
+                                    "Review needed"}
+                                 </div>
+                               </TableCell>
+                             </TableRow>
+                           );
+                         });
+                       })()}
+                     </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Service Distribution Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Service Distribution</CardTitle>
+                  <CardDescription>Breakdown of shipments by service type</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={serviceChartData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                           label={({ name, percent }) => {
+                             const shortName = name.length > 12 ? name.split(' ').slice(0, 2).join(' ') : name;
+                             return `${shortName}\n${(percent * 100).toFixed(0)}%`;
+                           }}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {serviceChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Service Cost Comparison */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Cost Comparison by Service</CardTitle>
+                  <CardDescription>Current vs Ship Pros rates by service type</CardDescription>
+                </CardHeader>
+                <CardContent className="p-2">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Savings (Green = Lower Cost)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-red-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Increase (Red = Higher Cost)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={serviceCostData} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                         <XAxis 
+                           dataKey="currentService" 
+                           tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }}
+                           interval={0}
+                           height={50}
+                           angle={-45}
+                           textAnchor="end"
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
+                         <YAxis 
+                           tickFormatter={(value) => `$${value}`} 
+                           tick={{ fill: 'hsl(var(--foreground))' }}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
+                         <Tooltip 
+                           formatter={(value, name) => [formatCurrency(Number(value)), name]} 
+                           labelFormatter={(label) => {
+                             const item = serviceCostData.find(d => d.currentService === label);
+                             return item ? `${item.currentService} → ${item.shipProsService}` : label;
+                           }}
+                           contentStyle={{
+                             backgroundColor: 'hsl(var(--popover))',
+                             border: '1px solid hsl(var(--border))',
+                             borderRadius: '6px',
+                             color: 'hsl(var(--popover-foreground))'
+                           }}
+                         />
+                         <Bar dataKey="currentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
+                         <Bar dataKey="newCost" name="Ship Pros Cost" radius={[2, 2, 0, 0]}>
+                           {serviceCostData.map((entry, index) => (
+                             <Cell key={`cell-${index}`} fill={entry.newCostColor} />
+                           ))}
+                         </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Weight Breakdown Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Rate Comparison by Weight
+                  </CardTitle>
+                  <CardDescription>
+                    Average cost comparison by weight ranges (lbs)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-2">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Cost (Lower = Green)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <BarChart data={generateWeightChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 50 }}>
+                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                         <XAxis 
+                           dataKey="weightRange" 
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                           angle={-45}
+                           textAnchor="end"
+                           height={50}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
+                         <YAxis 
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} 
+                           tickFormatter={(value) => `$${value}`}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
+                         <Tooltip 
+                           formatter={(value: any, name: string) => [
+                             formatCurrency(value), 
+                             name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
+                           ]}
+                           contentStyle={{
+                             backgroundColor: 'hsl(var(--popover))',
+                             border: '1px solid hsl(var(--border))',
+                             borderRadius: '6px',
+                             color: 'hsl(var(--popover-foreground))'
+                           }}
+                         />
+                        <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Zone Breakdown Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Rate Comparison by Zone
+                  </CardTitle>
+                  <CardDescription>
+                    Average cost comparison by shipping zones
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-2">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Cost (Lower = Green)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <BarChart data={generateZoneChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 50 }}>
+                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                         <XAxis 
+                           dataKey="zone" 
+                           tick={ZoneTick}
+                           interval={0}
+                           height={50}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
+                         <YAxis 
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} 
+                           tickFormatter={(value) => `$${value}`}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
+                         <Tooltip 
+                           formatter={(value: any, name: string) => [
+                             formatCurrency(value), 
+                             name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
+                           ]}
+                           labelFormatter={(label) => {
+                             const item = generateZoneChartData().find(d => d.zone === label);
+                             return item ? `${item.zoneName} (${item.shipmentCount} shipments)` : label;
+                           }}
+                           contentStyle={{
+                             backgroundColor: 'hsl(var(--popover))',
+                             border: '1px solid hsl(var(--border))',
+                             borderRadius: '6px',
+                             color: 'hsl(var(--popover-foreground))'
+                           }}
+                         />
+                        <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
 
           <TabsContent value="shipment-data" className="space-y-6">
             <Card>
@@ -1189,15 +1467,7 @@ const Results = () => {
                         <TableHead className="text-foreground">Carrier</TableHead>
                         <TableHead className="text-foreground">Service</TableHead>
                         <TableHead className="text-right text-foreground">Current Rate</TableHead>
-                        {activeView === 'internal' && (
-                          <>
-                            <TableHead className="text-right text-foreground">Base UPS Rate</TableHead>
-                            <TableHead className="text-right text-foreground">Markup</TableHead>
-                          </>
-                        )}
-                        <TableHead className="text-right text-foreground">
-                          {activeView === 'internal' ? 'Final Rate' : 'Ship Pros Rate'}
-                        </TableHead>
+                        <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
                         <TableHead className="text-right text-foreground">Savings</TableHead>
                         <TableHead className="text-right text-foreground">Savings %</TableHead>
                       </TableRow>
@@ -1236,18 +1506,8 @@ const Results = () => {
                           <TableCell className="text-right font-medium text-foreground">
                             {formatCurrency(item.currentRate)}
                           </TableCell>
-                          {activeView === 'internal' && (
-                            <>
-                              <TableCell className="text-right font-medium text-foreground">
-                                {formatCurrency(item.newRate)}
-                              </TableCell>
-                              <TableCell className="text-right font-medium text-foreground">
-                                {formatCurrency(item.newRate * 0.15)} (15%)
-                              </TableCell>
-                            </>
-                          )}
                           <TableCell className="text-right font-medium text-foreground">
-                            {formatCurrency(activeView === 'internal' ? item.newRate * 1.15 : item.newRate)}
+                            {formatCurrency(item.newRate)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className={cn(
@@ -1275,7 +1535,6 @@ const Results = () => {
               </CardContent>
             </Card>
           </TabsContent>
-
 
           <TabsContent value="orphaned-data" className="space-y-6">
             <Card>
@@ -1356,51 +1615,6 @@ const Results = () => {
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* Save Button - Always visible */}
-        <div className="mt-6">
-          <Button onClick={() => setShowSaveDialog(true)} className="w-full">
-            <Save className="mr-2 h-4 w-4" />
-            Save Analysis Report
-          </Button>
-        </div>
-
-        {/* Save Report Dialog */}
-        <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Save Report</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="saveReportName">Report Name *</Label>
-                <Input
-                  id="saveReportName"
-                  placeholder="Enter report name"
-                  value={reportName}
-                  onChange={(e) => setReportName(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="saveClientName">Client Name (Optional)</Label>
-                <Input
-                  id="saveClientName"
-                  placeholder="Enter client name"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSaveReport} disabled={!reportName.trim() || saving}>
-                  {saving ? 'Saving...' : 'Save Report'}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );

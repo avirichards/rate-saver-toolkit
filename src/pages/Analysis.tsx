@@ -15,7 +15,6 @@ import { mapServiceToServiceCode, getServiceCodesToRequest } from '@/utils/servi
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
 
-
 interface ProcessedShipment {
   id: number;
   trackingId?: string;
@@ -408,10 +407,9 @@ const Analysis = () => {
       
       // Only mark complete if we processed all shipments and weren't paused
       if (!isPaused) {
-        console.log('✅ Analysis complete');
+        console.log('✅ Analysis complete, saving to database');
         setIsComplete(true);
-        // Navigate directly to results instead of showing configuration
-        navigateToResults();
+        await saveAnalysisToDatabase();
       }
       
     } catch (error: any) {
@@ -1193,39 +1191,6 @@ const Analysis = () => {
     });
   };
 
-  const navigateToResults = () => {
-    // Filter completed results for navigation
-    const completedResults = analysisResults.filter(r => r.status === 'completed');
-    const errorResults = analysisResults.filter(r => r.status === 'error');
-
-    const analysisData = {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      recommendations: completedResults.map((result, index) => ({
-        shipment: result.shipment,
-        currentCost: result.currentCost || 0,
-        recommendedCost: result.bestRate?.totalCharges || 0,
-        savings: result.savings || 0,
-        originalService: result.originalService || result.shipment.service,
-        recommendedService: result.bestRate?.serviceName || 'Unknown',
-        carrier: 'UPS',
-        status: 'completed'
-      })),
-      orphanedShipments: errorResults
-    };
-
-    navigate('/results', { 
-      state: { 
-        analysisComplete: true, 
-        analysisData 
-      } 
-    });
-  };
-
   const handleStopAndContinue = () => {
     const completedResults = analysisResults.filter(r => r.status === 'completed');
     const errorResults = analysisResults.filter(r => r.status === 'error');
@@ -1584,25 +1549,18 @@ const Analysis = () => {
             </div>
             
             {isComplete && (
-              <div className="flex justify-end gap-3 mt-6">
-                <Button 
-                  variant="outline" 
-                  onClick={handleViewResults}
-                >
-                  View Raw Results
-                </Button>
+              <div className="flex justify-end mt-6">
                 <Button 
                   variant="primary" 
-                  onClick={navigateToResults}
+                  onClick={handleViewResults}
                   iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
                 >
-                  View Results & Configure Report
+                  View Detailed Results
                 </Button>
               </div>
             )}
           </CardContent>
         </Card>
-
       </div>
     </DashboardLayout>
   );

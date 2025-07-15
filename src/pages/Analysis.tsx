@@ -66,6 +66,7 @@ const Analysis = () => {
   const [validationSummary, setValidationSummary] = useState<any>(null);
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [csvResidentialField, setCsvResidentialField] = useState<string | undefined>(undefined);
+  const [readyToAnalyze, setReadyToAnalyze] = useState(false);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
@@ -82,6 +83,32 @@ const Analysis = () => {
     if (!state || !state.readyForAnalysis || !state.csvData || !state.mappings) {
       toast.error('Please complete the service mapping review first');
       navigate('/service-mapping');
+      return;
+    }
+    
+    console.log('🔍 Analysis - Received navigation state:', {
+      hasServiceMappings: !!state.serviceMappings,
+      serviceMappingsCount: state.serviceMappings?.length || 0,
+      serviceMappings: state.serviceMappings?.map(m => ({
+        original: m.original,
+        serviceCode: m.serviceCode,
+        standardized: m.standardized
+      }))
+    });
+    
+    // Validate service mappings exist
+    if (!state.serviceMappings || state.serviceMappings.length === 0) {
+      console.error('🚫 No service mappings found in navigation state');
+      toast.error('No service mappings found. Please complete the service mapping step first.');
+      navigate('/service-mapping', { 
+        state: { 
+          csvData: state.csvData,
+          mappings: state.mappings,
+          fileName: state.fileName,
+          csvUploadId: state.csvUploadId,
+          originZipOverride: state.originZipOverride
+        }
+      });
       return;
     }
     
@@ -109,7 +136,10 @@ const Analysis = () => {
 
     console.log(`Analysis received ${processedShipments.length} shipments (sample):`, processedShipments.slice(0, 2));
     setShipments(processedShipments);
-    setServiceMappings(state.serviceMappings || []);
+    
+    // Set service mappings with debugging
+    console.log('🔍 Setting service mappings:', state.serviceMappings.length);
+    setServiceMappings(state.serviceMappings);
     
     // Check if we have a residential field mapped from CSV
     const residentialField = Object.entries(state.mappings).find(([fieldName, csvHeader]) => 
@@ -127,9 +157,26 @@ const Analysis = () => {
     }));
     setAnalysisResults(initialResults);
     
-    // Validate shipments first, then start analysis
-    validateAndStartAnalysis(processedShipments);
+    // Set flag to start analysis once serviceMappings are updated
+    setReadyToAnalyze(true);
   }, [location, navigate]);
+  
+  // Separate useEffect to start analysis once serviceMappings state is updated
+  useEffect(() => {
+    if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0) {
+      console.log('🚀 Starting analysis with service mappings:', {
+        serviceMappingsCount: serviceMappings.length,
+        shipmentsCount: shipments.length,
+        mappings: serviceMappings.map(m => ({
+          original: m.original,
+          serviceCode: m.serviceCode
+        }))
+      });
+      
+      validateAndStartAnalysis(shipments);
+      setReadyToAnalyze(false); // Prevent multiple analysis starts
+    }
+  }, [readyToAnalyze, serviceMappings, shipments]);
   
   const validateAndStartAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
     setIsAnalyzing(true);

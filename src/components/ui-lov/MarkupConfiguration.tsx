@@ -32,7 +32,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
   initialMarkupData
 }) => {
   const [markupType, setMarkupType] = useState<'global' | 'per-service'>('global');
-  const [globalMarkup, setGlobalMarkup] = useState(15.0);
+  const [globalMarkup, setGlobalMarkup] = useState(0.0);
   const [perServiceMarkup, setPerServiceMarkup] = useState<Record<string, number>>({});
   const [isSaving, setIsSaving] = useState(false);
 
@@ -43,21 +43,21 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
   useEffect(() => {
     if (availableServices.length > 0 && Object.keys(perServiceMarkup).length === 0) {
       const defaultPerServiceMarkup = availableServices.reduce((acc, service) => {
-        acc[service] = 15.0;
+        acc[service] = 0.0;
         return acc;
       }, {} as Record<string, number>);
       setPerServiceMarkup(defaultPerServiceMarkup);
     }
-  }, [availableServices, perServiceMarkup]);
+  }, [availableServices.length]);
 
-  // Load initial markup data if provided
+  // Load initial markup data if provided (only once)
   useEffect(() => {
     if (initialMarkupData) {
       setMarkupType(initialMarkupData.markupType);
       setGlobalMarkup(initialMarkupData.globalMarkup);
       setPerServiceMarkup(initialMarkupData.perServiceMarkup);
     }
-  }, [initialMarkupData]);
+  }, []);
 
   // Calculate markup metrics
   const calculateMarkupMetrics = useCallback((): MarkupData => {
@@ -127,11 +127,13 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
 
     // Auto-save with debouncing
     const saveTimeout = setTimeout(() => {
-      saveMarkupData(markupData);
+      if (analysisId) {
+        saveMarkupData(markupData);
+      }
     }, 1000);
 
     return () => clearTimeout(saveTimeout);
-  }, [markupType, globalMarkup, perServiceMarkup, calculateMarkupMetrics, onMarkupChange, saveMarkupData]);
+  }, [markupType, globalMarkup, perServiceMarkup, analysisId]);
 
   const handlePerServiceMarkupChange = (service: string, value: number) => {
     setPerServiceMarkup(prev => ({
@@ -193,7 +195,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
                     value={globalMarkup}
                     onChange={(e) => setGlobalMarkup(parseFloat(e.target.value) || 0)}
                     className="pr-8"
-                    step="0.1"
+                    step="1"
                     min="0"
                     max="100"
                   />
@@ -218,7 +220,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
                           value={perServiceMarkup[service] || 0}
                           onChange={(e) => handlePerServiceMarkupChange(service, parseFloat(e.target.value) || 0)}
                           className="pr-8"
-                          step="0.1"
+                          step="1"
                           min="0"
                           max="100"
                         />

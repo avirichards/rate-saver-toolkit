@@ -85,20 +85,59 @@ const Results = () => {
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   
-  // Function to save current analysis data to database for first time
-  const saveAnalysisToDatabase = async () => {
+  // Function to generate unique file name with numbering
+  const generateUniqueFileName = async (baseName: string): Promise<string> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return baseName;
+
+    // Get existing analyses for this user to check for name conflicts
+    const { data: existingAnalyses } = await supabase
+      .from('shipping_analyses')
+      .select('file_name')
+      .eq('user_id', user.id)
+      .eq('is_deleted', false);
+
+    if (!existingAnalyses) return baseName;
+
+    const existingNames = existingAnalyses.map(a => a.file_name);
+    
+    // If base name doesn't exist, use it
+    if (!existingNames.includes(baseName)) {
+      return baseName;
+    }
+
+    // Find the highest number suffix
+    let counter = 1;
+    let uniqueName = `${baseName} (${counter})`;
+    
+    while (existingNames.includes(uniqueName)) {
+      counter++;
+      uniqueName = `${baseName} (${counter})`;
+    }
+    
+    return uniqueName;
+  };
+
+  // Function to auto-save analysis data to database
+  const autoSaveAnalysis = async (isManualSave = false) => {
     if (!analysisData || currentAnalysisId) return currentAnalysisId;
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      toast.error('Please log in to save reports');
+      if (isManualSave) {
+        toast.error('Please log in to save reports');
+      }
       return null;
     }
 
     try {
+      // Generate unique name based on file name
+      const baseName = analysisData.file_name || 'Untitled Analysis';
+      const uniqueFileName = await generateUniqueFileName(baseName);
+
       const analysisRecord = {
         user_id: user.id,
-        file_name: analysisData.file_name || 'Untitled Analysis',
+        file_name: uniqueFileName,
         total_shipments: analysisData.totalShipments,
         total_savings: analysisData.totalPotentialSavings,
         status: 'completed',
@@ -116,13 +155,23 @@ const Results = () => {
       if (error) throw error;
       
       setCurrentAnalysisId(data.id);
+      
+      if (!isManualSave) {
+        console.log('Analysis auto-saved with name:', uniqueFileName);
+      }
+      
       return data.id;
     } catch (error) {
       console.error('Error saving analysis:', error);
-      toast.error('Failed to save analysis to database');
+      if (isManualSave) {
+        toast.error('Failed to save analysis to database');
+      }
       return null;
     }
   };
+
+  // Legacy function for backward compatibility
+  const saveAnalysisToDatabase = () => autoSaveAnalysis(true);
 
   // Calculate markup for individual shipment
   const getShipmentMarkup = (shipment: any) => {
@@ -192,6 +241,11 @@ const Results = () => {
         } else if (state?.analysisComplete && state.analysisData) {
           console.log('Using analysis data from navigation:', state.analysisData);
           setAnalysisData(state.analysisData);
+          
+          // Auto-save the analysis after a short delay to ensure data is fully loaded
+          setTimeout(() => {
+            autoSaveAnalysis(false);
+          }, 1000);
           
       const formattedData = state.analysisData.recommendations.map((rec: any, index: number) => ({
         id: index + 1,
@@ -1125,7 +1179,7 @@ const Results = () => {
               {analysisData && (
                 <Button variant="default" size="sm" onClick={async () => {
                   // Ensure analysis is saved to database before showing save dialog
-                  const analysisId = await saveAnalysisToDatabase();
+                  const analysisId = await autoSaveAnalysis(true);
                   if (analysisId) {
                     setShowSaveDialog(true);
                   }

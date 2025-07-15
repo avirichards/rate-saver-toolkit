@@ -262,45 +262,107 @@ const Results = () => {
     return { isValid, missingFields, errorType };
   };
 
-  const processAnalysisFromDatabase = (data: any) => {
+  const processAnalysisFromDatabase = async (data: any) => {
     const savings = data.savings_analysis || {};
     const recommendations = data.recommendations || [];
     const originalData = data.original_data || [];
     
+    console.log('🔍 CRITICAL DATA INTEGRITY CHECK - Database Analysis:', {
+      analysisId: data.id,
+      totalShipments: data.total_shipments,
+      recommendationsCount: recommendations.length,
+      originalDataCount: originalData.length,
+      status: data.status,
+      fileName: data.file_name
+    });
+
+    // CRITICAL: If database shows total_shipments but no data, fetch from rate_quotes
+    if (data.total_shipments > 0 && recommendations.length === 0 && originalData.length === 0) {
+      console.log('⚠️ CRITICAL: Database shows shipments but no data! Fetching from rate_quotes...');
+      
+      try {
+        const { data: rateQuotes, error } = await supabase
+          .from('rate_quotes')
+          .select('*')
+          .eq('user_id', data.user_id)
+          .gte('created_at', data.analysis_date)
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (!error && rateQuotes && rateQuotes.length > 0) {
+          console.log(`✅ RECOVERED ${rateQuotes.length} shipments from rate_quotes table`);
+          
+          // Convert rate_quotes to recommendations format
+          const recoveredRecommendations = rateQuotes.map((quote: any, index: number) => ({
+            shipment: quote.shipment_data,
+            originalService: quote.shipment_data?.service || 'Unknown',
+            carrier: quote.shipment_data?.carrier || 'Unknown',
+            currentCost: quote.published_rate || 0,
+            recommendedCost: quote.negotiated_rate || quote.published_rate || 0,
+            savings: quote.savings_amount || 0,
+            status: quote.status,
+            error: quote.status === 'error' ? 'Processing failed' : null
+          }));
+          
+          // Use recovered data
+          console.log('📦 Using recovered data from rate_quotes');
+          return processShipmentData(recoveredRecommendations, data);
+        }
+      } catch (error) {
+        console.error('Failed to recover data from rate_quotes:', error);
+      }
+    }
+    
     // Use original_data if recommendations is incomplete
     const dataToUse = recommendations.length > 0 ? recommendations : originalData;
+    console.log(`📊 Processing ${dataToUse.length} shipments from ${recommendations.length > 0 ? 'recommendations' : 'original_data'}`);
     
-    console.log('Processing analysis from database:', {
-      recommendations: recommendations.length,
-      originalData: originalData.length,
-      dataToUse: dataToUse.length
-    });
+    return processShipmentData(dataToUse, data);
+  };
+
+  const processShipmentData = (dataToUse: any[], analysisMetadata: any) => {
+    // CRITICAL: Data integrity tracking
+    const dataIntegrityLog = {
+      inputShipments: dataToUse.length,
+      expectedShipments: analysisMetadata.total_shipments,
+      processedShipments: 0,
+      validShipments: 0,
+      orphanedShipments: 0,
+      missingShipments: 0
+    };
     
-    // Separate valid shipments from orphaned ones based on data completeness
     const validShipments: any[] = [];
     const orphanedShipments: any[] = [];
     
     dataToUse.forEach((rec: any, index: number) => {
+      dataIntegrityLog.processedShipments++;
+      
       const shipmentData = rec.shipment || rec;
       const validation = validateShipmentData(shipmentData);
       
-      // Log validation details for debugging
-      console.log(`Validating shipment ${shipmentData.trackingId || `Shipment-${index + 1}`}:`, {
+      // Enhanced logging for critical tracking
+      const trackingId = shipmentData.trackingId || `Unknown-${index + 1}`;
+      console.log(`🔍 Validating shipment ${trackingId}:`, {
         isValid: validation.isValid,
         missingFields: validation.missingFields,
         errorType: validation.errorType,
+        hasDestZip: !!shipmentData.destZip,
+        hasOriginZip: !!shipmentData.originZip,
+        hasWeight: !!shipmentData.weight && parseFloat(shipmentData.weight) > 0,
+        hasService: !!shipmentData.service,
+        status: rec.status,
         data: {
           trackingId: shipmentData.trackingId,
           originZip: shipmentData.originZip,
           destZip: shipmentData.destZip,
           weight: shipmentData.weight,
-          service: shipmentData.service
+          service: shipmentData.service || rec.originalService
         }
       });
       
       const formattedShipment = {
         id: index + 1,
-        trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
+        trackingId: trackingId,
         originZip: shipmentData.originZip || '',
         destinationZip: shipmentData.destZip || '',
         weight: parseFloat(shipmentData.weight || '0'),
@@ -312,23 +374,30 @@ const Results = () => {
         savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
       };
       
-      // Check if shipment has explicit error status OR missing data
+      // CRITICAL: Move ANY shipment with missing data to orphans - NO EXCEPTIONS
       if (rec.status === 'error' || rec.error || !validation.isValid) {
+        dataIntegrityLog.orphanedShipments++;
         orphanedShipments.push({
           ...formattedShipment,
           error: rec.error || `Missing required data: ${validation.missingFields.join(', ')}`,
           errorType: rec.errorType || validation.errorType,
           missingFields: validation.missingFields
         });
+        
+        console.log(`❌ ORPHANED: ${trackingId} - ${validation.errorType} - Missing: ${validation.missingFields.join(', ')}`);
       } else {
+        dataIntegrityLog.validShipments++;
         validShipments.push(formattedShipment);
+        console.log(`✅ VALID: ${trackingId}`);
       }
     });
     
-    console.log('Data integrity summary:', {
-      totalShipments: dataToUse.length,
-      validShipments: validShipments.length,
-      orphanedShipments: orphanedShipments.length,
+    // CRITICAL: Check for missing shipments
+    dataIntegrityLog.missingShipments = Math.max(0, dataIntegrityLog.expectedShipments - dataIntegrityLog.processedShipments);
+    
+    console.log('🚨 FINAL DATA INTEGRITY REPORT:', {
+      ...dataIntegrityLog,
+      integrityStatus: dataIntegrityLog.missingShipments === 0 ? '✅ COMPLETE' : '❌ DATA LOSS DETECTED',
       orphanReasons: orphanedShipments.map(o => ({ 
         trackingId: o.trackingId, 
         errorType: o.errorType,
@@ -336,12 +405,18 @@ const Results = () => {
       }))
     });
     
+    // Alert if shipments are missing
+    if (dataIntegrityLog.missingShipments > 0) {
+      console.error(`🚨 CRITICAL: ${dataIntegrityLog.missingShipments} shipments are missing from the analysis!`);
+      toast.error(`Warning: ${dataIntegrityLog.missingShipments} shipments may be missing from this analysis. Please check the orphaned data tab.`);
+    }
+    
     const analysisInfo: AnalysisData = {
-      totalCurrentCost: savings.totalCurrentCost || 0,
-      totalPotentialSavings: data.total_savings || 0,
+      totalCurrentCost: analysisMetadata.savings_analysis?.totalCurrentCost || 0,
+      totalPotentialSavings: analysisMetadata.total_savings || 0,
       recommendations: validShipments,
-      savingsPercentage: savings.savingsPercentage || 0,
-      totalShipments: data.total_shipments || 0,
+      savingsPercentage: analysisMetadata.savings_analysis?.savingsPercentage || 0,
+      totalShipments: analysisMetadata.total_shipments || 0,
       analyzedShipments: validShipments.length
     };
 

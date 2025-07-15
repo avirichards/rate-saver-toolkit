@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency, formatPercentage, getSavingsColor } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
@@ -74,6 +74,37 @@ const Results = () => {
   const [selectedServicesOverview, setSelectedServicesOverview] = useState<string[]>([]);
   const [snapshotDays, setSnapshotDays] = useState(30);
   const [error, setError] = useState<string | null>(null);
+
+  // Export functionality
+  const exportToCSV = () => {
+    const csvData = filteredData.map(item => ({
+      'Tracking ID': item.trackingId,
+      'Origin ZIP': item.originZip,
+      'Destination ZIP': item.destinationZip,
+      'Weight': item.weight,
+      'Carrier': item.carrier,
+      'Service': item.service,
+      'Current Rate': formatCurrency(item.currentRate),
+      'UPS Rate': formatCurrency(item.newRate),
+      'Savings': formatCurrency(item.savings),
+      'Savings Percentage': formatPercentage(item.savingsPercent)
+    }));
+
+    const csvContent = [
+      Object.keys(csvData[0]).join(','),
+      ...csvData.map(row => Object.values(row).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `shipping_analysis_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   useEffect(() => {
     const loadAnalysisData = async () => {
@@ -732,7 +763,7 @@ const Results = () => {
                 <Home className="h-4 w-4 mr-2" />
                 Dashboard
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={exportToCSV}>
                 <Download className="h-4 w-4 mr-2" />
                 Export Report
               </Button>
@@ -790,7 +821,7 @@ const Results = () => {
                         <Target className="h-8 w-8 text-purple-500" />
                         <div>
                           <p className="text-sm text-muted-foreground">Current Cost</p>
-                          <p className="text-2xl font-bold">${filteredStats.totalCurrentCost.toFixed(2)}</p>
+                          <p className="text-2xl font-bold">{formatCurrency(filteredStats.totalCurrentCost)}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -801,7 +832,7 @@ const Results = () => {
                         <Zap className="h-8 w-8 text-blue-500" />
                         <div>
                           <p className="text-sm text-muted-foreground">Ship Pros Cost</p>
-                          <p className="text-2xl font-bold text-primary">${(filteredStats.totalCurrentCost - filteredStats.totalSavings).toFixed(2)}</p>
+                          <p className="text-2xl font-bold text-primary">{formatCurrency(filteredStats.totalCurrentCost - filteredStats.totalSavings)}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -812,7 +843,7 @@ const Results = () => {
                         <DollarSign className="h-8 w-8 text-green-500" />
                         <div>
                           <p className="text-sm text-muted-foreground">Savings ($)</p>
-                          <p className="text-2xl font-bold text-green-600">${filteredStats.totalSavings.toFixed(2)}</p>
+                          <p className={cn("text-2xl font-bold", getSavingsColor(filteredStats.totalSavings))}>{formatCurrency(filteredStats.totalSavings)}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -823,7 +854,7 @@ const Results = () => {
                         <TrendingUp className="h-8 w-8 text-orange-500" />
                         <div>
                           <p className="text-sm text-muted-foreground">Savings (%)</p>
-                          <p className="text-2xl font-bold text-orange-600">{filteredStats.averageSavingsPercent.toFixed(1)}%</p>
+                          <p className={cn("text-2xl font-bold", getSavingsColor(filteredStats.totalSavings))}>{formatPercentage(filteredStats.averageSavingsPercent)}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -834,7 +865,7 @@ const Results = () => {
                         <Calendar className="h-8 w-8 text-green-500" />
                         <div>
                           <p className="text-sm text-muted-foreground">Estimated Annual Savings</p>
-                          <p className="text-2xl font-bold text-green-600">${((filteredStats.totalSavings * 365) / snapshotDays).toFixed(0)}</p>
+                          <p className={cn("text-2xl font-bold", getSavingsColor((filteredStats.totalSavings * 365) / snapshotDays))}>{formatCurrency((filteredStats.totalSavings * 365) / snapshotDays)}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -925,32 +956,26 @@ const Results = () => {
                                  />
                                </TableCell>
                                <TableCell className="font-medium text-foreground">{service}</TableCell>
-                               <TableCell className="text-right font-medium">${avgCurrentCost.toFixed(2)}</TableCell>
-                               <TableCell className="text-right font-medium text-primary">${avgNewCost.toFixed(2)}</TableCell>
+                                <TableCell className="text-right font-medium">{formatCurrency(avgCurrentCost)}</TableCell>
+                                <TableCell className="text-right font-medium text-primary">{formatCurrency(avgNewCost)}</TableCell>
                                <TableCell>
                                  <Badge variant="outline" className="text-xs">
                                    {spServiceType}
                                  </Badge>
                                </TableCell>
-                               <TableCell className="text-right font-medium">{data.count}</TableCell>
-                               <TableCell className="text-right">{volumePercent.toFixed(1)}%</TableCell>
-                               <TableCell className="text-right">{avgWeight.toFixed(1)}</TableCell>
-                               <TableCell className="text-right">
-                                 <span className={cn(
-                                   "font-medium",
-                                   avgSavings > 0 ? "text-green-600" : avgSavings < 0 ? "text-red-600" : "text-muted-foreground"
-                                 )}>
-                                   ${avgSavings.toFixed(2)}
-                                 </span>
-                               </TableCell>
-                               <TableCell className="text-right">
-                                 <span className={cn(
-                                   "font-medium",
-                                   avgSavingsPercent > 0 ? "text-green-600" : avgSavingsPercent < 0 ? "text-red-600" : "text-muted-foreground"
-                                 )}>
-                                   {avgSavingsPercent.toFixed(1)}%
-                                 </span>
-                               </TableCell>
+                                <TableCell className="text-right font-medium">{data.count.toLocaleString()}</TableCell>
+                                <TableCell className="text-right">{formatPercentage(volumePercent)}</TableCell>
+                                <TableCell className="text-right">{avgWeight.toFixed(1)}</TableCell>
+                                <TableCell className="text-right">
+                                  <span className={cn("font-medium", getSavingsColor(avgSavings))}>
+                                    {formatCurrency(avgSavings)}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <span className={cn("font-medium", getSavingsColor(avgSavings))}>
+                                    {formatPercentage(avgSavingsPercent)}
+                                  </span>
+                                </TableCell>
                                <TableCell>
                                  <div className="text-xs text-muted-foreground">
                                    {avgSavingsPercent > 20 ? "High savings potential" : 
@@ -1015,7 +1040,7 @@ const Results = () => {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="service" />
                         <YAxis />
-                        <Tooltip formatter={(value, name) => [`$${Number(value).toFixed(2)}`, name]} />
+                        <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
                         <Bar dataKey="currentCost" fill="hsl(var(--muted-foreground))" name="Current Cost" />
                         <Bar dataKey="newCost" fill="hsl(var(--primary))" name="UPS Cost" />
                       </BarChart>
@@ -1120,30 +1145,27 @@ const Results = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right font-medium text-foreground">
-                            ${item.currentRate.toFixed(2)}
+                            {formatCurrency(item.currentRate)}
                           </TableCell>
                           <TableCell className="text-right font-medium text-foreground">
-                            ${item.newRate.toFixed(2)}
+                            {formatCurrency(item.newRate)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className={cn(
                               "flex items-center justify-end gap-1 font-medium",
-                              item.savings > 0 ? "text-green-600" : item.savings < 0 ? "text-red-600" : "text-muted-foreground"
+                              getSavingsColor(item.savings)
                             )}>
                               {item.savings > 0 ? (
                                 <CheckCircle2 className="h-4 w-4" />
                               ) : item.savings < 0 ? (
                                 <XCircle className="h-4 w-4" />
                               ) : null}
-                              ${Math.abs(item.savings).toFixed(2)}
+                              {formatCurrency(item.savings)}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <span className={cn(
-                              "font-medium",
-                              item.savings > 0 ? "text-green-600" : item.savings < 0 ? "text-red-600" : "text-muted-foreground"
-                            )}>
-                              {item.savingsPercent.toFixed(1)}%
+                            <span className={cn("font-medium", getSavingsColor(item.savings))}>
+                              {formatPercentage(item.savingsPercent)}
                             </span>
                           </TableCell>
                         </TableRow>

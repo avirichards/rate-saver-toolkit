@@ -396,15 +396,16 @@ const ReportsPage = () => {
                                   >
                                     <Download className="h-4 w-4" />
                                   </Button>
-                                  <Link to={`/results?analysisId=${report.id}`}>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      className="h-8 w-8"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                  </Link>
+                                   <Link to={`/results?analysisId=${report.id}`}>
+                                     <Button 
+                                       variant="ghost" 
+                                       size="icon"
+                                       className="h-8 w-8"
+                                       title="View & Edit Report"
+                                     >
+                                       <Eye className="h-4 w-4" />
+                                     </Button>
+                                   </Link>
                                 </div>
                               </td>
                             </tr>

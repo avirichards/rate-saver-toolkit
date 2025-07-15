@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home, Save } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
 import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfiguration';
+import { SaveReportDialog } from '@/components/ui-lov/SaveReportDialog';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -29,6 +30,9 @@ interface AnalysisData {
   completedShipments?: number;
   errorShipments?: number;
   averageSavingsPercent?: number;
+  file_name?: string;
+  report_name?: string;
+  client_id?: string;
 }
 
 // Custom slider component for All/Wins/Losses
@@ -79,6 +83,7 @@ const Results = () => {
   const [error, setError] = useState<string | null>(null);
   const [markupData, setMarkupData] = useState<MarkupData | null>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
 
   // Calculate markup for individual shipment
   const getShipmentMarkup = (shipment: any) => {
@@ -947,10 +952,30 @@ const Results = () => {
             </div>
             <p className="text-lg mt-4">Loading analysis results...</p>
           </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
+      </div>
+
+      {/* Save Report Dialog */}
+      <SaveReportDialog
+        open={showSaveDialog}
+        onOpenChange={setShowSaveDialog}
+        analysisId={searchParams.get('analysisId') || currentAnalysisId || ''}
+        currentReportName={analysisData?.report_name || analysisData?.file_name || ''}
+        currentClientId={analysisData?.client_id || ''}
+        onSaved={async () => {
+          // Reload analysis data to show updated status
+          const analysisId = searchParams.get('analysisId') || currentAnalysisId;
+          if (analysisId) {
+            try {
+              await loadFromDatabase(analysisId);
+            } catch (error) {
+              console.error('Error reloading analysis data:', error);
+            }
+          }
+        }}
+      />
+    </DashboardLayout>
+  );
+}
 
   if (!analysisData || shipmentData.length === 0) {
   return (
@@ -964,10 +989,29 @@ const Results = () => {
               Start New Analysis
             </Button>
           </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
+      </div>
+
+      <SaveReportDialog
+        open={showSaveDialog}
+        onOpenChange={setShowSaveDialog}
+        analysisId={searchParams.get('analysisId') || ''}
+        currentReportName={analysisData?.report_name || analysisData?.file_name || ''}
+        currentClientId={analysisData?.client_id || ''}
+        onSaved={async () => {
+          // Reload analysis data to show updated status
+          const analysisId = searchParams.get('analysisId');
+          if (analysisId) {
+            try {
+              await loadFromDatabase(analysisId);
+            } catch (error) {
+              console.error('Error reloading analysis data:', error);
+            }
+          }
+        }}
+      />
+    </DashboardLayout>
+  );
+}
 
   // Calculate filtered stats and chart data before rendering
   const filteredStats = getFilteredStats();
@@ -1028,6 +1072,12 @@ const Results = () => {
               </div>
             </div>
             <div className="flex gap-3">
+              {(searchParams.get('analysisId') || currentAnalysisId) && (
+                <Button variant="default" size="sm" onClick={() => setShowSaveDialog(true)}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Report
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
                 <Home className="h-4 w-4 mr-2" />
                 Dashboard

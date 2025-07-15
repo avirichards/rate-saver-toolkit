@@ -320,6 +320,7 @@ export type Database = {
           markup_profile_id: string | null
           original_data: Json
           recommendations: Json | null
+          report_name: string | null
           report_status: string | null
           sales_rep_id: string | null
           savings_analysis: Json | null
@@ -345,6 +346,7 @@ export type Database = {
           markup_profile_id?: string | null
           original_data: Json
           recommendations?: Json | null
+          report_name?: string | null
           report_status?: string | null
           sales_rep_id?: string | null
           savings_analysis?: Json | null
@@ -370,6 +372,7 @@ export type Database = {
           markup_profile_id?: string | null
           original_data?: Json
           recommendations?: Json | null
+          report_name?: string | null
           report_status?: string | null
           sales_rep_id?: string | null
           savings_analysis?: Json | null

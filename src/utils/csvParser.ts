@@ -453,11 +453,15 @@ export function standardizeService(service: string): { service: string; carrier:
   let isResidential: boolean | undefined = undefined;
   let residentialSource = 'service_name';
   
-  // NOW PRIORITIZE SERVICE TYPE CLASSIFICATION FOR APPLE-TO-APPLES COMPARISON
+  // UNIVERSAL RESIDENTIAL DETECTION (applies to all carriers)
+  if (serviceLower.includes('home delivery') || serviceLower.includes('home') || 
+      serviceLower.includes('residential')) {
+    isResidential = true;
+  }
   
   // FEDEX-SPECIFIC RESIDENTIAL DETECTION
   if (carrier === 'FedEx') {
-    if (serviceLower.includes('home delivery') || serviceLower.includes('fedex home')) {
+    if (serviceLower.includes('fedex home')) {
       isResidential = true;
     } else if (serviceLower.includes('fedex ground') && !serviceLower.includes('home')) {
       isResidential = false;

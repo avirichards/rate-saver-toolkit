@@ -321,33 +321,70 @@ serve(async (req) => {
       receivedEquivalentCode: shipment.equivalentServiceCode
     });
 
-    // Get rates for each service type
-    for (const serviceCode of serviceCodes) {
-      try {
-        ratingRequest.RateRequest.Shipment.Service.Code = serviceCode;
+    // Service fallback hierarchy
+    const serviceFallbacks: Record<string, string[]> = {
+      '13': ['01', '02'], // Next Day Air Saver -> Next Day Air -> 2nd Day Air
+      '14': ['01', '13'], // Next Day Air Early -> Next Day Air -> Next Day Air Saver
+      '01': ['13', '02'], // Next Day Air -> Next Day Air Saver -> 2nd Day Air
+      '59': ['02', '12'], // 2nd Day Air A.M. -> 2nd Day Air -> 3 Day Select
+      '02': ['59', '12'], // 2nd Day Air -> 2nd Day Air A.M. -> 3 Day Select
+      '12': ['03', '02'], // 3 Day Select -> Ground -> 2nd Day Air
+      '03': ['12', '02'], // Ground -> 3 Day Select -> 2nd Day Air
+      '07': ['65', '11'], // Worldwide Express -> Worldwide Saver -> Standard
+      '65': ['07', '11'], // Worldwide Saver -> Worldwide Express -> Standard
+      '11': ['65', '03']  // Standard -> Worldwide Saver -> Ground
+    };
 
-        console.log(`Requesting rate for service ${serviceCode}...`);
+    const serviceNames: Record<string, string> = {
+      '01': 'UPS Next Day Air',
+      '02': 'UPS 2nd Day Air',
+      '03': 'UPS Ground',
+      '12': 'UPS 3 Day Select',
+      '13': 'UPS Next Day Air Saver',
+      '14': 'UPS Next Day Air Early',
+      '59': 'UPS 2nd Day Air A.M.',
+      '07': 'UPS Worldwide Express',
+      '65': 'UPS Worldwide Saver',
+      '11': 'UPS Standard'
+    };
 
-        const response = await fetch(ratingEndpoint, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${access_token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'transId': `shiprate-${Date.now()}`,
-            'transactionSrc': 'ShipRate Pro',
-            'version': 'v1'
-          },
-          body: JSON.stringify(ratingRequest)
-        });
+    // Get rates for each service type with fallback support
+    for (const originalServiceCode of serviceCodes) {
+      let rateObtained = false;
+      let serviceSubstitution = null;
+      
+      // Try original service first, then fallbacks
+      const servicesToTry = [originalServiceCode, ...(serviceFallbacks[originalServiceCode] || [])];
+      
+      for (const serviceCode of servicesToTry) {
+        if (rateObtained) break;
+        
+        try {
+          ratingRequest.RateRequest.Shipment.Service.Code = serviceCode;
 
-        console.log(`UPS API Response Status for service ${serviceCode}:`, response.status);
+          const isOriginalService = serviceCode === originalServiceCode;
+          console.log(`${isOriginalService ? 'Requesting' : 'Trying fallback'} rate for service ${serviceCode}${isOriginalService ? '' : ` (fallback for ${originalServiceCode})`}...`);
 
-        if (response.ok) {
-          const rateData = await response.json();
-          console.log(`UPS Rate Response for service ${serviceCode}:`, JSON.stringify(rateData, null, 2));
-          
-          if (rateData.RateResponse?.RatedShipment) {
+          const response = await fetch(ratingEndpoint, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${access_token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'transId': `shiprate-${Date.now()}`,
+              'transactionSrc': 'ShipRate Pro',
+              'version': 'v1'
+            },
+            body: JSON.stringify(ratingRequest)
+          });
+
+          console.log(`UPS API Response Status for service ${serviceCode}:`, response.status);
+
+          if (response.ok) {
+            const rateData = await response.json();
+            console.log(`UPS Rate Response for service ${serviceCode}:`, JSON.stringify(rateData, null, 2));
+            
+            if (rateData.RateResponse?.RatedShipment) {
             const ratedShipment = Array.isArray(rateData.RateResponse.RatedShipment) 
               ? rateData.RateResponse.RatedShipment[0] 
               : rateData.RateResponse.RatedShipment;
@@ -400,9 +437,24 @@ serve(async (req) => {
             });
 
             if (finalCharges > 0) {
+              // Create service substitution record if using fallback
+              if (!isOriginalService) {
+                serviceSubstitution = {
+                  originalService: originalServiceCode,
+                  originalServiceName: serviceNames[originalServiceCode] || `UPS Service ${originalServiceCode}`,
+                  actualService: serviceCode,
+                  actualServiceName: serviceNames[serviceCode] || `UPS Service ${serviceCode}`,
+                  reason: 'Rate unavailable for original service',
+                  isSubstitution: true
+                };
+                
+                console.log(`Service substitution made:`, serviceSubstitution);
+              }
+
               rates.push({
-                serviceCode,
-                serviceName: service?.service_name || `UPS Service ${serviceCode}`,
+                serviceCode: originalServiceCode, // Keep original service code for tracking
+                actualServiceCode: serviceCode, // The service actually used
+                serviceName: service?.service_name || serviceNames[serviceCode] || `UPS Service ${serviceCode}`,
                 description: service?.description || '',
                 totalCharges: finalCharges,
                 currency: ratedShipment.TotalCharges?.CurrencyCode || 'USD',
@@ -415,7 +467,8 @@ serve(async (req) => {
                 negotiatedRate: negotiatedCharges,
                 savingsAmount,
                 savingsPercentage,
-                isEquivalentService: serviceCode === equivalentServiceCode, // Mark the equivalent service
+                isEquivalentService: originalServiceCode === equivalentServiceCode,
+                serviceSubstitution, // Include substitution info if applicable
                 // Add residential tracking for debugging
                 residentialInfo: {
                   isResidential: shipment.isResidential,
@@ -423,6 +476,8 @@ serve(async (req) => {
                   hasResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator
                 }
               });
+              
+              rateObtained = true;
             }
           }
         } else {
@@ -447,8 +502,14 @@ serve(async (req) => {
             console.error(`UPS Raw Error Response for service ${serviceCode}:`, errorText);
           }
         }
-      } catch (error) {
-        console.error(`Error getting rate for service ${serviceCode}:`, error);
+        } catch (error) {
+          console.error(`Error getting rate for service ${serviceCode}:`, error);
+        }
+      }
+      
+      // If no rate was obtained for this service, log it
+      if (!rateObtained) {
+        console.warn(`No rate obtained for service ${originalServiceCode} after trying all fallbacks: [${servicesToTry.join(', ')}]`);
       }
     }
 

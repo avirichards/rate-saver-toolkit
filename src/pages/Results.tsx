@@ -1073,7 +1073,7 @@ const Results = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart className="h-4 w-4" />
               Overview
@@ -1081,10 +1081,6 @@ const Results = () => {
             <TabsTrigger value="shipment-data" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Shipment Data
-            </TabsTrigger>
-            <TabsTrigger value="charts" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Charts & Analytics
             </TabsTrigger>
             <TabsTrigger value="orphaned-data" className="flex items-center gap-2">
               <AlertCircle className="h-4 w-4" />
@@ -1118,6 +1114,12 @@ const Results = () => {
               showEditOptions={true}
               activeView={activeView}
               availableServices={availableServices}
+              chartData={{
+                serviceChartData,
+                serviceCostData,
+                weightChartData: generateWeightChartData(),
+                zoneChartData: generateZoneChartData()
+              }}
             />
           </TabsContent>
 
@@ -1266,33 +1268,6 @@ const Results = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="charts" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>
-                  {activeView === 'internal' ? 'Performance & Margin Analytics' : 'Savings Analytics'}
-                </CardTitle>
-                <CardDescription>
-                  {activeView === 'internal' 
-                    ? 'Detailed analysis of cost structure, margins, and profitability metrics' 
-                    : 'Visual breakdown of savings and performance metrics'
-                  }
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <TrendingUp className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-xl font-medium mb-2">Charts & Analytics</h3>
-                  <p className="text-muted-foreground">
-                    {activeView === 'internal' 
-                      ? 'Internal analytics with margin analysis and cost breakdowns coming soon.' 
-                      : 'Client-focused savings charts and performance metrics coming soon.'
-                    }
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="orphaned-data" className="space-y-6">
             <Card>

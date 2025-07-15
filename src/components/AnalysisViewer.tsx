@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye, Users, DollarSign, TrendingDown, Package } from 'lucide-react';
 import { useMarkupCalculation } from '@/hooks/useMarkupCalculation';
 import { MarkupEditor } from '@/components/MarkupEditor';
+import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import type { MarkupConfig } from '@/hooks/useShippingAnalyses';
 
 interface AnalysisViewerProps {
@@ -17,6 +18,12 @@ interface AnalysisViewerProps {
   showEditOptions?: boolean;
   activeView: 'internal' | 'client';
   availableServices: string[];
+  chartData?: {
+    serviceChartData: any[];
+    serviceCostData: any[];
+    weightChartData: any[];
+    zoneChartData: any[];
+  };
 }
 
 export function AnalysisViewer({ 
@@ -27,7 +34,8 @@ export function AnalysisViewer({
   onUpdateMarkup,
   showEditOptions = true,
   activeView,
-  availableServices
+  availableServices,
+  chartData
 }: AnalysisViewerProps) {
   const { calculatedResults, totals } = useMarkupCalculation(results, markupConfig);
 
@@ -41,6 +49,8 @@ export function AnalysisViewer({
   const formatPercentage = (percentage: number) => {
     return `${percentage.toFixed(1)}%`;
   };
+
+  const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
 
   return (
     <div className="space-y-6">
@@ -184,6 +194,113 @@ export function AnalysisViewer({
           </div>
         </CardContent>
       </Card>
+
+      {/* Charts Section */}
+      {chartData && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Service Distribution Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Service Distribution</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={chartData.serviceChartData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                    label={(entry) => `${entry.name}: ${entry.value}`}
+                  >
+                    {chartData.serviceChartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(value: any, name: any) => [`${value} shipments`, name]} />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Cost Comparison by Service */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Cost Comparison by Service</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.serviceCostData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis 
+                    dataKey="currentService" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                    fontSize={12}
+                  />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value: any, name: any, props: any) => {
+                      const { payload } = props;
+                      if (name === 'avgCurrentCost') return [`$${value.toFixed(2)}`, 'Current Avg Cost'];
+                      if (name === 'avgNewCost') return [`$${value.toFixed(2)}`, `${payload.shipProsService} Avg Cost`];
+                      return [value, name];
+                    }}
+                    labelFormatter={(label: any) => `Service: ${label}`}
+                  />
+                  <Legend />
+                  <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
+                  <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Avg Cost" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Rate Comparison by Weight */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Rate Comparison by Weight</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.weightChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="weightRange" />
+                  <YAxis />
+                  <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
+                  <Legend />
+                  <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
+                  <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          {/* Rate Comparison by Zone */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Rate Comparison by Zone</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.zoneChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="zone" />
+                  <YAxis />
+                  <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
+                  <Legend />
+                  <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
+                  <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

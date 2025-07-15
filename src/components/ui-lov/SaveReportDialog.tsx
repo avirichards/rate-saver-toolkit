@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
 
@@ -37,7 +37,7 @@ export function SaveReportDialog({
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingClients, setLoadingClients] = useState(true);
-  const { toast } = useToast();
+  
 
   useEffect(() => {
     if (open) {
@@ -59,11 +59,7 @@ export function SaveReportDialog({
       setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load clients",
-        variant: "destructive"
-      });
+      toast.error("Failed to load clients");
     } finally {
       setLoadingClients(false);
     }
@@ -71,20 +67,12 @@ export function SaveReportDialog({
 
   const handleSave = async () => {
     if (!reportName.trim()) {
-      toast({
-        title: "Error",
-        description: "Report name is required",
-        variant: "destructive"
-      });
+      toast.error("Report name is required");
       return;
     }
 
     if (!analysisId || analysisId.trim() === '') {
-      toast({
-        title: "Error", 
-        description: "No analysis data available to save",
-        variant: "destructive"
-      });
+      toast.error("No analysis data available to save");
       return;
     }
 
@@ -108,20 +96,13 @@ export function SaveReportDialog({
 
       if (error) throw error;
 
-      toast({
-        title: "Success",
-        description: "Report saved successfully",
-      });
+      toast.success("Report saved successfully");
 
       onSaved?.();
       onOpenChange(false);
     } catch (error) {
       console.error('Error saving report:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save report",
-        variant: "destructive"
-      });
+      toast.error("Failed to save report");
     } finally {
       setLoading(false);
     }

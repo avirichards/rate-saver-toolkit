@@ -139,7 +139,7 @@ const Results = () => {
         user_id: user.id,
         file_name: uniqueFileName,
         total_shipments: analysisData.totalShipments,
-        total_savings: analysisData.totalPotentialSavings,
+        total_savings: Math.max(0, analysisData.totalPotentialSavings || 0), // Ensure non-negative
         status: 'completed',
         original_data: analysisData.recommendations as any,
         recommendations: analysisData.recommendations as any,

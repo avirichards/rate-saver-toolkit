@@ -48,6 +48,8 @@ interface AnalysisResult {
   savings?: number;
   error?: string;
   errorType?: string;
+  errorCategory?: string;
+  attemptCount?: number;
   // Add validation fields for debugging
   expectedServiceCode?: string;
       mappingValidation?: {
@@ -309,14 +311,18 @@ const Analysis = () => {
     }
   };
   
-  const processShipment = async (index: number, shipment: ProcessedShipment) => {
-    console.log(`🔍 Processing shipment ${index + 1}:`, {
+  const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0) => {
+    const maxRetries = 2;
+    
+    console.log(`🔍 Processing shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
       shipmentId: shipment.id,
       service: shipment.service,
+      carrier: shipment.carrier,
       originZip: shipment.originZip,
       destZip: shipment.destZip,
       weight: shipment.weight,
-      cost: shipment.cost
+      cost: shipment.cost,
+      isRetry: retryCount > 0
     });
     
       // Update status to processing using shipment ID-based update to prevent race conditions
@@ -329,7 +335,23 @@ const Analysis = () => {
       });
     
     try {
-      // Enhanced validation with better error messages
+      // Enhanced validation with detailed logging
+      console.log(`📋 Validating shipment ${index + 1} data:`, {
+        shipmentId: shipment.id,
+        hasOriginZip: !!shipment.originZip?.trim(),
+        hasDestZip: !!shipment.destZip?.trim(),
+        hasService: !!shipment.service?.trim(),
+        hasWeight: !!shipment.weight,
+        hasCost: !!shipment.cost,
+        rawData: {
+          originZip: shipment.originZip,
+          destZip: shipment.destZip,
+          service: shipment.service,
+          weight: shipment.weight,
+          cost: shipment.cost
+        }
+      });
+      
       const missingFields = [];
       if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
       if (!shipment.destZip?.trim()) missingFields.push('Destination ZIP');
@@ -347,19 +369,25 @@ const Analysis = () => {
         // Handle oz to lbs conversion
         if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
           weight = weight / 16;
+          console.log(`⚖️ Converted weight from oz to lbs: ${shipment.weight}oz → ${weight}lbs`);
         }
         if (isNaN(weight) || weight <= 0) {
           missingFields.push('Valid Weight');
         }
       }
       
-      // Validate ZIP codes format (basic US ZIP validation)
+      // Enhanced ZIP code validation with better error messages
       const zipRegex = /^\d{5}(-\d{4})?$/;
-      if (shipment.originZip?.trim() && !zipRegex.test(shipment.originZip.trim())) {
-        throw new Error(`Invalid origin ZIP code format: ${shipment.originZip}`);
+      const cleanOriginZip = shipment.originZip?.trim();
+      const cleanDestZip = shipment.destZip?.trim();
+      
+      if (cleanOriginZip && !zipRegex.test(cleanOriginZip)) {
+        console.error(`❌ Invalid origin ZIP format:`, { original: shipment.originZip, cleaned: cleanOriginZip });
+        throw new Error(`Invalid origin ZIP code format: "${shipment.originZip}" (expected format: 12345 or 12345-6789)`);
       }
-      if (shipment.destZip?.trim() && !zipRegex.test(shipment.destZip.trim())) {
-        throw new Error(`Invalid destination ZIP code format: ${shipment.destZip}`);
+      if (cleanDestZip && !zipRegex.test(cleanDestZip)) {
+        console.error(`❌ Invalid destination ZIP format:`, { original: shipment.destZip, cleaned: cleanDestZip });
+        throw new Error(`Invalid destination ZIP code format: "${shipment.destZip}" (expected format: 12345 or 12345-6789)`);
       }
       
       const currentCost = parseFloat(shipment.cost || '0');
@@ -369,10 +397,29 @@ const Analysis = () => {
         missingFields.push('Valid Cost (greater than $0)');
       }
       
-      // Check if we have any missing fields (including zero cost) and throw error
+      // Check if we have any missing fields and provide detailed error
       if (missingFields.length > 0) {
+        console.error(`❌ Validation failed for shipment ${index + 1}:`, {
+          shipmentId: shipment.id,
+          missingFields,
+          shipmentData: {
+            originZip: shipment.originZip,
+            destZip: shipment.destZip,
+            service: shipment.service,
+            weight: shipment.weight,
+            cost: shipment.cost
+          }
+        });
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
+      
+      console.log(`✅ Validation passed for shipment ${index + 1}:`, {
+        shipmentId: shipment.id,
+        weight,
+        currentCost,
+        cleanOriginZip,
+        cleanDestZip
+      });
       
       const length = parseFloat(shipment.length || '12');
       const width = parseFloat(shipment.width || '12'); 
@@ -514,25 +561,90 @@ const Analysis = () => {
         originalCarrier: shipment.carrier || 'Unknown'
       };
       
-      // Fetch UPS rates with enhanced error handling
+      // Fetch UPS rates with enhanced error handling and retry logic
+      console.log(`🚀 Calling UPS API for shipment ${index + 1}:`, {
+        requestPayload: {
+          ...shipmentRequest,
+          // Log key fields for debugging
+          serviceTypes: shipmentRequest.serviceTypes,
+          equivalentServiceCode: shipmentRequest.equivalentServiceCode,
+          isResidential: shipmentRequest.isResidential
+        }
+      });
+      
       const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
         body: { shipment: shipmentRequest }
       });
 
-      console.log(`UPS API response for shipment ${index + 1}:`, { data, error });
+      console.log(`📦 UPS API response for shipment ${index + 1}:`, {
+        hasData: !!data,
+        hasError: !!error,
+        errorDetails: error,
+        dataStructure: data ? {
+          hasRates: !!data.rates,
+          ratesCount: data.rates?.length || 0,
+          hasOtherFields: Object.keys(data).filter(k => k !== 'rates')
+        } : null
+      });
 
       if (error) {
-        throw new Error(`UPS API Error: ${error.message || 'Unknown error'}`);
+        console.error(`❌ UPS API Error for shipment ${index + 1}:`, {
+          errorMessage: error.message,
+          errorDetails: error,
+          shipmentRequest: {
+            originZip: shipmentRequest.shipFrom.zipCode,
+            destZip: shipmentRequest.shipTo.zipCode,
+            weight: shipmentRequest.package.weight,
+            serviceTypes: shipmentRequest.serviceTypes,
+            isResidential: shipmentRequest.isResidential
+          }
+        });
+        
+        // Check if this is a retryable error
+        const isRetryableError = error.message?.includes('timeout') || 
+                                error.message?.includes('network') ||
+                                error.message?.includes('500') ||
+                                error.message?.includes('503');
+        
+        if (isRetryableError && retryCount < maxRetries) {
+          console.log(`⏳ Retrying shipment ${index + 1} due to retryable error (attempt ${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Progressive delay
+          return processShipment(index, shipment, retryCount + 1);
+        }
+        
+        throw new Error(`UPS API Error: ${error.message || 'Unknown API error'}`);
       }
       
       if (!data) {
+        console.error(`❌ No data returned from UPS API for shipment ${index + 1}`);
         throw new Error('No data returned from UPS API');
       }
       
       if (!data.rates || !Array.isArray(data.rates) || data.rates.length === 0) {
-        console.error('UPS API returned no rates. Full response:', data);
-        throw new Error('No rates returned from UPS. This may indicate:\n• Invalid ZIP codes\n• Package dimensions exceed limits\n• Service unavailable for this route\n• UPS API configuration issues');
+        console.error(`❌ No rates returned for shipment ${index + 1}:`, {
+          fullResponse: data,
+          shipmentDetails: {
+            originZip: shipmentRequest.shipFrom.zipCode,
+            destZip: shipmentRequest.shipTo.zipCode,
+            weight: shipmentRequest.package.weight,
+            dimensions: `${shipmentRequest.package.length}×${shipmentRequest.package.width}×${shipmentRequest.package.height}`,
+            serviceTypes: shipmentRequest.serviceTypes,
+            isResidential: shipmentRequest.isResidential
+          }
+        });
+        
+        // Provide more specific error messages based on common issues
+        let detailedError = 'No rates returned from UPS.';
+        if (data.error || data.errors) {
+          detailedError += ` API Error: ${data.error || JSON.stringify(data.errors)}`;
+        } else {
+          detailedError += ' This may indicate:\n• Invalid ZIP codes\n• Package dimensions exceed limits\n• Service unavailable for this route\n• UPS API configuration issues';
+        }
+        
+        throw new Error(detailedError);
       }
+      
+      console.log(`✅ Successfully retrieved ${data.rates.length} rates for shipment ${index + 1}`);
       
       // Enhanced rate selection with detailed debugging
       let comparisonRate;
@@ -722,25 +834,69 @@ const Analysis = () => {
       });
       
     } catch (error: any) {
-      console.error(`Error processing shipment ${index + 1}:`, error);
+      console.error(`❌ Error processing shipment ${index + 1} (${shipment.trackingId}):`, {
+        error: error.message,
+        errorStack: error.stack,
+        shipmentDetails: {
+          id: shipment.id,
+          trackingId: shipment.trackingId,
+          service: shipment.service,
+          carrier: shipment.carrier,
+          originZip: shipment.originZip,
+          destZip: shipment.destZip,
+          weight: shipment.weight,
+          cost: shipment.cost
+        },
+        attemptNumber: retryCount + 1,
+        maxRetries: maxRetries + 1
+      });
       
-      // Categorize the error type for better orphan handling
+      // Enhanced error categorization for better debugging
       let errorType = 'processing_error';
+      let errorCategory = 'Unknown';
+      
       if (error.message.includes('Missing required fields')) {
         errorType = 'missing_data';
+        errorCategory = 'Data Validation';
+      } else if (error.message.includes('Invalid') && error.message.includes('ZIP')) {
+        errorType = 'invalid_data';
+        errorCategory = 'ZIP Code Format';
       } else if (error.message.includes('Invalid')) {
         errorType = 'invalid_data';
-      } else if (error.message.includes('UPS API')) {
+        errorCategory = 'Data Format';
+      } else if (error.message.includes('UPS API Error')) {
         errorType = 'api_error';
+        errorCategory = 'UPS API Communication';
       } else if (error.message.includes('No rates returned')) {
         errorType = 'no_rates';
+        errorCategory = 'UPS Rate Response';
+      } else if (error.message.includes('No confirmed service mapping')) {
+        errorType = 'mapping_error';
+        errorCategory = 'Service Mapping';
+      } else if (error.message.includes('timeout') || error.message.includes('network')) {
+        errorType = 'network_error';
+        errorCategory = 'Network/Timeout';
       }
       
-      console.log(`Shipment ${index + 1} will be moved to orphans:`, {
+      console.log(`📊 Error analysis for shipment ${index + 1}:`, {
         trackingId: shipment.trackingId,
         errorType,
-        errorMessage: error.message
+        errorCategory,
+        errorMessage: error.message,
+        isRetryableError: retryCount < maxRetries && (errorType === 'network_error' || errorType === 'api_error'),
+        willRetry: retryCount < maxRetries && (errorType === 'network_error' || errorType === 'api_error')
       });
+      
+      // Check if this error should trigger a retry
+      const shouldRetry = retryCount < maxRetries && 
+                         (errorType === 'network_error' || 
+                          (errorType === 'api_error' && !error.message.includes('authentication')));
+      
+      if (shouldRetry) {
+        console.log(`🔄 Retrying shipment ${index + 1} due to ${errorCategory} error`);
+        await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1))); // Progressive delay
+        return processShipment(index, shipment, retryCount + 1);
+      }
       
       // Update error result using functional update to prevent race conditions
       setAnalysisResults(prev => {
@@ -750,7 +906,9 @@ const Analysis = () => {
             ...newResults[index],
             status: 'error',
             error: error.message,
-            errorType
+            errorType,
+            errorCategory,
+            attemptCount: retryCount + 1
           };
         }
         return newResults;

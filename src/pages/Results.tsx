@@ -1042,7 +1042,7 @@ const Results = () => {
         </div>
 
         {/* Global Internal/Client View Toggle */}
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center mb-8">
           <div className="flex items-center bg-muted rounded-lg p-1">
             <button
               onClick={() => setActiveView('internal')}

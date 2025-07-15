@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { SummaryStats } from '@/components/ui-lov/SummaryStats';
@@ -7,27 +7,105 @@ import { Button } from '@/components/ui-lov/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowUpRight, Package, TruckIcon, DollarSign, BarChart4, ArrowRight } from 'lucide-react';
-
-// Sample data for the charts
-const monthlyTrendsData = [
-  { name: 'Jan', shipments: 120, spend: 5400, savings: 620 },
-  { name: 'Feb', shipments: 130, spend: 5800, savings: 680 },
-  { name: 'Mar', shipments: 100, spend: 4500, savings: 520 },
-  { name: 'Apr', shipments: 110, spend: 4900, savings: 580 },
-  { name: 'May', shipments: 150, spend: 6700, savings: 780 },
-  { name: 'Jun', shipments: 180, spend: 8000, savings: 920 },
-];
-
-const serviceTypeData = [
-  { name: 'Ground', shipments: 380, percentage: 48 },
-  { name: 'Express', shipments: 220, percentage: 28 },
-  { name: 'Next Day', shipments: 100, percentage: 13 },
-  { name: '2-Day', shipments: 80, percentage: 10 },
-  { name: 'Intl', shipments: 10, percentage: 1 },
-];
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const [dashboardData, setDashboardData] = useState({
+    totalShipments: 0,
+    averageCost: 0,
+    totalSavings: 0,
+    recentAnalyses: [],
+    monthlyTrends: [],
+    serviceTypes: []
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      fetchDashboardData();
+    }
+  }, [user]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch shipping analyses for the user
+      const { data: analyses, error } = await supabase
+        .from('shipping_analyses')
+        .select('*')
+        .eq('user_id', user!.id)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error fetching analyses:', error);
+        return;
+      }
+
+      // Process the data for dashboard metrics
+      const totalShipments = analyses?.reduce((sum, analysis) => sum + (analysis.total_shipments || 0), 0) || 0;
+      const totalSavings = analyses?.reduce((sum, analysis) => sum + (analysis.total_savings || 0), 0) || 0;
+      
+      // Calculate average cost from recent analyses
+      const totalAnalysesWithData = analyses?.filter(a => Array.isArray(a.original_data) && a.original_data.length > 0) || [];
+      const totalCost = totalAnalysesWithData.reduce((sum, analysis) => {
+        const originalData = Array.isArray(analysis.original_data) ? analysis.original_data : [];
+        return sum + originalData.reduce((costSum: number, shipment: any) => costSum + (shipment.currentCost || 0), 0);
+      }, 0);
+      const averageCost = totalShipments > 0 ? totalCost / totalShipments : 0;
+
+      // Generate monthly trends from the last 6 analyses
+      const monthlyTrends = analyses?.slice(0, 6).reverse().map((analysis, index) => {
+        const date = new Date(analysis.created_at);
+        const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+        const originalData = Array.isArray(analysis.original_data) ? analysis.original_data : [];
+        const spend = originalData.reduce((sum: number, shipment: any) => sum + (shipment.currentCost || 0), 0);
+        
+        return {
+          name: monthName,
+          shipments: analysis.total_shipments || 0,
+          spend: spend,
+          savings: analysis.total_savings || 0
+        };
+      }) || [];
+
+      // Generate service type data from the most recent analysis
+      const recentAnalysis = analyses?.[0];
+      let serviceTypes: any[] = [];
+      if (recentAnalysis?.original_data && Array.isArray(recentAnalysis.original_data)) {
+        const serviceCounts = new Map();
+        recentAnalysis.original_data.forEach((shipment: any) => {
+          const service = shipment.bestRate?.service || shipment.currentService || 'Unknown';
+          serviceCounts.set(service, (serviceCounts.get(service) || 0) + 1);
+        });
+        
+        const totalShipmentsInAnalysis = recentAnalysis.total_shipments || 1;
+        serviceTypes = Array.from(serviceCounts.entries()).map(([name, shipments]) => ({
+          name,
+          shipments,
+          percentage: Math.round((shipments / totalShipmentsInAnalysis) * 100)
+        }));
+      }
+
+      setDashboardData({
+        totalShipments,
+        averageCost,
+        totalSavings,
+        recentAnalyses: analyses || [],
+        monthlyTrends,
+        serviceTypes
+      });
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   const handleStartNewAnalysis = () => {
     navigate('/upload');
@@ -58,8 +136,8 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <SummaryStats
             title="Total Shipments"
-            value="790"
-            description="Up 12% from last month"
+            value={loading ? "..." : dashboardData.totalShipments.toString()}
+            description="Across all analyses"
             trend="up"
             icon={<Package />}
             color="blue"
@@ -67,20 +145,20 @@ const Dashboard = () => {
           
           <SummaryStats
             title="Average Cost"
-            value="$24.35"
-            description="Down 3.2% from last month"
-            trend="down"
+            value={loading ? "..." : `$${dashboardData.averageCost.toFixed(2)}`}
+            description="Per shipment"
+            trend={dashboardData.averageCost > 0 ? "up" : "down"}
             icon={<DollarSign />}
             color="green"
           />
           
           <SummaryStats
-            title="Potential Savings"
-            value="$4,200"
-            description="Based on current rates"
-            trend="up"
+            title="Total Savings"
+            value={loading ? "..." : `$${dashboardData.totalSavings.toFixed(0)}`}
+            description="Potential with UPS rates"
+            trend={dashboardData.totalSavings > 0 ? "up" : "down"}
             icon={<BarChart4 />}
-            color="amber"
+            color={dashboardData.totalSavings > 0 ? "green" : "amber"}
           />
         </div>
         
@@ -93,7 +171,7 @@ const Dashboard = () => {
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={monthlyTrendsData}>
+                  <LineChart data={dashboardData.monthlyTrends}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -118,7 +196,7 @@ const Dashboard = () => {
             <CardContent>
               <div className="mb-4">
                 <div className="flex flex-wrap gap-2">
-                  {serviceTypeData.map((service, index) => (
+                  {dashboardData.serviceTypes.map((service, index) => (
                     <div key={service.name} className="flex items-center gap-2 p-2 bg-muted rounded-lg">
                       <div 
                         className="w-4 h-4 rounded-full" 
@@ -132,7 +210,7 @@ const Dashboard = () => {
               </div>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={serviceTypeData}>
+                  <BarChart data={dashboardData.serviceTypes}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis />
@@ -156,50 +234,46 @@ const Dashboard = () => {
               <CardDescription>Your most recent shipping analyses</CardDescription>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-4">
-                <li className="flex items-center justify-between border-b pb-4">
-                  <div>
-                    <p className="font-medium">June 2023 Analysis</p>
-                    <p className="text-sm text-muted-foreground">180 shipments analyzed</p>
-                  </div>
+              {loading ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p>Loading recent analyses...</p>
+                </div>
+              ) : dashboardData.recentAnalyses.length > 0 ? (
+                <ul className="space-y-4">
+                  {dashboardData.recentAnalyses.slice(0, 3).map((analysis, index) => (
+                    <li key={analysis.id} className="flex items-center justify-between border-b pb-4 last:border-b-0">
+                      <div>
+                        <p className="font-medium">{analysis.file_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {analysis.total_shipments} shipments analyzed • {new Date(analysis.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        iconRight={<ArrowRight className="ml-1 h-4 w-4" />}
+                        onClick={() => navigate(`/reports/${analysis.id}`)}
+                      >
+                        View
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">No analyses yet</p>
                   <Button 
                     variant="outline" 
-                    size="sm"
-                    iconRight={<ArrowRight className="ml-1 h-4 w-4" />}
-                    onClick={() => navigate('/reports/1')}
+                    size="sm" 
+                    onClick={() => navigate('/upload')}
+                    className="mt-2"
                   >
-                    View
+                    Start your first analysis
                   </Button>
-                </li>
-                <li className="flex items-center justify-between border-b pb-4">
-                  <div>
-                    <p className="font-medium">May 2023 Analysis</p>
-                    <p className="text-sm text-muted-foreground">150 shipments analyzed</p>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    iconRight={<ArrowRight className="ml-1 h-4 w-4" />}
-                    onClick={() => navigate('/reports/2')}
-                  >
-                    View
-                  </Button>
-                </li>
-                <li className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">April 2023 Analysis</p>
-                    <p className="text-sm text-muted-foreground">110 shipments analyzed</p>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    iconRight={<ArrowRight className="ml-1 h-4 w-4" />}
-                    onClick={() => navigate('/reports/3')}
-                  >
-                    View
-                  </Button>
-                </li>
-              </ul>
+                </div>
+              )}
             </CardContent>
           </Card>
           

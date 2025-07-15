@@ -18,6 +18,7 @@ import Dashboard from "./pages/Dashboard";
 import ReportsPage from "./pages/Reports";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
+import SharedReport from "./pages/SharedReport";
 
 // Authentication
 import { AuthProvider } from "./hooks/useAuth";
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
               <Route path="/reports/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+              <Route path="/share/:token" element={<SharedReport />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

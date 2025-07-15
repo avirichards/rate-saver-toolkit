@@ -172,13 +172,13 @@ export function AnalysisViewer({
     ] as const;
 
     return (
-      <div className="flex items-center bg-muted rounded-lg p-1 mb-4">
+      <div className="inline-flex items-center bg-muted rounded-lg p-1">
         {options.map((option) => (
           <button
             key={option.value}
             onClick={() => onChange(option.value)}
             className={cn(
-              "px-4 py-2 text-sm font-medium rounded-md transition-all",
+              "px-3 py-1.5 text-sm font-medium rounded-md transition-all",
               value === option.value
                 ? "bg-primary text-primary-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -191,7 +191,7 @@ export function AnalysisViewer({
     );
   };
 
-  const RadialServiceFilters = () => {
+  const ServiceCheckboxFilters = () => {
     const toggleService = (service: string) => {
       if (!onSelectedServicesChange) return;
       const newSelection = selectedServices.includes(service) 
@@ -201,44 +201,21 @@ export function AnalysisViewer({
     };
 
     return (
-      <div className="flex flex-wrap gap-3 mb-6">
-        {availableServices.map((service, index) => {
-          const isSelected = selectedServices.includes(service);
-          const colors = [
-            'border-red-500 bg-red-500', 
-            'border-blue-500 bg-blue-500', 
-            'border-green-500 bg-green-500',
-            'border-orange-500 bg-orange-500',
-            'border-purple-500 bg-purple-500',
-            'border-pink-500 bg-pink-500',
-            'border-indigo-500 bg-indigo-500',
-            'border-teal-500 bg-teal-500'
-          ];
-          const colorClass = colors[index % colors.length];
-          
-          return (
-            <button
-              key={service}
-              onClick={() => toggleService(service)}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium",
-                isSelected 
-                  ? `${colorClass} text-white shadow-md` 
-                  : "border-muted bg-background hover:border-muted-foreground/50"
-              )}
-            >
-              <div 
-                className={cn(
-                  "w-3 h-3 rounded-full border-2",
-                  isSelected 
-                    ? "bg-white border-white" 
-                    : `${colorClass.split(' ')[0]} ${colorClass.split(' ')[1]}/20`
-                )}
-              />
-              {service}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap gap-4 mb-6">
+        {availableServices.map((service) => (
+          <label
+            key={service}
+            className="flex items-center gap-2 cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              checked={selectedServices.includes(service)}
+              onChange={() => toggleService(service)}
+              className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2"
+            />
+            <span className="text-sm font-medium">{service}</span>
+          </label>
+        ))}
       </div>
     );
   };
@@ -246,11 +223,11 @@ export function AnalysisViewer({
   return (
     <div className="space-y-6">
 
-      {/* Global Markup Configuration (Internal View Only) - Moved Above */}
+      {/* Markup Configuration (Internal View Only) */}
       {activeView === 'internal' && onUpdateMarkup && (
         <Card>
           <CardHeader>
-            <CardTitle>Global Markup Configuration</CardTitle>
+            <CardTitle>Markup</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -345,7 +322,12 @@ export function AnalysisViewer({
                 <DollarSign className="h-4 w-4 text-blue-600" />
                 <span className="text-sm font-medium">Current Cost</span>
               </div>
-              <div className="text-2xl font-bold mt-2">{formatCurrency(totals.totalCurrentCost)}</div>
+              <div className={cn(
+                "text-2xl font-bold mt-2",
+                totals.totalSavings >= 0 ? "text-foreground" : "text-red-600"
+              )}>
+                {formatCurrency(totals.totalCurrentCost)}
+              </div>
             </CardContent>
           </Card>
 
@@ -365,8 +347,18 @@ export function AnalysisViewer({
                 <TrendingDown className="h-4 w-4 text-orange-600" />
                 <span className="text-sm font-medium">Total Savings</span>
               </div>
-              <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(totals.totalSavings)}</div>
-              <div className="text-sm text-muted-foreground">{formatPercentage(totals.savingsPercentage)}</div>
+              <div className={cn(
+                "text-2xl font-bold mt-2",
+                totals.totalSavings >= 0 ? "text-green-600" : "text-red-600"
+              )}>
+                {formatCurrency(totals.totalSavings)}
+              </div>
+              <div className={cn(
+                "text-sm text-muted-foreground",
+                totals.totalSavings >= 0 ? "text-green-600" : "text-red-600"
+              )}>
+                {formatPercentage(totals.savingsPercentage)}
+              </div>
             </CardContent>
           </Card>
 
@@ -383,8 +375,8 @@ export function AnalysisViewer({
         </div>
       </div>
 
-      {/* Radial Service Filters */}
-      {onSelectedServicesChange && <RadialServiceFilters />}
+      {/* Service Checkbox Filters */}
+      {onSelectedServicesChange && <ServiceCheckboxFilters />}
 
       {/* Service Analysis Overview - Full Width */}
       <Card>
@@ -429,10 +421,16 @@ export function AnalysisViewer({
                     <td className="py-3 px-2 text-right">{service.shipmentCount}</td>
                     <td className="py-3 px-2 text-right">{formatPercentage(service.volumePercent)}</td>
                     <td className="py-3 px-2 text-right">{service.avgWeight.toFixed(1)} lbs</td>
-                    <td className="py-3 px-2 text-right font-medium text-green-600">
+                    <td className={cn(
+                      "py-3 px-2 text-right font-medium",
+                      service.avgSavings >= 0 ? "text-green-600" : "text-red-600"
+                    )}>
                       {formatCurrency(service.avgSavings)}
                     </td>
-                    <td className="py-3 px-2 text-right font-medium text-green-600">
+                    <td className={cn(
+                      "py-3 px-2 text-right font-medium",
+                      service.avgSavingsPercent >= 0 ? "text-green-600" : "text-red-600"
+                    )}>
                       {formatPercentage(service.avgSavingsPercent)}
                     </td>
                     {activeView === 'internal' && (
@@ -488,9 +486,11 @@ export function AnalysisViewer({
                       ))}
                     </Pie>
                     <Tooltip formatter={(value: any, name: any) => [`${value} shipments`, name]} />
-                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Distribution of shipments across different service types
+                </p>
               </CardContent>
             </Card>
 
@@ -520,11 +520,13 @@ export function AnalysisViewer({
                       }}
                       labelFormatter={(label: any) => `Service: ${label}`}
                     />
-                    <Legend />
                     <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
                     <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Avg Cost" />
                   </BarChart>
                 </ResponsiveContainer>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Comparison of current shipping costs vs proposed Ship Pros rates by service type
+                </p>
               </CardContent>
             </Card>
 
@@ -540,11 +542,13 @@ export function AnalysisViewer({
                     <XAxis dataKey="weightRange" />
                     <YAxis />
                     <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
-                    <Legend />
                     <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
                     <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
                   </BarChart>
                 </ResponsiveContainer>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Rate comparison across different weight ranges showing potential savings
+                </p>
               </CardContent>
             </Card>
 
@@ -560,11 +564,13 @@ export function AnalysisViewer({
                     <XAxis dataKey="zone" />
                     <YAxis />
                     <Tooltip formatter={(value: any, name: any) => [`$${value.toFixed(2)}`, name]} />
-                    <Legend />
                     <Bar dataKey="avgCurrentCost" fill="#dc2626" name="Current Avg Cost" />
                     <Bar dataKey="avgNewCost" fill="#22c55e" name="UPS Avg Cost" />
                   </BarChart>
                 </ResponsiveContainer>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Rate comparison by shipping zone showing cost differences across distance ranges
+                </p>
               </CardContent>
             </Card>
           </div>

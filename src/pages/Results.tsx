@@ -190,6 +190,7 @@ const Results = () => {
       setCurrentAnalysisId(analysisIdToUse);
       console.log('Opening save dialog with analysis ID:', analysisIdToUse);
       setShowSaveDialog(true);
+      console.log('showSaveDialog state set to true');
     } else {
       console.error('Failed to get analysis ID for saving');
       toast.error('Failed to prepare analysis for saving');

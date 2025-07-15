@@ -65,8 +65,7 @@ const ReportsPage = () => {
           status, 
           updated_at,
           report_name,
-          client_id,
-          client:clients(id, company_name)
+          client_id
         `)
         .eq('user_id', user?.id)
         .eq('is_deleted', false)

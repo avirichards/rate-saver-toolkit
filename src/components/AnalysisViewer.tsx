@@ -91,23 +91,25 @@ export function AnalysisViewer({
     return filtered;
   }, [calculatedResults, selectedServices, resultFilter]);
 
-  // Aggregate results by service type for overview table (using filtered results)
+  // Generate service analysis data from ALL results, not filtered results
   const serviceAnalysisData = useMemo(() => {
     const serviceGroups = new Map();
     
-    filteredResults.forEach(result => {
+    // Get all services for the table
+    calculatedResults.forEach(result => {
       const service = result.bestRate?.service || 'Unknown';
       if (!serviceGroups.has(service)) {
         serviceGroups.set(service, {
           currentService: service,
-          shipProsService: service, // Using same service for now
+          shipProsService: service,
           totalCurrentCost: 0,
           totalFinalRate: 0,
           totalBaseUpsRate: 0,
           totalMarkupAmount: 0,
           shipmentCount: 0,
           totalWeight: 0,
-          totalSavings: 0
+          totalSavings: 0,
+          allShipments: []
         });
       }
       
@@ -119,6 +121,7 @@ export function AnalysisViewer({
       group.shipmentCount += 1;
       group.totalWeight += (result.shipment?.weight || 0);
       group.totalSavings += result.savings;
+      group.allShipments.push(result);
     });
 
     return Array.from(serviceGroups.values()).map(group => ({
@@ -133,7 +136,108 @@ export function AnalysisViewer({
       volumePercent: calculatedResults.length > 0 ? (group.shipmentCount / calculatedResults.length) * 100 : 0,
       markupPercentage: markupConfig.type === 'global' ? markupConfig.globalPercentage || 0 : markupConfig.serviceMarkups?.[group.currentService] || 0
     }));
-  }, [filteredResults, calculatedResults, markupConfig]);
+  }, [calculatedResults, markupConfig]);
+
+  // Generate chart data from filtered results
+  const generatedChartData = useMemo(() => {
+    // Service distribution
+    const serviceDistribution = new Map();
+    filteredResults.forEach(result => {
+      const service = result.bestRate?.service || 'Unknown';
+      serviceDistribution.set(service, (serviceDistribution.get(service) || 0) + 1);
+    });
+    const serviceChartData = Array.from(serviceDistribution.entries()).map(([name, value]) => ({ name, value }));
+
+    // Service cost comparison
+    const serviceCostGroups = new Map();
+    filteredResults.forEach(result => {
+      const service = result.bestRate?.service || 'Unknown';
+      if (!serviceCostGroups.has(service)) {
+        serviceCostGroups.set(service, { currentCost: 0, shipProsCost: 0, count: 0 });
+      }
+      const group = serviceCostGroups.get(service);
+      group.currentCost += result.currentCost;
+      group.shipProsCost += result.finalRate;
+      group.count += 1;
+    });
+    const serviceCostData = Array.from(serviceCostGroups.entries()).map(([service, data]) => ({
+      service,
+      currentCost: data.currentCost / data.count,
+      shipProsCost: data.shipProsCost / data.count
+    }));
+
+    // Weight ranges
+    const weightRanges = [
+      { min: 0, max: 5, label: '0-5 lbs' },
+      { min: 5, max: 15, label: '5-15 lbs' },
+      { min: 15, max: 50, label: '15-50 lbs' },
+      { min: 50, max: 100, label: '50-100 lbs' },
+      { min: 100, max: Infinity, label: '100+ lbs' }
+    ];
+    const weightGroups = new Map();
+    filteredResults.forEach(result => {
+      const weight = result.shipment?.weight || 0;
+      const range = weightRanges.find(r => weight >= r.min && weight < r.max);
+      if (range) {
+        const key = range.label;
+        if (!weightGroups.has(key)) {
+          weightGroups.set(key, { current: 0, shipPros: 0, count: 0 });
+        }
+        const group = weightGroups.get(key);
+        group.current += result.currentCost;
+        group.shipPros += result.finalRate;
+        group.count += 1;
+      }
+    });
+    const weightChartData = Array.from(weightGroups.entries()).map(([range, data]) => ({
+      range,
+      current: data.current / data.count,
+      shipPros: data.shipPros / data.count
+    }));
+
+    // Zone data
+    const zoneGroups = new Map();
+    filteredResults.forEach(result => {
+      const zone = result.shipment?.zone || result.shipment?.destinationZone || 'Unknown';
+      if (!zoneGroups.has(zone)) {
+        zoneGroups.set(zone, { current: 0, shipPros: 0, count: 0 });
+      }
+      const group = zoneGroups.get(zone);
+      group.current += result.currentCost;
+      group.shipPros += result.finalRate;
+      group.count += 1;
+    });
+    const zoneChartData = Array.from(zoneGroups.entries()).map(([zone, data]) => ({
+      zone,
+      current: data.current / data.count,
+      shipPros: data.shipPros / data.count,
+      shipmentCount: data.count
+    }));
+
+    return {
+      serviceChartData,
+      serviceCostData,
+      weightChartData,
+      zoneChartData
+    };
+  }, [filteredResults]);
+
+  // Use provided chart data or fallback to generated
+  const currentChartData = chartData || generatedChartData;
+
+  // Calculate filtered totals for summary cards
+  const filteredTotals = useMemo(() => {
+    const totalCurrentCost = filteredResults.reduce((sum, r) => sum + r.currentCost, 0);
+    const totalFinalRate = filteredResults.reduce((sum, r) => sum + r.finalRate, 0);
+    const totalSavings = filteredResults.reduce((sum, r) => sum + r.savings, 0);
+    
+    return {
+      totalCurrentCost,
+      totalFinalRate,
+      totalSavings,
+      savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0
+    };
+  }, [filteredResults]);
 
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
 
@@ -326,9 +430,9 @@ export function AnalysisViewer({
               </div>
               <div className={cn(
                 "text-2xl font-bold mt-2",
-                totals.totalSavings >= 0 ? "text-foreground" : "text-red-600"
+                filteredTotals.totalSavings >= 0 ? "text-foreground" : "text-red-600"
               )}>
-                {formatCurrency(totals.totalCurrentCost)}
+                {formatCurrency(filteredTotals.totalCurrentCost)}
               </div>
             </CardContent>
           </Card>
@@ -339,7 +443,7 @@ export function AnalysisViewer({
                 <Target className="h-4 w-4 text-green-600" />
                 <span className="text-sm font-medium">Ship Pros Cost</span>
               </div>
-              <div className="text-2xl font-bold mt-2">{formatCurrency(totals.totalFinalRate)}</div>
+              <div className="text-2xl font-bold mt-2">{formatCurrency(filteredTotals.totalFinalRate)}</div>
             </CardContent>
           </Card>
 
@@ -351,15 +455,15 @@ export function AnalysisViewer({
               </div>
               <div className={cn(
                 "text-2xl font-bold mt-2",
-                totals.totalSavings >= 0 ? "text-green-600" : "text-red-600"
+                filteredTotals.totalSavings >= 0 ? "text-green-600" : "text-red-600"
               )}>
-                {formatCurrency(totals.totalSavings)}
+                {formatCurrency(filteredTotals.totalSavings)}
               </div>
               <div className={cn(
                 "text-sm text-muted-foreground",
-                totals.totalSavings >= 0 ? "text-green-600" : "text-red-600"
+                filteredTotals.totalSavings >= 0 ? "text-green-600" : "text-red-600"
               )}>
-                {formatPercentage(totals.savingsPercentage)}
+                {formatPercentage(filteredTotals.savingsPercentage)}
               </div>
             </CardContent>
           </Card>
@@ -370,8 +474,8 @@ export function AnalysisViewer({
                 <Calendar className="h-4 w-4 text-indigo-600" />
                 <span className="text-sm font-medium">Est. Annual Savings</span>
               </div>
-              <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(totals.totalSavings * (snapshotDays || 365))}</div>
-              <div className="text-sm text-muted-foreground">Based on {snapshotDays || 365} day projection</div>
+              <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(filteredTotals.totalSavings * (365 / (snapshotDays || 30)))}</div>
+              <div className="text-sm text-muted-foreground">Based on {snapshotDays || 30} day projection</div>
             </CardContent>
           </Card>
         </div>
@@ -409,7 +513,7 @@ export function AnalysisViewer({
               </thead>
               <tbody>
                 {serviceAnalysisData.map((service, index) => {
-                  const isSelected = selectedServices.includes(service.currentService);
+                  const isSelected = selectedServices.length === 0 || selectedServices.includes(service.currentService);
                   const toggleService = () => {
                     if (!onSelectedServicesChange) return;
                     const newSelection = selectedServices.includes(service.currentService) 
@@ -419,12 +523,15 @@ export function AnalysisViewer({
                   };
                   
                   return (
-                    <tr key={index} className="border-b hover:bg-muted/50">
+                    <tr key={index} className={cn(
+                      "border-b hover:bg-muted/50",
+                      !isSelected && "opacity-50"
+                    )}>
                       <td className="py-3 px-2">
                         {onSelectedServicesChange && (
                           <input
                             type="checkbox"
-                            checked={isSelected}
+                            checked={selectedServices.length === 0 || selectedServices.includes(service.currentService)}
                             onChange={toggleService}
                             className="w-4 h-4 text-primary bg-background border-border rounded focus:ring-primary focus:ring-2"
                           />
@@ -503,20 +610,22 @@ export function AnalysisViewer({
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={chartData?.serviceChartData || []}
+                   <Pie
+                    data={currentChartData?.serviceChartData || []}
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
                     fill="hsl(var(--primary))"
                     dataKey="value"
                     label={({name, value}) => `${name}: ${value}`}
+                    labelLine={false}
                   >
-                    {(chartData?.serviceChartData || []).map((entry, index) => (
+                    {(currentChartData?.serviceChartData || []).map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip 
+                    formatter={(value, name) => [`${value} shipments`, name]}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--background))',
                       border: '1px solid hsl(var(--border))',
@@ -539,8 +648,8 @@ export function AnalysisViewer({
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartData?.serviceCostData || []}
+                 <BarChart
+                  data={currentChartData?.serviceCostData || []}
                   margin={{
                     top: 20,
                     right: 30,
@@ -553,6 +662,7 @@ export function AnalysisViewer({
                   <YAxis tick={{ fill: 'white', fontSize: 12 }} />
                   <Tooltip 
                     formatter={(value, name) => [formatCurrency(Number(value)), name === 'currentCost' ? 'Current Cost' : 'Ship Pros Cost']}
+                    labelFormatter={(label) => `${label} Service`}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--background))',
                       border: '1px solid hsl(var(--border))',
@@ -577,8 +687,8 @@ export function AnalysisViewer({
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={chartData?.weightChartData || []}
+                 <BarChart
+                  data={currentChartData?.weightChartData || []}
                   margin={{
                     top: 20,
                     right: 30,
@@ -590,7 +700,8 @@ export function AnalysisViewer({
                   <XAxis dataKey="range" tick={{ fill: 'white', fontSize: 12 }} />
                   <YAxis tick={{ fill: 'white', fontSize: 12 }} />
                   <Tooltip 
-                    formatter={(value, name) => [formatCurrency(Number(value)), name === 'current' ? 'Current Rate' : 'Ship Pros Rate']}
+                    formatter={(value, name) => [formatCurrency(Number(value)), name === 'current' ? 'Current Cost' : 'Ship Pros Cost']}
+                    labelFormatter={(label) => `Weight Range: ${label}`}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--background))',
                       border: '1px solid hsl(var(--border))',
@@ -598,8 +709,8 @@ export function AnalysisViewer({
                       color: 'white'
                     }}
                   />
-                  <Bar dataKey="current" fill="hsl(var(--destructive))" name="Current Rate" />
-                  <Bar dataKey="shipPros" fill="hsl(var(--primary))" name="Ship Pros Rate" />
+                  <Bar dataKey="current" fill="hsl(var(--destructive))" name="Current Cost" />
+                  <Bar dataKey="shipPros" fill="hsl(var(--primary))" name="Ship Pros Cost" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -615,8 +726,8 @@ export function AnalysisViewer({
           <CardContent>
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={(chartData?.zoneChartData || []).map(item => ({
+                 <BarChart
+                  data={(currentChartData?.zoneChartData || []).map(item => ({
                     ...item,
                     zoneDisplay: `Zone ${item.zone}\n${item.shipmentCount || 0} Shipments`
                   }))}
@@ -638,7 +749,7 @@ export function AnalysisViewer({
                   />
                   <YAxis tick={{ fill: 'white', fontSize: 12 }} />
                   <Tooltip 
-                    formatter={(value, name) => [formatCurrency(Number(value)), name === 'current' ? 'Current Rate' : 'Ship Pros Rate']}
+                    formatter={(value, name) => [formatCurrency(Number(value)), name === 'current' ? 'Current Cost' : 'Ship Pros Cost']}
                     labelFormatter={(label) => {
                       const zone = label.split('\n')[0];
                       const shipments = label.split('\n')[1];
@@ -651,8 +762,8 @@ export function AnalysisViewer({
                       color: 'white'
                     }}
                   />
-                  <Bar dataKey="current" fill="hsl(var(--destructive))" name="Current Rate" />
-                  <Bar dataKey="shipPros" fill="hsl(var(--primary))" name="Ship Pros Rate" />
+                  <Bar dataKey="current" fill="hsl(var(--destructive))" name="Current Cost" />
+                  <Bar dataKey="shipPros" fill="hsl(var(--primary))" name="Ship Pros Cost" />
                 </BarChart>
               </ResponsiveContainer>
             </div>

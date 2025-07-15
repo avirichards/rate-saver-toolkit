@@ -100,6 +100,7 @@ export type Database = {
       csv_uploads: {
         Row: {
           created_at: string
+          csv_content: string | null
           detected_headers: string[]
           file_name: string
           file_size: number
@@ -111,6 +112,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          csv_content?: string | null
           detected_headers: string[]
           file_name: string
           file_size: number
@@ -122,6 +124,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          csv_content?: string | null
           detected_headers?: string[]
           file_name?: string
           file_size?: number
@@ -308,6 +311,7 @@ export type Database = {
           client_facing_data: Json | null
           client_id: string | null
           created_at: string
+          csv_upload_id: string | null
           deleted_at: string | null
           file_name: string
           id: string
@@ -332,6 +336,7 @@ export type Database = {
           client_facing_data?: Json | null
           client_id?: string | null
           created_at?: string
+          csv_upload_id?: string | null
           deleted_at?: string | null
           file_name: string
           id?: string
@@ -356,6 +361,7 @@ export type Database = {
           client_facing_data?: Json | null
           client_id?: string | null
           created_at?: string
+          csv_upload_id?: string | null
           deleted_at?: string | null
           file_name?: string
           id?: string
@@ -374,7 +380,15 @@ export type Database = {
           ups_quotes?: Json | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shipping_analyses_csv_upload_id_fkey"
+            columns: ["csv_upload_id"]
+            isOneToOne: false
+            referencedRelation: "csv_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ups_configs: {
         Row: {

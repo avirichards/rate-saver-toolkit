@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
@@ -8,14 +8,20 @@ import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, 
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { MarkupEditor } from '@/components/MarkupEditor';
+import { AnalysisViewer } from '@/components/AnalysisViewer';
+import { useShippingAnalyses, type MarkupConfig, type ReportConfig } from '@/hooks/useShippingAnalyses';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Copy, Save, Share2 } from 'lucide-react';
 import { cn, formatCurrency, formatPercentage, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useNavigate } from 'react-router-dom';
+
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -75,6 +81,17 @@ const Results = () => {
   const [selectedServicesOverview, setSelectedServicesOverview] = useState<string[]>([]);
   const [snapshotDays, setSnapshotDays] = useState(30);
   const [error, setError] = useState<string | null>(null);
+  
+  // New markup and save functionality
+  const [markupConfig, setMarkupConfig] = useState<MarkupConfig>({
+    type: 'global',
+    globalPercentage: 15
+  });
+  const [reportName, setReportName] = useState('');
+  const [clientName, setClientName] = useState('');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const { saveAnalysis, getShareLink } = useShippingAnalyses();
 
   // Export functionality
   const exportToCSV = () => {
@@ -105,6 +122,67 @@ const Results = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Save report functionality
+  const handleSaveReport = async () => {
+    if (!reportName.trim()) {
+      toast.error('Please enter a report name');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const reportConfig: ReportConfig = {
+        reportName: reportName.trim(),
+        clientName: clientName.trim() || undefined,
+        markupConfig
+      };
+
+      const analysisData = {
+        results: filteredData,
+        totalSavings: filteredData.reduce((sum, item) => sum + item.savings, 0),
+        totalCurrentCost: filteredData.reduce((sum, item) => sum + item.currentRate, 0),
+        recommendations: filteredData.map(item => ({
+          shipment: {
+            trackingId: item.trackingId,
+            originZip: item.originZip,
+            destZip: item.destinationZip,
+            weight: item.weight,
+            service: item.service,
+            carrier: item.carrier
+          },
+          currentCost: item.currentRate,
+          recommendedCost: item.newRate,
+          savings: item.savings,
+          originalService: item.service,
+          recommendedService: item.service,
+          carrier: item.carrier,
+          status: 'completed'
+        })),
+        orphanedShipments: orphanedData
+      };
+
+      const savedAnalysis = await saveAnalysis(analysisData, reportConfig);
+      
+      if (savedAnalysis) {
+        const shareLink = await getShareLink(savedAnalysis.id);
+        if (shareLink) {
+          await navigator.clipboard.writeText(shareLink);
+          toast.success('Report saved and share link copied to clipboard!');
+        } else {
+          toast.success('Report saved successfully!');
+        }
+      }
+      
+      setShowSaveDialog(false);
+      navigate('/reports');
+    } catch (error) {
+      console.error('Error saving report:', error);
+      toast.error('Failed to save report');
+    } finally {
+      setSaving(false);
+    }
   };
 
   useEffect(() => {
@@ -949,6 +1027,10 @@ const Results = () => {
                 <Download className="h-4 w-4 mr-2" />
                 Export Report
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setShowSaveDialog(true)}>
+                <Save className="h-4 w-4 mr-2" />
+                Save Report
+              </Button>
               <Button size="sm" onClick={() => navigate('/upload')}>
                 <Upload className="h-4 w-4 mr-2" />
                 New Analysis
@@ -960,10 +1042,14 @@ const Results = () => {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart className="h-4 w-4" />
               Overview
+            </TabsTrigger>
+            <TabsTrigger value="markup" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Markup & Preview
             </TabsTrigger>
             <TabsTrigger value="shipment-data" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
@@ -1410,6 +1496,46 @@ const Results = () => {
             </div>
           </TabsContent>
 
+          <TabsContent value="markup" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Markup Configuration */}
+              <div className="lg:col-span-1">
+                <MarkupEditor
+                  markupConfig={markupConfig}
+                  onUpdateMarkup={setMarkupConfig}
+                  services={availableServices}
+                />
+              </div>
+              
+              {/* Preview with AnalysisViewer */}
+              <div className="lg:col-span-2">
+                <AnalysisViewer
+                  results={filteredData.map(item => ({
+                    shipment: {
+                      trackingId: item.trackingId,
+                      originZip: item.originZip,
+                      destZip: item.destinationZip,
+                      weight: item.weight,
+                      service: item.service,
+                      carrier: item.carrier
+                    },
+                    currentCost: item.currentRate,
+                    bestRate: {
+                      service: item.service,
+                      serviceCode: item.service,
+                      cost: item.newRate,
+                      savings: item.savings
+                    }
+                  }))}
+                  markupConfig={markupConfig}
+                  reportName={reportName || 'Shipping Analysis Preview'}
+                  clientName={clientName}
+                  showEditOptions={false}
+                />
+              </div>
+            </div>
+          </TabsContent>
+
           <TabsContent value="shipment-data" className="space-y-6">
             <Card>
               <CardHeader className="pb-4">
@@ -1615,6 +1741,43 @@ const Results = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Save Report Dialog */}
+        <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Save Report</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="saveReportName">Report Name *</Label>
+                <Input
+                  id="saveReportName"
+                  placeholder="Enter report name"
+                  value={reportName}
+                  onChange={(e) => setReportName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="saveClientName">Client Name (Optional)</Label>
+                <Input
+                  id="saveClientName"
+                  placeholder="Enter client name"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveReport} disabled={!reportName.trim() || saving}>
+                  {saving ? 'Saving...' : 'Save Report'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

@@ -1186,29 +1186,78 @@ const Results = () => {
 
             {/* Charts Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Service Cost Comparison Chart */}
+              {/* Service Distribution Chart */}
               <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle>Service Cost Comparison</CardTitle>
-                  <CardDescription>Current vs Ship Pros costs by service</CardDescription>
+                <CardHeader>
+                  <CardTitle>Service Distribution</CardTitle>
+                  <CardDescription>Breakdown of shipments by service type</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={serviceChartData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                           label={({ name, percent }) => {
+                             const shortName = name.length > 12 ? name.split(' ').slice(0, 2).join(' ') : name;
+                             return `${shortName}\n${(percent * 100).toFixed(0)}%`;
+                           }}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {serviceChartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Service Cost Comparison */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Cost Comparison by Service</CardTitle>
+                  <CardDescription>Current vs Ship Pros rates by service type</CardDescription>
                 </CardHeader>
                 <CardContent className="p-2">
-                  <div className="h-72">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Savings (Green = Lower Cost)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-red-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Increase (Red = Higher Cost)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={serviceCostData} margin={{ top: 5, right: 10, left: 40, bottom: 20 }}>
+                      <BarChart data={serviceCostData} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="currentService" 
-                           tick={{ fill: 'hsl(var(--foreground))', fontSize: 10 }}
+                           tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }}
                            interval={0}
-                           height={40}
+                           height={50}
                            angle={-45}
                            textAnchor="end"
                            axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
                          <YAxis 
-                           tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`} 
-                           tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }}
+                           tickFormatter={(value) => `$${value}`} 
+                           tick={{ fill: 'hsl(var(--foreground))' }}
                            axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
                          <Tooltip 
@@ -1233,78 +1282,47 @@ const Results = () => {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
-                  {/* Compact Legend */}
-                  <div className="flex items-center justify-center gap-3 mt-1 text-xs">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-destructive rounded-sm"></div>
-                      <span>Current</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-green-500 rounded-sm"></div>
-                      <span>Ship Pros</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Volume Distribution Chart */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle>Volume Distribution</CardTitle>
-                  <CardDescription>Shipment count by service type</CardDescription>
-                </CardHeader>
-                <CardContent className="p-2">
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={serviceChartData}
-                          cx="50%"
-                          cy="50%"
-                          labelLine={false}
-                           label={({ name, percent }) => {
-                             const shortName = name.length > 12 ? name.split(' ').slice(0, 2).join(' ') : name;
-                             return `${shortName}\n${(percent * 100).toFixed(0)}%`;
-                           }}
-                          outerRadius={90}
-                          fill="#8884d8"
-                          dataKey="value"
-                        >
-                          {serviceChartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
                 </CardContent>
               </Card>
 
               {/* Weight Breakdown Chart */}
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Package className="h-5 w-5" />
-                    Weight Cost Comparison
+                    Rate Comparison by Weight
                   </CardTitle>
                   <CardDescription>
-                    Current vs Ship Pros costs by weight
+                    Average cost comparison by weight ranges (lbs)
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-2">
-                  <div className="h-72">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Cost (Lower = Green)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={generateWeightChartData()} margin={{ top: 5, right: 10, left: 40, bottom: 20 }}>
+                       <BarChart data={generateWeightChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 50 }}>
                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="weightRange" 
-                           tick={{ fontSize: 11, fill: 'hsl(var(--foreground))' }}
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                           angle={-45}
+                           textAnchor="end"
+                           height={50}
                            axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
                          <YAxis 
-                           tick={{ fontSize: 11, fill: 'hsl(var(--foreground))' }} 
-                           tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} 
+                           tickFormatter={(value) => `$${value}`}
                            axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
                          <Tooltip 
@@ -1320,49 +1338,50 @@ const Results = () => {
                            }}
                          />
                         <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="avgNewCost" fill="hsl(var(--chart-2))" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                  </div>
-                  {/* Compact Legend */}
-                  <div className="flex items-center justify-center gap-3 mt-1 text-xs">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-destructive rounded-sm"></div>
-                      <span>Current</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-chart-2 rounded-sm"></div>
-                      <span>Ship Pros</span>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
 
               {/* Zone Breakdown Chart */}
               <Card>
-                <CardHeader className="pb-2">
+                <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Target className="h-5 w-5" />
-                    Zone Cost Comparison
+                    Rate Comparison by Zone
                   </CardTitle>
                   <CardDescription>
-                    Current vs Ship Pros costs by shipping zone
+                    Average cost comparison by shipping zones
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-2">
-                  <div className="h-72">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Cost (Lower = Green)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={generateZoneChartData()} margin={{ top: 5, right: 10, left: 40, bottom: 20 }}>
+                       <BarChart data={generateZoneChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 50 }}>
                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="zone" 
-                           tick={{ fontSize: 14, fill: 'hsl(var(--foreground))', fontWeight: 'bold' }}
+                           tick={ZoneTick}
                            interval={0}
+                           height={50}
                            axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
                          <YAxis 
-                           tick={{ fontSize: 11, fill: 'hsl(var(--foreground))' }} 
-                           tickFormatter={(value) => `$${(value / 1000).toFixed(0)}K`}
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} 
+                           tickFormatter={(value) => `$${value}`}
                            axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
                          <Tooltip 
@@ -1382,20 +1401,9 @@ const Results = () => {
                            }}
                          />
                         <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
-                        <Bar dataKey="avgNewCost" fill="hsl(var(--chart-2))" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
-                  </div>
-                  {/* Compact Legend */}
-                  <div className="flex items-center justify-center gap-3 mt-1 text-xs">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-destructive rounded-sm"></div>
-                      <span>Current</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-chart-2 rounded-sm"></div>
-                      <span>Ship Pros</span>
-                    </div>
                   </div>
                 </CardContent>
               </Card>

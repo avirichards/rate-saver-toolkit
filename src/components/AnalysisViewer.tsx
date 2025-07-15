@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Eye, Users, DollarSign, TrendingDown, Package } from 'lucide-react';
 import { useMarkupCalculation } from '@/hooks/useMarkupCalculation';
+import { MarkupEditor } from '@/components/MarkupEditor';
 import type { MarkupConfig } from '@/hooks/useShippingAnalyses';
 
 interface AnalysisViewerProps {
@@ -14,6 +15,8 @@ interface AnalysisViewerProps {
   clientName?: string;
   onUpdateMarkup?: (config: MarkupConfig) => void;
   showEditOptions?: boolean;
+  activeView: 'internal' | 'client';
+  availableServices: string[];
 }
 
 export function AnalysisViewer({ 
@@ -22,9 +25,10 @@ export function AnalysisViewer({
   reportName, 
   clientName,
   onUpdateMarkup,
-  showEditOptions = true 
+  showEditOptions = true,
+  activeView,
+  availableServices
 }: AnalysisViewerProps) {
-  const [activeView, setActiveView] = useState<'internal' | 'client'>('internal');
   const { calculatedResults, totals } = useMarkupCalculation(results, markupConfig);
 
   const formatCurrency = (amount: number) => {
@@ -40,32 +44,6 @@ export function AnalysisViewer({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold">{reportName}</h2>
-          {clientName && (
-            <p className="text-muted-foreground">Client: {clientName}</p>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button 
-            variant={activeView === 'internal' ? 'primary' : 'outline'}
-            onClick={() => setActiveView('internal')}
-            iconLeft={<Eye className="h-4 w-4" />}
-          >
-            Internal View
-          </Button>
-          <Button 
-            variant={activeView === 'client' ? 'primary' : 'outline'}
-            onClick={() => setActiveView('client')}
-            iconLeft={<Users className="h-4 w-4" />}
-          >
-            Client View
-          </Button>
-        </div>
-      </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -114,6 +92,22 @@ export function AnalysisViewer({
           </CardContent>
         </Card>
       </div>
+
+      {/* Internal View Only - Markup Configuration */}
+      {activeView === 'internal' && onUpdateMarkup && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Markup Configuration</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MarkupEditor 
+              markupConfig={markupConfig}
+              onUpdateMarkup={onUpdateMarkup}
+              services={availableServices}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Internal View Only - Margin Summary */}
       {activeView === 'internal' && (

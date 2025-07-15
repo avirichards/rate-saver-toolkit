@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home, Eye, Users } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -91,6 +91,7 @@ const Results = () => {
   const [clientName, setClientName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [activeView, setActiveView] = useState<'internal' | 'client'>('internal');
   const { saveAnalysis, getShareLink } = useShippingAnalyses();
 
   // Export functionality
@@ -1531,6 +1532,8 @@ const Results = () => {
                   reportName={reportName || 'Shipping Analysis Preview'}
                   clientName={clientName}
                   showEditOptions={false}
+                  activeView="client"
+                  availableServices={availableServices}
                 />
               </div>
             </div>
@@ -1741,6 +1744,14 @@ const Results = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Save Button - Always visible */}
+        <div className="mt-6">
+          <Button onClick={() => setShowSaveDialog(true)} className="w-full">
+            <Save className="mr-2 h-4 w-4" />
+            Save Analysis Report
+          </Button>
+        </div>
 
         {/* Save Report Dialog */}
         <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>

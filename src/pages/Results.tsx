@@ -811,16 +811,6 @@ const Results = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            {/* Service Type Filter */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Service Type Filter</CardTitle>
-                <CardDescription>Select specific service types to focus your analysis</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ServiceMultiSelect />
-              </CardContent>
-            </Card>
 
             {/* 30 Day Snapshot */}
             <Card>
@@ -861,6 +851,9 @@ const Results = () => {
               <CardHeader>
                 <CardTitle>Service Analysis Overview</CardTitle>
                 <CardDescription>Detailed breakdown by service type with savings analysis</CardDescription>
+                <div className="mt-4">
+                  <ServiceMultiSelect />
+                </div>
               </CardHeader>
               <CardContent className="p-0">
                 <div className="overflow-x-auto">

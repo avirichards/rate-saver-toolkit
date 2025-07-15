@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams, Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
@@ -63,6 +63,7 @@ const Results = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
+  const [searchParams] = useSearchParams();
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [shipmentData, setShipmentData] = useState<any[]>([]);
   const [orphanedData, setOrphanedData] = useState<any[]>([]);
@@ -139,8 +140,12 @@ const Results = () => {
     const loadAnalysisData = async () => {
       try {
         const state = location.state as { analysisComplete?: boolean; analysisData?: AnalysisData } | null;
+        const analysisIdFromQuery = searchParams.get('analysisId');
         
-        if (state?.analysisComplete && state.analysisData) {
+        if (analysisIdFromQuery) {
+          // Loading from Reports tab
+          await loadFromDatabase(analysisIdFromQuery);
+        } else if (state?.analysisComplete && state.analysisData) {
           console.log('Using analysis data from navigation:', state.analysisData);
           setAnalysisData(state.analysisData);
           
@@ -237,7 +242,7 @@ const Results = () => {
     };
 
     loadAnalysisData();
-  }, [location, params.id]);
+  }, [location, params.id, searchParams]);
 
   const loadFromDatabase = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -260,6 +265,7 @@ const Results = () => {
       return;
     }
 
+    setCurrentAnalysisId(analysisId);
     processAnalysisFromDatabase(data);
   };
 
@@ -953,10 +959,38 @@ const Results = () => {
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto p-6 animate-fade-in">
+        {/* Breadcrumb Navigation */}
+        {(searchParams.get('analysisId') || currentAnalysisId) && (
+          <div className="mb-6">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Link to="/" className="hover:text-foreground transition-colors">
+                <Home className="h-4 w-4" />
+              </Link>
+              <span>/</span>
+              <Link to="/reports" className="hover:text-foreground transition-colors">
+                Reports
+              </Link>
+              <span>/</span>
+              <span className="text-foreground font-medium">Analysis Results</span>
+            </div>
+          </div>
+        )}
+
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
+              {(searchParams.get('analysisId') || currentAnalysisId) && (
+                <Link to="/reports">
+                  <Button
+                    variant="outline"
+                    className="flex items-center gap-2"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to Reports
+                  </Button>
+                </Link>
+              )}
               <Button
                 variant="outline"
                 onClick={() => navigate('/upload')}

@@ -664,10 +664,20 @@ const Results = () => {
     
     return (
       <g transform={`translate(${x},${y})`}>
-        <text x={0} y={0} dy={16} textAnchor="middle" fill="white" fontSize="16" fontWeight="bold">
+        <rect 
+          x={-30} 
+          y={4} 
+          width={60} 
+          height={40} 
+          fill="hsl(var(--popover))" 
+          stroke="hsl(var(--border))" 
+          rx={4}
+          opacity={0.95}
+        />
+        <text x={0} y={0} dy={20} textAnchor="middle" fill="hsl(var(--popover-foreground))" fontSize="12" fontWeight="600">
           {data.zoneName}
         </text>
-        <text x={0} y={20} dy={16} textAnchor="middle" fill="white" fontSize="14">
+        <text x={0} y={0} dy={35} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="10">
           {data.shipmentCount} shipments
         </text>
       </g>
@@ -1218,27 +1228,40 @@ const Results = () => {
                   <CardTitle>Cost Comparison by Service</CardTitle>
                   <CardDescription>Current vs Ship Pros rates by service type</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-80">
+                <CardContent className="p-2">
+                  <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={serviceCostData} margin={{ top: 20, right: 30, left: 20, bottom: 120 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
+                      <BarChart data={serviceCostData} margin={{ top: 5, right: 5, left: 5, bottom: 100 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="currentService" 
-                           tick={{ fill: 'white', fontSize: 14 }}
+                           tick={{ fill: 'hsl(var(--foreground))', fontSize: 11 }}
                            interval={0}
-                           height={100}
+                           height={90}
+                           angle={-45}
+                           textAnchor="end"
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
-                         <YAxis tickFormatter={(value) => `$${value}`} tick={{ fill: 'white' }} />
+                         <YAxis 
+                           tickFormatter={(value) => `$${value}`} 
+                           tick={{ fill: 'hsl(var(--foreground))' }}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
                          <Tooltip 
                            formatter={(value, name) => [formatCurrency(Number(value)), name]} 
                            labelFormatter={(label) => {
                              const item = serviceCostData.find(d => d.currentService === label);
                              return item ? `${item.currentService} → ${item.shipProsService}` : label;
                            }}
+                           contentStyle={{
+                             backgroundColor: 'hsl(var(--popover))',
+                             border: '1px solid hsl(var(--border))',
+                             borderRadius: '6px',
+                             color: 'hsl(var(--popover-foreground))'
+                           }}
                          />
-                        <Bar dataKey="currentCost" fill="#ef4444" name="Current Cost" />
-                        <Bar dataKey="newCost" fill="#22c55e" name="Ship Pros Cost" />
+                        <Bar dataKey="currentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="newCost" fill="hsl(var(--chart-2))" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1256,27 +1279,38 @@ const Results = () => {
                     Average cost comparison by weight ranges (lbs)
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-80">
+                <CardContent className="p-2">
+                  <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={generateWeightChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                         <CartesianGrid strokeDasharray="3 3" />
+                       <BarChart data={generateWeightChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
+                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="weightRange" 
-                           tick={{ fontSize: 12, fill: 'white' }}
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
                            angle={-45}
                            textAnchor="end"
                            height={60}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
-                         <YAxis tick={{ fontSize: 12, fill: 'white' }} tickFormatter={(value) => `$${value}`} />
+                         <YAxis 
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} 
+                           tickFormatter={(value) => `$${value}`}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
                          <Tooltip 
                            formatter={(value: any, name: string) => [
                              formatCurrency(value), 
-                             name === 'Current Cost' ? 'Current Cost' : 'Ship Pros Cost'
+                             name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
                            ]}
+                           contentStyle={{
+                             backgroundColor: 'hsl(var(--popover))',
+                             border: '1px solid hsl(var(--border))',
+                             borderRadius: '6px',
+                             color: 'hsl(var(--popover-foreground))'
+                           }}
                          />
-                        <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Current Cost" />
-                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" />
+                        <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="hsl(var(--chart-2))" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -1294,18 +1328,23 @@ const Results = () => {
                     Average cost comparison by shipping zones
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="h-80">
+                <CardContent className="p-2">
+                  <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
-                       <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
-                         <CartesianGrid strokeDasharray="3 3" />
+                       <BarChart data={generateZoneChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
+                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="zone" 
                            tick={ZoneTick}
                            interval={0}
-                           height={100}
+                           height={60}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
                          />
-                         <YAxis tick={{ fontSize: 12, fill: 'white' }} tickFormatter={(value) => `$${value}`} />
+                         <YAxis 
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} 
+                           tickFormatter={(value) => `$${value}`}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
                          <Tooltip 
                            formatter={(value: any, name: string) => [
                              formatCurrency(value), 
@@ -1315,9 +1354,15 @@ const Results = () => {
                              const item = generateZoneChartData().find(d => d.zone === label);
                              return item ? `${item.zoneName} (${item.shipmentCount} shipments)` : label;
                            }}
+                           contentStyle={{
+                             backgroundColor: 'hsl(var(--popover))',
+                             border: '1px solid hsl(var(--border))',
+                             borderRadius: '6px',
+                             color: 'hsl(var(--popover-foreground))'
+                           }}
                          />
-                        <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Current Cost" />
-                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" />
+                        <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="hsl(var(--chart-2))" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

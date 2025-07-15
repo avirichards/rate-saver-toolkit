@@ -6,9 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, Users, DollarSign, TrendingDown, Package, Target, TrendingUp, Calendar, Filter, Search, ChevronDown, ChevronUp } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Eye, Users, DollarSign, TrendingDown, Package, Target, TrendingUp, Calendar } from 'lucide-react';
 import { useMarkupCalculation } from '@/hooks/useMarkupCalculation';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import type { MarkupConfig } from '@/hooks/useShippingAnalyses';
@@ -59,7 +57,6 @@ export function AnalysisViewer({
   onSnapshotDaysChange
 }: AnalysisViewerProps) {
   const { calculatedResults, totals } = useMarkupCalculation(results, markupConfig);
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -72,11 +69,33 @@ export function AnalysisViewer({
     return `${percentage.toFixed(1)}%`;
   };
 
-  // Aggregate results by service type for overview table
+  // Filter results based on service selection and result filter
+  const filteredResults = useMemo(() => {
+    let filtered = calculatedResults;
+    
+    // Apply service filter (if any services are selected)
+    if (selectedServices.length > 0) {
+      filtered = filtered.filter(result => {
+        const service = result.bestRate?.service || 'Unknown';
+        return selectedServices.includes(service);
+      });
+    }
+    
+    // Apply result filter
+    if (resultFilter === 'wins') {
+      filtered = filtered.filter(result => result.savings > 0);
+    } else if (resultFilter === 'losses') {
+      filtered = filtered.filter(result => result.savings <= 0);
+    }
+    
+    return filtered;
+  }, [calculatedResults, selectedServices, resultFilter]);
+
+  // Aggregate results by service type for overview table (using filtered results)
   const serviceAnalysisData = useMemo(() => {
     const serviceGroups = new Map();
     
-    calculatedResults.forEach(result => {
+    filteredResults.forEach(result => {
       const service = result.bestRate?.service || 'Unknown';
       if (!serviceGroups.has(service)) {
         serviceGroups.set(service, {
@@ -114,7 +133,7 @@ export function AnalysisViewer({
       volumePercent: calculatedResults.length > 0 ? (group.shipmentCount / calculatedResults.length) * 100 : 0,
       markupPercentage: markupConfig.type === 'global' ? markupConfig.globalPercentage || 0 : markupConfig.serviceMarkups?.[group.currentService] || 0
     }));
-  }, [calculatedResults, markupConfig]);
+  }, [filteredResults, calculatedResults, markupConfig]);
 
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
 
@@ -153,7 +172,7 @@ export function AnalysisViewer({
     ] as const;
 
     return (
-      <div className="flex items-center bg-muted rounded-lg p-1">
+      <div className="flex items-center bg-muted rounded-lg p-1 mb-4">
         {options.map((option) => (
           <button
             key={option.value}
@@ -172,7 +191,7 @@ export function AnalysisViewer({
     );
   };
 
-  const ServiceMultiSelect = () => {
+  const RadialServiceFilters = () => {
     const toggleService = (service: string) => {
       if (!onSelectedServicesChange) return;
       const newSelection = selectedServices.includes(service) 
@@ -181,86 +200,51 @@ export function AnalysisViewer({
       onSelectedServicesChange(newSelection);
     };
 
-    const selectAll = () => {
-      if (!onSelectedServicesChange) return;
-      onSelectedServicesChange(availableServices);
-    };
-
-    const clearAll = () => {
-      if (!onSelectedServicesChange) return;
-      onSelectedServicesChange([]);
-    };
-
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium">Filter by Service Type</h3>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={selectAll}>
-              Select All
-            </Button>
-            <Button variant="outline" size="sm" onClick={clearAll}>
-              Clear All
-            </Button>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {availableServices.map(service => (
-            <div key={service} className="flex items-center space-x-2">
-              <Checkbox
-                id={service}
-                checked={selectedServices.includes(service)}
-                onCheckedChange={() => toggleService(service)}
+      <div className="flex flex-wrap gap-3 mb-6">
+        {availableServices.map((service, index) => {
+          const isSelected = selectedServices.includes(service);
+          const colors = [
+            'border-red-500 bg-red-500', 
+            'border-blue-500 bg-blue-500', 
+            'border-green-500 bg-green-500',
+            'border-orange-500 bg-orange-500',
+            'border-purple-500 bg-purple-500',
+            'border-pink-500 bg-pink-500',
+            'border-indigo-500 bg-indigo-500',
+            'border-teal-500 bg-teal-500'
+          ];
+          const colorClass = colors[index % colors.length];
+          
+          return (
+            <button
+              key={service}
+              onClick={() => toggleService(service)}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium",
+                isSelected 
+                  ? `${colorClass} text-white shadow-md` 
+                  : "border-muted bg-background hover:border-muted-foreground/50"
+              )}
+            >
+              <div 
+                className={cn(
+                  "w-3 h-3 rounded-full border-2",
+                  isSelected 
+                    ? "bg-white border-white" 
+                    : `${colorClass.split(' ')[0]} ${colorClass.split(' ')[1]}/20`
+                )}
               />
-              <label htmlFor={service} className="text-sm font-medium cursor-pointer">
-                {service}
-              </label>
-            </div>
-          ))}
-        </div>
+              {service}
+            </button>
+          );
+        })}
       </div>
     );
   };
 
   return (
     <div className="space-y-6">
-      {/* Filters Section */}
-      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <CollapsibleTrigger asChild>
-          <Button variant="outline" className="w-full justify-between">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
-              Filters & Controls
-            </div>
-            {filtersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
-        </CollapsibleTrigger>
-        <CollapsibleContent className="space-y-4 mt-4">
-          <Card>
-            <CardContent className="p-6 space-y-6">
-              {/* Result Filter and Search */}
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Result Filter:</span>
-                  <ResultFilter value={resultFilter} onChange={onResultFilterChange || (() => {})} />
-                </div>
-                <div className="flex items-center gap-2 flex-1 min-w-64">
-                  <Search className="h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search tracking ID, zip codes..."
-                    value={searchTerm}
-                    onChange={(e) => onSearchChange?.(e.target.value)}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-              
-              {/* Service Multi-Select */}
-              {onSelectedServicesChange && <ServiceMultiSelect />}
-            </CardContent>
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
 
       {/* Global Markup Configuration (Internal View Only) - Moved Above */}
       {activeView === 'internal' && onUpdateMarkup && (
@@ -346,7 +330,12 @@ export function AnalysisViewer({
                 <Package className="h-4 w-4 text-purple-600" />
                 <span className="text-sm font-medium">Total Shipments</span>
               </div>
-              <div className="text-2xl font-bold mt-2">{calculatedResults.length}</div>
+              <div className="text-2xl font-bold mt-2">
+                {selectedServices.length > 0 || resultFilter !== 'all'
+                  ? `${filteredResults.length} of ${calculatedResults.length}`
+                  : calculatedResults.length
+                }
+              </div>
             </CardContent>
           </Card>
 
@@ -394,13 +383,21 @@ export function AnalysisViewer({
         </div>
       </div>
 
+      {/* Radial Service Filters */}
+      {onSelectedServicesChange && <RadialServiceFilters />}
+
       {/* Service Analysis Overview - Full Width */}
       <Card>
         <CardHeader>
           <CardTitle>Service Analysis Overview</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
+        <CardContent className="p-0">
+          {/* Result Filter positioned right above the table */}
+          <div className="px-6 pt-6 pb-4">
+            <ResultFilter value={resultFilter} onChange={onResultFilterChange || (() => {})} />
+          </div>
+          <div className="px-6 pb-6">
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
@@ -460,6 +457,7 @@ export function AnalysisViewer({
               </tbody>
             </table>
           </div>
+        </div>
         </CardContent>
       </Card>
 

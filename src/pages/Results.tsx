@@ -670,16 +670,16 @@ const Results = () => {
 
   // Weight ranges configuration
   const WEIGHT_RANGES = [
-    { min: 1, max: 9, label: '01-09' },
-    { min: 10, max: 19, label: '10-19' },
-    { min: 20, max: 29, label: '20-29' },
-    { min: 30, max: 39, label: '30-39' },
-    { min: 40, max: 49, label: '40-49' },
-    { min: 50, max: 69, label: '50-69' },
-    { min: 70, max: 99, label: '70-99' },
-    { min: 100, max: 139, label: '100-139' },
-    { min: 140, max: 149, label: '140-149' },
-    { min: 150, max: 999, label: '150+' }
+    { min: 1, max: 9, label: '01-09 lbs' },
+    { min: 10, max: 19, label: '10-19 lbs' },
+    { min: 20, max: 29, label: '20-29 lbs' },
+    { min: 30, max: 39, label: '30-39 lbs' },
+    { min: 40, max: 49, label: '40-49 lbs' },
+    { min: 50, max: 69, label: '50-69 lbs' },
+    { min: 70, max: 99, label: '70-99 lbs' },
+    { min: 100, max: 139, label: '100-139 lbs' },
+    { min: 140, max: 149, label: '140-149 lbs' },
+    { min: 150, max: 999, label: '150+ lbs' }
   ];
 
   // Calculate shipping zone based on origin and destination ZIP codes
@@ -830,7 +830,7 @@ const Results = () => {
     return Array.from(zoneStats.values())
       .sort((a, b) => parseInt(a.zone.replace('Zone ', '')) - parseInt(b.zone.replace('Zone ', '')))
       .map(stats => ({
-        zone: stats.zone,
+        zone: `${stats.zone} (${stats.count} shipments)`,
         avgCurrentCost: stats.totalCurrent / stats.count,
         avgNewCost: stats.totalNew / stats.count,
         shipmentCount: stats.count
@@ -1081,7 +1081,15 @@ const Results = () => {
                            const avgWeight = data.weight / data.count;
                            const volumePercent = (data.count / shipmentData.length) * 100;
                            const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
-                           const spServiceType = data.carrier === 'UPS' ? service : 'UPS Ground';
+                            // Determine the most common Ship Pros service for this current service
+                            const shipProsSample = shipmentData.filter(item => item.service === service);
+                            const upsServices = shipProsSample.map(item => item.bestService || 'UPS Ground');
+                            const mostCommonUpsService = upsServices.reduce((acc, srv) => {
+                              acc[srv] = (acc[srv] || 0) + 1;
+                              return acc;
+                            }, {} as Record<string, number>);
+                            const spServiceType = Object.entries(mostCommonUpsService)
+                              .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
                            
                            return (
                              <TableRow key={service} className="hover:bg-muted/30 border-b border-border/30">
@@ -1153,7 +1161,10 @@ const Results = () => {
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                           label={({ name, percent }) => {
+                             const shortName = name.length > 12 ? name.split(' ').slice(0, 2).join(' ') : name;
+                             return `${shortName}\n${(percent * 100).toFixed(0)}%`;
+                           }}
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
@@ -1180,9 +1191,9 @@ const Results = () => {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={serviceCostData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="service" />
-                        <YAxis />
-                        <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
+                         <XAxis dataKey="service" />
+                         <YAxis tickFormatter={(value) => `$${value}`} />
+                         <Tooltip formatter={(value, name) => [formatCurrency(Number(value)), name]} />
                         <Bar dataKey="currentCost" fill="hsl(var(--muted-foreground))" name="Current Cost" />
                         <Bar dataKey="newCost" fill="hsl(var(--primary))" name="Ship Pros Cost" />
                       </BarChart>
@@ -1205,19 +1216,22 @@ const Results = () => {
                 <CardContent>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={generateWeightChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="weightRange" 
-                          tick={{ fontSize: 12 }}
-                        />
-                        <YAxis tick={{ fontSize: 12 }} />
-                        <Tooltip 
-                          formatter={(value: any, name: string) => [
-                            formatCurrency(value), 
-                            name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
-                          ]}
-                        />
+                       <BarChart data={generateWeightChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                         <CartesianGrid strokeDasharray="3 3" />
+                         <XAxis 
+                           dataKey="weightRange" 
+                           tick={{ fontSize: 12 }}
+                           angle={-45}
+                           textAnchor="end"
+                           height={60}
+                         />
+                         <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `$${value}`} />
+                         <Tooltip 
+                           formatter={(value: any, name: string) => [
+                             formatCurrency(value), 
+                             name === 'Current Cost' ? 'Current Cost' : 'Ship Pros Cost'
+                           ]}
+                         />
                         <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Current Cost" />
                         <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" />
                       </BarChart>
@@ -1240,19 +1254,20 @@ const Results = () => {
                 <CardContent>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
-                          dataKey="zone" 
-                          tick={{ fontSize: 12 }}
-                        />
-                        <YAxis tick={{ fontSize: 12 }} />
-                        <Tooltip 
-                          formatter={(value: any, name: string) => [
-                            formatCurrency(value), 
-                            name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
-                          ]}
-                        />
+                       <BarChart data={generateZoneChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 40 }}>
+                         <CartesianGrid strokeDasharray="3 3" />
+                         <XAxis 
+                           dataKey="zone" 
+                           tick={{ fontSize: 11 }}
+                           interval={0}
+                         />
+                         <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `$${value}`} />
+                         <Tooltip 
+                           formatter={(value: any, name: string) => [
+                             formatCurrency(value), 
+                             name === 'Current Cost' ? 'Current Cost' : 'Ship Pros Cost'
+                           ]}
+                         />
                         <Bar dataKey="avgCurrentCost" fill="#ef4444" name="Current Cost" />
                         <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" />
                       </BarChart>

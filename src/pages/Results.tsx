@@ -103,6 +103,8 @@ const Results = () => {
   const exportToCSV = () => {
     const csvData = filteredData.map(item => {
       const markupInfo = getShipmentMarkup(item);
+      const savings = item.currentRate - markupInfo.markedUpPrice;
+      const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
       return {
         'Tracking ID': item.trackingId,
         'Origin ZIP': item.originZip,
@@ -111,12 +113,9 @@ const Results = () => {
         'Carrier': item.carrier,
         'Service': item.service,
         'Current Rate': formatCurrency(item.currentRate),
-        'Ship Pros Cost': formatCurrency(item.newRate),
-        'Marked-Up Price': formatCurrency(markupInfo.markedUpPrice),
-        'Savings': formatCurrency(item.savings),
-        'Margin': formatCurrency(markupInfo.margin),
-        'Savings Percentage': formatPercentage(item.savingsPercent),
-        'Margin Percentage': formatPercentage(markupInfo.marginPercent)
+        'Ship Pros Cost': formatCurrency(markupInfo.markedUpPrice),
+        'Savings': formatCurrency(savings),
+        'Savings Percentage': formatPercentage(savingsPercent)
       };
     });
 
@@ -1534,11 +1533,8 @@ const Results = () => {
                         <TableHead className="text-foreground">Service</TableHead>
                         <TableHead className="text-right text-foreground">Current Rate</TableHead>
                         <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
-                        <TableHead className="text-right text-foreground">Marked-Up Price</TableHead>
                         <TableHead className="text-right text-foreground">Savings</TableHead>
-                        <TableHead className="text-right text-foreground">Margin</TableHead>
                         <TableHead className="text-right text-foreground">Savings %</TableHead>
-                        <TableHead className="text-right text-foreground">Margin %</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="bg-background">
@@ -1575,9 +1571,6 @@ const Results = () => {
                           <TableCell className="text-right font-medium text-foreground">
                             {formatCurrency(item.currentRate)}
                           </TableCell>
-                          <TableCell className="text-right font-medium text-foreground">
-                            {formatCurrency(item.newRate)}
-                          </TableCell>
                           <TableCell className="text-right font-medium text-primary">
                             {(() => {
                               const markupInfo = getShipmentMarkup(item);
@@ -1587,34 +1580,38 @@ const Results = () => {
                           <TableCell className="text-right">
                             <div className={cn(
                               "flex items-center justify-end gap-1 font-medium",
-                              getSavingsColor(item.savings)
+                              getSavingsColor(item.currentRate - (() => {
+                                const markupInfo = getShipmentMarkup(item);
+                                return markupInfo.markedUpPrice;
+                              })())
                             )}>
-                              {item.savings > 0 ? (
-                                <CheckCircle2 className="h-4 w-4" />
-                              ) : item.savings < 0 ? (
-                                <XCircle className="h-4 w-4" />
-                              ) : null}
-                              {formatCurrency(item.savings)}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1 font-medium text-green-500">
                               {(() => {
                                 const markupInfo = getShipmentMarkup(item);
-                                return formatCurrency(markupInfo.margin);
+                                const savings = item.currentRate - markupInfo.markedUpPrice;
+                                return savings > 0 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : savings < 0 ? (
+                                  <XCircle className="h-4 w-4" />
+                                ) : null;
+                              })()}
+                              {(() => {
+                                const markupInfo = getShipmentMarkup(item);
+                                const savings = item.currentRate - markupInfo.markedUpPrice;
+                                return formatCurrency(savings);
                               })()}
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <span className={cn("font-medium", getSavingsColor(item.savings))}>
-                              {formatPercentage(item.savingsPercent)}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span className="font-medium text-green-500">
+                            <span className={cn("font-medium", getSavingsColor((() => {
+                              const markupInfo = getShipmentMarkup(item);
+                              const savings = item.currentRate - markupInfo.markedUpPrice;
+                              return savings;
+                            })()))}>
                               {(() => {
                                 const markupInfo = getShipmentMarkup(item);
-                                return formatPercentage(markupInfo.marginPercent);
+                                const savings = item.currentRate - markupInfo.markedUpPrice;
+                                const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
+                                return formatPercentage(savingsPercent);
                               })()}
                             </span>
                           </TableCell>

@@ -1124,15 +1124,12 @@ const Results = () => {
                         <TableHead className="text-foreground">Current Service Type</TableHead>
                         <TableHead className="text-right text-foreground">Avg Cost Current</TableHead>
                         <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
-                        <TableHead className="text-right text-foreground">Marked-Up Price</TableHead>
                         <TableHead className="text-foreground">Ship Pros Service Type</TableHead>
                         <TableHead className="text-right text-foreground">Shipment Count</TableHead>
                         <TableHead className="text-right text-foreground">Volume %</TableHead>
                         <TableHead className="text-right text-foreground">Avg Weight</TableHead>
                         <TableHead className="text-right text-foreground">Avg Savings ($)</TableHead>
-                        <TableHead className="text-right text-foreground">Avg Margin ($)</TableHead>
                         <TableHead className="text-right text-foreground">Avg Savings (%)</TableHead>
-                        <TableHead className="text-right text-foreground">Avg Margin (%)</TableHead>
                         <TableHead className="text-foreground">Notes</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1182,8 +1179,10 @@ const Results = () => {
                               const markupInfo = getShipmentMarkup(item);
                               return sum + markupInfo.markedUpPrice;
                             }, 0) / serviceShipments.length;
-                            const avgMargin = avgMarkedUpPrice - avgNewCost;
-                            const avgMarginPercent = avgNewCost > 0 ? (avgMargin / avgNewCost) * 100 : 0;
+                            
+                            // Update savings calculations to use marked-up price
+                            const avgSavingsWithMarkup = avgCurrentCost - avgMarkedUpPrice;
+                            const avgSavingsPercentWithMarkup = avgCurrentCost > 0 ? (avgSavingsWithMarkup / avgCurrentCost) * 100 : 0;
 
                             return (
                               <TableRow key={service} className="hover:bg-muted/30 border-b border-border/30">
@@ -1201,7 +1200,6 @@ const Results = () => {
                                 </TableCell>
                                 <TableCell className="font-medium text-foreground">{service}</TableCell>
                                  <TableCell className="text-right font-medium">{formatCurrency(avgCurrentCost)}</TableCell>
-                                 <TableCell className="text-right font-medium text-blue-500">{formatCurrency(avgNewCost)}</TableCell>
                                  <TableCell className="text-right font-medium text-primary">{formatCurrency(avgMarkedUpPrice)}</TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className="text-xs">
@@ -1212,30 +1210,20 @@ const Results = () => {
                                  <TableCell className="text-right">{formatPercentage(volumePercent)}</TableCell>
                                  <TableCell className="text-right">{avgWeight.toFixed(1)}</TableCell>
                                  <TableCell className="text-right">
-                                   <span className={cn("font-medium", getSavingsColor(avgSavings))}>
-                                     {formatCurrency(avgSavings)}
+                                   <span className={cn("font-medium", getSavingsColor(avgSavingsWithMarkup))}>
+                                     {formatCurrency(avgSavingsWithMarkup)}
                                    </span>
                                  </TableCell>
                                  <TableCell className="text-right">
-                                   <span className="font-medium text-green-500">
-                                     {formatCurrency(avgMargin)}
-                                   </span>
-                                 </TableCell>
-                                 <TableCell className="text-right">
-                                   <span className={cn("font-medium", getSavingsColor(avgSavings))}>
-                                     {formatPercentage(avgSavingsPercent)}
-                                   </span>
-                                 </TableCell>
-                                 <TableCell className="text-right">
-                                   <span className="font-medium text-green-500">
-                                     {formatPercentage(avgMarginPercent)}
+                                   <span className={cn("font-medium", getSavingsColor(avgSavingsWithMarkup))}>
+                                     {formatPercentage(avgSavingsPercentWithMarkup)}
                                    </span>
                                  </TableCell>
                                 <TableCell>
                                   <div className="text-xs text-muted-foreground">
-                                    {avgSavingsPercent > 20 ? "High savings potential" : 
-                                     avgSavingsPercent > 10 ? "Good savings" : 
-                                     avgSavingsPercent > 0 ? "Moderate savings" : 
+                                    {avgSavingsPercentWithMarkup > 20 ? "High savings potential" : 
+                                     avgSavingsPercentWithMarkup > 10 ? "Good savings" : 
+                                     avgSavingsPercentWithMarkup > 0 ? "Moderate savings" : 
                                      "Review needed"}
                                   </div>
                                 </TableCell>

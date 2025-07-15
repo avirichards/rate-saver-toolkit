@@ -1090,7 +1090,7 @@ const Results = () => {
 
           <TabsContent value="overview" className="space-y-6">
             <AnalysisViewer
-              results={filteredData.map(item => ({
+              results={getOverviewFilteredData().map(item => ({
                 shipment: {
                   trackingId: item.trackingId,
                   originZip: item.originZip,
@@ -1120,6 +1120,14 @@ const Results = () => {
                 weightChartData: generateWeightChartData(),
                 zoneChartData: generateZoneChartData()
               }}
+              selectedServices={selectedServicesOverview}
+              onSelectedServicesChange={setSelectedServicesOverview}
+              resultFilter={resultFilter}
+              onResultFilterChange={setResultFilter}
+              searchTerm={searchTerm}
+              onSearchChange={setSearchTerm}
+              snapshotDays={snapshotDays}
+              onSnapshotDaysChange={setSnapshotDays}
             />
           </TabsContent>
 

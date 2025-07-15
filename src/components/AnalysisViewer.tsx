@@ -5,7 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Eye, Users, DollarSign, TrendingDown, Package, Target, TrendingUp, Calendar } from 'lucide-react';
+import { Eye, Users, DollarSign, TrendingDown, Package, Target, TrendingUp, Calendar, Filter, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { cn } from '@/lib/utils';
 import { useMarkupCalculation } from '@/hooks/useMarkupCalculation';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import type { MarkupConfig } from '@/hooks/useShippingAnalyses';
@@ -25,6 +28,15 @@ interface AnalysisViewerProps {
     weightChartData: any[];
     zoneChartData: any[];
   };
+  // New props for filtering
+  selectedServices?: string[];
+  onSelectedServicesChange?: (services: string[]) => void;
+  resultFilter?: 'all' | 'wins' | 'losses';
+  onResultFilterChange?: (filter: 'all' | 'wins' | 'losses') => void;
+  searchTerm?: string;
+  onSearchChange?: (term: string) => void;
+  snapshotDays?: number;
+  onSnapshotDaysChange?: (days: number) => void;
 }
 
 export function AnalysisViewer({ 
@@ -36,9 +48,18 @@ export function AnalysisViewer({
   showEditOptions = true,
   activeView,
   availableServices,
-  chartData
+  chartData,
+  selectedServices = [],
+  onSelectedServicesChange,
+  resultFilter = 'all',
+  onResultFilterChange,
+  searchTerm = '',
+  onSearchChange,
+  snapshotDays = 30,
+  onSnapshotDaysChange
 }: AnalysisViewerProps) {
   const { calculatedResults, totals } = useMarkupCalculation(results, markupConfig);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -123,11 +144,201 @@ export function AnalysisViewer({
     onUpdateMarkup({ ...markupConfig, type });
   };
 
+  // Components for filtering
+  const ResultFilter = ({ value, onChange }: { value: 'all' | 'wins' | 'losses', onChange: (value: 'all' | 'wins' | 'losses') => void }) => {
+    const options = [
+      { value: 'all', label: 'All' },
+      { value: 'wins', label: 'Wins' },
+      { value: 'losses', label: 'Losses' }
+    ] as const;
+
+    return (
+      <div className="flex items-center bg-muted rounded-lg p-1">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "px-4 py-2 text-sm font-medium rounded-md transition-all",
+              value === option.value
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const ServiceMultiSelect = () => {
+    const toggleService = (service: string) => {
+      if (!onSelectedServicesChange) return;
+      const newSelection = selectedServices.includes(service) 
+        ? selectedServices.filter(s => s !== service)
+        : [...selectedServices, service];
+      onSelectedServicesChange(newSelection);
+    };
+
+    const selectAll = () => {
+      if (!onSelectedServicesChange) return;
+      onSelectedServicesChange(availableServices);
+    };
+
+    const clearAll = () => {
+      if (!onSelectedServicesChange) return;
+      onSelectedServicesChange([]);
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium">Filter by Service Type</h3>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={selectAll}>
+              Select All
+            </Button>
+            <Button variant="outline" size="sm" onClick={clearAll}>
+              Clear All
+            </Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          {availableServices.map(service => (
+            <div key={service} className="flex items-center space-x-2">
+              <Checkbox
+                id={service}
+                checked={selectedServices.includes(service)}
+                onCheckedChange={() => toggleService(service)}
+              />
+              <label htmlFor={service} className="text-sm font-medium cursor-pointer">
+                {service}
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
+      {/* Filters Section */}
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" className="w-full justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              Filters & Controls
+            </div>
+            {filtersOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 mt-4">
+          <Card>
+            <CardContent className="p-6 space-y-6">
+              {/* Result Filter and Search */}
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Result Filter:</span>
+                  <ResultFilter value={resultFilter} onChange={onResultFilterChange || (() => {})} />
+                </div>
+                <div className="flex items-center gap-2 flex-1 min-w-64">
+                  <Search className="h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search tracking ID, zip codes..."
+                    value={searchTerm}
+                    onChange={(e) => onSearchChange?.(e.target.value)}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+              
+              {/* Service Multi-Select */}
+              {onSelectedServicesChange && <ServiceMultiSelect />}
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Global Markup Configuration (Internal View Only) - Moved Above */}
+      {activeView === 'internal' && onUpdateMarkup && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Global Markup Configuration</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <Label htmlFor="markup-type">Markup Type</Label>
+                <Select 
+                  value={markupConfig.type} 
+                  onValueChange={(value: 'global' | 'per-service') => handleMarkupTypeChange(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="global">Global Markup</SelectItem>
+                    <SelectItem value="per-service">Per-Service Markup</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {markupConfig.type === 'global' && (
+                <div>
+                  <Label htmlFor="global-markup">Global Markup %</Label>
+                  <Input
+                    id="global-markup"
+                    type="number"
+                    value={markupConfig.globalPercentage || 0}
+                    onChange={(e) => handleGlobalMarkupChange(Number(e.target.value))}
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    className="mt-1"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-muted-foreground">Margin Summary</div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span>Total Margin:</span>
+                    <span className="font-medium">{formatCurrency(totals.totalMargin)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Margin %:</span>
+                    <span className="font-medium">{formatPercentage(totals.marginPercentage)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Day Snapshot - Colored Summary Cards */}
       <div>
-        <h2 className="text-xl font-semibold mb-4">Day Snapshot</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Day Snapshot</h2>
+          {onSnapshotDaysChange && (
+            <div className="flex items-center gap-2">
+              <Label htmlFor="snapshot-days" className="text-sm">Days:</Label>
+              <Input
+                id="snapshot-days"
+                type="number"
+                value={snapshotDays}
+                onChange={(e) => onSnapshotDaysChange(Number(e.target.value))}
+                min="1"
+                max="365"
+                className="w-20"
+              />
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card className="border-l-4 border-l-purple-500">
             <CardContent className="p-4">
@@ -176,144 +387,81 @@ export function AnalysisViewer({
                 <Calendar className="h-4 w-4 text-indigo-600" />
                 <span className="text-sm font-medium">Est. Annual Savings</span>
               </div>
-              <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(totals.totalSavings * 365)}</div>
-              <div className="text-sm text-muted-foreground">Based on daily average</div>
+              <div className="text-2xl font-bold mt-2 text-green-600">{formatCurrency(totals.totalSavings * (snapshotDays || 365))}</div>
+              <div className="text-sm text-muted-foreground">Based on {snapshotDays || 365} day projection</div>
             </CardContent>
           </Card>
         </div>
       </div>
 
-      {/* Service Analysis Overview with Markup Controls */}
-      <div className="grid grid-cols-12 gap-6">
-        {/* Service Analysis Table */}
-        <div className="col-span-8">
-          <Card>
-            <CardHeader>
-              <CardTitle>Service Analysis Overview</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-2">Current Service</th>
-                      <th className="text-right py-3 px-2">Avg Cost Current</th>
-                      <th className="text-right py-3 px-2">Ship Pros Cost</th>
-                      <th className="text-right py-3 px-2">Ship Pros Service</th>
-                      <th className="text-right py-3 px-2">Shipment Count</th>
-                      <th className="text-right py-3 px-2">Volume %</th>
-                      <th className="text-right py-3 px-2">Avg Weight</th>
-                      <th className="text-right py-3 px-2">Avg Savings ($)</th>
-                      <th className="text-right py-3 px-2">Avg Savings (%)</th>
-                      {activeView === 'internal' && (
-                        <th className="text-right py-3 px-2">Markup %</th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {serviceAnalysisData.map((service, index) => (
-                      <tr key={index} className="border-b hover:bg-muted/50">
-                        <td className="py-3 px-2">
-                          <Badge variant="secondary">{service.currentService}</Badge>
-                        </td>
-                        <td className="py-3 px-2 text-right">{formatCurrency(service.avgCurrentCost)}</td>
-                        <td className="py-3 px-2 text-right">{formatCurrency(service.avgFinalRate)}</td>
-                        <td className="py-3 px-2 text-right">
-                          <Badge variant="outline">{service.shipProsService}</Badge>
-                        </td>
-                        <td className="py-3 px-2 text-right">{service.shipmentCount}</td>
-                        <td className="py-3 px-2 text-right">{formatPercentage(service.volumePercent)}</td>
-                        <td className="py-3 px-2 text-right">{service.avgWeight.toFixed(1)} lbs</td>
-                        <td className="py-3 px-2 text-right font-medium text-green-600">
-                          {formatCurrency(service.avgSavings)}
-                        </td>
-                        <td className="py-3 px-2 text-right font-medium text-green-600">
-                          {formatPercentage(service.avgSavingsPercent)}
-                        </td>
-                        {activeView === 'internal' && (
-                          <td className="py-3 px-2 text-right">
-                            {markupConfig.type === 'per-service' ? (
-                              <Input
-                                type="number"
-                                value={service.markupPercentage}
-                                onChange={(e) => handleMarkupChange(service.currentService, Number(e.target.value))}
-                                className="w-16 text-right"
-                                min="0"
-                                max="100"
-                                step="0.1"
-                              />
-                            ) : (
-                              <span>{formatPercentage(service.markupPercentage)}</span>
-                            )}
-                          </td>
+      {/* Service Analysis Overview - Full Width */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Service Analysis Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-3 px-2">Current Service</th>
+                  <th className="text-right py-3 px-2">Avg Cost Current</th>
+                  <th className="text-right py-3 px-2">Ship Pros Cost</th>
+                  <th className="text-right py-3 px-2">Ship Pros Service</th>
+                  <th className="text-right py-3 px-2">Shipment Count</th>
+                  <th className="text-right py-3 px-2">Volume %</th>
+                  <th className="text-right py-3 px-2">Avg Weight</th>
+                  <th className="text-right py-3 px-2">Avg Savings ($)</th>
+                  <th className="text-right py-3 px-2">Avg Savings (%)</th>
+                  {activeView === 'internal' && (
+                    <th className="text-right py-3 px-2">Markup %</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {serviceAnalysisData.map((service, index) => (
+                  <tr key={index} className="border-b hover:bg-muted/50">
+                    <td className="py-3 px-2">
+                      <Badge variant="secondary">{service.currentService}</Badge>
+                    </td>
+                    <td className="py-3 px-2 text-right">{formatCurrency(service.avgCurrentCost)}</td>
+                    <td className="py-3 px-2 text-right">{formatCurrency(service.avgFinalRate)}</td>
+                    <td className="py-3 px-2 text-right">
+                      <Badge variant="outline">{service.shipProsService}</Badge>
+                    </td>
+                    <td className="py-3 px-2 text-right">{service.shipmentCount}</td>
+                    <td className="py-3 px-2 text-right">{formatPercentage(service.volumePercent)}</td>
+                    <td className="py-3 px-2 text-right">{service.avgWeight.toFixed(1)} lbs</td>
+                    <td className="py-3 px-2 text-right font-medium text-green-600">
+                      {formatCurrency(service.avgSavings)}
+                    </td>
+                    <td className="py-3 px-2 text-right font-medium text-green-600">
+                      {formatPercentage(service.avgSavingsPercent)}
+                    </td>
+                    {activeView === 'internal' && (
+                      <td className="py-3 px-2 text-right">
+                        {markupConfig.type === 'per-service' ? (
+                          <Input
+                            type="number"
+                            value={service.markupPercentage}
+                            onChange={(e) => handleMarkupChange(service.currentService, Number(e.target.value))}
+                            className="w-16 text-right"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                          />
+                        ) : (
+                          <span>{formatPercentage(service.markupPercentage)}</span>
                         )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Global Markup Configuration (Internal View Only) */}
-        {activeView === 'internal' && onUpdateMarkup && (
-          <div className="col-span-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Global Markup</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="markup-type">Markup Type</Label>
-                  <Select 
-                    value={markupConfig.type} 
-                    onValueChange={(value: 'global' | 'per-service') => handleMarkupTypeChange(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="global">Global Markup</SelectItem>
-                      <SelectItem value="per-service">Per-Service Markup</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {markupConfig.type === 'global' && (
-                  <div>
-                    <Label htmlFor="global-markup">Global Markup %</Label>
-                    <Input
-                      id="global-markup"
-                      type="number"
-                      value={markupConfig.globalPercentage || 0}
-                      onChange={(e) => handleGlobalMarkupChange(Number(e.target.value))}
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      className="mt-1"
-                    />
-                  </div>
-                )}
-
-                <div className="pt-4 border-t">
-                  <div className="text-sm font-medium text-muted-foreground mb-2">Margin Summary</div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Total Margin:</span>
-                      <span className="text-sm font-medium">{formatCurrency(totals.totalMargin)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Margin %:</span>
-                      <span className="text-sm font-medium">{formatPercentage(totals.marginPercentage)}</span>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </CardContent>
+      </Card>
 
       {/* Charts Section */}
       {chartData && (

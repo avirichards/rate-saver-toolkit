@@ -72,6 +72,7 @@ const Upload = () => {
           data: parseResult.data, // Pass all data for analysis
           rowCount: parseResult.rowCount,
           fileUploaded: true,
+          uploadTimestamp: Date.now(), // Add timestamp for data freshness tracking
         } 
       });
       
@@ -136,7 +137,8 @@ const Upload = () => {
           data: parseResult.data,
           rowCount: parseResult.rowCount,
           fileUploaded: true,
-          isTestData: true
+          isTestData: true,
+          uploadTimestamp: Date.now(), // Add timestamp for data freshness tracking
         } 
       });
       

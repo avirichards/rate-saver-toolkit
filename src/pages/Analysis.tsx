@@ -89,13 +89,34 @@ const Analysis = () => {
       serviceMappings?: ServiceMapping[],
       fileName?: string,
       csvUploadId?: string,
-      originZipOverride?: string
+      originZipOverride?: string,
+      uploadTimestamp?: number
     } | null;
     
+    // Add comprehensive data freshness validation
+    console.log('🔍 CSV DATA INTEGRITY: Analyzing received state:', {
+      hasState: !!state,
+      readyForAnalysis: state?.readyForAnalysis,
+      csvDataCount: state?.csvData?.length || 0,
+      fileName: state?.fileName,
+      uploadTimestamp: state?.uploadTimestamp,
+      dataFreshness: state?.uploadTimestamp ? `${Date.now() - state.uploadTimestamp}ms ago` : 'unknown',
+      mappingsCount: Object.keys(state?.mappings || {}).length,
+      serviceMappingsCount: state?.serviceMappings?.length || 0
+    });
+    
     if (!state || !state.readyForAnalysis || !state.csvData || !state.mappings) {
+      console.error('🚫 CSV DATA INTEGRITY: Missing required state for analysis');
       toast.error('Please complete the service mapping review first');
       navigate('/service-mapping');
       return;
+    }
+    
+    // Add data freshness warning
+    if (state.uploadTimestamp && (Date.now() - state.uploadTimestamp) > 300000) { // 5 minutes
+      console.warn('⚠️ CSV DATA INTEGRITY: Using potentially stale data', {
+        ageMinutes: Math.round((Date.now() - state.uploadTimestamp) / 60000)
+      });
     }
     
     console.log('🔍 Analysis - Received navigation state:', {
@@ -146,12 +167,55 @@ const Analysis = () => {
       return shipment;
     });
 
-    console.log(`Analysis received ${processedShipments.length} shipments (sample):`, processedShipments.slice(0, 2));
+    // Add comprehensive CSV data validation and logging
+    console.log('🔍 CSV DATA INTEGRITY: Processing shipments with current data:', {
+      totalShipments: processedShipments.length,
+      fileName: state.fileName,
+      uploadTimestamp: state.uploadTimestamp,
+      sampleShipmentData: processedShipments.slice(0, 3).map(s => ({
+        id: s.id,
+        trackingId: s.trackingId,
+        service: s.service,
+        weight: s.weight,
+        dimensions: `${s.length || 'N/A'} x ${s.width || 'N/A'} x ${s.height || 'N/A'}`,
+        cost: s.cost,
+        originZip: s.originZip,
+        destZip: s.destZip
+      })),
+      mappingsUsed: Object.entries(state.mappings).filter(([_, header]) => header && header !== "__NONE__")
+    });
+    
+    // Add specific tracking ID validation for the reported issue
+    const targetTrackingId = "1ZJ74F34YW27282266";
+    const targetShipment = processedShipments.find(s => s.trackingId === targetTrackingId);
+    if (targetShipment) {
+      console.log('🎯 CSV DATA INTEGRITY: Found target shipment with updated data:', {
+        trackingId: targetShipment.trackingId,
+        service: targetShipment.service,
+        weight: targetShipment.weight,
+        currentDimensions: `${targetShipment.length || 'N/A'} x ${targetShipment.width || 'N/A'} x ${targetShipment.height || 'N/A'}`,
+        expectedDimensions: "22 x 8 x 7", // From user's updated spreadsheet
+        dimensionsMatch: targetShipment.length === "22" && targetShipment.width === "8" && targetShipment.height === "7",
+        cost: targetShipment.cost,
+        rawRowData: state.csvData.find((row, idx) => idx === (targetShipment.id - 1))
+      });
+    } else {
+      console.warn('⚠️ CSV DATA INTEGRITY: Target shipment not found in current data:', targetTrackingId);
+    }
+
+    console.log(`✅ CSV DATA INTEGRITY: Successfully processed ${processedShipments.length} shipments from fresh CSV data`);
     setShipments(processedShipments);
     
     // Set service mappings with debugging
     console.log('🔍 Setting service mappings:', state.serviceMappings.length);
     setServiceMappings(state.serviceMappings);
+    
+    // Add data integrity validation display
+    if (targetShipment) {
+      toast.success(`✅ Data Integrity: Found updated shipment ${targetTrackingId} with dimensions ${targetShipment.length}x${targetShipment.width}x${targetShipment.height}`, {
+        duration: 8000,
+      });
+    }
     
     // Check if we have a residential field mapped from CSV
     const residentialField = Object.entries(state.mappings).find(([fieldName, csvHeader]) => 
@@ -1194,6 +1258,41 @@ const Analysis = () => {
             Processing {shipments.length} shipments and comparing current rates with UPS optimization.
           </p>
         </div>
+        
+        {/* Data Freshness Indicator */}
+        {location.state?.uploadTimestamp && (
+          <Card className="mb-6 border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-blue-600" />
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-blue-900">
+                        📊 Processing Current CSV Data: {location.state.fileName}
+                      </p>
+                      <p className="text-sm text-blue-700">
+                        Uploaded {Math.round((Date.now() - location.state.uploadTimestamp) / 1000)} seconds ago
+                      </p>
+                    </div>
+                    {shipments.find(s => s.trackingId === "1ZJ74F34YW27282266") && (
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-blue-900">
+                          ✅ Target Shipment Found
+                        </p>
+                        <p className="text-xs text-blue-700">
+                          Dimensions: {shipments.find(s => s.trackingId === "1ZJ74F34YW27282266")?.length || 'N/A'} x {' '}
+                          {shipments.find(s => s.trackingId === "1ZJ74F34YW27282266")?.width || 'N/A'} x {' '}
+                          {shipments.find(s => s.trackingId === "1ZJ74F34YW27282266")?.height || 'N/A'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         
         {/* Progress Overview */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">

@@ -18,6 +18,7 @@ interface LocationState {
   data?: any[];
   rowCount?: number;
   fileUploaded?: boolean;
+  uploadTimestamp?: number;
 }
 
 const Mapping = () => {
@@ -30,6 +31,7 @@ const Mapping = () => {
   const [fileName, setFileName] = useState<string>('');
   const [csvUploadId, setCsvUploadId] = useState<string>('');
   const [rowCount, setRowCount] = useState<number>(0);
+  const [uploadTimestamp, setUploadTimestamp] = useState<number>(0);
   
   // Check if we have file upload data from the previous step
   useEffect(() => {
@@ -48,6 +50,7 @@ const Mapping = () => {
     setCsvData(state.data || []);
     setFileName(state.fileName || '');
     setCsvUploadId(state.csvUploadId || '');
+    setUploadTimestamp(state.uploadTimestamp || 0);
     setRowCount(state.rowCount || 0);
   }, [location, navigate]);
   
@@ -115,7 +118,8 @@ const Mapping = () => {
           rowCount,
           serviceColumn: mappings.service, // Pass the mapped service column
           readyForServiceMapping: true,
-          originZipOverride
+          originZipOverride,
+          uploadTimestamp // Pass through upload timestamp for data freshness tracking
         } 
       });
       

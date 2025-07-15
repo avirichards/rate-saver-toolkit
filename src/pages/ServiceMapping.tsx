@@ -17,6 +17,7 @@ interface LocationState {
   serviceColumn?: string;
   readyForServiceMapping?: boolean;
   originZipOverride?: string;
+  uploadTimestamp?: number;
 }
 
 const ServiceMapping = () => {
@@ -31,6 +32,7 @@ const ServiceMapping = () => {
   const [serviceColumn, setServiceColumn] = useState<string>('');
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [originZipOverride, setOriginZipOverride] = useState<string>('');
+  const [uploadTimestamp, setUploadTimestamp] = useState<number>(0);
   
   // Check if we have the required data from column mapping
   useEffect(() => {
@@ -48,6 +50,7 @@ const ServiceMapping = () => {
     setFileName(state.fileName || '');
     setCsvUploadId(state.csvUploadId || '');
     setRowCount(state.rowCount || 0);
+    setUploadTimestamp(state.uploadTimestamp || 0);
     setMappings(state.mappings);
     setOriginZipOverride(state.originZipOverride || '');
     
@@ -97,7 +100,8 @@ const ServiceMapping = () => {
         rowCount,
         csvData,
         originZipOverride,
-        readyForAnalysis: true
+        readyForAnalysis: true,
+        uploadTimestamp // Pass through the upload timestamp for data freshness tracking
       } 
     });
   };

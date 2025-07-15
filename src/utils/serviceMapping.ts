@@ -17,15 +17,15 @@ export const UPS_SERVICE_CODES = {
   '12': 'UPS 3 Day Select',
   '13': 'UPS Next Day Air Saver',
   '14': 'UPS Next Day Air Early',
-  '54': 'UPS Worldwide Express Plus',
+  '59': 'UPS 2nd Day Air A.M.',
   '07': 'UPS Worldwide Express',
   '08': 'UPS Worldwide Expedited',
   '11': 'UPS Standard',
-  '65': 'UPS Saver'
+  '65': 'UPS Worldwide Saver'
 };
 
 // Default service types to request when no specific mapping is found
-export const DEFAULT_SERVICE_CODES = ['01', '02', '03', '12', '13'];
+export const DEFAULT_SERVICE_CODES = ['01', '02', '03', '12', '13', '59'];
 
 /**
  * Maps a service name to the most appropriate UPS service code
@@ -70,6 +70,14 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
 
   // 2nd Day Air patterns
   if (service.includes('2nd day') || service.includes('2 day') || service.includes('second day')) {
+    if (service.includes('am') || service.includes('a.m.') || service.includes('morning')) {
+      return {
+        standardizedService: '2nd Day Air A.M.',
+        serviceCode: '59',
+        serviceName: 'UPS 2nd Day Air A.M.',
+        confidence: 0.95
+      };
+    }
     return {
       standardizedService: '2nd Day Air',
       serviceCode: '02',
@@ -100,19 +108,21 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
 
   // Express patterns (international)
   if (service.includes('express')) {
-    if (service.includes('plus') || service.includes('+')) {
-      return {
-        standardizedService: 'Worldwide Express Plus',
-        serviceCode: '54',
-        serviceName: 'UPS Worldwide Express Plus',
-        confidence: 0.8
-      };
-    }
     return {
       standardizedService: 'Worldwide Express',
       serviceCode: '07',
       serviceName: 'UPS Worldwide Express',
       confidence: 0.8
+    };
+  }
+
+  // Saver patterns (international)
+  if (service.includes('saver') && (service.includes('worldwide') || service.includes('international'))) {
+    return {
+      standardizedService: 'Worldwide Saver',
+      serviceCode: '65',
+      serviceName: 'UPS Worldwide Saver',
+      confidence: 0.9
     };
   }
 

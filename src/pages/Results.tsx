@@ -1301,7 +1301,7 @@ const Results = () => {
                          <CartesianGrid strokeDasharray="3 3" />
                          <XAxis 
                            dataKey="zone" 
-                           tick={<ZoneTick />}
+                           tick={ZoneTick}
                            interval={0}
                            height={100}
                          />

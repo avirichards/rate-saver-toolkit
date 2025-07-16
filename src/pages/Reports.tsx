@@ -65,8 +65,7 @@ const ReportsPage = () => {
           status, 
           updated_at,
           report_name,
-          client_id,
-          client:clients(id, company_name)
+          client_id
         `)
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
@@ -76,9 +75,31 @@ const ReportsPage = () => {
         console.error('Database error:', error);
         throw error;
       }
+
+      // Manually fetch client data for reports that have a client_id
+      let reportsWithClients = data || [];
+      if (reportsWithClients.length > 0) {
+        const clientIds = [...new Set(reportsWithClients.map(r => r.client_id).filter(Boolean))];
+        
+        if (clientIds.length > 0) {
+          const { data: clientsData } = await supabase
+            .from('clients')
+            .select('id, company_name')
+            .in('id', clientIds);
+
+          // Map clients to reports
+          reportsWithClients = reportsWithClients.map(report => ({
+            ...report,
+            client: report.client_id 
+              ? clientsData?.find(c => c.id === report.client_id) || null
+              : null
+          }));
+        }
+      }
+
       
-      console.log('Loaded reports:', data?.length || 0, 'reports');
-      setReports((data || []) as any);
+      console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
+      setReports(reportsWithClients as any);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {

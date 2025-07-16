@@ -102,8 +102,9 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
       perServiceMarkup,
       totalMargin,
       marginPercentage,
-      savingsAmount: finalSavingsAmount,
-      savingsPercentage
+      // These will be updated when save happens to use the current Results page filtered values
+      savingsAmount: 0,
+      savingsPercentage: 0
     };
   }, [shipmentData, markupType, globalMarkup, perServiceMarkup]);
 

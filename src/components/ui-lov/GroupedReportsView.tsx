@@ -171,30 +171,18 @@ export function GroupedReportsView({
                             <td className="py-2 px-4 text-right">{`${completed}/${total}`}</td>
                                 <td className="py-2 px-4 text-right">
                                   {(() => {
-                                    const markupStatus = getMarkupStatus(report.markup_data);
-                                    // If has markup, use the markup_data savings values
-                                    if (markupStatus.hasMarkup && report.markup_data?.savingsAmount && report.markup_data?.savingsPercentage) {
-                                      return (
-                                        <div className="text-right">
-                                          <div className="font-medium">${report.markup_data.savingsAmount.toFixed(2)}</div>
-                                          <div className="text-xs text-muted-foreground">
-                                            {report.markup_data.savingsPercentage.toFixed(1)}%
-                                          </div>
+                                    // Use savings_analysis data if available (same as Results page)
+                                    const savingsAmount = report.savings_analysis?.totalSavings ?? report.total_savings ?? 0;
+                                    const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
+                                    
+                                    return (
+                                      <div className="text-right">
+                                        <div className="font-medium">${savingsAmount.toFixed(2)}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {savingsPercentage.toFixed(1)}%
                                         </div>
-                                      );
-                                    } else {
-                                      // Fallback to savings_analysis or total_savings
-                                      const savingsAmount = report.savings_analysis?.totalSavings ?? report.total_savings ?? 0;
-                                      const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
-                                      return (
-                                        <div className="text-right">
-                                          <div className="font-medium">${savingsAmount.toFixed(2)}</div>
-                                          <div className="text-xs text-muted-foreground">
-                                            {savingsPercentage.toFixed(1)}%
-                                          </div>
-                                        </div>
-                                      );
-                                    }
+                                      </div>
+                                    );
                                   })()}
                                 </td>
                             <td className="py-2 px-4 text-right">

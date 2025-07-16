@@ -30,6 +30,8 @@ interface ShippingAnalysis {
   total_savings: number | null;
   markup_data: any;
   savings_analysis: any;
+  recommendations?: any;
+  original_data?: any;
   created_at: string;
   status: string;
   updated_at: string;
@@ -216,6 +218,17 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
     );
   };
 
+  // Helper function to get success rate data - shows processed vs. original total
+  const getSuccessRateData = (report: ShippingAnalysis) => {
+    if (report.savings_analysis?.completedShipments !== undefined) {
+      // Use completed vs. total from original CSV (not just valid ones)
+      const completed = report.savings_analysis.completedShipments || 0;
+      const total = report.total_shipments || 0; // This is the original CSV total
+      return { completed, total };
+    }
+    // Fallback - if no savings_analysis, assume all shipments were successful
+    return { completed: report.total_shipments || 0, total: report.total_shipments || 0 };
+  };
 
   const isAllSelected = selectedReports.size === reports.length && reports.length > 0;
   const isSomeSelected = selectedReports.size > 0 && selectedReports.size < reports.length;
@@ -265,10 +278,11 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
               <th className="text-left py-3 px-2">Client</th>
               <th className="text-left py-3 px-2">Date</th>
               <th className="text-left py-3 px-2">Status</th>
+              <th className="text-right py-3 px-2">Success Rate</th>
               <th className="text-right py-3 px-2">
                 <div className="flex items-center justify-end gap-1">
                   <DollarSign className="h-3 w-3" />
-                  Savings
+                  Client Savings
                 </div>
               </th>
               <th className="text-right py-3 px-2">
@@ -373,21 +387,58 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                   </td>
                   <td className="py-3 px-2 text-right">
                     {(() => {
-                      // Simplified savings calculation - use primary source
-                      const savingsAmount = report.total_savings ?? 0;
+                      const { completed, total } = getSuccessRateData(report);
+                      return `${completed}/${total}`;
+                    })()}
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    {(() => {
                       const markupStatus = getMarkupStatus(report.markup_data);
                       
-                      // If has markup, show markup savings, otherwise show regular savings
-                      if (markupStatus.hasMarkup && markupStatus.savingsAmount > 0) {
-                        return (
-                          <div className="text-right">
-                            <div className="font-medium">${markupStatus.savingsAmount.toFixed(2)}</div>
-                            <div className="text-xs text-muted-foreground">{markupStatus.savingsPercentage.toFixed(1)}%</div>
-                          </div>
-                        );
+                      // If has markup, calculate client savings (client current cost - marked up ShipPros cost)
+                      if (markupStatus.hasMarkup && (report.recommendations || report.original_data)) {
+                        // Use recommendations if available, otherwise fall back to original_data
+                        const shipmentsData = report.recommendations || report.original_data;
+                        
+                        if (Array.isArray(shipmentsData)) {
+                          // Calculate total client savings post-markup
+                          let totalClientSavings = 0;
+                          let totalCurrentCost = 0;
+                          
+                          shipmentsData.forEach((shipment: any) => {
+                          const currentCost = shipment.currentRate || 0;
+                          const shipProsCost = shipment.newRate || 0;
+                          
+                          // Apply markup to ShipPros cost
+                          let markupPercent = 0;
+                          if (markupStatus.hasMarkup) {
+                            if (report.markup_data?.markupType === 'global') {
+                              markupPercent = report.markup_data.globalMarkup || 0;
+                            } else {
+                              markupPercent = report.markup_data?.perServiceMarkup?.[shipment.service] || 0;
+                            }
+                          }
+                          
+                          const markedUpCost = shipProsCost * (1 + markupPercent / 100);
+                          const clientSavings = currentCost - markedUpCost;
+                          
+                            totalClientSavings += clientSavings;
+                            totalCurrentCost += currentCost;
+                          });
+                          
+                          const clientSavingsPercentage = totalCurrentCost > 0 ? (totalClientSavings / totalCurrentCost) * 100 : 0;
+                          
+                          return (
+                            <div className="text-right">
+                              <div className="font-medium">${totalClientSavings.toFixed(2)}</div>
+                              <div className="text-xs text-muted-foreground">{clientSavingsPercentage.toFixed(1)}%</div>
+                            </div>
+                          );
+                        }
                       }
                       
-                      // Calculate percentage based on savings_analysis if available
+                      // No markup - show regular savings (what client saves by switching to ShipPros)
+                      const savingsAmount = report.total_savings ?? 0;
                       const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
                       
                       return (

@@ -145,6 +145,10 @@ const Analysis = () => {
       return;
     }
     
+    // Store raw CSV data for orphan recovery before processing
+    const rawCsvData = [...state.csvData]; // Clone the original data
+    const fieldMappings = { ...state.mappings };
+    
     // Process CSV data into shipments using the confirmed mappings
     const processedShipments = state.csvData.map((row, index) => {
       const shipment: ProcessedShipment = { id: index + 1 };
@@ -166,6 +170,10 @@ const Analysis = () => {
       
       return shipment;
     });
+
+    // Store original CSV data for later recovery of missing shipments
+    (window as any).rawCsvData = rawCsvData;
+    (window as any).fieldMappings = fieldMappings;
 
     // Add comprehensive CSV data validation and logging
     console.log('🔍 CSV DATA INTEGRITY: Processing shipments with current data:', {
@@ -1089,6 +1097,28 @@ const Analysis = () => {
         errorMessage: error.message,
         attemptCount: retryCount + 1
       });
+
+      // CRITICAL: Add failed shipment to orphaned shipments immediately
+      const orphanedShipment = {
+        id: shipment.id,
+        trackingId: shipment.trackingId || `Row-${shipment.id}`,
+        originZip: shipment.originZip || '',
+        destinationZip: shipment.destZip || '',
+        weight: parseFloat(shipment.weight || '0'),
+        service: shipment.service || 'Unknown',
+        error: error.message,
+        errorType,
+        errorCategory,
+        attemptCount: retryCount + 1
+      };
+
+      console.log('🚫 ORPHANED SHIPMENT: Adding failed shipment to orphaned list:', orphanedShipment);
+
+      // Store orphaned shipment globally for later database save
+      if (!(window as any).orphanedShipments) {
+        (window as any).orphanedShipments = [];
+      }
+      (window as any).orphanedShipments.push(orphanedShipment);
       
       // Update error result using functional update with enhanced tracking
       updateShipmentStatus({
@@ -1162,7 +1192,11 @@ const Analysis = () => {
       savingsPercent: result.currentCost && result.currentCost > 0 ? ((result.savings || 0) / result.currentCost) * 100 : 0
     }));
 
-    const orphanedShipmentsFormatted = errorResults.map((result, index) => ({
+    // Get orphaned shipments from global storage
+    const orphanedShipmentsFromErrors = (window as any).orphanedShipments || [];
+    
+    // Enhanced orphaned shipments from error results
+    const orphanedShipmentsFromResults = errorResults.map((result, index) => ({
       id: completedResults.length + index + 1,
       trackingId: result.shipment.trackingId || `Orphan-${index + 1}`,
       originZip: result.shipment.originZip || '',
@@ -1173,6 +1207,12 @@ const Analysis = () => {
       errorType: result.errorType || 'Unknown',
       errorCategory: result.errorCategory || 'Processing Error'
     }));
+
+    // Combine all orphaned shipments and remove duplicates
+    const allOrphanedShipments = [...orphanedShipmentsFromResults, ...orphanedShipmentsFromErrors];
+    const orphanedShipmentsFormatted = allOrphanedShipments.filter((orphan, index, array) => 
+      index === array.findIndex(o => o.trackingId === orphan.trackingId)
+    );
 
     const processingMetadata = {
       savedAt: new Date().toISOString(),

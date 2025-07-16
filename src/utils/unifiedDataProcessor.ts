@@ -5,6 +5,7 @@ export interface ProcessedAnalysisData {
   totalCurrentCost: number;
   totalPotentialSavings: number;
   recommendations: ProcessedShipmentData[];
+  orphanedShipments: OrphanedShipmentData[];
   savingsPercentage: number;
   totalShipments: number;
   analyzedShipments: number;
@@ -26,6 +27,18 @@ export interface ProcessedShipmentData {
   savings: number;
   savingsPercent: number;
   bestService?: string;
+}
+
+export interface OrphanedShipmentData {
+  id: number;
+  trackingId: string;
+  originZip: string;
+  destinationZip: string;
+  weight: number;
+  service: string;
+  error: string;
+  errorType: string;
+  missingFields: string[];
 }
 
 export interface ValidationResult {
@@ -55,14 +68,22 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
 export const processAnalysisData = (analysis: any, isClientView: boolean = false): ProcessedAnalysisData => {
   // Get data from the most reliable source available
   let sourceData: any[] = [];
+  let orphanedData: any[] = [];
   let totalCurrentCost = 0;
   let totalPotentialSavings = 0;
 
   // Priority 1: Use centralized processed_shipments if available
   if (analysis.processed_shipments && Array.isArray(analysis.processed_shipments)) {
     sourceData = analysis.processed_shipments;
+    orphanedData = Array.isArray(analysis.orphaned_shipments) ? analysis.orphaned_shipments : [];
     totalCurrentCost = sourceData.reduce((sum, item) => sum + (item.currentRate || 0), 0);
     totalPotentialSavings = sourceData.reduce((sum, item) => sum + (item.savings || 0), 0);
+    
+    console.log('🔍 UNIFIED PROCESSOR: Using centralized data:', {
+      processedShipments: sourceData.length,
+      orphanedShipments: orphanedData.length,
+      totalSavings: totalPotentialSavings
+    });
   }
   // Priority 2: Use savings_analysis if structured properly
   else if (analysis.savings_analysis?.recommendations) {
@@ -112,12 +133,28 @@ export const processAnalysisData = (analysis: any, isClientView: boolean = false
     };
   });
 
+  // Process orphaned shipments into standardized format
+  const processedOrphanedShipments = orphanedData.map((item: any, index: number): OrphanedShipmentData => {
+    return {
+      id: item.id || (index + 1),
+      trackingId: item.trackingId || `Orphan-${index + 1}`,
+      originZip: item.originZip || '',
+      destinationZip: item.destinationZip || item.destZip || '',
+      weight: parseFloat(item.weight || '0'),
+      service: item.service || 'Unknown',
+      error: item.error || 'Processing failed',
+      errorType: item.errorType || 'Unknown Error',
+      missingFields: Array.isArray(item.missingFields) ? item.missingFields : []
+    };
+  });
+
   return {
     totalCurrentCost,
     totalPotentialSavings,
     recommendations: processedShipments,
+    orphanedShipments: processedOrphanedShipments,
     savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
-    totalShipments: analysis.total_shipments || processedShipments.length,
+    totalShipments: analysis.total_shipments || (processedShipments.length + processedOrphanedShipments.length),
     analyzedShipments: processedShipments.length,
     file_name: analysis.file_name,
     report_name: analysis.report_name,

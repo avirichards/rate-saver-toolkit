@@ -27,7 +27,8 @@ import {
   handleDataProcessingError,
   generateExportData,
   ProcessedAnalysisData,
-  ProcessedShipmentData 
+  ProcessedShipmentData,
+  OrphanedShipmentData
 } from '@/utils/unifiedDataProcessor';
 
 // Use the standardized interface from dataProcessing utils
@@ -73,7 +74,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [searchParams] = useSearchParams();
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [shipmentData, setShipmentData] = useState<ProcessedShipmentData[]>([]);
-  const [orphanedData, setOrphanedData] = useState<any[]>([]);
+  const [orphanedData, setOrphanedData] = useState<OrphanedShipmentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -286,6 +287,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             setShipmentData(processedData.recommendations);
           }
           
+          // Set orphaned data from processed data
+          if (processedData.orphanedShipments && processedData.orphanedShipments.length > 0) {
+            setOrphanedData(processedData.orphanedShipments);
+            console.log('🔍 CLIENT VIEW: Loaded orphaned shipments:', processedData.orphanedShipments.length);
+          }
+          
           setLoading(false);
           return;
         }
@@ -308,7 +315,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           const processedData = processAnalysisData(state.analysisData);
           
           setShipmentData(processedData.recommendations);
-          setOrphanedData([]);
+          setOrphanedData(processedData.orphanedShipments || []);
+          
+          console.log('🔍 NEW ANALYSIS: Processed data:', {
+            recommendations: processedData.recommendations.length,
+            orphaned: (processedData.orphanedShipments || []).length
+          });
           
           // Initialize service data
           const services = [...new Set(processedData.recommendations.map(item => item.service).filter(Boolean))] as string[];
@@ -529,6 +541,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           totalPotentialSavings: totalSavings,
           savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
           recommendations: processedShipments,
+          orphanedShipments: orphanedShipments,
           file_name: analysisMetadata.fileName,
           report_name: analysisMetadata.reportName,
           client_id: analysisMetadata.clientId
@@ -835,6 +848,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       totalPotentialSavings: totalSavings,
       savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
       recommendations: validShipments,
+      orphanedShipments: orphanedShipments,
       file_name: analysisMetadata.fileName,
       report_name: analysisMetadata.reportName,
       client_id: analysisMetadata.clientId

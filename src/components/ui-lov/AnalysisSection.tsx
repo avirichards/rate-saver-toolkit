@@ -360,14 +360,20 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
       if (rateQuote.success && rateQuote.rates && rateQuote.rates.length > 0) {
         const bestRate = rateQuote.rates[0];
         const currentCost = parseFloat(shipment.cost || '0');
-        const newCost = parseFloat(bestRate.TotalCharges?.MonetaryValue || bestRate.total_cost || '0');
+        // Handle both old and new data formats
+        const newCost = parseFloat(
+          bestRate.totalCharges || 
+          bestRate.TotalCharges?.MonetaryValue || 
+          bestRate.total_cost || 
+          '0'
+        );
         const savings = Math.max(0, currentCost - newCost);
         
         console.log(`💰 Shipment ${shipment.id} calculation:`, {
           currentCost,
           newCost,
           savings,
-          bestRateService: bestRate.Service?.Description || bestRate.service_name
+          bestRateService: bestRate.serviceName || bestRate.Service?.Description || bestRate.service_name
         });
         
         // Update analysis results

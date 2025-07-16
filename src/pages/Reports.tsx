@@ -48,18 +48,7 @@ const ReportsPage = () => {
     }
   }, [user]);
 
-  // Reload reports when user navigates back to this page
-  useEffect(() => {
-    const handleFocus = () => {
-      if (user) {
-        console.log('📊 Reports page focused - reloading data');
-        loadReports();
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [user]);
+  // Remove aggressive window focus refresh - it causes the random page refreshes
 
   const loadReports = async () => {
     try {
@@ -196,28 +185,15 @@ const ReportsPage = () => {
   return (
     <DashboardLayout>
       <div className="p-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold mb-1">Reports</h1>
-            <p className="text-muted-foreground">View and manage your saved shipping analyses</p>
-          </div>
-          <div className="mt-4 md:mt-0">
-            <Link to="/upload">
-              <Button 
-                variant="primary" 
-                iconLeft={<FileBarChart className="h-4 w-4" />}
-              >
-                New Analysis
-              </Button>
-            </Link>
-          </div>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-1">Reports</h1>
+          <p className="text-muted-foreground">View and manage your saved shipping analyses</p>
         </div>
 
         <Card>
-          <CardHeader>
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <CardTitle>Shipping Analysis Reports</CardTitle>
-              <div className="flex items-center gap-2 w-full md:w-auto">
+          <CardContent className="pt-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-4">
+              <div className="flex items-center gap-4 w-full md:w-auto">
                 <div className="relative w-full md:w-64">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -232,13 +208,20 @@ const ReportsPage = () => {
                   size="icon" 
                   className="h-9 w-9"
                   onClick={loadReports}
+                  title="Refresh reports"
                 >
                   <Filter className="h-4 w-4" />
                 </Button>
               </div>
+              <Link to="/upload">
+                <Button 
+                  variant="primary" 
+                  iconLeft={<FileBarChart className="h-4 w-4" />}
+                >
+                  New Analysis
+                </Button>
+              </Link>
             </div>
-          </CardHeader>
-          <CardContent>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Switch

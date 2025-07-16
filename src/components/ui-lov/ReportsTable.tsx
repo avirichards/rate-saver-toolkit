@@ -9,6 +9,7 @@ import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { getOrCreateReportShare, copyShareUrl, getShareUrl } from '@/utils/shareUtils';
+import { downloadReportCSV } from '@/utils/exportUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,7 +56,14 @@ interface ReportsTableProps {
 export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: ReportsTableProps) {
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [sharingReports, setSharingReports] = useState<Set<string>>(new Set());
+  const [downloadingReports, setDownloadingReports] = useState<Set<string>>(new Set());
+  const [localReports, setLocalReports] = useState(reports);
   const navigate = useNavigate();
+
+  // Update local state when reports prop changes
+  React.useEffect(() => {
+    setLocalReports(reports);
+  }, [reports]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -165,53 +173,49 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
     }
   };
 
-  // Helper function to get success rate data - shows processed vs. original total
-  const getSuccessRateData = (report: ShippingAnalysis) => {
-    console.log('📊 SUCCESS RATE DEBUG for report:', report.id, {
-      savingsAnalysis: report.savings_analysis,
-      totalShipments: report.total_shipments
-    });
-    
-    if (report.savings_analysis?.completedShipments !== undefined) {
-      // Use completed vs. total from original CSV (not just valid ones)
-      const completed = report.savings_analysis.completedShipments || 0;
-      const total = report.total_shipments || 0; // This is the original CSV total
-      return { completed, total };
+  const handleDownloadReport = async (reportId: string) => {
+    try {
+      setDownloadingReports(prev => new Set(prev).add(reportId));
+      await downloadReportCSV(reportId);
+      toast.success('Report downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading report:', error);
+      toast.error('Failed to download report');
+    } finally {
+      setDownloadingReports(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(reportId);
+        return newSet;
+      });
     }
-    // Fallback - if no savings_analysis, assume all shipments were successful
-    return { completed: report.total_shipments || 0, total: report.total_shipments || 0 };
   };
 
-  // Helper function to get savings percentage - use Results page calculation logic
-  const getSavingsPercentage = (report: ShippingAnalysis) => {
-    console.log('📊 SAVINGS PERCENTAGE DEBUG for report:', report.id, {
-      totalSavings: report.total_savings,
-      savingsAnalysis: report.savings_analysis,
-      totalShipments: report.total_shipments
-    });
-    
-    // PRIORITY 1: Use the savings percentage from savings_analysis (calculated in Results page)
-    if (report.savings_analysis?.savingsPercentage !== undefined) {
-      return report.savings_analysis.savingsPercentage;
-    }
-    
-    // PRIORITY 2: Calculate using savings_analysis data (same as Results page logic)
-    if (report.savings_analysis?.totalCurrentCost && report.savings_analysis?.totalSavings !== undefined) {
-      const totalCost = report.savings_analysis.totalCurrentCost;
-      const savings = report.savings_analysis.totalSavings; // Use savings from analysis, not database total_savings
-      return totalCost > 0 ? (savings / totalCost) * 100 : 0;
-    }
-    
-    // FALLBACK: Calculate from database total_savings and cost data
-    if (report.savings_analysis?.totalCurrentCost) {
-      const totalCost = report.savings_analysis.totalCurrentCost;
-      const savings = report.total_savings || 0;
-      return totalCost > 0 ? (savings / totalCost) * 100 : 0;
-    }
-    
-    // Last resort fallback
-    return 0;
+  // Optimistic update for report name
+  const updateReportNameOptimistically = (reportId: string, newName: string) => {
+    setLocalReports(prev => 
+      prev.map(report => 
+        report.id === reportId 
+          ? { ...report, report_name: newName }
+          : report
+      )
+    );
   };
+
+  // Optimistic update for client
+  const updateReportClientOptimistically = (reportId: string, clientId: string | null, clientName?: string) => {
+    setLocalReports(prev => 
+      prev.map(report => 
+        report.id === reportId 
+          ? { 
+              ...report, 
+              client_id: clientId,
+              client: clientId ? { id: clientId, company_name: clientName || 'Unknown' } : null
+            }
+          : report
+      )
+    );
+  };
+
 
   const isAllSelected = selectedReports.size === reports.length && reports.length > 0;
   const isSomeSelected = selectedReports.size > 0 && selectedReports.size < reports.length;
@@ -261,7 +265,6 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
               <th className="text-left py-3 px-2">Client</th>
               <th className="text-left py-3 px-2">Date</th>
               <th className="text-left py-3 px-2">Status</th>
-              <th className="text-right py-3 px-2">Success Rate</th>
               <th className="text-right py-3 px-2">
                 <div className="flex items-center justify-end gap-1">
                   <DollarSign className="h-3 w-3" />
@@ -278,7 +281,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
             </tr>
           </thead>
           <tbody>
-            {reports.map((report) => {
+            {localReports.map((report) => {
               const markupStatus = getMarkupStatus(report.markup_data);
               const isSelected = selectedReports.has(report.id);
               return (
@@ -293,17 +296,27 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                     <InlineEditableField
                       value={report.report_name || report.file_name}
                       onSave={async (value) => {
-                        const { error } = await supabase
-                          .from('shipping_analyses')
-                          .update({ 
-                            report_name: value,
-                            updated_at: new Date().toISOString()
-                          })
-                          .eq('id', report.id);
+                        // Optimistic update
+                        updateReportNameOptimistically(report.id, value);
                         
-                        if (error) throw error;
-                        toast.success('Report name updated');
-                        onReportUpdate?.();
+                        try {
+                          const { error } = await supabase
+                            .from('shipping_analyses')
+                            .update({ 
+                              report_name: value,
+                              updated_at: new Date().toISOString()
+                            })
+                            .eq('id', report.id);
+                          
+                          if (error) throw error;
+                          toast.success('Report name updated');
+                          // Refresh after successful update
+                          setTimeout(() => onReportUpdate?.(), 500);
+                        } catch (error) {
+                          // Revert optimistic update on error
+                          updateReportNameOptimistically(report.id, report.report_name || report.file_name);
+                          throw error;
+                        }
                       }}
                       placeholder="Click to edit name"
                       required
@@ -314,17 +327,32 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                       <ClientCombobox
                         value={report.client_id || ''}
                         onValueChange={async (clientId) => {
-                          const { error } = await supabase
-                            .from('shipping_analyses')
-                            .update({ 
-                              client_id: clientId || null,
-                              updated_at: new Date().toISOString()
-                            })
-                            .eq('id', report.id);
+                          // Get client name for optimistic update
+                          const clientName = clientId ? 
+                            (await supabase.from('clients').select('company_name').eq('id', clientId).single()).data?.company_name 
+                            : undefined;
                           
-                          if (error) throw error;
-                          toast.success('Client updated');
-                          onReportUpdate?.();
+                          // Optimistic update
+                          updateReportClientOptimistically(report.id, clientId || null, clientName);
+                          
+                          try {
+                            const { error } = await supabase
+                              .from('shipping_analyses')
+                              .update({ 
+                                client_id: clientId || null,
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', report.id);
+                            
+                            if (error) throw error;
+                            toast.success('Client updated');
+                            // Refresh after successful update
+                            setTimeout(() => onReportUpdate?.(), 500);
+                          } catch (error) {
+                            // Revert optimistic update on error
+                            updateReportClientOptimistically(report.id, report.client_id, report.client?.company_name);
+                            throw error;
+                          }
                         }}
                         placeholder="No client"
                       />
@@ -345,35 +373,31 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                   </td>
                   <td className="py-3 px-2 text-right">
                     {(() => {
-                      const { completed, total } = getSuccessRateData(report);
-                      return `${completed}/${total}`;
+                      // Simplified savings calculation - use primary source
+                      const savingsAmount = report.total_savings ?? 0;
+                      const markupStatus = getMarkupStatus(report.markup_data);
+                      
+                      // If has markup, show markup savings, otherwise show regular savings
+                      if (markupStatus.hasMarkup && markupStatus.savingsAmount > 0) {
+                        return (
+                          <div className="text-right">
+                            <div className="font-medium">${markupStatus.savingsAmount.toFixed(2)}</div>
+                            <div className="text-xs text-muted-foreground">{markupStatus.savingsPercentage.toFixed(1)}%</div>
+                          </div>
+                        );
+                      }
+                      
+                      // Calculate percentage based on savings_analysis if available
+                      const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
+                      
+                      return (
+                        <div className="text-right">
+                          <div className="font-medium">${savingsAmount.toFixed(2)}</div>
+                          <div className="text-xs text-muted-foreground">{savingsPercentage.toFixed(1)}%</div>
+                        </div>
+                      );
                     })()}
                   </td>
-                   <td className="py-3 px-2 text-right">
-                     {(() => {
-                       // Check if report has markup data with calculated savings
-                       const markupStatus = getMarkupStatus(report.markup_data);
-                       if (markupStatus.hasMarkup && report.markup_data?.savingsAmount && report.markup_data?.savingsPercentage) {
-                         return (
-                           <div className="text-right">
-                             <div className="font-medium">${report.markup_data.savingsAmount.toFixed(2)}</div>
-                             <div className="text-xs text-muted-foreground">{report.markup_data.savingsPercentage.toFixed(1)}%</div>
-                           </div>
-                         );
-                       }
-                       
-                       // Fallback to savings_analysis or total_savings
-                       const savingsAmount = report.savings_analysis?.totalSavings ?? report.total_savings ?? 0;
-                       const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
-                       
-                       return (
-                         <div className="text-right">
-                           <div className="font-medium">${savingsAmount.toFixed(2)}</div>
-                           <div className="text-xs text-muted-foreground">{savingsPercentage.toFixed(1)}%</div>
-                         </div>
-                       );
-                     })()}
-                   </td>
                   <td className="py-3 px-2 text-right">
                     {markupStatus.hasMarkup ? (
                       <div className="text-right">
@@ -394,11 +418,15 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                          variant="ghost" 
                          size="icon"
                          className="h-8 w-8"
-                         onClick={() => {
-                           console.log('Export report:', report.id);
-                         }}
+                         onClick={() => handleDownloadReport(report.id)}
+                         disabled={downloadingReports.has(report.id)}
+                         title="Download report as CSV"
                        >
-                         <Download className="h-4 w-4" />
+                         {downloadingReports.has(report.id) ? (
+                           <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                         ) : (
+                           <Download className="h-4 w-4" />
+                         )}
                        </Button>
                        <Button 
                          variant="ghost" 

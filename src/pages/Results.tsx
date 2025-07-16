@@ -90,7 +90,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
 
-  // Function to generate unique file name with numbering
+  // Function to generate unique file name with numbering - simplified to prevent nested parentheses
   const generateUniqueFileName = async (baseName: string): Promise<string> => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return baseName;
@@ -98,34 +98,49 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     // Get existing analyses for this user to check for name conflicts
     const { data: existingAnalyses } = await supabase
       .from('shipping_analyses')
-      .select('file_name')
+      .select('file_name, report_name')
       .eq('user_id', user.id)
       .eq('is_deleted', false);
 
     if (!existingAnalyses) return baseName;
 
-    const existingNames = existingAnalyses.map(a => a.file_name);
+    // Check both file_name and report_name to avoid conflicts
+    const existingNames = new Set([
+      ...existingAnalyses.map(a => a.file_name),
+      ...existingAnalyses.map(a => a.report_name).filter(Boolean)
+    ]);
     
     // If base name doesn't exist, use it
-    if (!existingNames.includes(baseName)) {
+    if (!existingNames.has(baseName)) {
       return baseName;
     }
 
-    // Find the highest number suffix
+    // Find the highest number suffix - avoid nested parentheses
     let counter = 1;
-    let uniqueName = `${baseName} (${counter})`;
+    let uniqueName: string;
     
-    while (existingNames.includes(uniqueName)) {
+    // Remove existing parentheses pattern to avoid nesting
+    const cleanBaseName = baseName.replace(/\s*\(\d+\)$/, '');
+    
+    do {
+      uniqueName = `${cleanBaseName} (${counter})`;
       counter++;
-      uniqueName = `${baseName} (${counter})`;
-    }
+    } while (existingNames.has(uniqueName));
     
     return uniqueName;
   };
 
-  // Function to auto-save analysis data to database
+  // Function to auto-save analysis data to database - prevent duplicate saves
   const autoSaveAnalysis = async (isManualSave = false) => {
-    if (!analysisData || currentAnalysisId) return currentAnalysisId;
+    // Prevent multiple saves of the same analysis
+    if (!analysisData || currentAnalysisId) {
+      console.log('⚠️ Auto-save skipped:', { 
+        hasAnalysisData: !!analysisData, 
+        currentAnalysisId,
+        reason: !analysisData ? 'No analysis data' : 'Already saved'
+      });
+      return currentAnalysisId;
+    }
     
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -136,18 +151,29 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
 
     try {
+      console.log('💾 Starting auto-save for analysis:', analysisData.file_name);
+      
       const baseName = analysisData.file_name || 'Untitled Analysis';
       const uniqueFileName = await generateUniqueFileName(baseName);
+
+      // Include savings_analysis data for better reporting
+      const savingsAnalysisData = {
+        totalSavings: analysisData.totalPotentialSavings || 0,
+        completedShipments: analysisData.totalShipments || 0,
+        savingsPercentage: analysisData.totalPotentialSavings && analysisData.totalShipments ? 
+          (analysisData.totalPotentialSavings / (analysisData.totalShipments * 10)) * 100 : 0 // Rough estimate
+      };
 
       const analysisRecord = {
         user_id: user.id,
         file_name: uniqueFileName,
-        total_shipments: analysisData.totalShipments,
+        total_shipments: analysisData.totalShipments || 0,
         total_savings: Math.max(0, analysisData.totalPotentialSavings || 0),
         status: 'completed',
         original_data: analysisData.recommendations as any,
         recommendations: analysisData.recommendations as any,
-        markup_data: markupData as any
+        markup_data: markupData as any,
+        savings_analysis: savingsAnalysisData as any
       };
 
       const { data, error } = await supabase
@@ -158,10 +184,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
       if (error) throw error;
       
+      console.log('✅ Analysis auto-saved successfully:', data.id);
       setCurrentAnalysisId(data.id);
       return data.id;
     } catch (error) {
-      console.error('Error saving analysis:', error);
+      console.error('❌ Error saving analysis:', error);
       if (isManualSave) {
         toast.error('Failed to save analysis to database');
       }
@@ -314,6 +341,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   }, [location, params.id, searchParams, isClientView, shareToken]);
 
   // Auto-save effect - triggers when analysis data is loaded and user is authenticated
+  // IMPORTANT: Only auto-save ONCE per analysis to prevent duplicates
   useEffect(() => {
     const performAutoSave = async () => {
       // Only auto-save if we have analysis data but no current analysis ID (not already saved)
@@ -329,10 +357,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }
     };
 
-    // Add a small delay to ensure all data is loaded
+    // Add a small delay to ensure all data is loaded, but only run once
     if (analysisData && !currentAnalysisId) {
-      const timer = setTimeout(performAutoSave, 2000);
-      return () => clearTimeout(timer);
+      // Use a ref to track if we've already tried to save this analysis
+      const hasTriedSave = React.useRef(false);
+      
+      if (!hasTriedSave.current) {
+        hasTriedSave.current = true;
+        const timer = setTimeout(performAutoSave, 2000);
+        return () => clearTimeout(timer);
+      }
     }
   }, [analysisData, currentAnalysisId]);
 

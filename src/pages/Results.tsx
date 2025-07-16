@@ -255,16 +255,22 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     const loadAnalysisData = async () => {
       try {
         if (isClientView && shareToken) {
+          console.log('🔍 Client view loading with shareToken:', shareToken);
+          
           // Load shared report for client view
           const sharedData = await getSharedReport(shareToken);
+          console.log('📊 Shared data loaded:', sharedData);
+          
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
-          console.log('Client view - Analysis data:', analysis);
+          console.log('📈 Analysis data:', analysis);
           
           // Check if we have savings_analysis or need to fall back to original_data
           const savingsAnalysis = analysis.savings_analysis as any;
           const originalData = analysis.original_data as any;
+          console.log('💰 Savings analysis:', savingsAnalysis);
+          console.log('📋 Original data:', originalData);
           
           // Calculate data from original_data if savings_analysis is not available
           let totalCurrentCost = 0;
@@ -272,19 +278,29 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           let recommendations = [];
           
           if (savingsAnalysis) {
+            console.log('✅ Using savings analysis data');
             totalCurrentCost = savingsAnalysis.totalCurrentCost || 0;
             totalPotentialSavings = savingsAnalysis.totalPotentialSavings || analysis.total_savings || 0;
             recommendations = savingsAnalysis.recommendations || [];
           } else if (originalData && Array.isArray(originalData)) {
+            console.log('📊 Using original data, calculating totals');
             // Calculate from original_data
             recommendations = originalData;
             totalCurrentCost = originalData.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
             totalPotentialSavings = originalData.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
           } else if (analysis.total_savings) {
+            console.log('💵 Using total_savings fallback');
             // Fallback to just the total_savings
             totalPotentialSavings = analysis.total_savings;
             recommendations = [];
           }
+          
+          console.log('📊 Final calculated data:', {
+            totalCurrentCost,
+            totalPotentialSavings,
+            recommendationsCount: recommendations.length,
+            totalShipments: analysis.total_shipments
+          });
           
           const processedData = {
             totalCurrentCost,
@@ -300,7 +316,28 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             client_id: analysis.client_id
           };
 
+          console.log('🎯 Setting analysis data:', processedData);
           setAnalysisData(processedData);
+          
+          // Also populate shipmentData for client view to prevent "No Analysis Results Found"
+          if (recommendations && recommendations.length > 0) {
+            const formattedShipmentData = recommendations.map((rec: any, index: number) => ({
+              id: index + 1,
+              trackingId: rec.shipment?.trackingId || rec.trackingId || `Shipment-${index + 1}`,
+              originZip: rec.shipment?.originZip || rec.originZip || '',
+              destinationZip: rec.shipment?.destZip || rec.destinationZip || '',
+              weight: parseFloat(rec.shipment?.weight || rec.weight || '0'),
+              carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
+              service: rec.originalService || rec.service || 'Unknown',
+              currentRate: rec.currentCost || 0,
+              newRate: rec.recommendedCost || 0,
+              savings: rec.savings || 0,
+              savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
+            }));
+            console.log('📊 Setting shipment data for client view:', formattedShipmentData);
+            setShipmentData(formattedShipmentData);
+          }
+          
           setLoading(false);
           return;
         }
@@ -406,8 +443,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await loadMostRecentAnalysis();
         }
       } catch (error) {
-        console.error('Error loading analysis data:', error);
-        toast.error('Failed to load analysis results');
+        console.error('❌ Error loading analysis data:', error);
+        if (isClientView) {
+          console.error('❌ Client view error details:', error);
+          setError('Failed to load shared report. The link may be invalid or expired.');
+        } else {
+          setError('Failed to load analysis results');
+        }
         setLoading(false);
       }
     };

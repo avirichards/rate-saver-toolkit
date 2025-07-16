@@ -142,18 +142,25 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
     }
   };
 
-  const handlePreviewReport = async (reportId: string) => {
+  const handlePreviewReport = async (reportId: string, event?: React.MouseEvent) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    
     try {
+      console.log('🔍 Creating share for report:', reportId);
       const shareData = await getOrCreateReportShare(reportId);
+      console.log('📊 Share data received:', shareData);
+      
       if (!shareData) {
         throw new Error('Failed to create share link');
       }
 
       const shareUrl = getShareUrl(shareData.shareToken);
+      console.log('🔗 Generated share URL:', shareUrl);
       window.open(shareUrl, '_blank');
     } catch (error) {
-      console.error('Error opening preview:', error);
-      toast.error('Failed to open preview');
+      console.error('❌ Error opening preview:', error);
+      toast.error('Failed to open preview: ' + (error as Error).message);
     }
   };
 
@@ -406,15 +413,15 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                            <Globe className="h-4 w-4" />
                          )}
                        </Button>
-                       <Button 
-                         variant="ghost" 
-                         size="icon"
-                         className="h-8 w-8"
-                         onClick={() => handlePreviewReport(report.id)}
-                         title="Preview client version"
-                       >
-                         <Eye className="h-4 w-4" />
-                       </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={(e) => handlePreviewReport(report.id, e)}
+                          title="Preview client version"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
                        <Link to={`/results?analysisId=${report.id}`}>
                          <Button 
                            variant="ghost" 

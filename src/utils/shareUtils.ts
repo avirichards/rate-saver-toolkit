@@ -100,7 +100,7 @@ export const getSharedReport = async (shareToken: string) => {
       throw new Error('Share has expired');
     }
 
-    // Now get the analysis data
+    // Now get the analysis data with better error handling
     const { data: analysis, error: analysisError } = await supabase
       .from('shipping_analyses')
       .select(`
@@ -112,9 +112,17 @@ export const getSharedReport = async (shareToken: string) => {
         )
       `)
       .eq('id', share.analysis_id)
+      .eq('is_deleted', false)
       .single();
 
-    if (analysisError) throw analysisError;
+    if (analysisError) {
+      console.error('Analysis fetch error:', analysisError);
+      throw new Error(`Analysis not found: ${analysisError.message}`);
+    }
+
+    if (!analysis) {
+      throw new Error('Analysis not found or has been deleted');
+    }
 
     return {
       ...share,

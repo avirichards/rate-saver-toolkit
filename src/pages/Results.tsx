@@ -65,7 +65,12 @@ const ResultFilter = ({ value, onChange }: { value: 'all' | 'wins' | 'losses', o
   );
 };
 
-const Results = () => {
+interface ResultsProps {
+  isClientView?: boolean;
+  shareToken?: string;
+}
+
+const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();

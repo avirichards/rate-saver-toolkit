@@ -113,13 +113,18 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
 
   // Helper function to get success rate data - shows processed vs. original total
   const getSuccessRateData = (report: ShippingAnalysis) => {
-    if (report.savings_analysis) {
+    console.log('📊 SUCCESS RATE DEBUG for report:', report.id, {
+      savingsAnalysis: report.savings_analysis,
+      totalShipments: report.total_shipments
+    });
+    
+    if (report.savings_analysis?.completedShipments !== undefined) {
       // Use completed vs. total from original CSV (not just valid ones)
       const completed = report.savings_analysis.completedShipments || 0;
       const total = report.total_shipments || 0; // This is the original CSV total
       return { completed, total };
     }
-    // Fallback - assume all shipments were successful if no detailed data
+    // Fallback - if no savings_analysis, assume all shipments were successful
     return { completed: report.total_shipments || 0, total: report.total_shipments || 0 };
   };
 

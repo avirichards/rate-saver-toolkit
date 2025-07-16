@@ -48,6 +48,19 @@ const ReportsPage = () => {
     }
   }, [user]);
 
+  // Reload reports when user navigates back to this page
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user) {
+        console.log('📊 Reports page focused - reloading data');
+        loadReports();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user]);
+
   const loadReports = async () => {
     try {
       setLoading(true);

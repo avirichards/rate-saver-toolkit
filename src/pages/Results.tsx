@@ -720,9 +720,9 @@ const Results = () => {
       sampleSavings: validShipments.slice(0, 3).map(s => ({ savings: s.savings, currentRate: s.currentRate }))
     });
     
-    // Update the database total_savings to match the dynamically calculated value
-    if (currentAnalysisId && Math.abs(totalSavings - (analysisMetadata.totalSavings || 0)) > 0.01) {
-      console.log('📊 UPDATING DATABASE: total_savings from', analysisMetadata.totalSavings, 'to', totalSavings);
+    // FORCE database update every time to ensure Reports page shows correct values
+    if (currentAnalysisId) {
+      console.log('📊 FORCE UPDATING DATABASE: total_savings from', analysisMetadata.totalSavings, 'to', totalSavings);
       const { error } = await supabase
         .from('shipping_analyses')
         .update({ 

@@ -508,6 +508,8 @@ const Results = () => {
         totalShipments: data.total_shipments || 0,
         totalSavings: data.total_savings || 0,
         fileName: data.file_name || 'Unknown',
+        reportName: data.report_name || data.file_name || 'Untitled Analysis',
+        clientId: data.client_id || '',
         analysisDate: data.analysis_date || data.created_at
       };
 
@@ -708,7 +710,7 @@ const Results = () => {
     
     // Update analysis summary
     const totalSavings = validShipments.reduce((sum, s) => sum + (s.savings || 0), 0);
-    const totalCurrentCost = validShipments.reduce((sum, s) => sum + (s.currentCost || 0), 0);
+    const totalCurrentCost = validShipments.reduce((sum, s) => sum + (s.currentRate || 0), 0);
     
     setAnalysisData({
       totalShipments: dataIntegrityLog.processedShipments,
@@ -721,7 +723,9 @@ const Results = () => {
       averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
       recommendations: validShipments,
       orphanedShipments: orphanedShipments,
-      file_name: analysisMetadata.fileName
+      file_name: analysisMetadata.fileName,
+      report_name: analysisMetadata.reportName,
+      client_id: analysisMetadata.clientId
     });
     
     setLoading(false);

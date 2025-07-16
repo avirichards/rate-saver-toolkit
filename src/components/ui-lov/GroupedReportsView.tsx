@@ -123,19 +123,25 @@ export function GroupedReportsView({
                         };
 
                         const getSavingsPercentage = (report: ShippingAnalysis) => {
-                          if (report.savings_analysis?.savingsPercentage) {
+                          // PRIORITY 1: Use the savings percentage from savings_analysis (calculated in Results page)
+                          if (report.savings_analysis?.savingsPercentage !== undefined) {
                             return report.savings_analysis.savingsPercentage;
                           }
+                          
+                          // PRIORITY 2: Calculate using savings_analysis data (same as Results page logic)
+                          if (report.savings_analysis?.totalCurrentCost && report.savings_analysis?.totalSavings !== undefined) {
+                            const totalCost = report.savings_analysis.totalCurrentCost;
+                            const savings = report.savings_analysis.totalSavings; // Use savings from analysis, not database total_savings
+                            return totalCost > 0 ? (savings / totalCost) * 100 : 0;
+                          }
+                          
+                          // FALLBACK: Calculate from database total_savings and cost data
                           if (report.savings_analysis?.totalCurrentCost) {
                             const totalCost = report.savings_analysis.totalCurrentCost;
                             const savings = report.total_savings || 0;
                             return totalCost > 0 ? (savings / totalCost) * 100 : 0;
                           }
-                          // Fallback: try to calculate from total_savings if no detailed analysis data
-                          if (report.total_savings && report.total_shipments) {
-                            // Estimate based on average shipment cost if no detailed cost data
-                            return 15; // Conservative estimate for display purposes
-                          }
+                          
                           return 0;
                         };
 
@@ -162,16 +168,25 @@ export function GroupedReportsView({
                             </td>
                             <td className="py-2 px-4 text-right">{`${completed}/${total}`}</td>
                                 <td className="py-2 px-4 text-right">
-                                  {report.total_savings ? (
-                                    <div className="text-right">
-                                      <div className="font-medium">${report.total_savings.toFixed(2)}</div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {savingsPercentage > 0 ? `${savingsPercentage.toFixed(1)}%` : ''}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <span className="text-muted-foreground">-</span>
-                                  )}
+                                  {(() => {
+                                    // Use the same logic as Results page - prioritize savings_analysis.totalSavings
+                                    const savingsAmount = report.savings_analysis?.totalSavings !== undefined 
+                                      ? report.savings_analysis.totalSavings 
+                                      : report.total_savings;
+                                    
+                                    if (savingsAmount !== null && savingsAmount !== undefined) {
+                                      return (
+                                        <div className="text-right">
+                                          <div className="font-medium">${savingsAmount.toFixed(2)}</div>
+                                          <div className="text-xs text-muted-foreground">
+                                            {savingsPercentage > 0 ? `${savingsPercentage.toFixed(1)}%` : ''}
+                                          </div>
+                                        </div>
+                                      );
+                                    } else {
+                                      return <span className="text-muted-foreground">-</span>;
+                                    }
+                                  })()}
                                 </td>
                             <td className="py-2 px-4 text-right">
                               {markupStatus.hasMarkup ? (

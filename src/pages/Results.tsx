@@ -2019,101 +2019,113 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader className="bg-muted/50">
-                      <TableRow className="border-b border-border">
-                        <TableHead className="text-foreground">Tracking ID</TableHead>
-                        <TableHead className="text-foreground">Origin</TableHead>
-                        <TableHead className="text-foreground">Destination</TableHead>
-                        <TableHead className="text-foreground">Weight (lbs)</TableHead>
-                        <TableHead className="text-foreground">Carrier</TableHead>
-                        <TableHead className="text-foreground">Service</TableHead>
-                        <TableHead className="text-right text-foreground">Current Rate</TableHead>
-                        <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
-                        <TableHead className="text-right text-foreground">Savings</TableHead>
-                        <TableHead className="text-right text-foreground">Savings %</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="bg-background">
-                      {filteredData.map((item, index) => (
-                        <TableRow 
-                          key={item.id} 
-                          className={cn(
-                            "hover:bg-muted/30 border-b border-border/30",
-                            index % 2 === 0 ? "bg-background" : "bg-muted/20"
-                          )}
-                        >
-                          <TableCell className="font-medium text-foreground">
-                            {item.trackingId}
-                          </TableCell>
-                          <TableCell className="text-foreground">
-                            {item.originZip}
-                          </TableCell>
-                          <TableCell className="text-foreground">
-                            {item.destinationZip}
-                          </TableCell>
-                          <TableCell className="text-foreground">
-                            {(item.weight || 0).toFixed(1)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {item.carrier || 'Unknown'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">
-                              {item.service}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-foreground">
-                            {formatCurrency(item.currentRate)}
-                          </TableCell>
-                          <TableCell className="text-right font-medium text-primary">
-                            {(() => {
-                              const markupInfo = getShipmentMarkup(item);
-                              return formatCurrency(markupInfo.markedUpPrice);
-                            })()}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className={cn(
-                              "flex items-center justify-end gap-1 font-medium",
-                              getSavingsColor(item.currentRate - (() => {
-                                const markupInfo = getShipmentMarkup(item);
-                                return markupInfo.markedUpPrice;
-                              })())
-                            )}>
-                              {(() => {
-                                const markupInfo = getShipmentMarkup(item);
-                                const savings = item.currentRate - markupInfo.markedUpPrice;
-                                return savings > 0 ? (
-                                  <CheckCircle2 className="h-4 w-4" />
-                                ) : savings < 0 ? (
-                                  <XCircle className="h-4 w-4" />
-                                ) : null;
-                              })()}
-                              {(() => {
-                                const markupInfo = getShipmentMarkup(item);
-                                const savings = item.currentRate - markupInfo.markedUpPrice;
-                                return formatCurrency(savings);
-                              })()}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <span className={cn("font-medium", getSavingsColor((() => {
-                              const markupInfo = getShipmentMarkup(item);
-                              const savings = item.currentRate - markupInfo.markedUpPrice;
-                              return savings;
-                            })()))}>
-                              {(() => {
-                                const markupInfo = getShipmentMarkup(item);
-                                const savings = item.currentRate - markupInfo.markedUpPrice;
-                                const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
-                                return formatPercentage(savingsPercent);
-                              })()}
-                            </span>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
+                     <TableHeader className="bg-muted/50">
+                       <TableRow className="border-b border-border">
+                         <TableHead className="text-foreground">Tracking ID</TableHead>
+                         <TableHead className="text-foreground">Origin</TableHead>
+                         <TableHead className="text-foreground">Destination</TableHead>
+                         <TableHead className="text-foreground">Weight (lbs)</TableHead>
+                         <TableHead className="text-foreground">Dimensions (L×W×H)</TableHead>
+                         <TableHead className="text-foreground">Carrier</TableHead>
+                         <TableHead className="text-foreground">Current Service</TableHead>
+                         <TableHead className="text-foreground">Ship Pros Service</TableHead>
+                         <TableHead className="text-right text-foreground">Current Rate</TableHead>
+                         <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
+                         <TableHead className="text-right text-foreground">Savings</TableHead>
+                         <TableHead className="text-right text-foreground">Savings %</TableHead>
+                       </TableRow>
+                     </TableHeader>
+                     <TableBody className="bg-background">
+                       {filteredData.map((item, index) => (
+                         <TableRow 
+                           key={item.id} 
+                           className={cn(
+                             "hover:bg-muted/30 border-b border-border/30",
+                             index % 2 === 0 ? "bg-background" : "bg-muted/20"
+                           )}
+                         >
+                           <TableCell className="font-medium text-foreground">
+                             {item.trackingId}
+                           </TableCell>
+                           <TableCell className="text-foreground">
+                             {item.originZip}
+                           </TableCell>
+                           <TableCell className="text-foreground">
+                             {item.destinationZip}
+                           </TableCell>
+                           <TableCell className="text-foreground">
+                             {(item.weight || 0).toFixed(1)}
+                           </TableCell>
+                           <TableCell className="text-foreground text-xs">
+                             {item.length && item.width && item.height 
+                               ? `${item.length}×${item.width}×${item.height}` 
+                               : item.dimensions || '12×12×6'}
+                           </TableCell>
+                           <TableCell>
+                             <Badge variant="outline" className="text-xs">
+                               {item.carrier || 'Unknown'}
+                             </Badge>
+                           </TableCell>
+                           <TableCell>
+                             <Badge variant="outline" className="text-xs">
+                               {item.originalService || item.service}
+                             </Badge>
+                           </TableCell>
+                           <TableCell>
+                             <Badge variant="outline" className="text-xs text-primary">
+                               {item.bestService || item.newService || 'UPS Ground'}
+                             </Badge>
+                           </TableCell>
+                           <TableCell className="text-right font-medium text-foreground">
+                             {formatCurrency(item.currentRate)}
+                           </TableCell>
+                           <TableCell className="text-right font-medium text-primary">
+                             {(() => {
+                               const markupInfo = getShipmentMarkup(item);
+                               return formatCurrency(markupInfo.markedUpPrice);
+                             })()}
+                           </TableCell>
+                           <TableCell className="text-right">
+                             <div className={cn(
+                               "flex items-center justify-end gap-1 font-medium",
+                               getSavingsColor(item.currentRate - (() => {
+                                 const markupInfo = getShipmentMarkup(item);
+                                 return markupInfo.markedUpPrice;
+                               })())
+                             )}>
+                               {(() => {
+                                 const markupInfo = getShipmentMarkup(item);
+                                 const savings = item.currentRate - markupInfo.markedUpPrice;
+                                 return savings > 0 ? (
+                                   <CheckCircle2 className="h-4 w-4" />
+                                 ) : savings < 0 ? (
+                                   <XCircle className="h-4 w-4" />
+                                 ) : null;
+                               })()}
+                               {(() => {
+                                 const markupInfo = getShipmentMarkup(item);
+                                 const savings = item.currentRate - markupInfo.markedUpPrice;
+                                 return formatCurrency(savings);
+                               })()}
+                             </div>
+                           </TableCell>
+                           <TableCell className="text-right">
+                             <span className={cn("font-medium", getSavingsColor((() => {
+                               const markupInfo = getShipmentMarkup(item);
+                               const savings = item.currentRate - markupInfo.markedUpPrice;
+                               return savings;
+                             })()))}>
+                               {(() => {
+                                 const markupInfo = getShipmentMarkup(item);
+                                 const savings = item.currentRate - markupInfo.markedUpPrice;
+                                 const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
+                                 return formatPercentage(savingsPercent);
+                               })()}
+                             </span>
+                           </TableCell>
+                         </TableRow>
+                       ))}
+                     </TableBody>
                   </Table>
                 </div>
               </CardContent>

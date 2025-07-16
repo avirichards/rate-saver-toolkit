@@ -23,13 +23,19 @@ export interface ProcessedShipmentData {
   originZip: string;
   destinationZip: string;
   weight: number;
+  length?: number;
+  width?: number;
+  height?: number;
+  dimensions?: string;
   carrier: string;
   service: string;
+  originalService?: string;
+  bestService?: string;
+  newService?: string;
   currentRate: number;
   newRate: number;
   savings: number;
   savingsPercent: number;
-  bestService?: string; // Add the missing property
 }
 
 export interface ValidationResult {
@@ -205,13 +211,19 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
       originZip: rec.shipment?.originZip || rec.originZip || '',
       destinationZip: rec.shipment?.destZip || rec.destinationZip || '',
       weight: parseFloat(rec.shipment?.weight || rec.weight || '0'),
+      length: parseFloat(rec.shipment?.length || rec.length || '12'),
+      width: parseFloat(rec.shipment?.width || rec.width || '12'),
+      height: parseFloat(rec.shipment?.height || rec.height || '6'),
+      dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
       service: rec.originalService || rec.service || 'Unknown',
+      originalService: rec.originalService || rec.service || 'Unknown',
+      bestService: rec.bestService || rec.recommendedService || 'UPS Ground',
+      newService: rec.recommendedService || rec.bestService || 'UPS Ground',
       currentRate,
       newRate,
       savings: rec.savings || calculatedSavings || 0,
-      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0,
-      bestService: rec.bestService || rec.recommendedService || 'UPS Ground'
+      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0
     };
   });
 };

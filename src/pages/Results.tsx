@@ -23,15 +23,12 @@ import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfi
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { 
-  processNormalViewData, 
-  processClientViewData, 
-  formatShipmentData, 
+  processAnalysisData, 
   handleDataProcessingError,
   generateExportData,
-  validateShipmentData,
   ProcessedAnalysisData,
   ProcessedShipmentData 
-} from '@/utils/dataProcessing';
+} from '@/utils/unifiedDataProcessor';
 
 // Use the standardized interface from dataProcessing utils
 type AnalysisData = ProcessedAnalysisData;
@@ -176,8 +173,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const processingMetadata = {
         savedAt: new Date().toISOString(),
         totalSavings: analysisData.totalPotentialSavings || 0,
-        completedShipments: analysisData.completedShipments || 0,
-        errorShipments: analysisData.errorShipments || 0,
+        processedShipments: analysisData.analyzedShipments || 0,
         dataSource: 'new_analysis'
       };
 
@@ -281,14 +277,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
-          const processedData = processClientViewData(analysis);
+          const processedData = processAnalysisData(analysis, true);
           
           setAnalysisData(processedData);
           
-          // Format shipment data if recommendations exist
+          // Set shipment data directly from processed data
           if (processedData.recommendations && processedData.recommendations.length > 0) {
-            const formattedShipmentData = formatShipmentData(processedData.recommendations);
-            setShipmentData(formattedShipmentData);
+            setShipmentData(processedData.recommendations);
           }
           
           setLoading(false);
@@ -309,38 +304,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             autoSaveAnalysis(false);
           }, 1000);
           
-          // Process the recommendations using the utility function
-          const processedData = processNormalViewData(state.analysisData.recommendations);
+          // Process the analysis data using the unified processor
+          const processedData = processAnalysisData(state.analysisData);
           
-          const processedShipmentData = formatShipmentData(processedData.recommendations);
-          setShipmentData(processedShipmentData);
-          setOrphanedData(processedData.orphanedShipments || []);
-          
-          // Also handle orphans from analysisData if available
-          if (state.analysisData.orphanedShipments && state.analysisData.orphanedShipments.length > 0) {
-            const currentOrphans = processedData.orphanedShipments || [];
-            const additionalOrphans = state.analysisData.orphanedShipments.map((orphan: any, index: number) => ({
-              id: currentOrphans.length + index + 1,
-              trackingId: orphan.shipment?.trackingId || `Orphan-${index + 1}`,
-              originZip: orphan.shipment?.originZip || '',
-              destinationZip: orphan.shipment?.destZip || '',
-              weight: parseFloat(orphan.shipment?.weight || '0'),
-              service: orphan.originalService || orphan.shipment?.service || '',
-              error: orphan.error || 'Processing failed',
-              errorType: orphan.errorType || 'Unknown'
-            }));
-            
-            setOrphanedData(prev => [...prev, ...additionalOrphans]);
-            
-            console.log('Loaded orphaned shipments:', {
-              fromRecommendations: currentOrphans.length,
-              fromOrphanedShipments: additionalOrphans.length,
-              total: currentOrphans.length + additionalOrphans.length
-            });
-          }
+          setShipmentData(processedData.recommendations);
+          setOrphanedData([]);
           
           // Initialize service data
-          const services = [...new Set(processedShipmentData.map(item => item.service).filter(Boolean))] as string[];
+          const services = [...new Set(processedData.recommendations.map(item => item.service).filter(Boolean))] as string[];
           setAvailableServices(services);
           setSelectedServicesOverview([]); // Default to unchecked
           
@@ -350,7 +321,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         } else {
           await loadMostRecentAnalysis();
         }
-        } catch (error) {
+      } catch (error) {
         handleDataProcessingError(error, isClientView ? 'client view' : 'normal view');
         setLoading(false);
       }
@@ -554,14 +525,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setAnalysisData({
           totalShipments: processedShipments.length + orphanedShipments.length,
           analyzedShipments: processedShipments.length,
-          completedShipments: processedShipments.length,
-          errorShipments: orphanedShipments.length,
           totalCurrentCost,
           totalPotentialSavings: totalSavings,
           savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-          averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
           recommendations: processedShipments,
-          orphanedShipments: orphanedShipments,
           file_name: analysisMetadata.fileName,
           report_name: analysisMetadata.reportName,
           client_id: analysisMetadata.clientId
@@ -864,14 +831,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     setAnalysisData({
       totalShipments: dataIntegrityLog.processedShipments,
       analyzedShipments: dataIntegrityLog.validShipments,
-      completedShipments: dataIntegrityLog.validShipments,
-      errorShipments: dataIntegrityLog.orphanedShipments,
       totalCurrentCost,
       totalPotentialSavings: totalSavings,
       savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
       recommendations: validShipments,
-      orphanedShipments: orphanedShipments,
       file_name: analysisMetadata.fileName,
       report_name: analysisMetadata.reportName,
       client_id: analysisMetadata.clientId

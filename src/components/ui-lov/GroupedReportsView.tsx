@@ -11,6 +11,7 @@ interface ShippingAnalysis {
   total_shipments: number;
   total_savings: number | null;
   markup_data: any;
+  savings_analysis: any;
   created_at: string;
   status: string;
   updated_at: string;
@@ -100,8 +101,9 @@ export function GroupedReportsView({
                         <th className="text-left py-2 px-4">Report Name</th>
                         <th className="text-left py-2 px-4">Date</th>
                         <th className="text-left py-2 px-4">Status</th>
-                        <th className="text-right py-2 px-4">Items</th>
+                        <th className="text-right py-2 px-4">Success Rate</th>
                         <th className="text-right py-2 px-4">Savings</th>
+                        <th className="text-right py-2 px-4">Savings %</th>
                         <th className="text-right py-2 px-4">Margin</th>
                         <th className="text-right py-2 px-4">Actions</th>
                       </tr>
@@ -109,6 +111,32 @@ export function GroupedReportsView({
                     <tbody>
                       {reports.map((report) => {
                         const markupStatus = getMarkupStatus(report.markup_data);
+                        
+                        // Helper functions matching ReportsTable
+                        const getSuccessRateData = (report: ShippingAnalysis) => {
+                          if (report.savings_analysis) {
+                            const completed = report.savings_analysis.completedShipments || 0;
+                            const total = report.savings_analysis.totalShipments || report.total_shipments || 0;
+                            return { completed, total };
+                          }
+                          return { completed: report.total_shipments || 0, total: report.total_shipments || 0 };
+                        };
+
+                        const getSavingsPercentage = (report: ShippingAnalysis) => {
+                          if (report.savings_analysis && report.savings_analysis.savingsPercentage) {
+                            return report.savings_analysis.savingsPercentage;
+                          }
+                          if (report.savings_analysis && report.savings_analysis.totalCurrentCost) {
+                            const totalCost = report.savings_analysis.totalCurrentCost;
+                            const savings = report.total_savings || 0;
+                            return totalCost > 0 ? (savings / totalCost) * 100 : 0;
+                          }
+                          return 0;
+                        };
+
+                        const { completed, total } = getSuccessRateData(report);
+                        const savingsPercentage = getSavingsPercentage(report);
+                        
                         return (
                           <tr key={report.id} className="border-b hover:bg-muted/30">
                             <td className="py-2 px-4 font-medium">
@@ -127,9 +155,12 @@ export function GroupedReportsView({
                                 )}
                               </div>
                             </td>
-                            <td className="py-2 px-4 text-right">{report.total_shipments}</td>
+                            <td className="py-2 px-4 text-right">{`${completed}/${total}`}</td>
                             <td className="py-2 px-4 text-right font-medium">
                               {report.total_savings ? `$${report.total_savings.toFixed(2)}` : '-'}
+                            </td>
+                            <td className="py-2 px-4 text-right">
+                              {savingsPercentage > 0 ? `${savingsPercentage.toFixed(1)}%` : '-'}
                             </td>
                             <td className="py-2 px-4 text-right">
                               {markupStatus.hasMarkup ? (

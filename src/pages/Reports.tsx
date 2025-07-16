@@ -22,6 +22,7 @@ interface ShippingAnalysis {
   total_shipments: number;
   total_savings: number | null;
   markup_data: any;
+  savings_analysis: any;
   created_at: string;
   status: string;
   updated_at: string;
@@ -61,6 +62,7 @@ const ReportsPage = () => {
           total_shipments, 
           total_savings, 
           markup_data, 
+          savings_analysis,
           created_at, 
           status, 
           updated_at,

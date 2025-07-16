@@ -27,6 +27,7 @@ interface ShippingAnalysis {
   total_shipments: number;
   total_savings: number | null;
   markup_data: any;
+  savings_analysis: any;
   created_at: string;
   status: string;
   updated_at: string;
@@ -110,6 +111,31 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
     }
   };
 
+  // Helper function to get success rate data
+  const getSuccessRateData = (report: ShippingAnalysis) => {
+    if (report.savings_analysis) {
+      const completed = report.savings_analysis.completedShipments || 0;
+      const total = report.savings_analysis.totalShipments || report.total_shipments || 0;
+      return { completed, total };
+    }
+    // Fallback - assume all shipments were successful if no detailed data
+    return { completed: report.total_shipments || 0, total: report.total_shipments || 0 };
+  };
+
+  // Helper function to get savings percentage
+  const getSavingsPercentage = (report: ShippingAnalysis) => {
+    if (report.savings_analysis && report.savings_analysis.savingsPercentage) {
+      return report.savings_analysis.savingsPercentage;
+    }
+    // Calculate percentage if not available in savings_analysis
+    if (report.savings_analysis && report.savings_analysis.totalCurrentCost) {
+      const totalCost = report.savings_analysis.totalCurrentCost;
+      const savings = report.total_savings || 0;
+      return totalCost > 0 ? (savings / totalCost) * 100 : 0;
+    }
+    return 0;
+  };
+
   const isAllSelected = selectedReports.size === reports.length && reports.length > 0;
   const isSomeSelected = selectedReports.size > 0 && selectedReports.size < reports.length;
 
@@ -158,13 +184,14 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
               <th className="text-left py-3 px-2">Client</th>
               <th className="text-left py-3 px-2">Date</th>
               <th className="text-left py-3 px-2">Status</th>
-              <th className="text-right py-3 px-2">Items</th>
+              <th className="text-right py-3 px-2">Success Rate</th>
               <th className="text-right py-3 px-2">
                 <div className="flex items-center justify-end gap-1">
                   <DollarSign className="h-3 w-3" />
                   Savings
                 </div>
               </th>
+              <th className="text-right py-3 px-2">Savings %</th>
               <th className="text-right py-3 px-2">
                 <div className="flex items-center justify-end gap-1">
                   <Percent className="h-3 w-3" />
@@ -240,9 +267,20 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                       )}
                     </div>
                   </td>
-                  <td className="py-3 px-2 text-right">{report.total_shipments}</td>
+                  <td className="py-3 px-2 text-right">
+                    {(() => {
+                      const { completed, total } = getSuccessRateData(report);
+                      return `${completed}/${total}`;
+                    })()}
+                  </td>
                   <td className="py-3 px-2 text-right font-medium">
                     {report.total_savings ? `$${report.total_savings.toFixed(2)}` : '-'}
+                  </td>
+                  <td className="py-3 px-2 text-right">
+                    {(() => {
+                      const percentage = getSavingsPercentage(report);
+                      return percentage > 0 ? `${percentage.toFixed(1)}%` : '-';
+                    })()}
                   </td>
                   <td className="py-3 px-2 text-right">
                     {markupStatus.hasMarkup ? (

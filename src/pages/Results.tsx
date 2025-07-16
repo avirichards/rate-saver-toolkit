@@ -172,6 +172,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           (analysisData.totalPotentialSavings / (analysisData.totalShipments * 10)) * 100 : 0 // Rough estimate
       };
 
+      // Prepare processing metadata
+      const processingMetadata = {
+        savedAt: new Date().toISOString(),
+        totalSavings: analysisData.totalPotentialSavings || 0,
+        completedShipments: analysisData.completedShipments || 0,
+        errorShipments: analysisData.errorShipments || 0,
+        dataSource: 'new_analysis'
+      };
+
       const analysisRecord = {
         user_id: user.id,
         file_name: uniqueFileName,
@@ -180,6 +189,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         status: 'completed',
         original_data: analysisData.recommendations as any,
         recommendations: analysisData.recommendations as any,
+        processed_shipments: shipmentData as any, // Centralized data
+        orphaned_shipments: orphanedData as any, // Centralized data
+        processing_metadata: processingMetadata as any, // Centralized metadata
         markup_data: markupData as any,
         savings_analysis: savingsAnalysisData as any
       };
@@ -494,25 +506,26 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   };
 
   const processAnalysisFromDatabase = async (data: any) => {
-    try {
-      console.log('📊 DATA INTEGRITY CHECK: Processing analysis from database:', {
-        hasOriginalData: !!data.original_data,
-        hasRecommendations: !!data.recommendations, 
-        originalDataType: Array.isArray(data.original_data) ? 'array' : typeof data.original_data,
-        originalDataLength: Array.isArray(data.original_data) ? data.original_data.length : 0,
-        recommendationsType: Array.isArray(data.recommendations) ? 'array' : typeof data.recommendations,
-        recommendationsLength: Array.isArray(data.recommendations) ? data.recommendations.length : 0,
-        totalShipments: data.total_shipments,
-        analysisId: data.id
-      });
+    console.log('🔍 CENTRALIZED DATA: Processing from database:', {
+      analysisId: data.id,
+      hasProcessedShipments: !!data.processed_shipments,
+      hasOrphanedShipments: !!data.orphaned_shipments,
+      hasProcessingMetadata: !!data.processing_metadata,
+      processedCount: Array.isArray(data.processed_shipments) ? data.processed_shipments.length : 0,
+      orphanedCount: Array.isArray(data.orphaned_shipments) ? data.orphaned_shipments.length : 0,
+      fallbackToLegacyData: !data.processed_shipments && !data.orphaned_shipments
+    });
 
-      let dataToUse = null;
-      let analysisMetadata = {
+    try {
+      // Store the analysis metadata
+      const analysisMetadata = {
+        analysisId: data.id,
+        reportName: data.report_name || data.file_name,
         totalShipments: data.total_shipments || 0,
         totalSavings: data.total_savings || 0,
+        status: data.status,
+        clientId: data.client_id,
         fileName: data.file_name || 'Unknown',
-        reportName: data.report_name || data.file_name || 'Untitled Analysis',
-        clientId: data.client_id || '',
         analysisDate: data.analysis_date || data.created_at
       };
 
@@ -522,70 +535,52 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setMarkupData(data.markup_data as MarkupData);
       }
 
-      // CRITICAL: Check if original_data or recommendations are missing/empty and recover from rate_quotes
-      const hasValidOriginalData = Array.isArray(data.original_data) && data.original_data.length > 0;
-      const hasValidRecommendations = Array.isArray(data.recommendations) && data.recommendations.length > 0;
-      
-      console.log('📊 DATA INTEGRITY: Availability check:', {
-        hasValidOriginalData,
-        hasValidRecommendations,
-        needsRecovery: !hasValidOriginalData || !hasValidRecommendations
-      });
+      console.log('🔍 ANALYSIS METADATA:', analysisMetadata);
 
-      if (!hasValidOriginalData || !hasValidRecommendations) {
-        console.warn('⚠️ DATA INTEGRITY: Missing analysis data, attempting recovery from rate_quotes...');
+      // Check if we have centralized data (processed_shipments + orphaned_shipments)
+      if (data.processed_shipments || data.orphaned_shipments) {
+        console.log('✅ USING CENTRALIZED DATA from processed_shipments + orphaned_shipments');
         
-        // Fetch rate_quotes data for this analysis to recover missing shipments
-        const { data: rateQuotes, error: rateError } = await supabase
-          .from('rate_quotes')
-          .select('*')
-          .eq('user_id', data.user_id)
-          .gte('created_at', new Date(new Date(data.created_at).getTime() - 60 * 60 * 1000).toISOString()) // 1 hour before analysis
-          .lte('created_at', new Date(new Date(data.created_at).getTime() + 60 * 60 * 1000).toISOString()) // 1 hour after analysis
-          .order('created_at', { ascending: true });
-
-        if (rateError) {
-          console.error('❌ Error fetching rate_quotes for recovery:', rateError);
-        } else if (rateQuotes && rateQuotes.length > 0) {
-          console.log('🔄 DATA RECOVERY: Found rate_quotes data:', {
-            rateQuotesCount: rateQuotes.length,
-            timeRange: {
-              from: new Date(new Date(data.created_at).getTime() - 60 * 60 * 1000).toISOString(),
-              to: new Date(new Date(data.created_at).getTime() + 60 * 60 * 1000).toISOString()
-            }
-          });
-          
-          // Use rate_quotes as primary data source
-          dataToUse = rateQuotes;
-          console.log('✅ DATA RECOVERY: Successfully recovered data from rate_quotes');
-        } else {
-          console.warn('⚠️ DATA RECOVERY: No rate_quotes found for recovery, using available data');
-        }
+        const processedShipments = Array.isArray(data.processed_shipments) ? data.processed_shipments : [];
+        const orphanedShipments = Array.isArray(data.orphaned_shipments) ? data.orphaned_shipments : [];
+        
+        // Set state directly from centralized data
+        setShipmentData(processedShipments);
+        setOrphanedData(orphanedShipments);
+        
+        // Calculate totals for analysis data
+        const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
+        const totalSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
+        
+        setAnalysisData({
+          totalShipments: processedShipments.length + orphanedShipments.length,
+          analyzedShipments: processedShipments.length,
+          completedShipments: processedShipments.length,
+          errorShipments: orphanedShipments.length,
+          totalCurrentCost,
+          totalPotentialSavings: totalSavings,
+          savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+          averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+          recommendations: processedShipments,
+          orphanedShipments: orphanedShipments,
+          file_name: analysisMetadata.fileName,
+          report_name: analysisMetadata.reportName,
+          client_id: analysisMetadata.clientId
+        });
+        
+        console.log('🔍 CENTRALIZED DATA LOADED:', {
+          processed: processedShipments.length,
+          orphaned: orphanedShipments.length,
+          total: processedShipments.length + orphanedShipments.length
+        });
+        
+        setLoading(false);
+        
+      } else {
+        // Fallback to legacy data processing for backwards compatibility
+        console.log('⚠️ FALLBACK: Using legacy data processing (recommendations/ups_quotes/original_data)');
+        await processLegacyDataAndMigrate(data, analysisMetadata);
       }
-
-      // Use original data if available and valid, otherwise use recovered data
-      if (!dataToUse) {
-        if (hasValidRecommendations) {
-          dataToUse = data.recommendations;
-          console.log('📊 Using recommendations data as primary source');
-        } else if (hasValidOriginalData) {
-          dataToUse = data.original_data;
-          console.log('📊 Using original_data as primary source');
-        } else {
-          console.error('❌ No valid data source available');
-          throw new Error('No valid shipment data found in analysis');
-        }
-      }
-
-      console.log('📊 DATA INTEGRITY: Final data selection:', {
-        dataSource: dataToUse === data.recommendations ? 'recommendations' : 
-                   dataToUse === data.original_data ? 'original_data' : 'rate_quotes',
-        dataCount: Array.isArray(dataToUse) ? dataToUse.length : 0,
-        willProcessShipmentData: true
-      });
-
-      // Process the shipment data and update state
-      await processShipmentData(dataToUse, analysisMetadata, data.original_data);
 
     } catch (error: any) {
       console.error('❌ Error processing analysis from database:', error);
@@ -594,7 +589,72 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   };
 
-  const processShipmentData = async (dataToUse: any[], analysisMetadata: any, originalData?: any[]) => {
+  const processLegacyDataAndMigrate = async (data: any, analysisMetadata: any) => {
+    let dataToUse = null;
+
+    // CRITICAL: Check if original_data or recommendations are missing/empty and recover from rate_quotes
+    const hasValidOriginalData = Array.isArray(data.original_data) && data.original_data.length > 0;
+    const hasValidRecommendations = Array.isArray(data.recommendations) && data.recommendations.length > 0;
+    
+    console.log('📊 LEGACY DATA: Availability check:', {
+      hasValidOriginalData,
+      hasValidRecommendations,
+      needsRecovery: !hasValidOriginalData || !hasValidRecommendations
+    });
+
+    if (!hasValidOriginalData || !hasValidRecommendations) {
+      console.warn('⚠️ LEGACY DATA: Missing analysis data, attempting recovery from rate_quotes...');
+      
+      // Fetch rate_quotes data for this analysis to recover missing shipments
+      const { data: rateQuotes, error: rateError } = await supabase
+        .from('rate_quotes')
+        .select('*')
+        .eq('user_id', data.user_id)
+        .gte('created_at', new Date(new Date(data.created_at).getTime() - 60 * 60 * 1000).toISOString()) // 1 hour before analysis
+        .lte('created_at', new Date(new Date(data.created_at).getTime() + 60 * 60 * 1000).toISOString()) // 1 hour after analysis
+        .order('created_at', { ascending: true });
+
+      if (rateError) {
+        console.error('❌ Error fetching rate_quotes for recovery:', rateError);
+      } else if (rateQuotes && rateQuotes.length > 0) {
+        console.log('🔄 DATA RECOVERY: Found rate_quotes data:', {
+          rateQuotesCount: rateQuotes.length
+        });
+        
+        // Use rate_quotes as primary data source
+        dataToUse = rateQuotes;
+        console.log('✅ DATA RECOVERY: Successfully recovered data from rate_quotes');
+      } else {
+        console.warn('⚠️ DATA RECOVERY: No rate_quotes found for recovery, using available data');
+      }
+    }
+
+    // Use original data if available and valid, otherwise use recovered data
+    if (!dataToUse) {
+      if (hasValidRecommendations) {
+        dataToUse = data.recommendations;
+        console.log('📊 Using recommendations data as primary source');
+      } else if (hasValidOriginalData) {
+        dataToUse = data.original_data;
+        console.log('📊 Using original_data as primary source');
+      } else {
+        console.error('❌ No valid data source available');
+        throw new Error('No valid shipment data found in analysis');
+      }
+    }
+
+    console.log('📊 LEGACY DATA: Final data selection:', {
+      dataSource: dataToUse === data.recommendations ? 'recommendations' : 
+                 dataToUse === data.original_data ? 'original_data' : 'rate_quotes',
+      dataCount: Array.isArray(dataToUse) ? dataToUse.length : 0,
+      willMigrateToNewFormat: true
+    });
+
+    // Process legacy data and migrate to centralized format
+    await processShipmentData(dataToUse, analysisMetadata, data.original_data, data.id);
+  };
+
+  const processShipmentData = async (dataToUse: any[], analysisMetadata: any, originalData?: any[], analysisId?: string) => {
     console.log('🔍 DATA INTEGRITY: Starting processShipmentData:', {
       inputCount: dataToUse.length,
       expectedShipments: analysisMetadata.totalShipments || 0,
@@ -818,13 +878,48 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       client_id: analysisMetadata.clientId
     });
     
+    // Migrate to centralized data format if analysisId provided (legacy data processing)
+    if (analysisId) {
+      console.log('🔄 MIGRATING TO CENTRALIZED FORMAT:', analysisId);
+      
+      const processingMetadata = {
+        migratedAt: new Date().toISOString(),
+        originalDataCount: dataToUse.length,
+        processedCount: validShipments.length,
+        orphanedCount: orphanedShipments.length,
+        totalSavings: totalSavings,
+        migrationSource: 'legacy_processing'
+      };
+      
+      try {
+        const { error: updateError } = await supabase
+          .from('shipping_analyses')
+          .update({
+            processed_shipments: validShipments,
+            orphaned_shipments: orphanedShipments,
+            processing_metadata: processingMetadata,
+            total_savings: totalSavings
+          })
+          .eq('id', analysisId);
+
+        if (updateError) {
+          console.error('❌ Failed to migrate to centralized format:', updateError);
+        } else {
+          console.log('✅ Successfully migrated to centralized format');
+        }
+      } catch (error) {
+        console.error('❌ Migration error:', error);
+      }
+    }
+    
     setLoading(false);
     
     console.log('✅ DATA INTEGRITY: Processing complete:', {
       validShipments: validShipments.length,
       orphanedShipments: orphanedShipments.length,
       totalShipments: dataIntegrityLog.processedShipments,
-      dataIntegrityPassed: dataIntegrityLog.missingShipments === 0
+      dataIntegrityPassed: dataIntegrityLog.missingShipments === 0,
+      migratedToCentralized: !!analysisId
     });
   };
 

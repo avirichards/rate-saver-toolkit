@@ -396,6 +396,9 @@ export type Database = {
           markup_data: Json | null
           markup_profile_id: string | null
           original_data: Json
+          orphaned_shipments: Json | null
+          processed_shipments: Json | null
+          processing_metadata: Json | null
           recommendations: Json | null
           report_name: string | null
           report_status: string | null
@@ -422,6 +425,9 @@ export type Database = {
           markup_data?: Json | null
           markup_profile_id?: string | null
           original_data: Json
+          orphaned_shipments?: Json | null
+          processed_shipments?: Json | null
+          processing_metadata?: Json | null
           recommendations?: Json | null
           report_name?: string | null
           report_status?: string | null
@@ -448,6 +454,9 @@ export type Database = {
           markup_data?: Json | null
           markup_profile_id?: string | null
           original_data?: Json
+          orphaned_shipments?: Json | null
+          processed_shipments?: Json | null
+          processing_metadata?: Json | null
           recommendations?: Json | null
           report_name?: string | null
           report_status?: string | null

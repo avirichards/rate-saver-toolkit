@@ -55,55 +55,84 @@ const ReportsPage = () => {
       setLoading(true);
       console.log('📊 REPORTS: Loading reports for user:', user?.id);
       
-      const { data, error } = await supabase
-        .from('shipping_analyses')
-        .select(`
-          id, 
-          file_name, 
-          analysis_date, 
-          total_shipments, 
-          total_savings, 
-          markup_data, 
-          savings_analysis,
-          created_at, 
-          status, 
-          updated_at,
-          report_name,
-          client_id
-        `)
-        .eq('user_id', user?.id)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Database error:', error);
-        throw error;
-      }
-
-      // Manually fetch client data for reports that have a client_id
-      let reportsWithClients = data || [];
-      if (reportsWithClients.length > 0) {
-        const clientIds = [...new Set(reportsWithClients.map(r => r.client_id).filter(Boolean))];
+      // Query both tables to get all reports (both old shipping_analyses and new reports)
+      const [shipmentsData, reportsData] = await Promise.all([
+        supabase
+          .from('shipping_analyses')
+          .select(`
+            id, 
+            file_name, 
+            analysis_date, 
+            total_shipments, 
+            total_savings, 
+            markup_data, 
+            savings_analysis,
+            created_at, 
+            status, 
+            updated_at,
+            report_name,
+            client_id,
+            clients:client_id(id, company_name)
+          `)
+          .eq('user_id', user?.id)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false }),
         
-        if (clientIds.length > 0) {
-          const { data: clientsData } = await supabase
-            .from('clients')
-            .select('id, company_name')
-            .in('id', clientIds);
+        supabase
+          .from('reports')
+          .select(`
+            id,
+            report_name,
+            raw_csv_filename,
+            total_rows,
+            total_shipments,
+            total_savings,
+            created_at,
+            updated_at,
+            current_section,
+            sections_completed,
+            client_id,
+            clients:client_id(id, company_name)
+          `)
+          .eq('user_id', user?.id)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false })
+      ]);
 
-          // Map clients to reports
-          reportsWithClients = reportsWithClients.map(report => ({
-            ...report,
-            client: report.client_id 
-              ? clientsData?.find(c => c.id === report.client_id) || null
-              : null
-          }));
-        }
-      }
+      if (shipmentsData.error) throw shipmentsData.error;
+      if (reportsData.error) throw reportsData.error;
 
+      // Combine and normalize both data sources
+      const legacyReports = (shipmentsData.data || []).map(report => ({
+        ...report,
+        file_name: report.file_name,
+        analysis_date: report.analysis_date || report.created_at,
+        status: report.status || 'completed',
+        client: report.clients || null,
+        source: 'shipping_analyses'
+      }));
+
+      const newReports = (reportsData.data || []).map(report => ({
+        ...report,
+        file_name: report.raw_csv_filename,
+        analysis_date: report.created_at,
+        total_shipments: report.total_shipments || report.total_rows,
+        status: report.current_section === 'complete' ? 'completed' : 'in_progress',
+        report_name: report.report_name,
+        client: report.clients || null,
+        source: 'reports'
+      }));
+
+      // Combine both sources, with newer reports first
+      const allReports = [...newReports, ...legacyReports];
       
-      console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
-      setReports(reportsWithClients as any);
+      console.log('Loaded reports:', {
+        legacy: legacyReports.length,
+        new: newReports.length,
+        total: allReports.length
+      });
+
+      setReports(allReports as any);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {

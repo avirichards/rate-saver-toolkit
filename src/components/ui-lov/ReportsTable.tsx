@@ -299,20 +299,34 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                   </td>
                    <td className="py-3 px-2 text-right">
                      {(() => {
-                       // Read savings from savings_analysis if available (includes markup)
-                       const savingsAmount = report.savings_analysis?.totalSavings ?? report.total_savings ?? 0;
-                       const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
-                       
-                       return (
-                         <div className="text-right">
-                           <div className="font-medium">
-                             ${savingsAmount.toFixed(2)}
+                       const markupStatus = getMarkupStatus(report.markup_data);
+                       // If has markup, use the markup_data savings values
+                       if (markupStatus.hasMarkup && report.markup_data?.savingsAmount && report.markup_data?.savingsPercentage) {
+                         return (
+                           <div className="text-right">
+                             <div className="font-medium">
+                               ${report.markup_data.savingsAmount.toFixed(2)}
+                             </div>
+                             <div className="text-xs text-muted-foreground">
+                               {report.markup_data.savingsPercentage.toFixed(1)}%
+                             </div>
                            </div>
-                           <div className="text-xs text-muted-foreground">
-                             {savingsPercentage.toFixed(1)}%
+                         );
+                       } else {
+                         // Fallback to savings_analysis or total_savings
+                         const savingsAmount = report.savings_analysis?.totalSavings ?? report.total_savings ?? 0;
+                         const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
+                         return (
+                           <div className="text-right">
+                             <div className="font-medium">
+                               ${savingsAmount.toFixed(2)}
+                             </div>
+                             <div className="text-xs text-muted-foreground">
+                               {savingsPercentage.toFixed(1)}%
+                             </div>
                            </div>
-                         </div>
-                       );
+                         );
+                       }
                      })()}
                    </td>
                   <td className="py-3 px-2 text-right">

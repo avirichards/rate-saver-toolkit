@@ -266,13 +266,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           // Process the recommendations using the utility function
           const processedData = processNormalViewData(state.analysisData.recommendations);
           
-          setShipmentData(formatShipmentData(processedData.recommendations));
+          
+          const processedShipmentData = formatShipmentData(processedData.recommendations);
+          setShipmentData(processedShipmentData);
           setOrphanedData(processedData.orphanedShipments || []);
           
           // Also handle orphans from analysisData if available
           if (state.analysisData.orphanedShipments && state.analysisData.orphanedShipments.length > 0) {
+            const currentOrphans = processedData.orphanedShipments || [];
             const additionalOrphans = state.analysisData.orphanedShipments.map((orphan: any, index: number) => ({
-              id: orphanedShipments.length + index + 1,
+              id: currentOrphans.length + index + 1,
               trackingId: orphan.shipment?.trackingId || `Orphan-${index + 1}`,
               originZip: orphan.shipment?.originZip || '',
               destinationZip: orphan.shipment?.destZip || '',
@@ -285,14 +288,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             setOrphanedData(prev => [...prev, ...additionalOrphans]);
             
             console.log('Loaded orphaned shipments:', {
-              fromRecommendations: orphanedShipments.length,
+              fromRecommendations: currentOrphans.length,
               fromOrphanedShipments: additionalOrphans.length,
-              total: orphanedShipments.length + additionalOrphans.length
+              total: currentOrphans.length + additionalOrphans.length
             });
           }
           
           // Initialize service data
-          const services = [...new Set(formattedData.map(item => item.service).filter(Boolean))] as string[];
+          const services = [...new Set(processedShipmentData.map(item => item.service).filter(Boolean))] as string[];
           setAvailableServices(services);
           setSelectedServicesOverview([]); // Default to unchecked
           

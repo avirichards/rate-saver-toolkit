@@ -29,6 +29,7 @@ export interface ProcessedShipmentData {
   newRate: number;
   savings: number;
   savingsPercent: number;
+  bestService?: string; // Add the missing property
 }
 
 export interface ValidationResult {
@@ -183,7 +184,8 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
     currentRate: rec.currentCost || 0,
     newRate: rec.recommendedCost || 0,
     savings: rec.savings || 0,
-    savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
+    savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0,
+    bestService: rec.bestService || rec.recommendedService || 'UPS Ground' // Add bestService
   }));
 };
 

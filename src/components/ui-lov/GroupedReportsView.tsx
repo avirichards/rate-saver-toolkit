@@ -103,7 +103,6 @@ export function GroupedReportsView({
                         <th className="text-left py-2 px-4">Status</th>
                         <th className="text-right py-2 px-4">Success Rate</th>
                         <th className="text-right py-2 px-4">Savings</th>
-                        <th className="text-right py-2 px-4">Savings %</th>
                         <th className="text-right py-2 px-4">Margin</th>
                         <th className="text-right py-2 px-4">Actions</th>
                       </tr>
@@ -156,12 +155,18 @@ export function GroupedReportsView({
                               </div>
                             </td>
                             <td className="py-2 px-4 text-right">{`${completed}/${total}`}</td>
-                            <td className="py-2 px-4 text-right font-medium">
-                              {report.total_savings ? `$${report.total_savings.toFixed(2)}` : '-'}
-                            </td>
-                            <td className="py-2 px-4 text-right">
-                              {savingsPercentage > 0 ? `${savingsPercentage.toFixed(1)}%` : '-'}
-                            </td>
+                                <td className="py-2 px-4 text-right">
+                                  {report.total_savings ? (
+                                    <div className="text-right">
+                                      <div className="font-medium">${report.total_savings.toFixed(2)}</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {savingsPercentage > 0 ? `${savingsPercentage.toFixed(1)}%` : ''}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted-foreground">-</span>
+                                  )}
+                                </td>
                             <td className="py-2 px-4 text-right">
                               {markupStatus.hasMarkup ? (
                                 <div className="text-right">

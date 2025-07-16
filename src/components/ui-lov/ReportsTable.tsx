@@ -191,7 +191,6 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                   Savings
                 </div>
               </th>
-              <th className="text-right py-3 px-2">Savings %</th>
               <th className="text-right py-3 px-2">
                 <div className="flex items-center justify-end gap-1">
                   <Percent className="h-3 w-3" />
@@ -273,14 +272,22 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                       return `${completed}/${total}`;
                     })()}
                   </td>
-                  <td className="py-3 px-2 text-right font-medium">
-                    {report.total_savings ? `$${report.total_savings.toFixed(2)}` : '-'}
-                  </td>
                   <td className="py-3 px-2 text-right">
-                    {(() => {
-                      const percentage = getSavingsPercentage(report);
-                      return percentage > 0 ? `${percentage.toFixed(1)}%` : '-';
-                    })()}
+                    {report.total_savings ? (
+                      <div className="text-right">
+                        <div className="font-medium">
+                          ${report.total_savings.toFixed(2)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {(() => {
+                            const percentage = getSavingsPercentage(report);
+                            return percentage > 0 ? `${percentage.toFixed(1)}%` : '';
+                          })()}
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </td>
                   <td className="py-3 px-2 text-right">
                     {markupStatus.hasMarkup ? (

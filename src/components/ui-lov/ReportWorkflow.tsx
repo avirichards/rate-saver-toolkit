@@ -1,0 +1,294 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight, Check, Upload, Settings, BarChart3, FileText } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface Report {
+  id: string;
+  user_id: string;
+  report_name: string;
+  raw_csv_data: string;
+  raw_csv_filename: string;
+  total_rows: number;
+  current_section: 'header_mapping' | 'service_mapping' | 'analysis' | 'results' | 'complete';
+  sections_completed: string[];
+  header_mappings: any;
+  detected_headers: string[];
+  service_mappings: any;
+  analysis_results: any;
+  ups_rate_quotes: any;
+  total_savings: number | null;
+  total_shipments: number;
+  client_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+const SECTIONS = [
+  { id: 'header_mapping', label: 'Header Mapping', icon: Settings, description: 'Map CSV headers to data fields' },
+  { id: 'service_mapping', label: 'Service Mapping', icon: Upload, description: 'Map shipping services' },
+  { id: 'analysis', label: 'Analysis', icon: BarChart3, description: 'Run rate analysis' },
+  { id: 'results', label: 'Results', icon: FileText, description: 'View analysis results' }
+] as const;
+
+interface ReportWorkflowProps {
+  reportId?: string;
+}
+
+export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [report, setReport] = useState<Report | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+
+  const finalReportId = reportId || id;
+
+  useEffect(() => {
+    if (finalReportId) {
+      loadReport();
+    }
+  }, [finalReportId]);
+
+  const loadReport = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('reports')
+        .select('*')
+        .eq('id', finalReportId)
+        .single();
+
+      if (error) throw error;
+
+      setReport(data as Report);
+      
+      // Set current section based on report state
+      const sectionIndex = SECTIONS.findIndex(s => s.id === data.current_section);
+      setCurrentSectionIndex(sectionIndex >= 0 ? sectionIndex : 0);
+    } catch (error) {
+      console.error('Error loading report:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load report",
+        variant: "destructive",
+      });
+      navigate('/reports');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateReportSection = async (newSection: string, updatedData: Partial<Report> = {}) => {
+    if (!report) return;
+
+    try {
+      const sectionsCompleted = [...new Set([...report.sections_completed, newSection])];
+      
+      const { error } = await supabase
+        .from('reports')
+        .update({
+          current_section: newSection,
+          sections_completed: sectionsCompleted,
+          ...updatedData
+        })
+        .eq('id', report.id);
+
+      if (error) throw error;
+
+      setReport(prev => prev ? {
+        ...prev,
+        current_section: newSection as any,
+        sections_completed: sectionsCompleted,
+        ...updatedData
+      } : null);
+    } catch (error) {
+      console.error('Error updating report section:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update report progress",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const navigateToSection = (sectionIndex: number) => {
+    if (sectionIndex >= 0 && sectionIndex < SECTIONS.length) {
+      setCurrentSectionIndex(sectionIndex);
+      const section = SECTIONS[sectionIndex];
+      updateReportSection(section.id);
+    }
+  };
+
+  const goToNextSection = () => {
+    if (currentSectionIndex < SECTIONS.length - 1) {
+      navigateToSection(currentSectionIndex + 1);
+    }
+  };
+
+  const goToPreviousSection = () => {
+    if (currentSectionIndex > 0) {
+      navigateToSection(currentSectionIndex - 1);
+    }
+  };
+
+  const isSectionCompleted = (sectionId: string) => {
+    return report?.sections_completed.includes(sectionId) || false;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading report...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!report) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <p className="text-lg font-medium mb-4">Report not found</p>
+          <Button onClick={() => navigate('/reports')}>
+            Back to Reports
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentSection = SECTIONS[currentSectionIndex];
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="border-b bg-card">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate('/reports')}
+                className="flex items-center gap-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Back to Reports
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold">{report.report_name}</h1>
+                <p className="text-muted-foreground">
+                  {report.raw_csv_filename} • {report.total_rows} rows
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Progress Indicator */}
+      <div className="border-b bg-muted/30">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-center justify-between max-w-4xl mx-auto">
+            {SECTIONS.map((section, index) => {
+              const Icon = section.icon;
+              const isActive = index === currentSectionIndex;
+              const isCompleted = isSectionCompleted(section.id);
+              const isAccessible = index <= currentSectionIndex || isCompleted;
+
+              return (
+                <div key={section.id} className="flex items-center">
+                  <button
+                    onClick={() => isAccessible && navigateToSection(index)}
+                    disabled={!isAccessible}
+                    className={cn(
+                      "flex flex-col items-center p-4 rounded-lg transition-all",
+                      isActive && "bg-primary text-primary-foreground",
+                      isCompleted && !isActive && "bg-green-100 text-green-700",
+                      !isActive && !isCompleted && "text-muted-foreground hover:bg-muted",
+                      !isAccessible && "opacity-50 cursor-not-allowed"
+                    )}
+                  >
+                    <div className={cn(
+                      "flex items-center justify-center w-12 h-12 rounded-full border-2 mb-2",
+                      isActive && "border-primary-foreground bg-primary-foreground text-primary",
+                      isCompleted && !isActive && "border-green-500 bg-green-500 text-white",
+                      !isActive && !isCompleted && "border-muted-foreground"
+                    )}>
+                      {isCompleted && !isActive ? (
+                        <Check className="h-6 w-6" />
+                      ) : (
+                        <Icon className="h-6 w-6" />
+                      )}
+                    </div>
+                    <span className="text-sm font-medium text-center">
+                      {section.label}
+                    </span>
+                    <span className="text-xs text-center opacity-75">
+                      {section.description}
+                    </span>
+                  </button>
+                  {index < SECTIONS.length - 1 && (
+                    <div className="flex-1 h-px bg-border mx-4" />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Section Content */}
+      <div className="container mx-auto px-4 py-8">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <currentSection.icon className="h-6 w-6" />
+              {currentSection.label}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {/* Section-specific content will be rendered here */}
+            <div className="text-center py-12">
+              <p className="text-lg text-muted-foreground mb-4">
+                {currentSection.description}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Section content coming soon...
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Navigation */}
+        <div className="flex justify-between mt-8">
+          <Button
+            variant="outline"
+            onClick={goToPreviousSection}
+            disabled={currentSectionIndex === 0}
+            className="flex items-center gap-2"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Previous
+          </Button>
+          <Button
+            onClick={goToNextSection}
+            disabled={currentSectionIndex === SECTIONS.length - 1}
+            className="flex items-center gap-2"
+          >
+            Next
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};

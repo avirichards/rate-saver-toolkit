@@ -14,10 +14,11 @@ import ServiceMapping from "./pages/ServiceMapping";
 import Analysis from "./pages/Analysis";
 import Results from "./pages/Results";
 import Dashboard from "./pages/Dashboard";
-import ReportsPage from "./pages/Reports";
+import ReportsPage from "./pages/ReportsNew";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
 import ClientResults from "./pages/ClientResults";
+import { ReportWorkflow } from "./components/ui-lov/ReportWorkflow";
 
 // Authentication
 import { AuthProvider } from "./hooks/useAuth";
@@ -46,6 +47,7 @@ const App = () => (
               <Route path="/analysis" element={<ProtectedRoute><Analysis /></ProtectedRoute>} />
               <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+              <Route path="/report/:id" element={<ProtectedRoute><ReportWorkflow /></ProtectedRoute>} />
               <Route path="/reports/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

@@ -50,11 +50,68 @@ const validateShipmentData = (shipment: any): { isValid: boolean; missingFields:
   return { isValid, missingFields, errorType };
 };
 
+// Enhanced orphaned data recovery from multiple sources
+const recoverOrphanedData = (analysis: LegacyAnalysis): any[] => {
+  const orphanedShipments: any[] = [];
+  
+  // Source 1: Check for incomplete shipments in recommendations
+  if (Array.isArray(analysis.recommendations)) {
+    analysis.recommendations.forEach((rec: any, index: number) => {
+      if (rec.error || rec.status === 'error') {
+        const shipmentData = rec.shipment || rec.shipment_data || rec;
+        orphanedShipments.push({
+          id: `rec-${index}`,
+          trackingId: shipmentData?.trackingId || `Orphan-Rec-${index}`,
+          originZip: shipmentData?.originZip || '',
+          destinationZip: shipmentData?.destZip || '',
+          weight: parseFloat(shipmentData?.weight || '0'),
+          service: rec.originalService || shipmentData?.service || 'Unknown',
+          error: rec.error || 'Processing failed',
+          errorType: 'Processing Error',
+          source: 'recommendations'
+        });
+      }
+    });
+  }
+
+  // Source 2: Check original_data for shipments not in recommendations
+  if (Array.isArray(analysis.original_data) && Array.isArray(analysis.recommendations)) {
+    const processedTrackingIds = new Set(
+      analysis.recommendations.map((rec: any) => 
+        rec.shipment?.trackingId || rec.shipment_data?.trackingId || rec.trackingId
+      ).filter(Boolean)
+    );
+
+    analysis.original_data.forEach((original: any, index: number) => {
+      const trackingId = original.trackingId || original['Tracking ID'] || `Original-${index}`;
+      
+      if (!processedTrackingIds.has(trackingId)) {
+        const validation = validateShipmentData(original);
+        if (!validation.isValid) {
+          orphanedShipments.push({
+            id: `orig-${index}`,
+            trackingId,
+            originZip: original.originZip || original['Origin ZIP'] || '',
+            destinationZip: original.destZip || original['Destination ZIP'] || '',
+            weight: parseFloat(original.weight || original['Weight'] || '0'),
+            service: original.service || original['Service'] || 'Unknown',
+            error: `Missing: ${validation.missingFields.join(', ')}`,
+            errorType: validation.errorType,
+            source: 'original_data'
+          });
+        }
+      }
+    });
+  }
+
+  return orphanedShipments;
+};
+
 export const migrateSingleAnalysis = async (analysis: LegacyAnalysis): Promise<boolean> => {
   console.log(`🔄 MIGRATION: Processing analysis ${analysis.id}`);
   
-  // Skip if already migrated
-  if (analysis.processed_shipments && analysis.orphaned_shipments) {
+  // Skip if already migrated (both fields must exist)
+  if (analysis.processed_shipments && analysis.orphaned_shipments !== null) {
     console.log(`✅ MIGRATION: Analysis ${analysis.id} already migrated`);
     return true;
   }
@@ -64,11 +121,27 @@ export const migrateSingleAnalysis = async (analysis: LegacyAnalysis): Promise<b
     
     if (!Array.isArray(dataToUse) || dataToUse.length === 0) {
       console.warn(`⚠️ MIGRATION: No valid data found for analysis ${analysis.id}`);
-      return false;
+      // Still create empty centralized data structure
+      const { error } = await supabase
+        .from('shipping_analyses')
+        .update({
+          processed_shipments: [],
+          orphaned_shipments: [],
+          processing_metadata: {
+            migratedAt: new Date().toISOString(),
+            migrationSource: 'legacy_migration_utility',
+            dataStatus: 'no_data_found'
+          }
+        })
+        .eq('id', analysis.id);
+      
+      return !error;
     }
     
     const validShipments: any[] = [];
-    const orphanedShipments: any[] = [];
+    
+    // Use enhanced orphaned data recovery
+    const orphanedShipments = recoverOrphanedData(analysis);
     
     dataToUse.forEach((rec: any, index: number) => {
       // Handle both recommendations format and raw data format
@@ -76,24 +149,9 @@ export const migrateSingleAnalysis = async (analysis: LegacyAnalysis): Promise<b
       let errorStatus = rec.error || rec.status === 'error' ? rec.error || 'Processing failed' : null;
       
       const validation = validateShipmentData(shipmentData);
-      const trackingId = shipmentData?.trackingId || `Unknown-${index + 1}`;
       
-      // Move ANY shipment with missing critical data to orphans
-      if (!validation.isValid || errorStatus) {
-        const orphanReason = errorStatus || `Missing: ${validation.missingFields.join(', ')}`;
-        
-        orphanedShipments.push({
-          id: index + 1,
-          trackingId: shipmentData?.trackingId || `Orphan-${index + 1}`,
-          originZip: shipmentData?.originZip || '',
-          destinationZip: shipmentData?.destZip || '',
-          weight: parseFloat(shipmentData?.weight || '0'),
-          service: shipmentData?.service || rec.originalService || 'Unknown',
-          error: orphanReason,
-          errorType: validation.errorType || 'Processing Error',
-          missingFields: validation.missingFields
-        });
-      } else {
+      // Only add to valid shipments if no errors and validation passes
+      if (!errorStatus && validation.isValid) {
         validShipments.push({
           id: index + 1,
           trackingId: shipmentData?.trackingId || `Shipment-${index + 1}`,

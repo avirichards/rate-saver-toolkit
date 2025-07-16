@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ReportsTable } from '@/components/ui-lov/ReportsTable';
 import { GroupedReportsView } from '@/components/ui-lov/GroupedReportsView';
+import { MigrationProgressIndicator } from '@/components/ui-lov/MigrationProgressIndicator';
 import { migrateAllLegacyAnalyses } from '@/utils/migrateLegacyAnalyses';
 import { toast } from 'sonner';
 
@@ -72,7 +73,10 @@ const ReportsPage = () => {
           status, 
           updated_at,
           report_name,
-          client_id
+          client_id,
+          processed_shipments,
+          orphaned_shipments,
+          processing_metadata
         `)
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
@@ -104,6 +108,28 @@ const ReportsPage = () => {
         }
       }
 
+      // Auto-detect and migrate legacy analyses in the background
+      const legacyAnalyses = reportsWithClients.filter(report => 
+        !report.processed_shipments && !report.orphaned_shipments
+      );
+      
+      if (legacyAnalyses.length > 0) {
+        console.log(`🔄 REPORTS: Found ${legacyAnalyses.length} legacy analyses, starting background migration`);
+        
+        // Start background migration without blocking UI
+        setTimeout(async () => {
+          try {
+            const migrationResult = await migrateAllLegacyAnalyses();
+            if (migrationResult.success > 0) {
+              console.log(`✅ REPORTS: Background migration completed: ${migrationResult.success} analyses migrated`);
+              // Refresh reports to show updated data
+              await loadReports();
+            }
+          } catch (error) {
+            console.error('❌ REPORTS: Background migration failed:', error);
+          }
+        }, 1000);
+      }
       
       console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
       setReports(reportsWithClients as any);
@@ -213,6 +239,10 @@ const ReportsPage = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-1">Reports</h1>
           <p className="text-muted-foreground">View and manage your saved shipping analyses</p>
+        </div>
+
+        <div className="mb-6">
+          <MigrationProgressIndicator onRefresh={loadReports} />
         </div>
 
         <Card>

@@ -442,7 +442,7 @@ const ClientResults = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 h-auto p-1">
+          <TabsList className="grid w-full grid-cols-3 h-auto p-1">
             <TabsTrigger value="overview" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <div className="flex items-center space-x-2">
                 <TruckIcon className="w-4 h-4" />
@@ -453,12 +453,6 @@ const ClientResults = () => {
               <div className="flex items-center space-x-2">
                 <Package className="w-4 h-4" />
                 <span>Shipment Data</span>
-              </div>
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="w-4 h-4" />
-                <span>Analytics</span>
               </div>
             </TabsTrigger>
             <TabsTrigger value="orphans" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
@@ -475,14 +469,7 @@ const ClientResults = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={snapshotDays}
-                    onChange={(e) => setSnapshotDays(parseInt(e.target.value) || 30)}
-                    className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
-                    min="1"
-                    max="365"
-                  />
+                  <span className="text-2xl font-bold">{snapshotDays}</span>
                   <span>Day Snapshot</span>
                 </CardTitle>
                 <CardDescription>
@@ -629,7 +616,6 @@ const ClientResults = () => {
                         <TableHead>Avg Weight</TableHead>
                         <TableHead>Avg Savings ($)</TableHead>
                         <TableHead>Avg Savings (%)</TableHead>
-                        <TableHead>Notes</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -661,16 +647,6 @@ const ClientResults = () => {
                           </TableCell>
                           <TableCell className={cn("font-medium", getSavingsColor(service.avgSavings))}>
                             {formatPercentage(service.savingsPercent)}
-                          </TableCell>
-                          <TableCell>
-                            <span className={cn(
-                              "px-2 py-1 rounded text-xs",
-                              service.avgSavings > 0 
-                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
-                            )}>
-                              {service.avgSavings > 0 ? "High savings potential" : "Review needed"}
-                            </span>
                           </TableCell>
                         </TableRow>
                       ))}

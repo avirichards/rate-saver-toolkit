@@ -260,17 +260,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
+          const savingsAnalysis = analysis.savings_analysis as any;
           
           // Process the analysis data similar to the normal flow
           const processedData = {
-            totalCurrentCost: 0,
-            totalPotentialSavings: analysis.total_savings || 0,
+            totalCurrentCost: savingsAnalysis?.totalCurrentCost || 0,
+            totalPotentialSavings: savingsAnalysis?.totalPotentialSavings || analysis.total_savings || 0,
             recommendations: Array.isArray(analysis.original_data) ? analysis.original_data : [],
-            savingsPercentage: 0,
+            savingsPercentage: savingsAnalysis?.savingsPercentage || 0,
             totalShipments: analysis.total_shipments,
-            analyzedShipments: 0,
-            completedShipments: 0,
-            errorShipments: 0,
+            analyzedShipments: savingsAnalysis?.analyzedShipments || analysis.total_shipments,
+            completedShipments: savingsAnalysis?.completedShipments || 0,
+            errorShipments: savingsAnalysis?.errorShipments || 0,
             file_name: analysis.file_name,
             report_name: analysis.report_name,
             client_id: analysis.client_id

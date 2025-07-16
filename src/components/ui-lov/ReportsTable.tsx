@@ -298,18 +298,22 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                     })()}
                   </td>
                    <td className="py-3 px-2 text-right">
-                     {markupStatus.hasMarkup ? (
-                       <div className="text-right">
-                         <div className="font-medium">
-                           ${markupStatus.savingsAmount.toFixed(2)}
+                     {(() => {
+                       // Read savings from savings_analysis if available (includes markup)
+                       const savingsAmount = report.savings_analysis?.totalSavings ?? report.total_savings ?? 0;
+                       const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
+                       
+                       return (
+                         <div className="text-right">
+                           <div className="font-medium">
+                             ${savingsAmount.toFixed(2)}
+                           </div>
+                           <div className="text-xs text-muted-foreground">
+                             {savingsPercentage.toFixed(1)}%
+                           </div>
                          </div>
-                         <div className="text-xs text-muted-foreground">
-                           {markupStatus.savingsPercentage.toFixed(1)}%
-                         </div>
-                       </div>
-                     ) : (
-                       <span className="text-muted-foreground">-</span>
-                     )}
+                       );
+                     })()}
                    </td>
                   <td className="py-3 px-2 text-right">
                     {markupStatus.hasMarkup ? (

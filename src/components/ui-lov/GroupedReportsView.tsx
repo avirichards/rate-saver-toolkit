@@ -171,19 +171,18 @@ export function GroupedReportsView({
                             <td className="py-2 px-4 text-right">{`${completed}/${total}`}</td>
                                 <td className="py-2 px-4 text-right">
                                   {(() => {
-                                    const markupStatus = getMarkupStatus(report.markup_data);
-                                    if (markupStatus.hasMarkup) {
-                                      return (
-                                        <div className="text-right">
-                                          <div className="font-medium">${markupStatus.savingsAmount.toFixed(2)}</div>
-                                          <div className="text-xs text-muted-foreground">
-                                            {markupStatus.savingsPercentage.toFixed(1)}%
-                                          </div>
+                                    // Read savings from savings_analysis if available (includes markup)
+                                    const savingsAmount = report.savings_analysis?.totalSavings ?? report.total_savings ?? 0;
+                                    const savingsPercentage = report.savings_analysis?.savingsPercentage ?? 0;
+                                    
+                                    return (
+                                      <div className="text-right">
+                                        <div className="font-medium">${savingsAmount.toFixed(2)}</div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {savingsPercentage.toFixed(1)}%
                                         </div>
-                                      );
-                                    } else {
-                                      return <span className="text-muted-foreground">-</span>;
-                                    }
+                                      </div>
+                                    );
                                   })()}
                                 </td>
                             <td className="py-2 px-4 text-right">

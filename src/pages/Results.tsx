@@ -1189,44 +1189,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               <div className="space-y-4">
                 <div>
                   <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-2">
-                    <InlineEditableField
-                      value={analysisData?.report_name || analysisData?.file_name || 'Untitled Report'}
-                      onSave={async (value) => {
-                        if (currentAnalysisId) {
-                          const { error } = await supabase
-                            .from('shipping_analyses')
-                            .update({ 
-                              report_name: value,
-                              updated_at: new Date().toISOString()
-                            })
-                            .eq('id', currentAnalysisId);
-                          
-                          if (error) throw error;
-                          
-                          // Update local state
-                          setAnalysisData(prev => prev ? { ...prev, report_name: value } : null);
-                          toast.success('Report name updated');
-                        }
-                      }}
-                      placeholder="Click to edit report name"
-                      required
-                      minWidth="300px"
-                    />
-                  </h1>
-                </div>
-                
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Client:</span>
-                    <div className="min-w-[200px]">
-                      <ClientCombobox
-                        value={analysisData?.client_id || ''}
-                        onValueChange={async (clientId) => {
+                    {isClientView ? (
+                      analysisData?.report_name || analysisData?.file_name || 'Untitled Report'
+                    ) : (
+                      <InlineEditableField
+                        value={analysisData?.report_name || analysisData?.file_name || 'Untitled Report'}
+                        onSave={async (value) => {
                           if (currentAnalysisId) {
                             const { error } = await supabase
                               .from('shipping_analyses')
                               .update({ 
-                                client_id: clientId || null,
+                                report_name: value,
                                 updated_at: new Date().toISOString()
                               })
                               .eq('id', currentAnalysisId);
@@ -1234,15 +1207,48 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             if (error) throw error;
                             
                             // Update local state
-                            setAnalysisData(prev => prev ? { ...prev, client_id: clientId } : null);
-                            toast.success('Client updated');
+                            setAnalysisData(prev => prev ? { ...prev, report_name: value } : null);
+                            toast.success('Report name updated');
                           }
                         }}
-                        placeholder="Select client"
-                        disabled={!currentAnalysisId}
+                        placeholder="Click to edit report name"
+                        required
+                        minWidth="300px"
                       />
+                    )}
+                  </h1>
+                </div>
+                
+                <div className="flex items-center gap-4 text-sm">
+                  {!isClientView && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Client:</span>
+                      <div className="min-w-[200px]">
+                        <ClientCombobox
+                          value={analysisData?.client_id || ''}
+                          onValueChange={async (clientId) => {
+                            if (currentAnalysisId) {
+                              const { error } = await supabase
+                                .from('shipping_analyses')
+                                .update({ 
+                                  client_id: clientId || null,
+                                  updated_at: new Date().toISOString()
+                                })
+                                .eq('id', currentAnalysisId);
+                              
+                              if (error) throw error;
+                              
+                              // Update local state
+                              setAnalysisData(prev => prev ? { ...prev, client_id: clientId } : null);
+                              toast.success('Client updated');
+                            }
+                          }}
+                          placeholder="Select client"
+                          disabled={!currentAnalysisId}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                   
                   <div className="text-muted-foreground">
                     {analysisData.totalShipments} shipments analyzed
@@ -1251,18 +1257,22 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               </div>
             </div>
             <div className="flex gap-3">
-              <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
-                <Home className="h-4 w-4 mr-2" />
-                Dashboard
-              </Button>
+              {!isClientView && (
+                <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
+                  <Home className="h-4 w-4 mr-2" />
+                  Dashboard
+                </Button>
+              )}
               <Button variant="outline" size="sm" onClick={exportToCSV}>
                 <Download className="h-4 w-4 mr-2" />
                 Export Report
               </Button>
-              <Button size="sm" onClick={() => navigate('/upload')}>
-                <Upload className="h-4 w-4 mr-2" />
-                New Analysis
-              </Button>
+              {!isClientView && (
+                <Button size="sm" onClick={() => navigate('/upload')}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  New Analysis
+                </Button>
+              )}
             </div>
           </div>
 
@@ -1291,37 +1301,43 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             <Card>
               <CardHeader>
                 <CardTitle className="text-2xl flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={snapshotDays}
-                    onChange={(e) => {
-                      const newValue = parseInt(e.target.value) || 30;
-                      setSnapshotDays(newValue);
-                      
-                      // Auto-save snapshot days if we have an analysis ID
-                      if (currentAnalysisId) {
-                        const timeoutId = setTimeout(async () => {
-                          try {
-                            await supabase
-                              .from('shipping_analyses')
-                              .update({ 
-                                recommendations: { snapshotDays: newValue },
-                                updated_at: new Date().toISOString()
-                              })
-                              .eq('id', currentAnalysisId);
-                          } catch (error) {
-                            console.error('Failed to auto-save snapshot days:', error);
+                  {isClientView ? (
+                    <span>{snapshotDays} Day Snapshot</span>
+                  ) : (
+                    <>
+                      <Input
+                        type="number"
+                        value={snapshotDays}
+                        onChange={(e) => {
+                          const newValue = parseInt(e.target.value) || 30;
+                          setSnapshotDays(newValue);
+                          
+                          // Auto-save snapshot days if we have an analysis ID
+                          if (currentAnalysisId) {
+                            const timeoutId = setTimeout(async () => {
+                              try {
+                                await supabase
+                                  .from('shipping_analyses')
+                                  .update({ 
+                                    recommendations: { snapshotDays: newValue },
+                                    updated_at: new Date().toISOString()
+                                  })
+                                  .eq('id', currentAnalysisId);
+                              } catch (error) {
+                                console.error('Failed to auto-save snapshot days:', error);
+                              }
+                            }, 1500);
+                            
+                            return () => clearTimeout(timeoutId);
                           }
-                        }, 1500);
-                        
-                        return () => clearTimeout(timeoutId);
-                      }
-                    }}
-                    className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
-                    min="1"
-                    max="365"
-                  />
-                  <span>Day Snapshot</span>
+                        }}
+                        className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
+                        min="1"
+                        max="365"
+                      />
+                      <span>Day Snapshot</span>
+                    </>
+                  )}
                 </CardTitle>
                 <CardDescription>
                   {filteredStats.totalShipments} shipments selected out of {shipmentData.length} total shipments
@@ -1389,12 +1405,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             </Card>
 
             {/* Markup Configuration Section */}
-            <MarkupConfiguration
-              shipmentData={shipmentData}
-              analysisId={currentAnalysisId}
-              onMarkupChange={setMarkupData}
-              initialMarkupData={markupData}
-            />
+            {!isClientView && (
+              <MarkupConfiguration
+                shipmentData={shipmentData}
+                analysisId={currentAnalysisId}
+                onMarkupChange={setMarkupData}
+                initialMarkupData={markupData}
+              />
+            )}
 
             {/* Service Analysis Table */}
             <Card>

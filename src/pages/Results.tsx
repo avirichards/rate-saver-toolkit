@@ -712,15 +712,23 @@ const Results = () => {
     const totalSavings = validShipments.reduce((sum, s) => sum + (s.savings || 0), 0);
     const totalCurrentCost = validShipments.reduce((sum, s) => sum + (s.currentRate || 0), 0);
     
+    console.log('🔍 SAVINGS DEBUG: Calculated values:', {
+      totalSavings,
+      totalCurrentCost,
+      databaseSavings: analysisMetadata.totalSavings,
+      shipmentCount: validShipments.length,
+      sampleSavings: validShipments.slice(0, 3).map(s => ({ savings: s.savings, currentRate: s.currentRate }))
+    });
+    
     // Update the database total_savings to match the dynamically calculated value
     if (currentAnalysisId && Math.abs(totalSavings - (analysisMetadata.totalSavings || 0)) > 0.01) {
-      console.log('Updating database total_savings from', analysisMetadata.totalSavings, 'to', totalSavings);
+      console.log('📊 UPDATING DATABASE: total_savings from', analysisMetadata.totalSavings, 'to', totalSavings);
       const { error } = await supabase
         .from('shipping_analyses')
         .update({ 
           total_savings: totalSavings,
           savings_analysis: {
-            totalShipments: dataIntegrityLog.processedShipments,
+            totalShipments: analysisMetadata.totalShipments, // Use original CSV total
             completedShipments: dataIntegrityLog.validShipments,
             errorShipments: dataIntegrityLog.orphanedShipments,
             totalCurrentCost: totalCurrentCost,

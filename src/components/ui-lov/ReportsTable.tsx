@@ -125,6 +125,12 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
 
   // Helper function to get savings percentage
   const getSavingsPercentage = (report: ShippingAnalysis) => {
+    console.log('📊 SAVINGS PERCENTAGE DEBUG for report:', report.id, {
+      totalSavings: report.total_savings,
+      savingsAnalysis: report.savings_analysis,
+      totalShipments: report.total_shipments
+    });
+    
     if (report.savings_analysis?.savingsPercentage) {
       return report.savings_analysis.savingsPercentage;
     }

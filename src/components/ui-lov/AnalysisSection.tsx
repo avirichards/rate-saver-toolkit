@@ -7,6 +7,9 @@ import { Progress } from '@/components/ui/progress';
 import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, Shield, Clock, Pause, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
+import { useUpsConnectivity } from '@/hooks/useUpsConnectivity';
+import { useTestMode } from '@/hooks/useTestMode';
+import { useAutoSave } from '@/hooks/useAutoSave';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToServiceCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
@@ -84,7 +87,13 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
   const [totalSavings, setTotalSavings] = useState(0);
   const [totalCurrentCost, setTotalCurrentCost] = useState(0);
   const [validationSummary, setValidationSummary] = useState<any>(null);
+  const [csvResidentialField, setCsvResidentialField] = useState<string | undefined>(undefined);
+  
+  // Use all the original hooks for full functionality
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
+  const { testing, testUpsConnection } = useUpsConnectivity();
+  const { isTestMode, isDevelopment } = useTestMode();
+  const { triggerSave, saveNow } = useAutoSave(reportId || null, {}, true);
 
   useEffect(() => {
     if (csvData.length > 0 && Object.keys(fieldMappings).length > 0) {
@@ -113,6 +122,15 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
     console.log(`✅ Processed ${processedShipments.length} shipments from CSV data`);
     setShipments(processedShipments);
     
+    // Check if we have a residential field mapped from CSV
+    const residentialField = Object.entries(fieldMappings).find(([fieldName, csvHeader]) => 
+      fieldName === 'isResidential' && csvHeader && csvHeader !== "__NONE__"
+    );
+    if (residentialField) {
+      setCsvResidentialField(residentialField[1]);
+      console.log('Found residential field mapping:', residentialField[1]);
+    }
+    
     // Initialize analysis results
     const initialResults = processedShipments.map(shipment => ({
       shipment,
@@ -121,29 +139,30 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
     setAnalysisResults(initialResults);
   };
 
-  const startAnalysis = async () => {
-    if (shipments.length === 0) {
-      toast.error('No shipments to analyze');
-      return;
-    }
-
+  const validateAndStartAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
     setIsAnalyzing(true);
-    setCurrentShipmentIndex(0);
     setError(null);
-    setIsComplete(false);
-    setIsPaused(false);
-
+    
     try {
-      // Validate UPS configuration first
-      await validateUpsConfiguration();
+      console.log('🔍 Starting validation of shipments:', {
+        totalShipments: shipmentsToAnalyze.length,
+        sampleShipments: shipmentsToAnalyze.slice(0, 3).map(s => ({
+          id: s.id,
+          trackingId: s.trackingId,
+          service: s.service,
+          originZip: s.originZip,
+          destZip: s.destZip,
+          weight: s.weight,
+          cost: s.cost
+        }))
+      });
       
-      // Validate shipments
-      const validationResults = await validateShipments(shipments);
+      const validationResults = await validateShipments(shipmentsToAnalyze);
       
       const validShipments: ProcessedShipment[] = [];
       const invalidShipments: { shipment: ProcessedShipment; reasons: string[] }[] = [];
       
-      shipments.forEach((shipment, index) => {
+      shipmentsToAnalyze.forEach((shipment, index) => {
         const result = validationResults[index];
         if (result && result.isValid) {
           validShipments.push(shipment);
@@ -152,31 +171,95 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
           invalidShipments.push({ shipment, reasons });
         }
       });
-
+      
       const summary = {
-        total: shipments.length,
+        total: shipmentsToAnalyze.length,
         valid: validShipments.length,
         invalid: invalidShipments.length
       };
       
       setValidationSummary(summary);
-
+      
+      console.log('✅ Validation complete:', summary);
+      
+      // Store invalid shipments in analysis results for tracking
+      const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
+        shipment,
+        status: 'error' as const,
+        error: `Validation failed: ${reasons.join(', ')}`,
+        errorType: 'validation_error',
+        errorCategory: 'Data Validation'
+      }));
+      
+      // Initialize results with both valid (pending) and invalid (error) shipments
+      const initialResults = [
+        ...validShipments.map(shipment => ({
+          shipment,
+          status: 'pending' as const
+        })),
+        ...invalidResults
+      ];
+      
+      setAnalysisResults(initialResults);
+      
       if (validShipments.length === 0) {
         throw new Error('No valid shipments found. Please check your data and field mappings.');
       }
+      
+      // Process only valid shipments
+      await startAnalysis(validShipments);
+      
+    } catch (error: any) {
+      console.error('Validation error:', error);
+      setError(error.message);
+      setIsAnalyzing(false);
+    }
+  };
 
+  const startAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
+    setIsAnalyzing(true);
+    setCurrentShipmentIndex(0);
+    setError(null);
+    setIsComplete(false);
+    setIsPaused(false);
+
+    console.log('🚀 Starting sequential analysis of shipments:', {
+      totalShipments: shipmentsToAnalyze.length,
+      serviceMappingsAvailable: serviceMappings.length,
+      firstShipment: shipmentsToAnalyze[0]
+    });
+
+    try {
+      // Validate UPS configuration first
+      await validateUpsConfiguration();
+      
       // Process shipments sequentially
-      for (let i = 0; i < validShipments.length; i++) {
-        if (isPaused) break;
+      for (let i = 0; i < shipmentsToAnalyze.length; i++) {
+        if (isPaused) {
+          console.log('Analysis paused, stopping processing');
+          break;
+        }
+        
+        console.log(`🔄 Processing shipment ${i + 1}/${shipmentsToAnalyze.length}`, {
+          shipmentId: shipmentsToAnalyze[i].id,
+          service: shipmentsToAnalyze[i].service,
+          weight: shipmentsToAnalyze[i].weight
+        });
         
         setCurrentShipmentIndex(i);
-        await processShipment(i, validShipments[i]);
+        await processShipment(i, shipmentsToAnalyze[i]);
+        
+        // Auto-save progress periodically
+        if (i % 10 === 0 && reportId) {
+          triggerSave();
+        }
         
         // Small delay to show progress
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
       if (!isPaused) {
+        console.log('✅ Analysis complete');
         setIsComplete(true);
         
         // Calculate final totals and complete analysis
@@ -189,8 +272,14 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
           totalCurrentCost: finalTotalCost,
           totalShipments: completedResults.length,
           recommendations: completedResults,
-          validationSummary: summary
+          validationSummary: validationSummary,
+          orphanedShipments: analysisResults.filter(r => r.status === 'error')
         };
+
+        // Save final results to database if reportId provided
+        if (reportId) {
+          await saveNow();
+        }
 
         onAnalysisComplete(analysisData);
         toast.success(`Analysis complete! Found ${finalTotalSavings > 0 ? '$' + finalTotalSavings.toFixed(2) : '$0'} in potential savings.`);
@@ -235,6 +324,17 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
   const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0) => {
     const maxRetries = 2;
     
+    console.log(`🔍 Processing shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
+      shipmentId: shipment.id,
+      service: shipment.service,
+      carrier: shipment.carrier,
+      originZip: shipment.originZip,
+      destZip: shipment.destZip,
+      weight: shipment.weight,
+      cost: shipment.cost,
+      isRetry: retryCount > 0
+    });
+    
     // Update status to processing
     setAnalysisResults(prev => {
       return prev.map(result => 
@@ -249,7 +349,7 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
       const rateQuote = await getUpsRateQuote(shipment);
       
       if (rateQuote.success && rateQuote.rates && rateQuote.rates.length > 0) {
-        const bestRate = rateQuote.rates[0]; // Assuming first rate is best
+        const bestRate = rateQuote.rates[0];
         const currentCost = parseFloat(shipment.cost || '0');
         const newCost = parseFloat(bestRate.TotalCharges?.MonetaryValue || '0');
         const savings = Math.max(0, currentCost - newCost);
@@ -274,6 +374,13 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
         // Update running totals
         setTotalSavings(prev => prev + savings);
         setTotalCurrentCost(prev => prev + currentCost);
+        
+        console.log(`✅ Shipment ${shipment.id} processed successfully:`, {
+          currentCost,
+          newCost,
+          savings,
+          service: bestRate.Service?.Name
+        });
       } else {
         throw new Error(rateQuote.error || 'No rates returned from UPS');
       }
@@ -295,6 +402,7 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
                 status: 'error',
                 error: error.message,
                 errorType: 'ups_api_error',
+                errorCategory: 'UPS API Error',
                 attemptCount: retryCount + 1
               }
             : result
@@ -309,10 +417,12 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
       const destCity = getCityStateFromZip(shipment.destZip || '');
       
       if (!originCity || !destCity) {
-        throw new Error('Invalid ZIP codes');
+        throw new Error(`Invalid ZIP codes: ${shipment.originZip} → ${shipment.destZip}`);
       }
 
-      const isResidential = determineResidentialStatus(shipment, undefined);
+      const isResidential = csvResidentialField && shipment.hasOwnProperty(csvResidentialField) 
+        ? (shipment as any)[csvResidentialField] === 'true' || (shipment as any)[csvResidentialField] === true
+        : false;
       const serviceCodes = getServiceCodesToRequest(shipment.service || 'Ground');
 
       const shipmentData = {
@@ -355,6 +465,7 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
       if (error) throw error;
       return data;
     } catch (error: any) {
+      console.error('UPS rate quote error:', error);
       return { success: false, error: error.message };
     }
   };
@@ -376,6 +487,20 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
         <p className="text-muted-foreground mb-4">
           Found ${totalSavings.toFixed(2)} in potential savings across {analysisResults.filter(r => r.status === 'completed').length} shipments.
         </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-md mx-auto">
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-green-600">{analysisResults.filter(r => r.status === 'completed').length}</div>
+            <div className="text-sm text-green-700">Completed</div>
+          </div>
+          <div className="bg-red-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-red-600">{analysisResults.filter(r => r.status === 'error').length}</div>
+            <div className="text-sm text-red-700">Errors</div>
+          </div>
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="text-2xl font-bold text-blue-600">${totalSavings.toFixed(2)}</div>
+            <div className="text-sm text-blue-700">Total Savings</div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -394,7 +519,32 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
           <p className="text-muted-foreground mb-6">
             We'll compare your current shipping costs with UPS rates to find potential savings.
           </p>
-          <Button onClick={startAnalysis} size="lg">
+          
+          {/* UPS Connectivity Status */}
+          <div className="mb-6 p-4 bg-blue-50 rounded-lg">
+            <div className="flex items-center justify-center gap-2">
+              <Shield className="h-5 w-5 text-blue-600" />
+              <span className="font-medium text-blue-900">
+                UPS API: {testing ? 'Testing...' : 'Ready'}
+              </span>
+            </div>
+            <p className="text-sm text-blue-700 mt-1">
+              Connection will be verified when analysis starts
+            </p>
+          </div>
+
+          {/* Test Mode Warning */}
+          {isTestMode && (
+            <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <div className="flex items-center justify-center gap-2">
+                <AlertCircle className="h-5 w-5 text-yellow-600" />
+                <span className="font-medium text-yellow-900">Test Mode Active</span>
+              </div>
+              <p className="text-sm text-yellow-700 mt-1">Running in development mode</p>
+            </div>
+          )}
+          
+          <Button onClick={() => validateAndStartAnalysis(shipments)} size="lg">
             Start Analysis
           </Button>
         </div>
@@ -452,6 +602,18 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
                     </div>
                   </div>
                 )}
+
+                {isPaused && (
+                  <div className="text-center p-4 bg-yellow-50 rounded-lg">
+                    <div className="flex items-center justify-center gap-2 text-yellow-700">
+                      <Clock className="h-5 w-5" />
+                      <span className="font-medium">Analysis Paused</span>
+                    </div>
+                    <p className="text-sm text-yellow-600 mt-1">
+                      Click Resume to continue processing shipments
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -475,7 +637,7 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
               <span className="font-medium">Analysis Error</span>
             </div>
             <p className="text-sm text-muted-foreground mt-2">{error}</p>
-            <Button variant="outline" onClick={startAnalysis} className="mt-4">
+            <Button variant="outline" onClick={() => validateAndStartAnalysis(shipments)} className="mt-4">
               Retry Analysis
             </Button>
           </CardContent>

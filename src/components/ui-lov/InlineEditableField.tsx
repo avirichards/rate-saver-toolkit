@@ -86,14 +86,15 @@ export function InlineEditableField({
           className={cn(
             "border-0 bg-transparent p-0 text-inherit font-inherit text-size-inherit",
             "focus:ring-2 focus:ring-primary/20 focus:bg-muted/10 rounded-md px-2 py-1",
-            "placeholder:text-muted-foreground/50",
+            "placeholder:text-muted-foreground/50 caret-white",
             className
           )}
           style={{ 
             fontSize: 'inherit',
             fontWeight: 'inherit',
             color: 'inherit',
-            background: 'transparent'
+            background: 'transparent',
+            caretColor: 'white'
           }}
         />
         <div className="flex gap-1 ml-2">

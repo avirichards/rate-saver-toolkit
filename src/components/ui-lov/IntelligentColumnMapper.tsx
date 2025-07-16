@@ -373,8 +373,8 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
               size="sm"
               onClick={handleReAnalyze}
               disabled={isAnalyzing}
+              iconLeft={<RotateCw className="h-4 w-4" />}
             >
-              <RotateCw className="h-4 w-4 mr-2" />
               Re-analyze
             </Button>
           </div>
@@ -451,11 +451,12 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
           {/* Action Buttons */}
           <div className="flex justify-end gap-3">
             <Button
+              variant="primary"
               onClick={handleProceed}
               disabled={requiredMappedCount < requiredCount}
+              iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
             >
               Proceed to Analysis
-              <CheckCircle className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </CardContent>

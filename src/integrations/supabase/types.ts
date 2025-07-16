@@ -274,83 +274,6 @@ export type Database = {
         }
         Relationships: []
       }
-      reports: {
-        Row: {
-          analysis_results: Json | null
-          client_id: string | null
-          created_at: string
-          current_section: string
-          deleted_at: string | null
-          detected_headers: string[] | null
-          header_mappings: Json | null
-          id: string
-          is_deleted: boolean | null
-          raw_csv_data: string
-          raw_csv_filename: string
-          report_name: string
-          sections_completed: string[] | null
-          service_mappings: Json | null
-          total_rows: number
-          total_savings: number | null
-          total_shipments: number | null
-          updated_at: string
-          ups_rate_quotes: Json | null
-          user_id: string
-        }
-        Insert: {
-          analysis_results?: Json | null
-          client_id?: string | null
-          created_at?: string
-          current_section?: string
-          deleted_at?: string | null
-          detected_headers?: string[] | null
-          header_mappings?: Json | null
-          id?: string
-          is_deleted?: boolean | null
-          raw_csv_data: string
-          raw_csv_filename: string
-          report_name: string
-          sections_completed?: string[] | null
-          service_mappings?: Json | null
-          total_rows?: number
-          total_savings?: number | null
-          total_shipments?: number | null
-          updated_at?: string
-          ups_rate_quotes?: Json | null
-          user_id: string
-        }
-        Update: {
-          analysis_results?: Json | null
-          client_id?: string | null
-          created_at?: string
-          current_section?: string
-          deleted_at?: string | null
-          detected_headers?: string[] | null
-          header_mappings?: Json | null
-          id?: string
-          is_deleted?: boolean | null
-          raw_csv_data?: string
-          raw_csv_filename?: string
-          report_name?: string
-          sections_completed?: string[] | null
-          service_mappings?: Json | null
-          total_rows?: number
-          total_savings?: number | null
-          total_shipments?: number | null
-          updated_at?: string
-          ups_rate_quotes?: Json | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reports_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       service_mappings: {
         Row: {
           carrier: string
@@ -461,13 +384,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "shipping_analyses_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "clients"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "shipping_analyses_csv_upload_id_fkey"
             columns: ["csv_upload_id"]

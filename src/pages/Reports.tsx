@@ -8,7 +8,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { FileBarChart, Filter, Search, TrendingUp, TrendingDown, Percent, DollarSign, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { NewReportDialog } from '@/components/ui-lov/NewReportDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Switch } from '@/components/ui/switch';
@@ -54,81 +53,57 @@ const ReportsPage = () => {
   const loadReports = async () => {
     try {
       setLoading(true);
+      console.log('📊 REPORTS: Loading reports for user:', user?.id);
       
-      
-      // Query both tables to get all reports (both old shipping_analyses and new reports)
-      const [shipmentsData, reportsData] = await Promise.all([
-        supabase
-          .from('shipping_analyses')
-          .select(`
-            id, 
-            file_name, 
-            analysis_date, 
-            total_shipments, 
-            total_savings, 
-            markup_data, 
-            savings_analysis,
-            created_at, 
-            status, 
-            updated_at,
-            report_name,
-            client_id,
-            clients:client_id(id, company_name)
-          `)
-          .eq('user_id', user?.id)
-          .eq('is_deleted', false)
-          .order('created_at', { ascending: false }),
+      const { data, error } = await supabase
+        .from('shipping_analyses')
+        .select(`
+          id, 
+          file_name, 
+          analysis_date, 
+          total_shipments, 
+          total_savings, 
+          markup_data, 
+          savings_analysis,
+          created_at, 
+          status, 
+          updated_at,
+          report_name,
+          client_id
+        `)
+        .eq('user_id', user?.id)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
+
+      // Manually fetch client data for reports that have a client_id
+      let reportsWithClients = data || [];
+      if (reportsWithClients.length > 0) {
+        const clientIds = [...new Set(reportsWithClients.map(r => r.client_id).filter(Boolean))];
         
-        supabase
-          .from('reports')
-          .select(`
-            id,
-            report_name,
-            raw_csv_filename,
-            total_rows,
-            total_shipments,
-            total_savings,
-            created_at,
-            updated_at,
-            current_section,
-            sections_completed,
-            client_id,
-            clients:client_id(id, company_name)
-          `)
-          .eq('user_id', user?.id)
-          .eq('is_deleted', false)
-          .order('created_at', { ascending: false })
-      ]);
+        if (clientIds.length > 0) {
+          const { data: clientsData } = await supabase
+            .from('clients')
+            .select('id, company_name')
+            .in('id', clientIds);
 
-      if (shipmentsData.error) throw shipmentsData.error;
-      if (reportsData.error) throw reportsData.error;
+          // Map clients to reports
+          reportsWithClients = reportsWithClients.map(report => ({
+            ...report,
+            client: report.client_id 
+              ? clientsData?.find(c => c.id === report.client_id) || null
+              : null
+          }));
+        }
+      }
 
-      // Combine and normalize both data sources
-      const legacyReports = (shipmentsData.data || []).map(report => ({
-        ...report,
-        file_name: report.file_name,
-        analysis_date: report.analysis_date || report.created_at,
-        status: report.status || 'completed',
-        client: report.clients || null,
-        source: 'shipping_analyses'
-      }));
-
-      const newReports = (reportsData.data || []).map(report => ({
-        ...report,
-        file_name: report.raw_csv_filename,
-        analysis_date: report.created_at,
-        total_shipments: report.total_shipments || report.total_rows,
-        status: report.current_section === 'complete' ? 'completed' : 'in_progress',
-        report_name: report.report_name,
-        client: report.clients || null,
-        source: 'reports'
-      }));
-
-      // Combine both sources, with newer reports first
-      const allReports = [...newReports, ...legacyReports];
       
-
-      setReports(allReports as any);
+      console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
+      setReports(reportsWithClients as any);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {
@@ -238,7 +213,14 @@ const ReportsPage = () => {
                   <Filter className="h-4 w-4" />
                 </Button>
               </div>
-              <NewReportDialog onReportCreated={loadReports} />
+              <Link to="/upload">
+                <Button 
+                  variant="primary" 
+                  iconLeft={<FileBarChart className="h-4 w-4" />}
+                >
+                  New Analysis
+                </Button>
+              </Link>
             </div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -270,8 +252,13 @@ const ReportsPage = () => {
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <FileBarChart className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">No reports found</h3>
-                    <p className="text-muted-foreground mb-4">Create your first shipping report to see data here.</p>
-                    <NewReportDialog onReportCreated={loadReports} />
+                    <p className="text-muted-foreground mb-4">Create your first shipping analysis to see reports here.</p>
+                    <Link to="/upload">
+                      <Button variant="primary">
+                        <FileBarChart className="h-4 w-4 mr-2" />
+                        New Analysis
+                      </Button>
+                    </Link>
                   </div>
                 ) : groupByClient ? (
                   <GroupedReportsView

@@ -62,22 +62,6 @@ export const processNormalViewData = (recommendations: any[]): ProcessedAnalysis
   const validShipments: any[] = [];
   const orphanedShipments: any[] = [];
   
-  // Handle case where recommendations might not be an array
-  if (!Array.isArray(recommendations)) {
-    console.warn('recommendations is not an array:', typeof recommendations, recommendations);
-    return {
-      totalCurrentCost: 0,
-      totalPotentialSavings: 0,
-      recommendations: [],
-      savingsPercentage: 0,
-      totalShipments: 0,
-      analyzedShipments: 0,
-      orphanedShipments: [],
-      completedShipments: 0,
-      errorShipments: 0
-    };
-  }
-  
   recommendations.forEach((rec: any, index: number) => {
     const shipmentData = rec.shipment || rec;
     const validation = validateShipmentData(shipmentData);

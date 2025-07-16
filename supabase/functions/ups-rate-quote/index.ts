@@ -69,8 +69,7 @@ serve(async (req) => {
       });
     }
 
-    const requestBody = await req.json();
-    const { shipment, shipmentData }: { shipment?: ShipmentRequest, shipmentData?: any } = requestBody;
+    const { shipment }: { shipment: ShipmentRequest } = await req.json();
 
     // Get UPS access token
     const tokenResponse = await supabase.functions.invoke('ups-auth', {
@@ -97,63 +96,15 @@ serve(async (req) => {
       has_access_token: !!access_token
     });
 
-    // Handle both legacy format (shipment) and new format (shipmentData)
-    let shipmentInfo: ShipmentRequest;
-    
-    if (shipmentData) {
-      // Convert new frontend format to expected format
-      shipmentInfo = {
-        shipFrom: {
-          name: 'Shipper',
-          address: '123 Main St',
-          city: shipmentData.shipper?.address?.city || 'Unknown',
-          state: shipmentData.shipper?.address?.stateProvinceCode || 'Unknown',
-          zipCode: shipmentData.shipper?.address?.postalCode || '',
-          country: shipmentData.shipper?.address?.countryCode || 'US'
-        },
-        shipTo: {
-          name: 'Recipient',
-          address: '456 Oak Ave',
-          city: shipmentData.shipTo?.address?.city || 'Unknown',
-          state: shipmentData.shipTo?.address?.stateProvinceCode || 'Unknown',
-          zipCode: shipmentData.shipTo?.address?.postalCode || '',
-          country: shipmentData.shipTo?.address?.countryCode || 'US'
-        },
-        package: {
-          weight: parseFloat(shipmentData.package?.weight?.weight || '1'),
-          weightUnit: shipmentData.package?.weight?.unitOfMeasurement?.code || 'LBS',
-          length: parseFloat(shipmentData.package?.dimensions?.length || '12'),
-          width: parseFloat(shipmentData.package?.dimensions?.width || '12'),
-          height: parseFloat(shipmentData.package?.dimensions?.height || '12'),
-          dimensionUnit: shipmentData.package?.dimensions?.unitOfMeasurement?.code || 'IN',
-          packageType: '02'
-        },
-        serviceTypes: shipmentData.serviceCodes || ['03'],
-        isResidential: shipmentData.shipTo?.address?.residentialAddressIndicator === true
-      };
-    } else if (shipment) {
-      shipmentInfo = shipment;
-    } else {
-      return new Response(JSON.stringify({ error: 'Missing shipment data' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     // Validate shipment data before building request
-    if (!shipmentInfo?.shipFrom?.zipCode || !shipmentInfo?.shipTo?.zipCode) {
-      console.error('Missing ZIP codes:', {
-        shipFromZip: shipmentInfo?.shipFrom?.zipCode,
-        shipToZip: shipmentInfo?.shipTo?.zipCode,
-        originalRequest: requestBody
-      });
+    if (!shipment?.shipFrom?.zipCode || !shipment?.shipTo?.zipCode) {
       return new Response(JSON.stringify({ error: 'Missing required ZIP codes' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    if (!shipmentInfo?.package?.weight || shipmentInfo.package.weight <= 0) {
+    if (!shipment?.package?.weight || shipment.package.weight <= 0) {
       return new Response(JSON.stringify({ error: 'Invalid package weight' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -258,35 +209,35 @@ serve(async (req) => {
         },
         Shipment: {
           Shipper: {
-            Name: (shipmentInfo.shipFrom.name || 'Shipper').substring(0, 35),
+            Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
             ShipperNumber: config.account_number,
             Address: {
-              PostalCode: cleanZip(shipmentInfo.shipFrom.zipCode),
-              CountryCode: shipmentInfo.shipFrom.country || 'US'
+              PostalCode: cleanZip(shipment.shipFrom.zipCode),
+              CountryCode: shipment.shipFrom.country || 'US'
             }
           },
           ShipTo: {
-            Name: (shipmentInfo.shipTo.name || 'Recipient').substring(0, 35),
+            Name: (shipment.shipTo.name || 'Recipient').substring(0, 35),
             Address: {
-              StateProvinceCode: getStateFromZip(shipmentInfo.shipTo.zipCode),
-              PostalCode: cleanZip(shipmentInfo.shipTo.zipCode),
-              CountryCode: shipmentInfo.shipTo.country || 'US',
-              ...(shipmentInfo.isResidential ? { ResidentialAddressIndicator: "Y" } : {})
+              StateProvinceCode: getStateFromZip(shipment.shipTo.zipCode),
+              PostalCode: cleanZip(shipment.shipTo.zipCode),
+              CountryCode: shipment.shipTo.country || 'US',
+              ...(shipment.isResidential ? { ResidentialAddressIndicator: "Y" } : {})
             }
           },
           PaymentDetails: {
             ShipmentCharge: [{
               Type: "01",
               BillShipper: {
-                AttentionName: (shipmentInfo.shipFrom.name || 'Shipper').substring(0, 35),
-                Name: (shipmentInfo.shipFrom.name || 'Shipper').substring(0, 35),
+                AttentionName: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
+                Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
                 AccountNumber: config.account_number,
                 Address: {
-                  AddressLine: formatAddress(shipmentInfo.shipFrom.address || '123 Main St'),
-                  City: (shipmentInfo.shipFrom.city || '').substring(0, 30),
-                  StateProvinceCode: getStateFromZip(shipmentInfo.shipFrom.zipCode),
-                  PostalCode: cleanZip(shipmentInfo.shipFrom.zipCode),
-                  CountryCode: shipmentInfo.shipFrom.country || 'US'
+                  AddressLine: formatAddress(shipment.shipFrom.address || '123 Main St'),
+                  City: (shipment.shipFrom.city || '').substring(0, 30),
+                  StateProvinceCode: getStateFromZip(shipment.shipFrom.zipCode),
+                  PostalCode: cleanZip(shipment.shipFrom.zipCode),
+                  CountryCode: shipment.shipFrom.country || 'US'
                 }
               }
             }]
@@ -301,24 +252,24 @@ serve(async (req) => {
           },
           Package: {
             PackagingType: {
-              Code: shipmentInfo.package.packageType || "02",
+              Code: shipment.package.packageType || "02",
               Description: "Packaging"
             },
             Dimensions: {
               UnitOfMeasurement: {
-                Code: shipmentInfo.package.dimensionUnit || "IN",
+                Code: shipment.package.dimensionUnit || "IN",
                 Description: "Inches"
               },
-              Length: (shipmentInfo.package.length || 12).toString(),
-              Width: (shipmentInfo.package.width || 12).toString(),
-              Height: (shipmentInfo.package.height || 6).toString()
+              Length: (shipment.package.length || 12).toString(),
+              Width: (shipment.package.width || 12).toString(),
+              Height: (shipment.package.height || 6).toString()
             },
             PackageWeight: {
               UnitOfMeasurement: {
-                Code: shipmentInfo.package.weightUnit || "LBS",
+                Code: shipment.package.weightUnit || "LBS",
                 Description: "Pounds"
               },
-              Weight: shipmentInfo.package.weight.toString()
+              Weight: shipment.package.weight.toString()
             },
             OversizeIndicator: "X",
             MinimumBillableWeightIndicator: "X"
@@ -329,15 +280,19 @@ serve(async (req) => {
 
 
     console.log('🏠 UPS API - RESIDENTIAL STATUS VERIFICATION:', {
-      inputResidential: shipmentInfo.isResidential,
-      residentialSource: 'shipment data',
+      trackingId: shipment.trackingId,
+      inputResidential: shipment.isResidential,
+      residentialSource: shipment.residentialSource,
       upsResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
       residentialIndicatorValue: ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
+      shipToAddress: ratingRequest.RateRequest.Shipment.ShipTo.Address.AddressLine,
       zipCode: ratingRequest.RateRequest.Shipment.ShipTo.Address.PostalCode
     });
+    
+    console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
 
     // Use ONLY the confirmed service codes - NO fallbacks
-    if (!shipmentInfo.serviceTypes || shipmentInfo.serviceTypes.length === 0) {
+    if (!shipment.serviceTypes || shipment.serviceTypes.length === 0) {
       return new Response(JSON.stringify({ 
         error: 'No service codes provided. All shipments must have confirmed service mappings.' 
       }), {
@@ -346,11 +301,12 @@ serve(async (req) => {
       });
     }
     
-    const serviceCodes = shipmentInfo.serviceTypes;
-    const equivalentServiceCode = serviceCodes[0]; // Use first service as equivalent
+    const serviceCodes = shipment.serviceTypes;
+    const equivalentServiceCode = shipment.equivalentServiceCode || serviceCodes[0];
     
     console.log('🔍 SERVICE CODE VALIDATION - NO FALLBACKS:', {
-      receivedServiceTypes: shipmentInfo.serviceTypes,
+      receivedServiceTypes: shipment.serviceTypes,
+      receivedEquivalentCode: shipment.equivalentServiceCode,
       finalServiceCodes: serviceCodes,
       finalEquivalentCode: equivalentServiceCode,
       confirmedMappingOnly: true
@@ -361,7 +317,8 @@ serve(async (req) => {
       serviceCodes,
       equivalentServiceCode,
       total: serviceCodes.length,
-      receivedServiceTypes: shipmentInfo.serviceTypes
+      receivedServiceTypes: shipment.serviceTypes,
+      receivedEquivalentCode: shipment.equivalentServiceCode
     });
 
     // Get rates for each service type
@@ -427,8 +384,8 @@ serve(async (req) => {
               rateType,
               savings: savingsAmount,
               hasAccount: !!config?.account_number,
-              isResidential: shipmentInfo.isResidential,
-              residentialSource: 'shipment data',
+              isResidential: shipment.isResidential,
+              residentialSource: shipment.residentialSource,
               residentialSurcharge: residentialSurcharge ? {
                 amount: residentialSurcharge.MonetaryValue,
                 code: residentialSurcharge.Code,
@@ -461,8 +418,8 @@ serve(async (req) => {
                 isEquivalentService: serviceCode === equivalentServiceCode, // Mark the equivalent service
                 // Add residential tracking for debugging
                 residentialInfo: {
-                  isResidential: shipmentInfo.isResidential,
-                  residentialSource: 'shipment data',
+                  isResidential: shipment.isResidential,
+                  residentialSource: shipment.residentialSource,
                   hasResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator
                 }
               });

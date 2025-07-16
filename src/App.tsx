@@ -18,7 +18,6 @@ import ReportsPage from "./pages/Reports";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
 import ClientResults from "./pages/ClientResults";
-import { ReportWorkflow } from "./components/ui-lov/ReportWorkflow";
 
 // Authentication
 import { AuthProvider } from "./hooks/useAuth";
@@ -41,13 +40,12 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/share/:shareToken" element={<ClientResults />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/upload" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/mapping" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/service-mapping" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              
+              <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
+              <Route path="/mapping" element={<ProtectedRoute><Mapping /></ProtectedRoute>} />
+              <Route path="/service-mapping" element={<ProtectedRoute><ServiceMapping /></ProtectedRoute>} />
+              <Route path="/analysis" element={<ProtectedRoute><Analysis /></ProtectedRoute>} />
               <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
-              <Route path="/report/:id" element={<ProtectedRoute><ReportWorkflow /></ProtectedRoute>} />
               <Route path="/reports/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

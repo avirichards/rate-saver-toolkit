@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Download, Edit, DollarSign, Percent, Trash2, Clipboard, Eye, Link } from 'lucide-react';
+import { Download, Edit, DollarSign, Percent, Trash2, Clipboard, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
@@ -87,48 +87,15 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
 
   const deleteSelectedReports = async () => {
     try {
-      // Group selected reports by source table
-      const selectedIds = Array.from(selectedReports);
-      const reportsFromReportsTable = selectedIds.filter(id => {
-        const report = localReports.find(r => r.id === id);
-        return (report as any)?.source === 'reports';
-      });
-      const reportsFromAnalysesTable = selectedIds.filter(id => {
-        const report = localReports.find(r => r.id === id);
-        return (report as any)?.source !== 'reports';
-      });
+      const { error } = await supabase
+        .from('shipping_analyses')
+        .update({ 
+          is_deleted: true,
+          deleted_at: new Date().toISOString()
+        })
+        .in('id', Array.from(selectedReports));
 
-      // Delete from both tables as needed
-      const promises = [];
-      
-      if (reportsFromReportsTable.length > 0) {
-        promises.push(
-          supabase
-            .from('reports')
-            .update({ 
-              is_deleted: true,
-              deleted_at: new Date().toISOString()
-            })
-            .in('id', reportsFromReportsTable)
-        );
-      }
-      
-      if (reportsFromAnalysesTable.length > 0) {
-        promises.push(
-          supabase
-            .from('shipping_analyses')
-            .update({ 
-              is_deleted: true,
-              deleted_at: new Date().toISOString()
-            })
-            .in('id', reportsFromAnalysesTable)
-        );
-      }
-
-      const results = await Promise.all(promises);
-      for (const result of results) {
-        if (result.error) throw result.error;
-      }
+      if (error) throw error;
       
       toast.success(`${selectedReports.size} report(s) deleted`);
       setSelectedReports(new Set());
@@ -141,34 +108,13 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
 
   const deleteReport = async (reportId: string) => {
     try {
-      // Find the report to determine which table to update
-      const reportToDelete = localReports.find(r => r.id === reportId);
-      if (!reportToDelete) {
-        throw new Error('Report not found');
-      }
-
-      let error;
-      if ((reportToDelete as any).source === 'reports') {
-        // Delete from reports table
-        const result = await supabase
-          .from('reports')
-          .update({ 
-            is_deleted: true,
-            deleted_at: new Date().toISOString()
-          })
-          .eq('id', reportId);
-        error = result.error;
-      } else {
-        // Delete from shipping_analyses table (legacy)
-        const result = await supabase
-          .from('shipping_analyses')
-          .update({ 
-            is_deleted: true,
-            deleted_at: new Date().toISOString()
-          })
-          .eq('id', reportId);
-        error = result.error;
-      }
+      const { error } = await supabase
+        .from('shipping_analyses')
+        .update({ 
+          is_deleted: true,
+          deleted_at: new Date().toISOString()
+        })
+        .eq('id', reportId);
 
       if (error) throw error;
       
@@ -212,16 +158,19 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
     event?.stopPropagation();
     
     try {
+      console.log('🔍 Creating share for report:', reportId);
       const shareData = await getOrCreateReportShare(reportId);
+      console.log('📊 Share data received:', shareData);
       
       if (!shareData) {
         throw new Error('Failed to create share link');
       }
 
       const shareUrl = getShareUrl(shareData.shareToken);
+      console.log('🔗 Generated share URL:', shareUrl);
       window.open(shareUrl, '_blank');
     } catch (error) {
-      console.error('Error opening preview:', error);
+      console.error('❌ Error opening preview:', error);
       toast.error('Failed to open preview: ' + (error as Error).message);
     }
   };
@@ -293,8 +242,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
           </span>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="secondary" size="sm" className="text-destructive hover:text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
+              <Button variant="secondary" size="sm" iconLeft={<Trash2 className="h-4 w-4" />} className="text-destructive hover:text-destructive">
                 Delete Selected
               </Button>
             </AlertDialogTrigger>
@@ -347,11 +295,11 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
             </tr>
           </thead>
           <tbody>
-             {localReports.map((report, index) => {
-               const markupStatus = getMarkupStatus(report.markup_data);
-               const isSelected = selectedReports.has(report.id);
-               return (
-                 <tr key={`${report.id}-${index}`} className="border-b hover:bg-muted/50">
+            {localReports.map((report) => {
+              const markupStatus = getMarkupStatus(report.markup_data);
+              const isSelected = selectedReports.has(report.id);
+              return (
+                <tr key={report.id} className="border-b hover:bg-muted/50">
                   <td className="py-3 px-2">
                     <Checkbox
                       checked={isSelected}
@@ -366,9 +314,8 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                         updateReportNameOptimistically(report.id, value);
                         
                         try {
-                          const tableName = (report as any).source === 'reports' ? 'reports' : 'shipping_analyses';
                           const { error } = await supabase
-                            .from(tableName)
+                            .from('shipping_analyses')
                             .update({ 
                               report_name: value,
                               updated_at: new Date().toISOString()
@@ -403,9 +350,8 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                           updateReportClientOptimistically(report.id, clientId || null, clientName);
                           
                           try {
-                            const tableName = (report as any).source === 'reports' ? 'reports' : 'shipping_analyses';
                             const { error } = await supabase
-                              .from(tableName)
+                              .from('shipping_analyses')
                               .update({ 
                                 client_id: clientId || null,
                                 updated_at: new Date().toISOString()
@@ -560,17 +506,12 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                            variant="ghost" 
                            size="icon"
                            className="h-8 w-8"
-                            title="Edit report"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              // Navigate to appropriate page based on source
-                              if ((report as any).source === 'reports') {
-                                navigate(`/report/${report.id}`);
-                              } else {
-                                navigate(`/results?analysisId=${report.id}`);
-                              }
-                            }}
+                           title="Edit report"
+                           onClick={(e) => {
+                             e.preventDefault();
+                             e.stopPropagation();
+                             navigate(`/results?analysisId=${report.id}`);
+                           }}
                          >
                            <Edit className="h-4 w-4" />
                          </Button>

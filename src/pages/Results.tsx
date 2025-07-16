@@ -630,10 +630,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     });
 
     // Process legacy data and migrate to centralized format
-    await processShipmentData(dataToUse, analysisMetadata, data.original_data, data.id);
+    await processShipmentData(dataToUse, analysisMetadata, data.original_data, data.id, data);
   };
 
-  const processShipmentData = async (dataToUse: any[], analysisMetadata: any, originalData?: any[], analysisId?: string) => {
+  const processShipmentData = async (dataToUse: any[], analysisMetadata: any, originalData?: any[], analysisId?: string, fullAnalysisData?: any) => {
     console.log('🔍 DATA INTEGRITY: Starting processShipmentData:', {
       inputCount: dataToUse.length,
       expectedShipments: analysisMetadata.totalShipments || 0,
@@ -758,8 +758,36 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           originalShipment
         });
         
-        // Use original shipment data if available, otherwise create empty record
-        const shipmentData = originalShipment?.shipment || originalShipment || {};
+        // Handle CSV format data by applying field mappings
+        let shipmentData: any = {};
+        
+        if (originalShipment) {
+          // Check if this is CSV format (raw row data) vs processed format
+          const fieldMappings = (fullAnalysisData?.savings_analysis as any)?.fieldMappings || {};
+          const hasMappings = Object.keys(fieldMappings).length > 0;
+          
+          if (hasMappings && !originalShipment.shipment) {
+            // Process CSV row using field mappings
+            Object.entries(fieldMappings as Record<string, string>).forEach(([fieldName, csvHeader]) => {
+              if (csvHeader && csvHeader !== "__NONE__" && (originalShipment as any)[csvHeader] !== undefined) {
+                let value = (originalShipment as any)[csvHeader];
+                if (typeof value === 'string') {
+                  value = value.trim();
+                }
+                shipmentData[fieldName] = value;
+              }
+            });
+            
+            console.log(`🔍 CSV RECOVERY: Processed missing shipment ${missingIndex + 1} from CSV:`, {
+              csvRow: originalShipment,
+              mappings: fieldMappings,
+              processedData: shipmentData
+            });
+          } else {
+            // Use data as-is (already processed format)
+            shipmentData = originalShipment?.shipment || originalShipment || {};
+          }
+        }
         
         orphanedShipments.push({
           id: missingIndex + 1,

@@ -1190,7 +1190,7 @@ const Analysis = () => {
     const analysisRecord = {
       user_id: user.id,
       file_name: state?.fileName || 'Real-time Analysis',
-      original_data: allResults as any, // Store ALL analysis results (completed + errors)
+      original_data: state?.csvData || [] as any, // Store ORIGINAL CSV DATA for recovery
       ups_quotes: completedResults.map(r => r.upsRates) as any,
       savings_analysis: {
         totalCurrentCost,
@@ -1199,7 +1199,9 @@ const Analysis = () => {
         totalShipments: shipments.length,
         completedShipments: completedResults.length,
         errorShipments: errorResults.length,
-        orphanedShipments: orphanedShipmentsFormatted // Include orphan data
+        orphanedShipments: orphanedShipmentsFormatted, // Include orphan data
+        fieldMappings: state?.mappings || {}, // Store field mappings for recovery
+        serviceMappings: serviceMappings || [] // Store service mappings for recovery
       } as any,
       recommendations: recommendations as any,
       processed_shipments: processedShipments as any, // CENTRALIZED DATA
@@ -1212,7 +1214,8 @@ const Analysis = () => {
     
     console.log('🗄️ DATA INTEGRITY: Database record being saved:', {
       totalShipments: analysisRecord.total_shipments,
-      originalDataCount: allResults.length,
+      originalDataCount: Array.isArray(state?.csvData) ? state.csvData.length : 0,
+      originalDataType: 'CSV_ROWS',
       recommendationsCount: recommendations.length,
       orphanedCount: orphanedShipmentsFormatted.length,
       hasAllData: allResults.length === shipments.length,

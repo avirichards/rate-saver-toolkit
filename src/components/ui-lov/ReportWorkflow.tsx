@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Check, Upload, Settings, BarChart3, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { IntelligentColumnMapper } from '@/components/ui-lov/IntelligentColumnMapper';
+import { ServiceMappingReview } from '@/components/ui-lov/ServiceMappingReview';
+import { parseCSV, type ServiceMapping } from '@/utils/csvParser';
+import { toast } from 'sonner';
 
 interface Report {
   id: string;
@@ -42,10 +45,16 @@ interface ReportWorkflowProps {
 export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  
+  // Section-specific state
+  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [fieldMappings, setFieldMappings] = useState<Record<string, string>>({});
+  const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
+  const [analysisResults, setAnalysisResults] = useState<any>(null);
 
   const finalReportId = reportId || id;
 
@@ -54,6 +63,43 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
       loadReport();
     }
   }, [finalReportId]);
+
+  // Initialize section data when report is loaded
+  useEffect(() => {
+    if (report) {
+      initializeSectionData();
+    }
+  }, [report]);
+
+  const initializeSectionData = () => {
+    if (!report) return;
+
+    try {
+      // Parse CSV data if available
+      if (report.raw_csv_data) {
+        const parsed = parseCSV(report.raw_csv_data);
+        setCsvData(parsed.data);
+        setCsvHeaders(parsed.headers);
+      }
+
+      // Load existing mappings
+      if (report.header_mappings) {
+        setFieldMappings(report.header_mappings);
+      }
+
+      // Load existing service mappings
+      if (report.service_mappings) {
+        setServiceMappings(report.service_mappings);
+      }
+
+      // Load analysis results
+      if (report.analysis_results) {
+        setAnalysisResults(report.analysis_results);
+      }
+    } catch (error) {
+      console.error('Error initializing section data:', error);
+    }
+  };
 
   const loadReport = async () => {
     try {
@@ -73,11 +119,7 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
       setCurrentSectionIndex(sectionIndex >= 0 ? sectionIndex : 0);
     } catch (error) {
       console.error('Error loading report:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load report",
-        variant: "destructive",
-      });
+      toast.error("Failed to load report");
       navigate('/reports');
     } finally {
       setLoading(false);
@@ -109,11 +151,7 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
       } : null);
     } catch (error) {
       console.error('Error updating report section:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update report progress",
-        variant: "destructive",
-      });
+      toast.error("Failed to update report progress");
     }
   };
 
@@ -139,6 +177,170 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
 
   const isSectionCompleted = (sectionId: string) => {
     return report?.sections_completed.includes(sectionId) || false;
+  };
+
+  // Section completion handlers
+  const handleMappingComplete = async (mappings: Record<string, string>, serviceMappings: ServiceMapping[], originZipOverride?: string) => {
+    try {
+      await updateReportSection('service_mapping', {
+        header_mappings: mappings,
+        service_mappings: serviceMappings
+      });
+      
+      setFieldMappings(mappings);
+      setServiceMappings(serviceMappings);
+      
+      toast.success('Header mapping completed!');
+      goToNextSection();
+    } catch (error) {
+      console.error('Error saving header mappings:', error);
+      toast.error('Failed to save header mappings');
+    }
+  };
+
+  const handleServiceMappingsConfirmed = async (confirmedMappings: ServiceMapping[]) => {
+    try {
+      await updateReportSection('analysis', {
+        service_mappings: confirmedMappings
+      });
+      
+      setServiceMappings(confirmedMappings);
+      
+      toast.success('Service mappings confirmed!');
+      goToNextSection();
+    } catch (error) {
+      console.error('Error saving service mappings:', error);
+      toast.error('Failed to save service mappings');
+    }
+  };
+
+  const handleAnalysisComplete = async (results: any) => {
+    try {
+      await updateReportSection('results', {
+        analysis_results: results,
+        total_savings: results.totalSavings || 0,
+        total_shipments: results.totalShipments || 0
+      });
+      
+      setAnalysisResults(results);
+      
+      toast.success('Analysis completed!');
+      goToNextSection();
+    } catch (error) {
+      console.error('Error saving analysis results:', error);
+      toast.error('Failed to save analysis results');
+    }
+  };
+
+  const renderSectionContent = () => {
+    const currentSection = SECTIONS[currentSectionIndex];
+    if (!currentSection) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-lg text-muted-foreground mb-4">
+            Invalid section
+          </p>
+        </div>
+      );
+    }
+    
+    switch (currentSection.id) {
+      case 'header_mapping':
+        if (!csvHeaders.length || !csvData.length) {
+          return (
+            <div className="text-center py-12">
+              <p className="text-lg text-muted-foreground mb-4">
+                Loading CSV data for header mapping...
+              </p>
+            </div>
+          );
+        }
+        
+        return (
+          <IntelligentColumnMapper
+            csvHeaders={csvHeaders}
+            csvData={csvData}
+            onMappingComplete={handleMappingComplete}
+          />
+        );
+
+      case 'service_mapping':
+        if (!fieldMappings.service || !csvData.length) {
+          return (
+            <div className="text-center py-12">
+              <p className="text-lg text-muted-foreground mb-4">
+                Please complete header mapping first and ensure a service column is mapped.
+              </p>
+              <Button variant="outline" onClick={() => navigateToSection(0)}>
+                Go to Header Mapping
+              </Button>
+            </div>
+          );
+        }
+        
+        return (
+          <ServiceMappingReview
+            csvData={csvData}
+            serviceColumn={fieldMappings.service}
+            initialMappings={serviceMappings}
+            onMappingsConfirmed={handleServiceMappingsConfirmed}
+          />
+        );
+
+      case 'analysis':
+        if (!serviceMappings.length) {
+          return (
+            <div className="text-center py-12">
+              <p className="text-lg text-muted-foreground mb-4">
+                Please complete service mapping first.
+              </p>
+              <Button variant="outline" onClick={() => navigateToSection(1)}>
+                Go to Service Mapping
+              </Button>
+            </div>
+          );
+        }
+        
+        return (
+          <div className="text-center py-12">
+            <p className="text-lg text-muted-foreground mb-4">
+              Analysis functionality will be integrated here.
+            </p>
+            <p className="text-sm text-muted-foreground mb-6">
+              This will include the full Analysis page logic with UPS rate processing.
+            </p>
+            <Button onClick={() => handleAnalysisComplete({ status: 'completed' })}>
+              Skip to Results (Demo)
+            </Button>
+          </div>
+        );
+
+      case 'results':
+        if (!analysisResults) {
+          return (
+            <div className="text-center py-12">
+              <p className="text-lg text-muted-foreground mb-4">
+                Please complete analysis first.
+              </p>
+              <Button variant="outline" onClick={() => navigateToSection(2)}>
+                Go to Analysis
+              </Button>
+            </div>
+          );
+        }
+        
+        return (
+          <div className="text-center py-12">
+            <p className="text-lg text-muted-foreground mb-4">
+              Results functionality will be integrated here.
+            </p>
+            <p className="text-sm text-muted-foreground mb-6">
+              This will include the full Results page with charts, savings analysis, and export capabilities.
+            </p>
+          </div>
+        );
+
+    }
   };
 
   if (loading) {
@@ -256,15 +458,7 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {/* Section-specific content will be rendered here */}
-            <div className="text-center py-12">
-              <p className="text-lg text-muted-foreground mb-4">
-                {currentSection.description}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Section content coming soon...
-              </p>
-            </div>
+            {renderSectionContent()}
           </CardContent>
         </Card>
 

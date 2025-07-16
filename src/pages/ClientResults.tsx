@@ -401,25 +401,39 @@ const ClientResults = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header with Navigation */}
+      {/* Header with Navigation - Exact same as Results.tsx */}
       <div className="bg-card border-b sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-foreground">
-                Shipping Analysis Results
-              </h1>
-              {analysisData.report_name && (
-                <Badge variant="outline" className="text-sm">
-                  {analysisData.report_name}
-                </Badge>
-              )}
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <span>Reports</span>
+                <span>/</span>
+                <span className="text-foreground font-medium">Analysis Results</span>
+              </div>
             </div>
+            
             <div className="flex items-center space-x-4">
               <Button onClick={exportToCSV} variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-2" />
-                Export CSV
+                Export Report
               </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Title Section - Exact same as Results.tsx */}
+      <div className="bg-card border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-primary">
+                {analysisData.report_name || analysisData.file_name}
+              </h1>
+              <div className="flex items-center space-x-4 mt-2 text-sm text-muted-foreground">
+                <span>{analysisData.totalShipments} shipments analyzed</span>
+              </div>
             </div>
           </div>
         </div>
@@ -428,21 +442,347 @@ const ClientResults = () => {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="shipments">Detailed Shipping Report</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="orphans">
-              Orphans
-              {orphanedData.length > 0 && (
-                <Badge variant="destructive" className="ml-2 text-xs">
-                  {orphanedData.length}
-                </Badge>
-              )}
+          <TabsList className="grid w-full grid-cols-4 h-auto p-1">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <div className="flex items-center space-x-2">
+                <TruckIcon className="w-4 h-4" />
+                <span>Overview</span>
+              </div>
+            </TabsTrigger>
+            <TabsTrigger value="shipments" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <div className="flex items-center space-x-2">
+                <Package className="w-4 h-4" />
+                <span>Shipment Data</span>
+              </div>
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <div className="flex items-center space-x-2">
+                <TrendingUp className="w-4 h-4" />
+                <span>Analytics</span>
+              </div>
+            </TabsTrigger>
+            <TabsTrigger value="orphans" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4" />
+                <span>Orphaned Data ({orphanedData.length})</span>
+              </div>
             </TabsTrigger>
           </TabsList>
 
           {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-6">
+            {/* Day Snapshot Section - Exact same as Results.tsx */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={snapshotDays}
+                    onChange={(e) => setSnapshotDays(parseInt(e.target.value) || 30)}
+                    className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
+                    min="1"
+                    max="365"
+                  />
+                  <span>Day Snapshot</span>
+                </CardTitle>
+                <CardDescription>
+                  {filteredData.length} shipments selected out of {shipmentData.length} total shipments
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                  <Card className="border-l-4 border-l-purple-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Target className="h-8 w-8 text-purple-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Current Cost</p>
+                          <p className="text-2xl font-bold">{formatCurrency(filteredData.reduce((sum, item) => sum + (item.currentRate || 0), 0))}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-blue-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Zap className="h-8 w-8 text-blue-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Ship Pros Cost</p>
+                          <p className="text-2xl font-bold text-primary">{formatCurrency(filteredData.reduce((sum, item) => sum + (item.newRate || 0), 0))}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-green-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <DollarSign className="h-8 w-8 text-green-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Savings ($)</p>
+                          <p className={cn("text-2xl font-bold", getSavingsColor(filteredData.reduce((sum, item) => sum + (item.savings || 0), 0)))}>
+                            {formatCurrency(filteredData.reduce((sum, item) => sum + (item.savings || 0), 0))}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-orange-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <TrendingUp className="h-8 w-8 text-orange-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Savings (%)</p>
+                          <p className={cn("text-2xl font-bold", getSavingsColor(filteredData.reduce((sum, item) => sum + (item.savings || 0), 0)))}>
+                            {formatPercentage(filteredData.length > 0 ? filteredData.reduce((sum, item) => sum + (item.savingsPercent || 0), 0) / filteredData.length : 0)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-l-4 border-l-green-500">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-8 w-8 text-green-500" />
+                        <div>
+                          <p className="text-sm text-muted-foreground">Estimated Annual Savings</p>
+                          <p className="text-2xl font-bold text-green-600">
+                            {formatCurrency((filteredData.reduce((sum, item) => sum + (item.savings || 0), 0) * 365) / snapshotDays)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Service Analysis Overview - Exact same as Results.tsx */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl">Service Analysis Overview</CardTitle>
+                    <CardDescription>Services that you can start seeing savings analysis</CardDescription>
+                  </div>
+                  <div className="flex items-center space-x-2 text-sm">
+                    <span className="text-muted-foreground">Filters:</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedServicesOverview([])}
+                      className="h-8"
+                    >
+                      All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const wins = serviceStats.filter(s => s.avgSavings > 0).map(s => s.service);
+                        setSelectedServicesOverview(wins);
+                      }}
+                      className="h-8"
+                    >
+                      Wins
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const losses = serviceStats.filter(s => s.avgSavings <= 0).map(s => s.service);
+                        setSelectedServicesOverview(losses);
+                      }}
+                      className="h-8"
+                    >
+                      Losses
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedServicesOverview(availableServices)}
+                      className="h-8"
+                    >
+                      All Services
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={selectedServicesOverview.length === availableServices.length}
+                            onCheckedChange={(checked) => {
+                              setSelectedServicesOverview(checked ? availableServices : []);
+                            }}
+                          />
+                        </TableHead>
+                        <TableHead>Current Service Type</TableHead>
+                        <TableHead>Avg Current Cost</TableHead>
+                        <TableHead>Ship Pros Service Type</TableHead>
+                        <TableHead>Ship Pros Cost</TableHead>
+                        <TableHead>Shipment Count</TableHead>
+                        <TableHead>Volume %</TableHead>
+                        <TableHead>Avg Weight</TableHead>
+                        <TableHead>Avg Savings ($)</TableHead>
+                        <TableHead>Avg Savings (%)</TableHead>
+                        <TableHead>Notes</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {serviceStats.map((service, index) => (
+                        <TableRow key={index}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedServicesOverview.includes(service.service)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedServicesOverview(prev => [...prev, service.service]);
+                                } else {
+                                  setSelectedServicesOverview(prev => prev.filter(s => s !== service.service));
+                                }
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{service.service}</TableCell>
+                          <TableCell>{formatCurrency(service.currentCost / service.count)}</TableCell>
+                          <TableCell>{service.service}</TableCell>
+                          <TableCell className="text-primary font-medium">{formatCurrency(service.newCost / service.count)}</TableCell>
+                          <TableCell>{service.count}</TableCell>
+                          <TableCell>{((service.count / shipmentData.length) * 100).toFixed(1)}%</TableCell>
+                          <TableCell>
+                            {(filteredData.filter(s => s.service === service.service).reduce((sum, s) => sum + s.weight, 0) / service.count).toFixed(1)} lbs
+                          </TableCell>
+                          <TableCell className={cn("font-medium", getSavingsColor(service.avgSavings))}>
+                            {formatCurrency(service.avgSavings)}
+                          </TableCell>
+                          <TableCell className={cn("font-medium", getSavingsColor(service.avgSavings))}>
+                            {formatPercentage(service.savingsPercent)}
+                          </TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "px-2 py-1 rounded text-xs",
+                              service.avgSavings > 0 
+                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
+                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
+                            )}>
+                              {service.avgSavings > 0 ? "High savings potential" : "Review needed"}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Charts Grid - Exact same as Results.tsx */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Service Distribution */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Service Distribution</CardTitle>
+                  <CardDescription>Breakdown of shipments by service type</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={serviceBreakdownData}
+                          dataKey="count"
+                          nameKey="service"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={100}
+                          fill="#8884d8"
+                          label={({ service, percent }) => `${service} ${(percent * 100).toFixed(0)}%`}
+                        >
+                          {serviceBreakdownData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Cost Comparison by Service */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Cost Comparison by Service</CardTitle>
+                  <CardDescription>Current vs Ship Pros rates by service type</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={serviceBreakdownData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="service" angle={-45} textAnchor="end" height={80} />
+                        <YAxis />
+                        <Tooltip formatter={(value: any) => formatCurrency(value)} />
+                        <Bar dataKey="currentCost" fill="hsl(var(--destructive))" name="Current Cost" />
+                        <Bar dataKey="newCost" fill="hsl(var(--primary))" name="Ship Pros Cost (Lower = Green)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Additional Charts Row */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Rate Comparison by Weight */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Rate Comparison by Weight</CardTitle>
+                  <CardDescription>Average cost comparison by weight ranges (lbs)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stateDistribution.slice(0, 8)}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="state" />
+                        <YAxis />
+                        <Tooltip formatter={(value: any) => formatCurrency(value)} />
+                        <Bar dataKey="volume" fill="hsl(var(--destructive))" name="Current Cost" />
+                        <Bar dataKey="savings" fill="hsl(var(--primary))" name="Ship Pros Cost (Lower = Green)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Rate Comparison by Zone */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Rate Comparison by Zone</CardTitle>
+                  <CardDescription>Average cost comparison by shipping zones</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={stateDistribution.slice(0, 7)}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="state" />
+                        <YAxis />
+                        <Tooltip formatter={(value: any) => formatCurrency(value)} />
+                        <Bar dataKey="volume" fill="hsl(var(--destructive))" name="Current Cost" />
+                        <Bar dataKey="savings" fill="hsl(var(--primary))" name="Ship Pros Cost (Lower = Green)" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
           <TabsContent value="overview" className="space-y-6">
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

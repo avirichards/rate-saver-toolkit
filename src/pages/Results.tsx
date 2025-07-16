@@ -1137,8 +1137,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const serviceCostData = generateServiceCostData();
   const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
 
+  const Layout = isClientView ? ClientLayout : DashboardLayout;
+  const layoutProps = isClientView ? {} : {};
+
   return (
-    <DashboardLayout>
+    <Layout {...layoutProps}>
       <div className="max-w-7xl mx-auto p-6 animate-fade-in">
         {/* Breadcrumb Navigation */}
         {(searchParams.get('analysisId') || currentAnalysisId) && (
@@ -1986,7 +1989,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         </div>
       </Layout>
     );
-  };
 };
 
 export default Results;

@@ -145,9 +145,12 @@ const Analysis = () => {
       return;
     }
     
-    // Store raw CSV data for orphan recovery before processing
-    const rawCsvData = [...state.csvData]; // Clone the original data
+    // Store ALL original CSV data before processing - CRITICAL for orphan recovery
+    const allOriginalCsvData = [...state.csvData]; // Clone ALL original data
     const fieldMappings = { ...state.mappings };
+    
+    // Initialize orphaned shipments list for immediate tracking
+    const orphanedShipmentsList: any[] = [];
     
     // Process CSV data into shipments using the confirmed mappings
     const processedShipments = state.csvData.map((row, index) => {
@@ -168,12 +171,34 @@ const Analysis = () => {
         shipment.originZip = state.originZipOverride.trim();
       }
       
+      // STAGE A ORPHAN DETECTION: Check for missing required fields during mapping
+      const requiredFields = ['service', 'weight', 'originZip', 'destZip'];
+      const missingFields = requiredFields.filter(field => !shipment[field as keyof ProcessedShipment] || shipment[field as keyof ProcessedShipment] === '');
+      
+      if (missingFields.length > 0) {
+        const orphanedShipment = {
+          id: shipment.id,
+          trackingId: shipment.trackingId || `Row-${shipment.id}`,
+          originZip: shipment.originZip || '',
+          destinationZip: shipment.destZip || '',
+          weight: parseFloat(shipment.weight || '0'),
+          service: shipment.service || 'Unknown',
+          error: `Missing required fields: ${missingFields.join(', ')}`,
+          errorType: 'validation_error',
+          errorCategory: 'Stage A - Mapping Validation',
+          stage: 'mapping'
+        };
+        orphanedShipmentsList.push(orphanedShipment);
+        console.log('🚨 STAGE A ORPHAN: Missing required fields:', orphanedShipment);
+      }
+      
       return shipment;
     });
 
-    // Store original CSV data for later recovery of missing shipments
-    (window as any).rawCsvData = rawCsvData;
+    // Store original data globally for accountability checks
+    (window as any).allOriginalCsvData = allOriginalCsvData;
     (window as any).fieldMappings = fieldMappings;
+    (window as any).orphanedShipmentsList = orphanedShipmentsList;
 
     // Add comprehensive CSV data validation and logging
     console.log('🔍 CSV DATA INTEGRITY: Processing shipments with current data:', {
@@ -1098,7 +1123,7 @@ const Analysis = () => {
         attemptCount: retryCount + 1
       });
 
-      // CRITICAL: Add failed shipment to orphaned shipments immediately
+      // STAGE B ORPHAN DETECTION: Add failed shipment to orphaned shipments immediately
       const orphanedShipment = {
         id: shipment.id,
         trackingId: shipment.trackingId || `Row-${shipment.id}`,
@@ -1108,17 +1133,18 @@ const Analysis = () => {
         service: shipment.service || 'Unknown',
         error: error.message,
         errorType,
-        errorCategory,
+        errorCategory: 'Stage B - Analysis Processing',
+        stage: 'analysis',
         attemptCount: retryCount + 1
       };
 
-      console.log('🚫 ORPHANED SHIPMENT: Adding failed shipment to orphaned list:', orphanedShipment);
+      console.log('🚨 STAGE B ORPHAN: Processing failure during analysis:', orphanedShipment);
 
-      // Store orphaned shipment globally for later database save
-      if (!(window as any).orphanedShipments) {
-        (window as any).orphanedShipments = [];
+      // Add to global orphaned shipments list
+      if (!(window as any).orphanedShipmentsList) {
+        (window as any).orphanedShipmentsList = [];
       }
-      (window as any).orphanedShipments.push(orphanedShipment);
+      (window as any).orphanedShipmentsList.push(orphanedShipment);
       
       // Update error result using functional update with enhanced tracking
       updateShipmentStatus({
@@ -1192,10 +1218,10 @@ const Analysis = () => {
       savingsPercent: result.currentCost && result.currentCost > 0 ? ((result.savings || 0) / result.currentCost) * 100 : 0
     }));
 
-    // Get orphaned shipments from global storage
-    const orphanedShipmentsFromErrors = (window as any).orphanedShipments || [];
+    // Get ALL orphaned shipments from tracking (Stage A + Stage B)
+    const orphanedShipmentsFromTracking = (window as any).orphanedShipmentsList || [];
     
-    // Enhanced orphaned shipments from error results
+    // Enhanced orphaned shipments from error results (legacy support)
     const orphanedShipmentsFromResults = errorResults.map((result, index) => ({
       id: completedResults.length + index + 1,
       trackingId: result.shipment.trackingId || `Orphan-${index + 1}`,
@@ -1205,14 +1231,59 @@ const Analysis = () => {
       service: result.originalService || result.shipment.service || 'Unknown',
       error: result.error || 'Processing failed',
       errorType: result.errorType || 'Unknown',
-      errorCategory: result.errorCategory || 'Processing Error'
+      errorCategory: result.errorCategory || 'Legacy Processing Error',
+      stage: 'legacy'
     }));
 
     // Combine all orphaned shipments and remove duplicates
-    const allOrphanedShipments = [...orphanedShipmentsFromResults, ...orphanedShipmentsFromErrors];
+    const allOrphanedShipments = [...orphanedShipmentsFromTracking, ...orphanedShipmentsFromResults];
     const orphanedShipmentsFormatted = allOrphanedShipments.filter((orphan, index, array) => 
       index === array.findIndex(o => o.trackingId === orphan.trackingId)
     );
+    
+    // DATA ACCOUNTABILITY CHECK - Ensure all shipments are accounted for
+    const allOriginalCsvData = (window as any).allOriginalCsvData || [];
+    const totalOriginalShipments = allOriginalCsvData.length;
+    const accountedShipments = processedShipments.length + orphanedShipmentsFormatted.length;
+    
+    console.log('🔍 DATA ACCOUNTABILITY CHECK:', {
+      totalOriginalShipments,
+      processedShipments: processedShipments.length,
+      orphanedShipments: orphanedShipmentsFormatted.length,
+      accountedShipments,
+      isComplete: totalOriginalShipments === accountedShipments,
+      missingShipments: totalOriginalShipments - accountedShipments
+    });
+    
+    // If shipments are missing, trigger recovery from original data
+    if (totalOriginalShipments > accountedShipments && allOriginalCsvData.length > 0) {
+      const missingCount = totalOriginalShipments - accountedShipments;
+      console.log(`🔄 RECOVERY: ${missingCount} shipments missing, initiating recovery from original CSV data`);
+      
+      const processedIds = new Set(processedShipments.map(s => s.id));
+      const orphanedIds = new Set(orphanedShipmentsFormatted.map(s => s.id));
+      
+      const storedFieldMappings = (window as any).fieldMappings || {};
+      allOriginalCsvData.forEach((row, index) => {
+        const shipmentId = index + 1;
+        if (!processedIds.has(shipmentId) && !orphanedIds.has(shipmentId)) {
+          const recoveredOrphan = {
+            id: shipmentId,
+            trackingId: `Recovery-${shipmentId}`,
+            originZip: row[storedFieldMappings.originZip] || '',
+            destinationZip: row[storedFieldMappings.destZip] || '',
+            weight: parseFloat(row[storedFieldMappings.weight] || '0'),
+            service: row[storedFieldMappings.service] || 'Unknown',
+            error: 'Shipment was not processed during analysis',
+            errorType: 'missing_data',
+            errorCategory: 'Data Recovery',
+            stage: 'recovery'
+          };
+          orphanedShipmentsFormatted.push(recoveredOrphan);
+          console.log('🔄 RECOVERED ORPHAN:', recoveredOrphan);
+        }
+      });
+    }
 
     const processingMetadata = {
       savedAt: new Date().toISOString(),
@@ -1256,9 +1327,10 @@ const Analysis = () => {
       user_id: user.id,
       file_name: state?.fileName || 'Real-time Analysis',
       original_data: {
-        csvData: state?.csvData || [],
-        fieldMappings: state?.mappings || {},
-        serviceMappings: serviceMappings || []
+        csvData: allOriginalCsvData, // Store ALL original CSV rows
+        fieldMappings: (window as any).fieldMappings || {},
+        serviceMappings: serviceMappings || [],
+        totalOriginalShipments: allOriginalCsvData.length
       } as any, // Store ALL original data for recovery
       ups_quotes: completedResults.map(r => r.upsRates) as any,
       savings_analysis: {

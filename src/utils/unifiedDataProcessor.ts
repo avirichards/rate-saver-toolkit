@@ -38,7 +38,10 @@ export interface OrphanedShipmentData {
   service: string;
   error: string;
   errorType: string;
-  missingFields: string[];
+  errorCategory?: string;
+  stage?: 'mapping' | 'analysis' | 'recovery' | 'legacy';
+  attemptCount?: number;
+  missingFields?: string[];
 }
 
 export interface ValidationResult {
@@ -144,6 +147,9 @@ export const processAnalysisData = (analysis: any, isClientView: boolean = false
       service: item.service || 'Unknown',
       error: item.error || 'Processing failed',
       errorType: item.errorType || 'Unknown Error',
+      errorCategory: item.errorCategory || 'Processing Error',
+      stage: item.stage || 'legacy',
+      attemptCount: item.attemptCount || 1,
       missingFields: Array.isArray(item.missingFields) ? item.missingFields : []
     };
   });

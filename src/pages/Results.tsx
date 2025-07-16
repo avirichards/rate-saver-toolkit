@@ -673,8 +673,26 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setShipmentData(processedShipments);
         setOrphanedData(orphanedShipments);
         
-        // Check for missing shipments and recover if needed
-        await recoverMissingShipments(data, analysisMetadata, processedShipments, orphanedShipments);
+        // DATA ACCOUNTABILITY CHECK - Verify all shipments are accounted for
+        const totalOriginalShipments = data.original_data?.totalOriginalShipments || 
+                                      (Array.isArray(data.original_data?.csvData) ? data.original_data.csvData.length : 0) ||
+                                      data.total_shipments;
+        
+        const accountedShipments = processedShipments.length + orphanedShipments.length;
+        
+        console.log('🔍 RESULTS DATA ACCOUNTABILITY:', {
+          totalOriginalShipments,
+          processedShipments: processedShipments.length,
+          orphanedShipments: orphanedShipments.length,
+          accountedShipments,
+          isComplete: totalOriginalShipments === accountedShipments,
+          missingShipments: totalOriginalShipments - accountedShipments
+        });
+        
+        // If shipments are missing, trigger recovery
+        if (totalOriginalShipments > accountedShipments && Array.isArray(data.original_data?.csvData)) {
+          await recoverMissingShipments(data, analysisMetadata, processedShipments, orphanedShipments);
+        }
         
         // Calculate totals for analysis data
         const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
@@ -2272,11 +2290,50 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           </TabsContent>
 
           <TabsContent value="orphaned-data" className="space-y-6">
+            {/* Summary Stats for Orphaned Shipments */}
+            {orphanedData.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <AlertCircle className="h-5 w-5 text-orange-500" />
+                      <div>
+                        <p className="text-2xl font-bold text-orange-600">{orphanedData.filter(d => d.stage === 'mapping' || d.errorCategory?.includes('Stage A')).length}</p>
+                        <p className="text-sm text-muted-foreground">Stage A: Mapping Issues</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <XCircle className="h-5 w-5 text-red-500" />
+                      <div>
+                        <p className="text-2xl font-bold text-red-600">{orphanedData.filter(d => d.stage === 'analysis' || d.errorCategory?.includes('Stage B')).length}</p>
+                        <p className="text-sm text-muted-foreground">Stage B: Analysis Errors</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center space-x-2">
+                      <TruckIcon className="h-5 w-5 text-blue-500" />
+                      <div>
+                        <p className="text-2xl font-bold text-blue-600">{orphanedData.filter(d => d.stage === 'recovery' || d.errorCategory?.includes('Recovery')).length}</p>
+                        <p className="text-sm text-muted-foreground">Recovered Shipments</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle>Orphaned Shipments</CardTitle>
                 <CardDescription>
-                  Shipments that encountered errors during processing
+                  Shipments that encountered errors during processing - showing failure stage and details
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -2298,7 +2355,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableHead className="text-foreground">Destination Zip</TableHead>
                            <TableHead className="text-right text-foreground">Weight</TableHead>
                            <TableHead className="text-foreground">Service Type</TableHead>
-                           <TableHead className="text-foreground">Missing Fields</TableHead>
+                           <TableHead className="text-foreground">Failure Stage</TableHead>
                            <TableHead className="text-foreground">Error Type</TableHead>
                            <TableHead className="text-foreground">Error Details</TableHead>
                         </TableRow>
@@ -2320,24 +2377,42 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                {row.service || <span className="text-muted-foreground italic">Missing</span>}
                              </TableCell>
                              <TableCell>
-                               {row.missingFields && row.missingFields.length > 0 ? (
-                                 <div className="flex flex-wrap gap-1">
-                                   {row.missingFields.map((field: string, idx: number) => (
-                                     <Badge key={idx} variant="outline" className="text-xs text-orange-600 border-orange-300">
-                                       {field}
-                                     </Badge>
-                                   ))}
-                                 </div>
-                               ) : (
-                                 <span className="text-muted-foreground">-</span>
-                               )}
+                               {(() => {
+                                 const stage = row.stage || (row.errorCategory?.includes('Stage A') ? 'mapping' : 
+                                                           row.errorCategory?.includes('Stage B') ? 'analysis' : 
+                                                           row.errorCategory?.includes('Recovery') ? 'recovery' : 'unknown');
+                                 const stageColors = {
+                                   mapping: 'bg-orange-100 text-orange-800 border-orange-300',
+                                   analysis: 'bg-red-100 text-red-800 border-red-300', 
+                                   recovery: 'bg-blue-100 text-blue-800 border-blue-300',
+                                   unknown: 'bg-gray-100 text-gray-800 border-gray-300'
+                                 };
+                                 const stageLabels = {
+                                   mapping: 'Stage A: Mapping',
+                                   analysis: 'Stage B: Analysis',
+                                   recovery: 'Data Recovery',
+                                   unknown: 'Unknown'
+                                 };
+                                 return (
+                                   <Badge variant="outline" className={`text-xs ${stageColors[stage as keyof typeof stageColors]}`}>
+                                     {stageLabels[stage as keyof typeof stageLabels]}
+                                   </Badge>
+                                 );
+                               })()}
                              </TableCell>
                              <TableCell>
-                               <Badge variant="destructive">{row.errorType}</Badge>
+                               <Badge variant="destructive" className="text-xs">{row.errorType}</Badge>
                              </TableCell>
                              <TableCell>
-                               <div className="max-w-xs truncate text-muted-foreground" title={row.error}>
-                                 {row.error}
+                               <div className="max-w-xs">
+                                 <p className="text-sm text-foreground font-medium" title={row.error}>
+                                   {row.error}
+                                 </p>
+                                 {row.errorCategory && (
+                                   <p className="text-xs text-muted-foreground mt-1">
+                                     {row.errorCategory}
+                                   </p>
+                                 )}
                                </div>
                              </TableCell>
                            </TableRow>

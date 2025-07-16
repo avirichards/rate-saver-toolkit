@@ -1093,7 +1093,8 @@ const Analysis = () => {
       errorResults: errorResults.length,
       totalTracked,
       missingShipments: shipments.length - totalTracked,
-      allResultStatuses: analysisResults.map(r => ({ id: r.shipment.id, status: r.status }))
+      allResultStatuses: analysisResults.map(r => ({ id: r.shipment.id, status: r.status, error: r.error || 'none' })),
+      errorResultDetails: errorResults.map(r => ({ id: r.shipment.id, error: r.error, errorType: r.errorType }))
     });
     
     // Safety net: Recover any missing shipments that got lost during processing

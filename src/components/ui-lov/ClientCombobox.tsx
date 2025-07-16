@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, ChevronsUpDown, Plus } from 'lucide-react';
+import { Check, ChevronsUpDown, Plus, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -105,6 +105,29 @@ export function ClientCombobox({
     }
   };
 
+  const deleteClient = async (clientId: string, clientName: string) => {
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', clientId);
+
+      if (error) throw error;
+      
+      // If the deleted client was selected, clear the selection
+      if (value === clientId) {
+        onValueChange('');
+      }
+      
+      // Refresh the clients list
+      await loadClients();
+      toast.success(`Client "${clientName}" deleted`);
+    } catch (error) {
+      console.error('Error deleting client:', error);
+      toast.error('Failed to delete client');
+    }
+  };
+
   const selectedClient = clients.find(client => client.id === value);
   const filteredClients = clients.filter(client =>
     client.company_name.toLowerCase().includes(searchValue.toLowerCase())
@@ -164,18 +187,35 @@ export function ClientCombobox({
                     <CommandItem
                       key={client.id}
                       value={client.id}
-                      onSelect={() => {
-                        onValueChange(client.id);
-                        setOpen(false);
-                      }}
+                      className="flex items-center justify-between"
                     >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          value === client.id ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {client.company_name}
+                      <div 
+                        className="flex items-center flex-1 cursor-pointer"
+                        onClick={() => {
+                          onValueChange(client.id);
+                          setOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            value === client.id ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        {client.company_name}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteClient(client.id, client.company_name);
+                        }}
+                        title="Delete client"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </CommandItem>
                   ))}
                 </CommandGroup>

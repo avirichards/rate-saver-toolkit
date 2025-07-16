@@ -17,6 +17,7 @@ import Dashboard from "./pages/Dashboard";
 import ReportsPage from "./pages/Reports";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
+import ClientResults from "./pages/ClientResults";
 
 // Authentication
 import { AuthProvider } from "./hooks/useAuth";
@@ -37,6 +38,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/share/:shareToken" element={<ClientResults />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
               <Route path="/mapping" element={<ProtectedRoute><Mapping /></ProtectedRoute>} />

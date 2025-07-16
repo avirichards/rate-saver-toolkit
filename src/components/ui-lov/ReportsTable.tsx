@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Download, Edit, DollarSign, Percent, Trash2 } from 'lucide-react';
+import { Download, Edit, DollarSign, Percent, Trash2, Globe, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getOrCreateReportShare, copyShareUrl, getShareUrl } from '@/utils/shareUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +54,7 @@ interface ReportsTableProps {
 
 export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: ReportsTableProps) {
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
+  const [sharingReports, setSharingReports] = useState<Set<string>>(new Set());
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -110,6 +112,48 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
     } catch (error) {
       console.error('Error deleting report:', error);
       toast.error('Failed to delete report');
+    }
+  };
+
+  const handleShareReport = async (reportId: string) => {
+    try {
+      setSharingReports(prev => new Set(prev).add(reportId));
+      
+      const shareData = await getOrCreateReportShare(reportId);
+      if (!shareData) {
+        throw new Error('Failed to create share link');
+      }
+
+      const success = await copyShareUrl(shareData.shareToken);
+      if (success) {
+        toast.success('Share link copied to clipboard!');
+      } else {
+        toast.error('Failed to copy link to clipboard');
+      }
+    } catch (error) {
+      console.error('Error sharing report:', error);
+      toast.error('Failed to create share link');
+    } finally {
+      setSharingReports(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(reportId);
+        return newSet;
+      });
+    }
+  };
+
+  const handlePreviewReport = async (reportId: string) => {
+    try {
+      const shareData = await getOrCreateReportShare(reportId);
+      if (!shareData) {
+        throw new Error('Failed to create share link');
+      }
+
+      const shareUrl = getShareUrl(shareData.shareToken);
+      window.open(shareUrl, '_blank');
+    } catch (error) {
+      console.error('Error opening preview:', error);
+      toast.error('Failed to open preview');
     }
   };
 
@@ -337,28 +381,51 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                     )}
                   </td>
                   <td className="py-3 px-2">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button 
-                        variant="ghost" 
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          console.log('Export report:', report.id);
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Link to={`/results?analysisId=${report.id}`}>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Edit report"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                      <AlertDialog>
+                     <div className="flex items-center justify-end gap-1">
+                       <Button 
+                         variant="ghost" 
+                         size="icon"
+                         className="h-8 w-8"
+                         onClick={() => {
+                           console.log('Export report:', report.id);
+                         }}
+                       >
+                         <Download className="h-4 w-4" />
+                       </Button>
+                       <Button 
+                         variant="ghost" 
+                         size="icon"
+                         className="h-8 w-8"
+                         onClick={() => handleShareReport(report.id)}
+                         disabled={sharingReports.has(report.id)}
+                         title="Copy client link"
+                       >
+                         {sharingReports.has(report.id) ? (
+                           <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                         ) : (
+                           <Globe className="h-4 w-4" />
+                         )}
+                       </Button>
+                       <Button 
+                         variant="ghost" 
+                         size="icon"
+                         className="h-8 w-8"
+                         onClick={() => handlePreviewReport(report.id)}
+                         title="Preview client version"
+                       >
+                         <Eye className="h-4 w-4" />
+                       </Button>
+                       <Link to={`/results?analysisId=${report.id}`}>
+                         <Button 
+                           variant="ghost" 
+                           size="icon"
+                           className="h-8 w-8"
+                           title="Edit report"
+                         >
+                           <Edit className="h-4 w-4" />
+                         </Button>
+                       </Link>
+                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button 
                             variant="ghost" 

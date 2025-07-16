@@ -1287,7 +1287,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               )}
               
               <div className="text-muted-foreground text-lg">
-                {analysisData.totalShipments} shipments analyzed
+                {shipmentData.length} shipments analyzed
               </div>
             </div>
             

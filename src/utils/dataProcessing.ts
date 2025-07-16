@@ -173,20 +173,47 @@ export const processClientViewData = (analysis: any): ProcessedAnalysisData => {
 
 // Convert recommendations to formatted shipment data
 export const formatShipmentData = (recommendations: any[]): ProcessedShipmentData[] => {
-  return recommendations.map((rec: any, index: number) => ({
-    id: index + 1,
-    trackingId: rec.shipment?.trackingId || rec.trackingId || `Shipment-${index + 1}`,
-    originZip: rec.shipment?.originZip || rec.originZip || '',
-    destinationZip: rec.shipment?.destZip || rec.destinationZip || '',
-    weight: parseFloat(rec.shipment?.weight || rec.weight || '0'),
-    carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-    service: rec.originalService || rec.service || 'Unknown',
-    currentRate: rec.currentCost || 0,
-    newRate: rec.recommendedCost || 0,
-    savings: rec.savings || 0,
-    savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0,
-    bestService: rec.bestService || rec.recommendedService || 'UPS Ground' // Add bestService
-  }));
+  console.log('🔍 formatShipmentData - Processing recommendations:', recommendations?.length || 0, 'items');
+  if (recommendations?.length > 0) {
+    console.log('🔍 Sample recommendation data structure:', {
+      keys: Object.keys(recommendations[0]),
+      sampleData: recommendations[0]
+    });
+  }
+  
+  return recommendations.map((rec: any, index: number) => {
+    // More flexible rate extraction - try multiple possible field names
+    const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
+                       rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
+    const newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
+                   rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
+    const calculatedSavings = currentRate - newRate;
+    
+    if (index < 3) { // Debug first 3 items
+      console.log(`🔍 Processing shipment ${index + 1}:`, {
+        trackingId: rec.shipment?.trackingId || rec.trackingId,
+        currentRate,
+        newRate,
+        calculatedSavings,
+        availableFields: Object.keys(rec)
+      });
+    }
+    
+    return {
+      id: index + 1,
+      trackingId: rec.shipment?.trackingId || rec.trackingId || `Shipment-${index + 1}`,
+      originZip: rec.shipment?.originZip || rec.originZip || '',
+      destinationZip: rec.shipment?.destZip || rec.destinationZip || '',
+      weight: parseFloat(rec.shipment?.weight || rec.weight || '0'),
+      carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
+      service: rec.originalService || rec.service || 'Unknown',
+      currentRate,
+      newRate,
+      savings: rec.savings || calculatedSavings || 0,
+      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0,
+      bestService: rec.bestService || rec.recommendedService || 'UPS Ground'
+    };
+  });
 };
 
 // Error handling utility

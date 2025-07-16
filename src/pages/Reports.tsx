@@ -6,7 +6,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { FileBarChart, Filter, Search, TrendingUp, TrendingDown, Percent, DollarSign, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileBarChart, Filter, Search, TrendingUp, TrendingDown, Percent, DollarSign, Users, ChevronDown, ChevronRight, Database } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,6 +14,8 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ReportsTable } from '@/components/ui-lov/ReportsTable';
 import { GroupedReportsView } from '@/components/ui-lov/GroupedReportsView';
+import { migrateAllLegacyAnalyses } from '@/utils/migrateLegacyAnalyses';
+import { toast } from 'sonner';
 
 interface ShippingAnalysis {
   id: string;
@@ -40,6 +42,7 @@ const ReportsPage = () => {
   const [loading, setLoading] = useState(true);
   const [groupByClient, setGroupByClient] = useState(false);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
+  const [isMigrating, setIsMigrating] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -182,6 +185,28 @@ const ReportsPage = () => {
     setExpandedClients(newExpanded);
   };
 
+  const handleMigrateData = async () => {
+    setIsMigrating(true);
+    try {
+      const result = await migrateAllLegacyAnalyses();
+      
+      if (result.success > 0) {
+        toast.success(`Successfully migrated ${result.success} analyses to centralized format`);
+        // Reload reports to show updated data
+        await loadReports();
+      } else if (result.failed > 0) {
+        toast.error(`Failed to migrate ${result.failed} analyses. Check console for details.`);
+      } else {
+        toast.info('All analyses are already using the latest format');
+      }
+    } catch (error: any) {
+      console.error('Migration failed:', error);
+      toast.error(`Migration failed: ${error.message}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="p-6">
@@ -211,6 +236,16 @@ const ReportsPage = () => {
                   title="Refresh reports"
                 >
                   <Filter className="h-4 w-4" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleMigrateData}
+                  disabled={isMigrating}
+                  title="Migrate legacy data to new format"
+                >
+                  <Database className="h-4 w-4 mr-2" />
+                  {isMigrating ? 'Migrating...' : 'Migrate Data'}
                 </Button>
               </div>
               <Link to="/upload">

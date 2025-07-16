@@ -312,7 +312,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           // Process the recommendations using the utility function
           const processedData = processNormalViewData(state.analysisData.recommendations);
           
-          
           const processedShipmentData = formatShipmentData(processedData.recommendations);
           setShipmentData(processedShipmentData);
           setOrphanedData(processedData.orphanedShipments || []);
@@ -578,7 +577,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         
       } else {
         // Fallback to legacy data processing for backwards compatibility
-        console.log('⚠️ FALLBACK: Using legacy data processing (recommendations/ups_quotes/original_data)');
+        console.log('⚠️ FALLBACK: Using legacy data processing and migrating to centralized format');
         await processLegacyDataAndMigrate(data, analysisMetadata);
       }
 
@@ -878,7 +877,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       client_id: analysisMetadata.clientId
     });
     
-    // Migrate to centralized data format if analysisId provided (legacy data processing)
+    // Always migrate to centralized data format when processing legacy data
     if (analysisId) {
       console.log('🔄 MIGRATING TO CENTRALIZED FORMAT:', analysisId);
       
@@ -888,7 +887,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         processedCount: validShipments.length,
         orphanedCount: orphanedShipments.length,
         totalSavings: totalSavings,
-        migrationSource: 'legacy_processing'
+        migrationSource: 'legacy_processing',
+        dataIntegrityReport: dataIntegrityLog
       };
       
       try {
@@ -898,17 +898,25 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             processed_shipments: validShipments,
             orphaned_shipments: orphanedShipments,
             processing_metadata: processingMetadata,
-            total_savings: totalSavings
+            total_savings: totalSavings,
+            updated_at: new Date().toISOString()
           })
           .eq('id', analysisId);
 
         if (updateError) {
           console.error('❌ Failed to migrate to centralized format:', updateError);
+          throw updateError;
         } else {
-          console.log('✅ Successfully migrated to centralized format');
+          console.log('✅ Successfully migrated to centralized format:', {
+            processedShipments: validShipments.length,
+            orphanedShipments: orphanedShipments.length,
+            totalSavings: totalSavings
+          });
         }
       } catch (error) {
         console.error('❌ Migration error:', error);
+        // Don't fail the entire process if migration fails
+        console.warn('⚠️ Continuing with local data despite migration failure');
       }
     }
     

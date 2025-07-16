@@ -1089,6 +1089,42 @@ const Analysis = () => {
       status: r.status
     }));
     
+    // Prepare centralized shipment data
+    const processedShipments = completedResults.map((result, index) => ({
+      id: index + 1,
+      trackingId: result.shipment.trackingId || `Shipment-${index + 1}`,
+      originZip: result.shipment.originZip || '',
+      destinationZip: result.shipment.destZip || '',
+      weight: parseFloat(result.shipment.weight || '0'),
+      carrier: 'UPS',
+      service: result.originalService || result.shipment.service || 'Unknown',
+      currentRate: result.currentCost || 0,
+      newRate: result.bestRate?.totalCharges || 0,
+      savings: result.savings || 0,
+      savingsPercent: result.currentCost && result.currentCost > 0 ? ((result.savings || 0) / result.currentCost) * 100 : 0
+    }));
+
+    const orphanedShipmentsFormatted = errorResults.map((result, index) => ({
+      id: completedResults.length + index + 1,
+      trackingId: result.shipment.trackingId || `Orphan-${index + 1}`,
+      originZip: result.shipment.originZip || '',
+      destinationZip: result.shipment.destZip || '',
+      weight: parseFloat(result.shipment.weight || '0'),
+      service: result.originalService || result.shipment.service || 'Unknown',
+      error: result.error || 'Processing failed',
+      errorType: result.errorType || 'Unknown',
+      errorCategory: result.errorCategory || 'Processing Error'
+    }));
+
+    const processingMetadata = {
+      savedAt: new Date().toISOString(),
+      totalSavings: totalSavings,
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      totalShipments: shipments.length,
+      dataSource: 'fresh_analysis'
+    };
+
     const analysisRecord = {
       user_id: user.id,
       file_name: state?.fileName || 'Real-time Analysis',
@@ -1104,6 +1140,9 @@ const Analysis = () => {
         orphanedShipments: orphanedShipments // Include orphan data
       } as any,
       recommendations: recommendations as any,
+      processed_shipments: processedShipments as any, // CENTRALIZED DATA
+      orphaned_shipments: orphanedShipmentsFormatted as any, // CENTRALIZED DATA
+      processing_metadata: processingMetadata as any, // CENTRALIZED METADATA
       total_shipments: shipments.length,
       total_savings: totalSavings,
       status: 'completed'

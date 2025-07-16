@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, User, Shield, BellRing, Truck, Cog, Database, CheckCircle, AlertTriangle, Zap } from 'lucide-react';
 import { UpsTestButton } from '@/components/ui-lov/UpsTestButton';
+import { UpsConnectivityStatus } from '@/components/ui-lov/UpsConnectivityStatus';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
@@ -348,7 +349,8 @@ const SettingsPage = () => {
                 
                 {/* Enhanced UPS Testing */}
                 <div className="pt-6 border-t">
-                  <UpsTestButton />
+            <UpsTestButton />
+            <UpsConnectivityStatus autoTest={true} />
                 </div>
               </CardContent>
             </Card>

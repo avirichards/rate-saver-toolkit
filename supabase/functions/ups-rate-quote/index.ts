@@ -280,16 +280,12 @@ serve(async (req) => {
 
 
     console.log('🏠 UPS API - RESIDENTIAL STATUS VERIFICATION:', {
-      trackingId: shipment.trackingId,
       inputResidential: shipment.isResidential,
       residentialSource: shipment.residentialSource,
       upsResidentialIndicator: !!ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
       residentialIndicatorValue: ratingRequest.RateRequest.Shipment.ShipTo.Address.ResidentialAddressIndicator,
-      shipToAddress: ratingRequest.RateRequest.Shipment.ShipTo.Address.AddressLine,
       zipCode: ratingRequest.RateRequest.Shipment.ShipTo.Address.PostalCode
     });
-    
-    console.log('Final UPS Rating Request:', JSON.stringify(ratingRequest, null, 2));
 
     // Use ONLY the confirmed service codes - NO fallbacks
     if (!shipment.serviceTypes || shipment.serviceTypes.length === 0) {

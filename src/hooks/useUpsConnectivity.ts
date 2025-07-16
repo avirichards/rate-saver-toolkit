@@ -61,7 +61,7 @@ export function useUpsConnectivity() {
           country: 'US'
         },
         shipTo: {
-          name: 'Test Recipient',
+          name: 'Test Recipient', 
           address: '456 Oak Ave',
           city: 'Chicago',
           state: 'IL',
@@ -74,9 +74,11 @@ export function useUpsConnectivity() {
           length: 12,
           width: 12,
           height: 6,
-          dimensionUnit: 'IN'
+          dimensionUnit: 'IN',
+          packageType: '02'
         },
-        serviceTypes: ['03'] // UPS Ground only for test
+        serviceTypes: ['03'], // UPS Ground only for test
+        isResidential: false
       };
 
       const { data: rateData, error: rateError } = await supabase.functions.invoke('ups-rate-quote', {
@@ -84,9 +86,10 @@ export function useUpsConnectivity() {
       });
 
       if (rateError) {
+        console.error('UPS Rate API Error:', rateError);
         return { 
           success: false, 
-          message: `UPS Rate API test failed: ${rateError.message}`,
+          message: `UPS Rate API test failed: ${rateError.message || 'Unknown error'}`,
           details: { rateError, rateData } 
         };
       }

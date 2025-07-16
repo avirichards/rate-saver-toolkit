@@ -23,13 +23,15 @@ import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfi
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { 
-  processAnalysisData, 
+  processNormalViewData, 
+  processClientViewData, 
+  formatShipmentData, 
   handleDataProcessingError,
   generateExportData,
+  validateShipmentData,
   ProcessedAnalysisData,
-  ProcessedShipmentData,
-  OrphanedShipmentData
-} from '@/utils/unifiedDataProcessor';
+  ProcessedShipmentData 
+} from '@/utils/dataProcessing';
 
 // Use the standardized interface from dataProcessing utils
 type AnalysisData = ProcessedAnalysisData;
@@ -74,7 +76,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [searchParams] = useSearchParams();
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [shipmentData, setShipmentData] = useState<ProcessedShipmentData[]>([]);
-  const [orphanedData, setOrphanedData] = useState<OrphanedShipmentData[]>([]);
+  const [orphanedData, setOrphanedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -174,7 +176,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const processingMetadata = {
         savedAt: new Date().toISOString(),
         totalSavings: analysisData.totalPotentialSavings || 0,
-        processedShipments: analysisData.analyzedShipments || 0,
+        completedShipments: analysisData.completedShipments || 0,
+        errorShipments: analysisData.errorShipments || 0,
         dataSource: 'new_analysis'
       };
 
@@ -278,19 +281,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
-          const processedData = processAnalysisData(analysis, true);
+          const processedData = processClientViewData(analysis);
           
           setAnalysisData(processedData);
           
-          // Set shipment data directly from processed data
+          // Format shipment data if recommendations exist
           if (processedData.recommendations && processedData.recommendations.length > 0) {
-            setShipmentData(processedData.recommendations);
-          }
-          
-          // Set orphaned data from processed data
-          if (processedData.orphanedShipments && processedData.orphanedShipments.length > 0) {
-            setOrphanedData(processedData.orphanedShipments);
-            console.log('🔍 CLIENT VIEW: Loaded orphaned shipments:', processedData.orphanedShipments.length);
+            const formattedShipmentData = formatShipmentData(processedData.recommendations);
+            setShipmentData(formattedShipmentData);
           }
           
           setLoading(false);
@@ -311,19 +309,38 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             autoSaveAnalysis(false);
           }, 1000);
           
-          // Process the analysis data using the unified processor
-          const processedData = processAnalysisData(state.analysisData);
+          // Process the recommendations using the utility function
+          const processedData = processNormalViewData(state.analysisData.recommendations);
           
-          setShipmentData(processedData.recommendations);
+          const processedShipmentData = formatShipmentData(processedData.recommendations);
+          setShipmentData(processedShipmentData);
           setOrphanedData(processedData.orphanedShipments || []);
           
-          console.log('🔍 NEW ANALYSIS: Processed data:', {
-            recommendations: processedData.recommendations.length,
-            orphaned: (processedData.orphanedShipments || []).length
-          });
+          // Also handle orphans from analysisData if available
+          if (state.analysisData.orphanedShipments && state.analysisData.orphanedShipments.length > 0) {
+            const currentOrphans = processedData.orphanedShipments || [];
+            const additionalOrphans = state.analysisData.orphanedShipments.map((orphan: any, index: number) => ({
+              id: currentOrphans.length + index + 1,
+              trackingId: orphan.shipment?.trackingId || `Orphan-${index + 1}`,
+              originZip: orphan.shipment?.originZip || '',
+              destinationZip: orphan.shipment?.destZip || '',
+              weight: parseFloat(orphan.shipment?.weight || '0'),
+              service: orphan.originalService || orphan.shipment?.service || '',
+              error: orphan.error || 'Processing failed',
+              errorType: orphan.errorType || 'Unknown'
+            }));
+            
+            setOrphanedData(prev => [...prev, ...additionalOrphans]);
+            
+            console.log('Loaded orphaned shipments:', {
+              fromRecommendations: currentOrphans.length,
+              fromOrphanedShipments: additionalOrphans.length,
+              total: currentOrphans.length + additionalOrphans.length
+            });
+          }
           
           // Initialize service data
-          const services = [...new Set(processedData.recommendations.map(item => item.service).filter(Boolean))] as string[];
+          const services = [...new Set(processedShipmentData.map(item => item.service).filter(Boolean))] as string[];
           setAvailableServices(services);
           setSelectedServicesOverview([]); // Default to unchecked
           
@@ -333,7 +350,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         } else {
           await loadMostRecentAnalysis();
         }
-      } catch (error) {
+        } catch (error) {
         handleDataProcessingError(error, isClientView ? 'client view' : 'normal view');
         setLoading(false);
       }
@@ -446,149 +463,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     processAnalysisFromDatabase(data);
   };
 
-  // Function to recover missing shipments from original CSV data
-  const recoverMissingShipments = async (analysisData: any, analysisMetadata: any, processedShipments: any[], orphanedShipments: any[]) => {
-    try {
-      const totalShipments = analysisMetadata.totalShipments;
-      const trackedCount = processedShipments.length + orphanedShipments.length;
-      
-      console.log('🔍 MISSING SHIPMENT DETECTION:', {
-        totalShipments,
-        processedCount: processedShipments.length,
-        orphanedCount: orphanedShipments.length,
-        trackedCount,
-        missingCount: totalShipments - trackedCount,
-        hasOriginalData: !!analysisData.original_data
-      });
-      
-      if (trackedCount >= totalShipments) {
-        console.log('✅ NO MISSING SHIPMENTS: All shipments accounted for');
-        return; // All shipments are accounted for
-      }
-      
-      // Check if original_data has the new format with csvData
-      const originalData = analysisData.original_data;
-      let csvData = null;
-      let fieldMappings = null;
-      
-      if (originalData && typeof originalData === 'object' && originalData.csvData) {
-        // New format: { csvData: [], fieldMappings: {}, serviceMappings: [] }
-        csvData = originalData.csvData;
-        fieldMappings = originalData.fieldMappings;
-        console.log('🔍 USING NEW FORMAT: Original data with structured format');
-      } else if (Array.isArray(originalData)) {
-        // Old format: direct array of CSV rows
-        csvData = originalData;
-        console.log('🔍 USING OLD FORMAT: Original data as direct CSV array');
-      } else {
-        console.warn('⚠️ MISSING SHIPMENT RECOVERY: No usable original data available for recovery');
-        return;
-      }
-      
-      if (!csvData || !Array.isArray(csvData)) {
-        console.warn('⚠️ MISSING SHIPMENT RECOVERY: No CSV data available for recovery');
-        return;
-      }
-      
-      console.log('🔄 RECOVERY: Starting missing shipment recovery process...');
-      
-      // Create a set of processed tracking IDs for comparison
-      const processedTrackingIds = new Set();
-      processedShipments.forEach((s: any) => processedTrackingIds.add(s.trackingId));
-      orphanedShipments.forEach((s: any) => processedTrackingIds.add(s.trackingId));
-      
-      console.log('🔍 TRACKING IDS: Processed tracking IDs:', Array.from(processedTrackingIds));
-      
-      // Find missing shipments
-      const missingShipments: any[] = [];
-      
-      csvData.forEach((row: any, index: number) => {
-        // Try to find tracking ID in various possible fields
-        let trackingId = null;
-        
-        if (fieldMappings && fieldMappings.trackingId) {
-          trackingId = row[fieldMappings.trackingId];
-        } else {
-          // Try common tracking ID field names
-          const possibleFields = ['tracking_id', 'trackingId', 'tracking_number', 'trackingNumber', 'shipment_id'];
-          for (const field of possibleFields) {
-            if (row[field]) {
-              trackingId = row[field];
-              break;
-            }
-          }
-        }
-        
-        // Fallback to row number if no tracking ID found
-        if (!trackingId) {
-          trackingId = `Row-${index + 1}`;
-        }
-        
-        if (!processedTrackingIds.has(trackingId)) {
-          console.log('🔍 FOUND MISSING:', { trackingId, rowIndex: index });
-          
-          // Create orphaned shipment entry for missing data
-          const orphanedShipment = {
-            id: trackedCount + missingShipments.length + 1,
-            trackingId: trackingId,
-            originZip: row[fieldMappings?.originZip || 'origin_zip'] || '',
-            destinationZip: row[fieldMappings?.destZip || 'dest_zip'] || '',
-            weight: parseFloat(row[fieldMappings?.weight || 'weight'] || '0'),
-            service: row[fieldMappings?.service || 'service'] || 'Unknown',
-            error: 'Shipment not processed during analysis - recovered from original data',
-            errorType: 'missing_data',
-            errorCategory: 'Data Recovery'
-          };
-          
-          missingShipments.push(orphanedShipment);
-        }
-      });
-      
-      if (missingShipments.length > 0) {
-        console.log('🔄 RECOVERY: Found missing shipments, updating database...', {
-          recoveredCount: missingShipments.length,
-          recoveredShipments: missingShipments.map(s => ({ trackingId: s.trackingId, error: s.error }))
-        });
-        
-        // Update orphaned_shipments in database
-        const updatedOrphanedShipments = [
-          ...orphanedShipments,
-          ...missingShipments
-        ];
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { error } = await supabase
-            .from('shipping_analyses')
-            .update({ 
-              orphaned_shipments: updatedOrphanedShipments,
-              processing_metadata: {
-                ...analysisData.processing_metadata,
-                recoveryPerformed: true,
-                recoveredShipments: missingShipments.length,
-                recoveryDate: new Date().toISOString()
-              }
-            })
-            .eq('id', analysisData.id)
-            .eq('user_id', user.id);
-          
-          if (error) {
-            console.error('❌ RECOVERY: Failed to update database:', error);
-          } else {
-            console.log('✅ RECOVERY: Successfully updated database with recovered shipments');
-            // Update local state
-            setOrphanedData(updatedOrphanedShipments);
-          }
-        }
-      } else {
-        console.log('ℹ️ RECOVERY: No additional missing shipments found');
-      }
-      
-    } catch (error) {
-      console.error('❌ RECOVERY: Error during missing shipment recovery:', error);
-    }
-  };
-
   // Data validation function to check for missing critical data
   const validateShipmentData = (shipment: any): { isValid: boolean; missingFields: string[]; errorType: string } => {
     const missingFields: string[] = [];
@@ -673,27 +547,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setShipmentData(processedShipments);
         setOrphanedData(orphanedShipments);
         
-        // DATA ACCOUNTABILITY CHECK - Verify all shipments are accounted for
-        const totalOriginalShipments = data.original_data?.totalOriginalShipments || 
-                                      (Array.isArray(data.original_data?.csvData) ? data.original_data.csvData.length : 0) ||
-                                      data.total_shipments;
-        
-        const accountedShipments = processedShipments.length + orphanedShipments.length;
-        
-        console.log('🔍 RESULTS DATA ACCOUNTABILITY:', {
-          totalOriginalShipments,
-          processedShipments: processedShipments.length,
-          orphanedShipments: orphanedShipments.length,
-          accountedShipments,
-          isComplete: totalOriginalShipments === accountedShipments,
-          missingShipments: totalOriginalShipments - accountedShipments
-        });
-        
-        // If shipments are missing, trigger recovery
-        if (totalOriginalShipments > accountedShipments && Array.isArray(data.original_data?.csvData)) {
-          await recoverMissingShipments(data, analysisMetadata, processedShipments, orphanedShipments);
-        }
-        
         // Calculate totals for analysis data
         const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
         const totalSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
@@ -701,9 +554,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setAnalysisData({
           totalShipments: processedShipments.length + orphanedShipments.length,
           analyzedShipments: processedShipments.length,
+          completedShipments: processedShipments.length,
+          errorShipments: orphanedShipments.length,
           totalCurrentCost,
           totalPotentialSavings: totalSavings,
           savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+          averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
           recommendations: processedShipments,
           orphanedShipments: orphanedShipments,
           file_name: analysisMetadata.fileName,
@@ -794,10 +650,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     });
 
     // Process legacy data and migrate to centralized format
-    await processShipmentData(dataToUse, analysisMetadata, data.original_data, data.id, data);
+    await processShipmentData(dataToUse, analysisMetadata, data.original_data, data.id);
   };
 
-  const processShipmentData = async (dataToUse: any[], analysisMetadata: any, originalData?: any[], analysisId?: string, fullAnalysisData?: any) => {
+  const processShipmentData = async (dataToUse: any[], analysisMetadata: any, originalData?: any[], analysisId?: string) => {
     console.log('🔍 DATA INTEGRITY: Starting processShipmentData:', {
       inputCount: dataToUse.length,
       expectedShipments: analysisMetadata.totalShipments || 0,
@@ -922,36 +778,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           originalShipment
         });
         
-        // Handle CSV format data by applying field mappings
-        let shipmentData: any = {};
-        
-        if (originalShipment) {
-          // Check if this is CSV format (raw row data) vs processed format
-          const fieldMappings = (fullAnalysisData?.savings_analysis as any)?.fieldMappings || {};
-          const hasMappings = Object.keys(fieldMappings).length > 0;
-          
-          if (hasMappings && !originalShipment.shipment) {
-            // Process CSV row using field mappings
-            Object.entries(fieldMappings as Record<string, string>).forEach(([fieldName, csvHeader]) => {
-              if (csvHeader && csvHeader !== "__NONE__" && (originalShipment as any)[csvHeader] !== undefined) {
-                let value = (originalShipment as any)[csvHeader];
-                if (typeof value === 'string') {
-                  value = value.trim();
-                }
-                shipmentData[fieldName] = value;
-              }
-            });
-            
-            console.log(`🔍 CSV RECOVERY: Processed missing shipment ${missingIndex + 1} from CSV:`, {
-              csvRow: originalShipment,
-              mappings: fieldMappings,
-              processedData: shipmentData
-            });
-          } else {
-            // Use data as-is (already processed format)
-            shipmentData = originalShipment?.shipment || originalShipment || {};
-          }
-        }
+        // Use original shipment data if available, otherwise create empty record
+        const shipmentData = originalShipment?.shipment || originalShipment || {};
         
         orphanedShipments.push({
           id: missingIndex + 1,
@@ -1036,9 +864,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     setAnalysisData({
       totalShipments: dataIntegrityLog.processedShipments,
       analyzedShipments: dataIntegrityLog.validShipments,
+      completedShipments: dataIntegrityLog.validShipments,
+      errorShipments: dataIntegrityLog.orphanedShipments,
       totalCurrentCost,
       totalPotentialSavings: totalSavings,
       savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
       recommendations: validShipments,
       orphanedShipments: orphanedShipments,
       file_name: analysisMetadata.fileName,
@@ -2290,50 +2121,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           </TabsContent>
 
           <TabsContent value="orphaned-data" className="space-y-6">
-            {/* Summary Stats for Orphaned Shipments */}
-            {orphanedData.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <AlertCircle className="h-5 w-5 text-orange-500" />
-                      <div>
-                        <p className="text-2xl font-bold text-orange-600">{orphanedData.filter(d => d.stage === 'mapping' || d.errorCategory?.includes('Stage A')).length}</p>
-                        <p className="text-sm text-muted-foreground">Stage A: Mapping Issues</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <XCircle className="h-5 w-5 text-red-500" />
-                      <div>
-                        <p className="text-2xl font-bold text-red-600">{orphanedData.filter(d => d.stage === 'analysis' || d.errorCategory?.includes('Stage B')).length}</p>
-                        <p className="text-sm text-muted-foreground">Stage B: Analysis Errors</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <TruckIcon className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <p className="text-2xl font-bold text-blue-600">{orphanedData.filter(d => d.stage === 'recovery' || d.errorCategory?.includes('Recovery')).length}</p>
-                        <p className="text-sm text-muted-foreground">Recovered Shipments</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
             <Card>
               <CardHeader>
                 <CardTitle>Orphaned Shipments</CardTitle>
                 <CardDescription>
-                  Shipments that encountered errors during processing - showing failure stage and details
+                  Shipments that encountered errors during processing
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -2355,7 +2147,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableHead className="text-foreground">Destination Zip</TableHead>
                            <TableHead className="text-right text-foreground">Weight</TableHead>
                            <TableHead className="text-foreground">Service Type</TableHead>
-                           <TableHead className="text-foreground">Failure Stage</TableHead>
+                           <TableHead className="text-foreground">Missing Fields</TableHead>
                            <TableHead className="text-foreground">Error Type</TableHead>
                            <TableHead className="text-foreground">Error Details</TableHead>
                         </TableRow>
@@ -2377,42 +2169,24 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                {row.service || <span className="text-muted-foreground italic">Missing</span>}
                              </TableCell>
                              <TableCell>
-                               {(() => {
-                                 const stage = row.stage || (row.errorCategory?.includes('Stage A') ? 'mapping' : 
-                                                           row.errorCategory?.includes('Stage B') ? 'analysis' : 
-                                                           row.errorCategory?.includes('Recovery') ? 'recovery' : 'unknown');
-                                 const stageColors = {
-                                   mapping: 'bg-orange-100 text-orange-800 border-orange-300',
-                                   analysis: 'bg-red-100 text-red-800 border-red-300', 
-                                   recovery: 'bg-blue-100 text-blue-800 border-blue-300',
-                                   unknown: 'bg-gray-100 text-gray-800 border-gray-300'
-                                 };
-                                 const stageLabels = {
-                                   mapping: 'Stage A: Mapping',
-                                   analysis: 'Stage B: Analysis',
-                                   recovery: 'Data Recovery',
-                                   unknown: 'Unknown'
-                                 };
-                                 return (
-                                   <Badge variant="outline" className={`text-xs ${stageColors[stage as keyof typeof stageColors]}`}>
-                                     {stageLabels[stage as keyof typeof stageLabels]}
-                                   </Badge>
-                                 );
-                               })()}
+                               {row.missingFields && row.missingFields.length > 0 ? (
+                                 <div className="flex flex-wrap gap-1">
+                                   {row.missingFields.map((field: string, idx: number) => (
+                                     <Badge key={idx} variant="outline" className="text-xs text-orange-600 border-orange-300">
+                                       {field}
+                                     </Badge>
+                                   ))}
+                                 </div>
+                               ) : (
+                                 <span className="text-muted-foreground">-</span>
+                               )}
                              </TableCell>
                              <TableCell>
-                               <Badge variant="destructive" className="text-xs">{row.errorType}</Badge>
+                               <Badge variant="destructive">{row.errorType}</Badge>
                              </TableCell>
                              <TableCell>
-                               <div className="max-w-xs">
-                                 <p className="text-sm text-foreground font-medium" title={row.error}>
-                                   {row.error}
-                                 </p>
-                                 {row.errorCategory && (
-                                   <p className="text-xs text-muted-foreground mt-1">
-                                     {row.errorCategory}
-                                   </p>
-                                 )}
+                               <div className="max-w-xs truncate text-muted-foreground" title={row.error}>
+                                 {row.error}
                                </div>
                              </TableCell>
                            </TableRow>

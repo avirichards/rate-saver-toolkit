@@ -14,8 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ReportsTable } from '@/components/ui-lov/ReportsTable';
 import { GroupedReportsView } from '@/components/ui-lov/GroupedReportsView';
-import { migrateUserAnalyses } from '@/utils/simplifiedMigration';
-import { getAnalysisStatus } from '@/utils/unifiedDataProcessor';
+import { migrateAllLegacyAnalyses } from '@/utils/migrateLegacyAnalyses';
 import { toast } from 'sonner';
 
 interface ShippingAnalysis {
@@ -43,7 +42,7 @@ const ReportsPage = () => {
   const [loading, setLoading] = useState(true);
   const [groupByClient, setGroupByClient] = useState(false);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
-  const [migrationStatus, setMigrationStatus] = useState<'idle' | 'migrating' | 'completed'>('idle');
+  const [isMigrating, setIsMigrating] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -108,12 +107,31 @@ const ReportsPage = () => {
         }
       }
 
-      // Set reports with client data and status
-      const reportsWithStatus = reportsWithClients.map(report => ({
-        ...report,
-        status: getAnalysisStatus(report)
-      }));
-      setReports(reportsWithStatus);
+      // Auto-detect and migrate legacy analyses in the background
+      const legacyAnalyses = reportsWithClients.filter(report => 
+        !report.processed_shipments && !report.orphaned_shipments
+      );
+      
+      if (legacyAnalyses.length > 0) {
+        console.log(`🔄 REPORTS: Found ${legacyAnalyses.length} legacy analyses, starting background migration`);
+        
+        // Start background migration without blocking UI
+        setTimeout(async () => {
+          try {
+            const migrationResult = await migrateAllLegacyAnalyses();
+            if (migrationResult.success > 0) {
+              console.log(`✅ REPORTS: Background migration completed: ${migrationResult.success} analyses migrated`);
+              // Refresh reports to show updated data
+              await loadReports();
+            }
+          } catch (error) {
+            console.error('❌ REPORTS: Background migration failed:', error);
+          }
+        }, 1000);
+      }
+      
+      console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
+      setReports(reportsWithClients as any);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {
@@ -192,28 +210,25 @@ const ReportsPage = () => {
     setExpandedClients(newExpanded);
   };
 
-  // Handle manual data migration
   const handleMigrateData = async () => {
+    setIsMigrating(true);
     try {
-      setMigrationStatus('migrating');
-      const result = await migrateUserAnalyses();
+      const result = await migrateAllLegacyAnalyses();
       
       if (result.success > 0) {
-        toast.success(`Migration completed! Updated ${result.success} analyses to the new format.`);
+        toast.success(`Successfully migrated ${result.success} analyses to centralized format`);
+        // Reload reports to show updated data
         await loadReports();
-        setMigrationStatus('completed');
+      } else if (result.failed > 0) {
+        toast.error(`Failed to migrate ${result.failed} analyses. Check console for details.`);
       } else {
-        toast.info('No analyses needed migration.');
-        setMigrationStatus('idle');
+        toast.info('All analyses are already using the latest format');
       }
-      
-      if (result.failed > 0) {
-        toast.error(`${result.failed} analyses failed to migrate. Please try again.`);
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Migration failed:', error);
-      toast.error('Migration failed. Please try again.');
-      setMigrationStatus('idle');
+      toast.error(`Migration failed: ${error.message}`);
+    } finally {
+      setIsMigrating(false);
     }
   };
 
@@ -251,11 +266,11 @@ const ReportsPage = () => {
                   variant="outline" 
                   size="sm"
                   onClick={handleMigrateData}
-                  disabled={migrationStatus === 'migrating'}
+                  disabled={isMigrating}
                   title="Migrate legacy data to new format"
                 >
                   <Database className="h-4 w-4 mr-2" />
-                  {migrationStatus === 'migrating' ? 'Migrating...' : 'Migrate Data'}
+                  {isMigrating ? 'Migrating...' : 'Migrate Data'}
                 </Button>
               </div>
               <Link to="/upload">

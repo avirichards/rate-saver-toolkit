@@ -260,17 +260,40 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
-          const savingsAnalysis = analysis.savings_analysis as any;
+          console.log('Client view - Analysis data:', analysis);
           
-          // Process the analysis data similar to the normal flow
+          // Check if we have savings_analysis or need to fall back to original_data
+          const savingsAnalysis = analysis.savings_analysis as any;
+          const originalData = analysis.original_data as any;
+          
+          // Calculate data from original_data if savings_analysis is not available
+          let totalCurrentCost = 0;
+          let totalPotentialSavings = 0;
+          let recommendations = [];
+          
+          if (savingsAnalysis) {
+            totalCurrentCost = savingsAnalysis.totalCurrentCost || 0;
+            totalPotentialSavings = savingsAnalysis.totalPotentialSavings || analysis.total_savings || 0;
+            recommendations = savingsAnalysis.recommendations || [];
+          } else if (originalData && Array.isArray(originalData)) {
+            // Calculate from original_data
+            recommendations = originalData;
+            totalCurrentCost = originalData.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
+            totalPotentialSavings = originalData.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
+          } else if (analysis.total_savings) {
+            // Fallback to just the total_savings
+            totalPotentialSavings = analysis.total_savings;
+            recommendations = [];
+          }
+          
           const processedData = {
-            totalCurrentCost: savingsAnalysis?.totalCurrentCost || 0,
-            totalPotentialSavings: savingsAnalysis?.totalPotentialSavings || analysis.total_savings || 0,
-            recommendations: Array.isArray(analysis.original_data) ? analysis.original_data : [],
-            savingsPercentage: savingsAnalysis?.savingsPercentage || 0,
+            totalCurrentCost,
+            totalPotentialSavings,
+            recommendations,
+            savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
             totalShipments: analysis.total_shipments,
             analyzedShipments: savingsAnalysis?.analyzedShipments || analysis.total_shipments,
-            completedShipments: savingsAnalysis?.completedShipments || 0,
+            completedShipments: savingsAnalysis?.completedShipments || recommendations.length,
             errorShipments: savingsAnalysis?.errorShipments || 0,
             file_name: analysis.file_name,
             report_name: analysis.report_name,

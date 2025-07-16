@@ -3,7 +3,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Download, Edit, DollarSign, Percent, Trash2, Clipboard, Eye } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { supabase } from '@/integrations/supabase/client';
@@ -55,6 +55,7 @@ interface ReportsTableProps {
 export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: ReportsTableProps) {
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [sharingReports, setSharingReports] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -427,10 +428,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                           size="icon"
                           className="h-8 w-8"
                           title="Edit report"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            window.location.href = `/results?analysisId=${report.id}`;
-                          }}
+                          onClick={() => navigate(`/results?analysisId=${report.id}`)}
                         >
                           <Edit className="h-4 w-4" />
                         </Button>

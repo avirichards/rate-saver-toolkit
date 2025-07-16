@@ -64,7 +64,7 @@ const ReportsPage = () => {
   const loadReports = async () => {
     try {
       setLoading(true);
-      console.log('Loading reports for user:', user?.id);
+      console.log('📊 REPORTS: Loading reports for user:', user?.id);
       
       const { data, error } = await supabase
         .from('shipping_analyses')

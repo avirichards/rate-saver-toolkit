@@ -100,10 +100,58 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
 
     setIsSaving(true);
     try {
+      // First, get the current analysis to recalculate total savings with new markup
+      const { data: currentAnalysis, error: fetchError } = await supabase
+        .from('shipping_analyses')
+        .select('original_data, total_shipments, total_savings')
+        .eq('id', analysisId)
+        .single();
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      // Recalculate total savings including markup
+      let newTotalSavings = 0;
+      if (currentAnalysis?.original_data) {
+        let shipmentData: any[] = [];
+        
+        // Handle different data structures
+        if (Array.isArray(currentAnalysis.original_data)) {
+          shipmentData = currentAnalysis.original_data;
+        } else if (typeof currentAnalysis.original_data === 'object' && currentAnalysis.original_data !== null) {
+          // Try to extract shipments array from the object
+          const dataObj = currentAnalysis.original_data as any;
+          shipmentData = dataObj.shipments || dataObj.data || [];
+        }
+        
+        newTotalSavings = shipmentData.reduce((sum: number, shipment: any) => {
+          const baseSavings = shipment.savings || 0;
+          
+          // Add markup to the savings calculation
+          let markupAmount = 0;
+          if (shipment.newRate) {
+            const markupPercent = markupData.markupType === 'global' 
+              ? markupData.globalMarkup 
+              : markupData.perServiceMarkup[shipment.service] || 0;
+            markupAmount = (shipment.newRate * markupPercent) / 100;
+          }
+          
+          return sum + baseSavings + markupAmount;
+        }, 0);
+      }
+
+      console.log('🔄 MARKUP CHANGED: Updating database with recalculated savings:', {
+        oldTotal: currentAnalysis?.total_savings,
+        newTotal: newTotalSavings,
+        markupData
+      });
+
       const { error } = await supabase
         .from('shipping_analyses')
         .update({
           markup_data: markupData as any,
+          total_savings: newTotalSavings,
           updated_at: new Date().toISOString()
         })
         .eq('id', analysisId);
@@ -111,6 +159,9 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
       if (error) {
         console.error('Error saving markup data:', error);
         toast.error('Failed to save markup configuration');
+      } else {
+        console.log('✅ MARKUP SAVED: Database updated successfully');
+        toast.success('Markup configuration saved');
       }
     } catch (error) {
       console.error('Error saving markup data:', error);

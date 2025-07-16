@@ -1215,7 +1215,11 @@ const Analysis = () => {
     const analysisRecord = {
       user_id: user.id,
       file_name: state?.fileName || 'Real-time Analysis',
-      original_data: state?.csvData || [] as any, // Store ORIGINAL CSV DATA for recovery
+      original_data: {
+        csvData: state?.csvData || [],
+        fieldMappings: state?.mappings || {},
+        serviceMappings: serviceMappings || []
+      } as any, // Store ALL original data for recovery
       ups_quotes: completedResults.map(r => r.upsRates) as any,
       savings_analysis: {
         totalCurrentCost,

@@ -446,6 +446,149 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     processAnalysisFromDatabase(data);
   };
 
+  // Function to recover missing shipments from original CSV data
+  const recoverMissingShipments = async (analysisData: any, analysisMetadata: any, processedShipments: any[], orphanedShipments: any[]) => {
+    try {
+      const totalShipments = analysisMetadata.totalShipments;
+      const trackedCount = processedShipments.length + orphanedShipments.length;
+      
+      console.log('🔍 MISSING SHIPMENT DETECTION:', {
+        totalShipments,
+        processedCount: processedShipments.length,
+        orphanedCount: orphanedShipments.length,
+        trackedCount,
+        missingCount: totalShipments - trackedCount,
+        hasOriginalData: !!analysisData.original_data
+      });
+      
+      if (trackedCount >= totalShipments) {
+        console.log('✅ NO MISSING SHIPMENTS: All shipments accounted for');
+        return; // All shipments are accounted for
+      }
+      
+      // Check if original_data has the new format with csvData
+      const originalData = analysisData.original_data;
+      let csvData = null;
+      let fieldMappings = null;
+      
+      if (originalData && typeof originalData === 'object' && originalData.csvData) {
+        // New format: { csvData: [], fieldMappings: {}, serviceMappings: [] }
+        csvData = originalData.csvData;
+        fieldMappings = originalData.fieldMappings;
+        console.log('🔍 USING NEW FORMAT: Original data with structured format');
+      } else if (Array.isArray(originalData)) {
+        // Old format: direct array of CSV rows
+        csvData = originalData;
+        console.log('🔍 USING OLD FORMAT: Original data as direct CSV array');
+      } else {
+        console.warn('⚠️ MISSING SHIPMENT RECOVERY: No usable original data available for recovery');
+        return;
+      }
+      
+      if (!csvData || !Array.isArray(csvData)) {
+        console.warn('⚠️ MISSING SHIPMENT RECOVERY: No CSV data available for recovery');
+        return;
+      }
+      
+      console.log('🔄 RECOVERY: Starting missing shipment recovery process...');
+      
+      // Create a set of processed tracking IDs for comparison
+      const processedTrackingIds = new Set();
+      processedShipments.forEach((s: any) => processedTrackingIds.add(s.trackingId));
+      orphanedShipments.forEach((s: any) => processedTrackingIds.add(s.trackingId));
+      
+      console.log('🔍 TRACKING IDS: Processed tracking IDs:', Array.from(processedTrackingIds));
+      
+      // Find missing shipments
+      const missingShipments: any[] = [];
+      
+      csvData.forEach((row: any, index: number) => {
+        // Try to find tracking ID in various possible fields
+        let trackingId = null;
+        
+        if (fieldMappings && fieldMappings.trackingId) {
+          trackingId = row[fieldMappings.trackingId];
+        } else {
+          // Try common tracking ID field names
+          const possibleFields = ['tracking_id', 'trackingId', 'tracking_number', 'trackingNumber', 'shipment_id'];
+          for (const field of possibleFields) {
+            if (row[field]) {
+              trackingId = row[field];
+              break;
+            }
+          }
+        }
+        
+        // Fallback to row number if no tracking ID found
+        if (!trackingId) {
+          trackingId = `Row-${index + 1}`;
+        }
+        
+        if (!processedTrackingIds.has(trackingId)) {
+          console.log('🔍 FOUND MISSING:', { trackingId, rowIndex: index });
+          
+          // Create orphaned shipment entry for missing data
+          const orphanedShipment = {
+            id: trackedCount + missingShipments.length + 1,
+            trackingId: trackingId,
+            originZip: row[fieldMappings?.originZip || 'origin_zip'] || '',
+            destinationZip: row[fieldMappings?.destZip || 'dest_zip'] || '',
+            weight: parseFloat(row[fieldMappings?.weight || 'weight'] || '0'),
+            service: row[fieldMappings?.service || 'service'] || 'Unknown',
+            error: 'Shipment not processed during analysis - recovered from original data',
+            errorType: 'missing_data',
+            errorCategory: 'Data Recovery'
+          };
+          
+          missingShipments.push(orphanedShipment);
+        }
+      });
+      
+      if (missingShipments.length > 0) {
+        console.log('🔄 RECOVERY: Found missing shipments, updating database...', {
+          recoveredCount: missingShipments.length,
+          recoveredShipments: missingShipments.map(s => ({ trackingId: s.trackingId, error: s.error }))
+        });
+        
+        // Update orphaned_shipments in database
+        const updatedOrphanedShipments = [
+          ...orphanedShipments,
+          ...missingShipments
+        ];
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { error } = await supabase
+            .from('shipping_analyses')
+            .update({ 
+              orphaned_shipments: updatedOrphanedShipments,
+              processing_metadata: {
+                ...analysisData.processing_metadata,
+                recoveryPerformed: true,
+                recoveredShipments: missingShipments.length,
+                recoveryDate: new Date().toISOString()
+              }
+            })
+            .eq('id', analysisData.id)
+            .eq('user_id', user.id);
+          
+          if (error) {
+            console.error('❌ RECOVERY: Failed to update database:', error);
+          } else {
+            console.log('✅ RECOVERY: Successfully updated database with recovered shipments');
+            // Update local state
+            setOrphanedData(updatedOrphanedShipments);
+          }
+        }
+      } else {
+        console.log('ℹ️ RECOVERY: No additional missing shipments found');
+      }
+      
+    } catch (error) {
+      console.error('❌ RECOVERY: Error during missing shipment recovery:', error);
+    }
+  };
+
   // Data validation function to check for missing critical data
   const validateShipmentData = (shipment: any): { isValid: boolean; missingFields: string[]; errorType: string } => {
     const missingFields: string[] = [];
@@ -529,6 +672,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         // Set state directly from centralized data
         setShipmentData(processedShipments);
         setOrphanedData(orphanedShipments);
+        
+        // Check for missing shipments and recover if needed
+        await recoverMissingShipments(data, analysisMetadata, processedShipments, orphanedShipments);
         
         // Calculate totals for analysis data
         const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);

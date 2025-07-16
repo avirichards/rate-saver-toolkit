@@ -475,13 +475,20 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       missingFields.push('Weight');
     }
     
-    // Check for missing service
-    if (!shipment.service || shipment.service.trim() === '') {
+    // Service is optional for orphan classification - missing service doesn't make a shipment invalid
+    // but we'll note it as a warning
+    const hasService = shipment.service && shipment.service.trim() !== '';
+    
+    // Only consider shipment invalid if it's missing critical shipping data (tracking, addresses, weight)
+    // Service issues should preserve the shipment as orphaned data, not exclude it entirely
+    const isValid = missingFields.length === 0 && hasService;
+    const errorType = missingFields.length > 0 ? 'Missing Critical Data' : 
+                     !hasService ? 'Missing Service' : 'Valid';
+    
+    // Add service to missing fields for tracking, but don't invalidate shipment
+    if (!hasService) {
       missingFields.push('Service');
     }
-    
-    const isValid = missingFields.length === 0;
-    const errorType = missingFields.length > 0 ? 'Missing Data' : 'Valid';
     
     return { isValid, missingFields, errorType };
   };

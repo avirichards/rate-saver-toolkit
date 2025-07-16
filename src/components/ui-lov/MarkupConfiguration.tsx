@@ -190,10 +190,17 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
         markupData
       });
 
+      // Update markup_data with the calculated savings values that match Results page
+      const updatedMarkupData = {
+        ...markupData,
+        savingsAmount: newTotalSavings,
+        savingsPercentage: updatedSavingsAnalysis.savingsPercentage
+      };
+
       const { error } = await supabase
         .from('shipping_analyses')
         .update({
-          markup_data: markupData as any,
+          markup_data: updatedMarkupData as any,
           total_savings: newTotalSavings,
           savings_analysis: updatedSavingsAnalysis as any,
           updated_at: new Date().toISOString()

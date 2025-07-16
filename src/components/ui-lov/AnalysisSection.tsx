@@ -97,6 +97,11 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
 
   useEffect(() => {
     if (csvData.length > 0 && Object.keys(fieldMappings).length > 0) {
+      console.log('🔄 Initializing shipments with:', {
+        csvDataLength: csvData.length,
+        fieldMappingsCount: Object.keys(fieldMappings).length,
+        fieldMappings
+      });
       initializeShipments();
     }
   }, [csvData, fieldMappings]);
@@ -270,10 +275,14 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
         const analysisData = {
           totalSavings: finalTotalSavings,
           totalCurrentCost: finalTotalCost,
-          totalShipments: completedResults.length,
+          totalShipments: shipmentsToAnalyze.length,
+          completedShipments: completedResults.length,
+          errorShipments: analysisResults.filter(r => r.status === 'error').length,
           recommendations: completedResults,
           validationSummary: validationSummary,
-          orphanedShipments: analysisResults.filter(r => r.status === 'error')
+          orphanedShipments: analysisResults.filter(r => r.status === 'error'),
+          analysisComplete: true,
+          processingDate: new Date().toISOString()
         };
 
         // Save final results to database if reportId provided
@@ -351,8 +360,15 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
       if (rateQuote.success && rateQuote.rates && rateQuote.rates.length > 0) {
         const bestRate = rateQuote.rates[0];
         const currentCost = parseFloat(shipment.cost || '0');
-        const newCost = parseFloat(bestRate.TotalCharges?.MonetaryValue || '0');
+        const newCost = parseFloat(bestRate.TotalCharges?.MonetaryValue || bestRate.total_cost || '0');
         const savings = Math.max(0, currentCost - newCost);
+        
+        console.log(`💰 Shipment ${shipment.id} calculation:`, {
+          currentCost,
+          newCost,
+          savings,
+          bestRateService: bestRate.Service?.Description || bestRate.service_name
+        });
         
         // Update analysis results
         setAnalysisResults(prev => {
@@ -365,7 +381,8 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
                   upsRates: rateQuote.rates,
                   bestRate,
                   savings,
-                  originalService: shipment.service
+                  originalService: shipment.service,
+                  attemptCount: retryCount + 1
                 }
               : result
           );
@@ -379,10 +396,22 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
           currentCost,
           newCost,
           savings,
-          service: bestRate.Service?.Name
+          serviceName: bestRate.Service?.Description || bestRate.service_name,
+          totalSavingsSoFar: totalSavings + savings
         });
       } else {
-        throw new Error(rateQuote.error || 'No rates returned from UPS');
+        const errorMsg = rateQuote.error || 'No rates returned from UPS';
+        console.error(`❌ UPS Rate Quote failed for shipment ${shipment.id}:`, {
+          error: errorMsg,
+          rateQuoteResponse: rateQuote,
+          shipmentData: {
+            originZip: shipment.originZip,
+            destZip: shipment.destZip,
+            weight: shipment.weight,
+            service: shipment.service
+          }
+        });
+        throw new Error(errorMsg);
       }
     } catch (error: any) {
       console.error(`Error processing shipment ${shipment.id}:`, error);
@@ -413,32 +442,49 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
 
   const getUpsRateQuote = async (shipment: ProcessedShipment) => {
     try {
-      const originCity = getCityStateFromZip(shipment.originZip || '');
-      const destCity = getCityStateFromZip(shipment.destZip || '');
+      console.log('🔍 Getting UPS rate quote for shipment:', {
+        id: shipment.id,
+        originZip: shipment.originZip,
+        destZip: shipment.destZip,
+        weight: shipment.weight,
+        service: shipment.service
+      });
+
+      // Validate required fields
+      if (!shipment.originZip || !shipment.destZip || !shipment.weight) {
+        throw new Error(`Missing required fields - Origin: ${shipment.originZip}, Dest: ${shipment.destZip}, Weight: ${shipment.weight}`);
+      }
+
+      const originCity = getCityStateFromZip(shipment.originZip);
+      const destCity = getCityStateFromZip(shipment.destZip);
       
       if (!originCity || !destCity) {
-        throw new Error(`Invalid ZIP codes: ${shipment.originZip} → ${shipment.destZip}`);
+        console.warn(`⚠️ Could not resolve cities for ZIP codes: ${shipment.originZip} → ${shipment.destZip}`);
+        // Use fallback ZIP codes but continue processing
       }
 
       const isResidential = csvResidentialField && shipment.hasOwnProperty(csvResidentialField) 
         ? (shipment as any)[csvResidentialField] === 'true' || (shipment as any)[csvResidentialField] === true
-        : false;
-      const serviceCodes = getServiceCodesToRequest(shipment.service || 'Ground');
+        : false; // Default to false if not specified
 
+      const serviceCodes = getServiceCodesToRequest(shipment.service || 'Ground');
+      console.log('🚛 Service codes to request:', serviceCodes);
+
+      // Enhanced shipment data with better validation
       const shipmentData = {
         shipper: {
           address: {
-            city: originCity.city,
-            stateProvinceCode: originCity.state,
-            postalCode: shipment.originZip,
+            city: originCity?.city || 'Atlanta',
+            stateProvinceCode: originCity?.state || 'GA',
+            postalCode: shipment.originZip.replace(/[^0-9-]/g, ''),
             countryCode: 'US'
           }
         },
         shipTo: {
           address: {
-            city: destCity.city,
-            stateProvinceCode: destCity.state,
-            postalCode: shipment.destZip,
+            city: destCity?.city || 'Atlanta',
+            stateProvinceCode: destCity?.state || 'GA',
+            postalCode: shipment.destZip.replace(/[^0-9-]/g, ''),
             countryCode: 'US',
             residentialAddressIndicator: isResidential
           }
@@ -446,7 +492,7 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
         package: {
           weight: {
             unitOfMeasurement: { code: 'LBS' },
-            weight: shipment.weight || '1'
+            weight: Math.max(1, parseFloat(shipment.weight || '1')).toString()
           },
           dimensions: {
             unitOfMeasurement: { code: 'IN' },
@@ -455,18 +501,45 @@ export const AnalysisSection: React.FC<AnalysisSectionProps> = ({
             height: shipment.height || '12'
           }
         },
-        serviceCodes
+        serviceCodes,
+        // Add shipment context for better debugging
+        shipmentContext: {
+          id: shipment.id,
+          originalService: shipment.service,
+          cost: shipment.cost
+        }
       };
+
+      console.log('📦 Sending UPS request with data:', shipmentData);
 
       const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
         body: { shipmentData }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ UPS Edge Function Error:', error);
+        throw new Error(`UPS API Error: ${error.message || 'Unknown error'}`);
+      }
+
+      if (!data) {
+        console.error('❌ No data returned from UPS Edge Function');
+        throw new Error('No response from UPS API');
+      }
+
+      console.log('✅ UPS Rate Quote Response:', {
+        success: data.success,
+        ratesCount: data.rates?.length || 0,
+        error: data.error
+      });
+
       return data;
     } catch (error: any) {
-      console.error('UPS rate quote error:', error);
-      return { success: false, error: error.message };
+      console.error('❌ UPS rate quote error:', error);
+      return { 
+        success: false, 
+        error: error.message,
+        shipmentId: shipment.id 
+      };
     }
   };
 

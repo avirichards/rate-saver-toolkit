@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
-import { ChevronLeft, ChevronRight, Check, Upload, Settings, BarChart3, FileText } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Upload, Settings, BarChart3, FileText, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { IntelligentColumnMapper } from '@/components/ui-lov/IntelligentColumnMapper';
 import { ServiceMappingReview } from '@/components/ui-lov/ServiceMappingReview';
@@ -256,6 +256,24 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
         </div>
       );
     }
+
+    // Show CSV upload confirmation
+    const renderCSVConfirmation = () => {
+      if (report?.raw_csv_data && csvData.length > 0) {
+        return (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2 text-green-700">
+              <CheckCircle className="h-5 w-5" />
+              <span className="font-medium">CSV Successfully Uploaded</span>
+            </div>
+            <p className="text-sm text-green-600 mt-1">
+              {report.raw_csv_filename} • {report.total_rows} rows • {csvHeaders.length} columns
+            </p>
+          </div>
+        );
+      }
+      return null;
+    };
     
     switch (currentSection.id) {
       case 'header_mapping':
@@ -275,11 +293,14 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
         }
         
         return (
-          <IntelligentColumnMapper
-            csvHeaders={csvHeaders}
-            csvData={csvData}
-            onMappingComplete={handleMappingComplete}
-          />
+          <div>
+            {renderCSVConfirmation()}
+            <IntelligentColumnMapper
+              csvHeaders={csvHeaders}
+              csvData={csvData}
+              onMappingComplete={handleMappingComplete}
+            />
+          </div>
         );
 
       case 'service_mapping':
@@ -304,12 +325,15 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
         }
         
         return (
-          <ServiceMappingReview
-            csvData={csvData}
-            serviceColumn={fieldMappings.service}
-            initialMappings={serviceMappings}
-            onMappingsConfirmed={handleServiceMappingsConfirmed}
-          />
+          <div>
+            {renderCSVConfirmation()}
+            <ServiceMappingReview
+              csvData={csvData}
+              serviceColumn={fieldMappings.service}
+              initialMappings={serviceMappings}
+              onMappingsConfirmed={handleServiceMappingsConfirmed}
+            />
+          </div>
         );
 
       case 'analysis':
@@ -327,13 +351,18 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
         }
         
         // Run analysis directly in the workflow
-        return <AnalysisSection 
-          csvData={csvData}
-          fieldMappings={fieldMappings}
-          serviceMappings={serviceMappings}
-          reportId={report?.id}
-          onAnalysisComplete={handleAnalysisComplete}
-        />;
+        return (
+          <div>
+            {renderCSVConfirmation()}
+            <AnalysisSection 
+              csvData={csvData}
+              fieldMappings={fieldMappings}
+              serviceMappings={serviceMappings}
+              reportId={report?.id}
+              onAnalysisComplete={handleAnalysisComplete}
+            />
+          </div>
+        );
 
       case 'results':
         if (!analysisResults) {
@@ -350,10 +379,15 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
         }
         
         // Show results directly in the workflow
-        return <ResultsSection 
-          analysisResults={analysisResults}
-          reportId={report?.id}
-        />;
+        return (
+          <div>
+            {renderCSVConfirmation()}
+            <ResultsSection 
+              analysisResults={analysisResults}
+              reportId={report?.id}
+            />
+          </div>
+        );
 
       default:
         return (

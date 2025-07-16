@@ -5,7 +5,7 @@ import { ClientLayout } from '@/components/layout/ClientLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -1349,6 +1349,69 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 </CardDescription>
               </CardHeader>
             </Card>
+
+            {/* Summary Statistics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Current Cost */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Current Cost</p>
+                      <p className="text-2xl font-bold">${getFilteredStats().totalCurrentCost.toLocaleString()}</p>
+                    </div>
+                    <DollarSign className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Ship Pros Cost */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Ship Pros Cost</p>
+                      <p className="text-2xl font-bold">${getFilteredStats().totalShipProsCost.toLocaleString()}</p>
+                    </div>
+                    <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Total Savings */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Total Savings</p>
+                      <p className={`text-2xl font-bold ${getFilteredStats().totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${Math.abs(getFilteredStats().totalSavings).toLocaleString()}
+                      </p>
+                      <p className={`text-sm ${getFilteredStats().totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {getFilteredStats().totalSavings >= 0 ? '+' : '-'}{Math.abs(getFilteredStats().averageSavingsPercent).toFixed(1)}%
+                      </p>
+                    </div>
+                    <TrendingDown className={`h-8 w-8 ${getFilteredStats().totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Estimated Annual Savings */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Est. Annual Savings</p>
+                      <p className={`text-2xl font-bold ${getFilteredStats().totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${Math.abs(getFilteredStats().totalSavings * (365 / snapshotDays)).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Based on {snapshotDays}-day snapshot</p>
+                    </div>
+                    <Calendar className={`h-8 w-8 ${getFilteredStats().totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`} />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* Service Analysis Table */}
             <Card>

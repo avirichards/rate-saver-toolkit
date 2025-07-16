@@ -462,6 +462,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "shipping_analyses_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "shipping_analyses_csv_upload_id_fkey"
             columns: ["csv_upload_id"]
             isOneToOne: false

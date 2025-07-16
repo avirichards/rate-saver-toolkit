@@ -245,7 +245,7 @@ const ReportsPage = () => {
               <Link to="/upload">
                 <Button>
                   <FileBarChart className="h-4 w-4 mr-2" />
-                  New Analysis
+                  New Report
                 </Button>
               </Link>
             </div>
@@ -279,11 +279,11 @@ const ReportsPage = () => {
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <FileBarChart className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">No reports found</h3>
-                    <p className="text-muted-foreground mb-4">Create your first shipping analysis to see reports here.</p>
+                    <p className="text-muted-foreground mb-4">Create your first shipping report to see data here.</p>
                     <Link to="/upload">
                       <Button>
                         <FileBarChart className="h-4 w-4 mr-2" />
-                        New Analysis
+                        New Report
                       </Button>
                     </Link>
                   </div>

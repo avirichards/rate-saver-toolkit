@@ -131,11 +131,19 @@ const ReportsPage = () => {
   });
 
   const getMarkupStatus = (markupData: any) => {
-    if (!markupData) return { hasMarkup: false, totalMargin: 0, marginPercentage: 0 };
+    if (!markupData) return { 
+      hasMarkup: false, 
+      totalMargin: 0, 
+      marginPercentage: 0,
+      savingsAmount: 0,
+      savingsPercentage: 0
+    };
     return {
       hasMarkup: markupData.totalMargin > 0,
       totalMargin: markupData.totalMargin || 0,
-      marginPercentage: markupData.marginPercentage || 0
+      marginPercentage: markupData.marginPercentage || 0,
+      savingsAmount: markupData.savingsAmount || 0,
+      savingsPercentage: markupData.savingsPercentage || 0
     };
   };
 

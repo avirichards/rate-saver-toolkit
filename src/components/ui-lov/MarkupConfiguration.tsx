@@ -16,6 +16,8 @@ export interface MarkupData {
   perServiceMarkup: Record<string, number>;
   totalMargin: number;
   marginPercentage: number;
+  savingsAmount?: number;
+  savingsPercentage?: number;
 }
 
 interface MarkupConfigurationProps {
@@ -64,10 +66,17 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
     let totalMargin = 0;
     let totalShipProsCost = 0;
     let totalMarkedUpRevenue = 0;
+    let totalSavings = 0;
+    let totalCurrentCost = 0;
 
     shipmentData.forEach(shipment => {
       const shipProsCost = shipment.newRate || 0;
+      const currentCost = shipment.currentRate || 0;
+      const savings = shipment.savings || 0;
+      
       totalShipProsCost += shipProsCost;
+      totalCurrentCost += currentCost;
+      totalSavings += savings;
 
       let markupPercent = 0;
       if (markupType === 'global') {
@@ -84,13 +93,17 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
     });
 
     const marginPercentage = totalShipProsCost > 0 ? (totalMargin / totalShipProsCost) * 100 : 0;
+    const finalSavingsAmount = totalSavings + totalMargin;
+    const savingsPercentage = totalCurrentCost > 0 ? (finalSavingsAmount / totalCurrentCost) * 100 : 0;
 
     return {
       markupType,
       globalMarkup,
       perServiceMarkup,
       totalMargin,
-      marginPercentage
+      marginPercentage,
+      savingsAmount: finalSavingsAmount,
+      savingsPercentage
     };
   }, [shipmentData, markupType, globalMarkup, perServiceMarkup]);
 

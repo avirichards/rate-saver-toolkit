@@ -31,6 +31,8 @@ interface GroupedReportsViewProps {
     hasMarkup: boolean;
     totalMargin: number;
     marginPercentage: number;
+    savingsAmount: number;
+    savingsPercentage: number;
   };
 }
 
@@ -169,17 +171,13 @@ export function GroupedReportsView({
                             <td className="py-2 px-4 text-right">{`${completed}/${total}`}</td>
                                 <td className="py-2 px-4 text-right">
                                   {(() => {
-                                    // Use the same logic as Results page - prioritize savings_analysis.totalSavings
-                                    const savingsAmount = report.savings_analysis?.totalSavings !== undefined 
-                                      ? report.savings_analysis.totalSavings 
-                                      : report.total_savings;
-                                    
-                                    if (savingsAmount !== null && savingsAmount !== undefined) {
+                                    const markupStatus = getMarkupStatus(report.markup_data);
+                                    if (markupStatus.hasMarkup) {
                                       return (
                                         <div className="text-right">
-                                          <div className="font-medium">${savingsAmount.toFixed(2)}</div>
+                                          <div className="font-medium">${markupStatus.savingsAmount.toFixed(2)}</div>
                                           <div className="text-xs text-muted-foreground">
-                                            {savingsPercentage > 0 ? `${savingsPercentage.toFixed(1)}%` : ''}
+                                            {markupStatus.savingsPercentage.toFixed(1)}%
                                           </div>
                                         </div>
                                       );

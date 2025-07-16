@@ -45,6 +45,8 @@ interface ReportsTableProps {
     hasMarkup: boolean;
     totalMargin: number;
     marginPercentage: number;
+    savingsAmount: number;
+    savingsPercentage: number;
   };
   onReportUpdate?: () => void;
 }
@@ -295,32 +297,20 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                       return `${completed}/${total}`;
                     })()}
                   </td>
-                  <td className="py-3 px-2 text-right">
-                    {(() => {
-                      // Use the same logic as Results page - prioritize savings_analysis.totalSavings
-                      const savingsAmount = report.savings_analysis?.totalSavings !== undefined 
-                        ? report.savings_analysis.totalSavings 
-                        : report.total_savings;
-                      
-                      if (savingsAmount !== null && savingsAmount !== undefined) {
-                        return (
-                          <div className="text-right">
-                            <div className="font-medium">
-                              ${savingsAmount.toFixed(2)}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {(() => {
-                                const percentage = getSavingsPercentage(report);
-                                return percentage > 0 ? `${percentage.toFixed(1)}%` : '';
-                              })()}
-                            </div>
-                          </div>
-                        );
-                      } else {
-                        return <span className="text-muted-foreground">-</span>;
-                      }
-                    })()}
-                  </td>
+                   <td className="py-3 px-2 text-right">
+                     {markupStatus.hasMarkup ? (
+                       <div className="text-right">
+                         <div className="font-medium">
+                           ${markupStatus.savingsAmount.toFixed(2)}
+                         </div>
+                         <div className="text-xs text-muted-foreground">
+                           {markupStatus.savingsPercentage.toFixed(1)}%
+                         </div>
+                       </div>
+                     ) : (
+                       <span className="text-muted-foreground">-</span>
+                     )}
+                   </td>
                   <td className="py-3 px-2 text-right">
                     {markupStatus.hasMarkup ? (
                       <div className="text-right">

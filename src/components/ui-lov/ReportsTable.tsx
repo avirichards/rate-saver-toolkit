@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Download, Edit, DollarSign, Percent, Trash2, Globe, Eye } from 'lucide-react';
+import { Download, Edit, DollarSign, Percent, Trash2, Clipboard, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
@@ -409,9 +409,9 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                        >
                          {sharingReports.has(report.id) ? (
                            <div className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
-                         ) : (
-                           <Globe className="h-4 w-4" />
-                         )}
+                          ) : (
+                            <Clipboard className="h-4 w-4" />
+                          )}
                        </Button>
                         <Button 
                           variant="ghost" 

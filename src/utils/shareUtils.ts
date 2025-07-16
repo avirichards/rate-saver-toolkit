@@ -100,17 +100,10 @@ export const getSharedReport = async (shareToken: string) => {
       throw new Error('Share has expired');
     }
 
-    // Now get the analysis data with better error handling
+    // Now get the analysis data - fetch client separately since no FK relationship exists
     const { data: analysis, error: analysisError } = await supabase
       .from('shipping_analyses')
-      .select(`
-        *,
-        clients (
-          id,
-          company_name,
-          branding_config
-        )
-      `)
+      .select('*')
       .eq('id', share.analysis_id)
       .eq('is_deleted', false)
       .single();
@@ -124,9 +117,23 @@ export const getSharedReport = async (shareToken: string) => {
       throw new Error('Analysis not found or has been deleted');
     }
 
+    // Fetch client data separately if client_id exists
+    let clientData = null;
+    if (analysis.client_id) {
+      const { data: client } = await supabase
+        .from('clients')
+        .select('id, company_name, branding_config')
+        .eq('id', analysis.client_id)
+        .single();
+      clientData = client;
+    }
+
     return {
       ...share,
-      shipping_analyses: analysis
+      shipping_analyses: {
+        ...analysis,
+        clients: clientData
+      }
     };
   } catch (error) {
     console.error('Error fetching shared report:', error);

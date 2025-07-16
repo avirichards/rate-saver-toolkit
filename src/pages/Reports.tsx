@@ -6,7 +6,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { FileBarChart, Filter, Search, Calendar, ArrowUpDown, Download, Eye, Percent, DollarSign, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileBarChart, Filter, Search, TrendingUp, TrendingDown, Percent, DollarSign, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -124,12 +124,18 @@ const ReportsPage = () => {
     };
   };
 
-  const getRecentReports = () => {
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    return filteredReports.filter(report => 
-      new Date(report.created_at) > thirtyDaysAgo
-    );
+  const getWinsReports = () => {
+    return filteredReports.filter(report => {
+      const savings = report.total_savings || 0;
+      return savings > 0;
+    });
+  };
+
+  const getLossesReports = () => {
+    return filteredReports.filter(report => {
+      const savings = report.total_savings || 0;
+      return savings <= 0;
+    });
   };
 
   const getSavedReports = () => {
@@ -226,7 +232,8 @@ const ReportsPage = () => {
             <Tabs defaultValue="all" className="w-full">
               <TabsList className="mb-4">
                 <TabsTrigger value="all">All Reports ({filteredReports.length})</TabsTrigger>
-                <TabsTrigger value="recent">Recent ({getRecentReports().length})</TabsTrigger>
+                <TabsTrigger value="wins">Wins ({getWinsReports().length})</TabsTrigger>
+                <TabsTrigger value="losses">Losses ({getLossesReports().length})</TabsTrigger>
                 <TabsTrigger value="markup">With Markup ({getSavedReports().length})</TabsTrigger>
               </TabsList>
               
@@ -255,97 +262,43 @@ const ReportsPage = () => {
                     getMarkupStatus={getMarkupStatus}
                   />
                 ) : (
-              <ReportsTable 
-                reports={filteredReports} 
-                getMarkupStatus={getMarkupStatus}
-                onReportUpdate={loadReports}
-              />
+                  <ReportsTable 
+                    reports={filteredReports} 
+                    getMarkupStatus={getMarkupStatus}
+                    onReportUpdate={loadReports}
+                  />
                 )}
               </TabsContent>
               
-              <TabsContent value="recent" className="mt-0">
-                {getRecentReports().length === 0 ? (
+              <TabsContent value="wins" className="mt-0">
+                {getWinsReports().length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No recent reports</h3>
-                    <p className="text-muted-foreground">Reports from the last 30 days will appear here.</p>
+                    <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No winning reports</h3>
+                    <p className="text-muted-foreground">Reports with positive savings will appear here.</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-3 px-2">Report Name</th>
-                          <th className="text-left py-3 px-2">Date</th>
-                          <th className="text-left py-3 px-2">Status</th>
-                          <th className="text-right py-3 px-2">Items</th>
-                          <th className="text-right py-3 px-2">Savings</th>
-                          <th className="text-right py-3 px-2">Margin</th>
-                          <th className="text-right py-3 px-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {getRecentReports().map((report) => {
-                          const markupStatus = getMarkupStatus(report.markup_data);
-                          return (
-                            <tr key={report.id} className="border-b hover:bg-muted/50">
-                              <td className="py-3 px-2 font-medium">{report.file_name}</td>
-                              <td className="py-3 px-2">{new Date(report.analysis_date).toLocaleDateString()}</td>
-                              <td className="py-3 px-2">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={report.status === 'completed' ? 'default' : 'secondary'}>
-                                    {report.status}
-                                  </Badge>
-                                  {markupStatus.hasMarkup && (
-                                    <Badge variant="outline">
-                                      With Markup
-                                    </Badge>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-3 px-2 text-right">{report.total_shipments}</td>
-                              <td className="py-3 px-2 text-right font-medium">
-                                {report.total_savings ? `$${report.total_savings.toFixed(2)}` : '-'}
-                              </td>
-                              <td className="py-3 px-2 text-right">
-                                {markupStatus.hasMarkup ? (
-                                  <div className="text-right">
-                                    <div className="font-medium">${markupStatus.totalMargin.toFixed(2)}</div>
-                                    <div className="text-xs text-muted-foreground">{markupStatus.marginPercentage.toFixed(1)}%</div>
-                                  </div>
-                                ) : (
-                                  <span className="text-muted-foreground">-</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-2">
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => {
-                                      console.log('Export report:', report.id);
-                                    }}
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                  <Link to={`/results?analysisId=${report.id}`}>
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon"
-                                      className="h-8 w-8"
-                                    >
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                  </Link>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  <ReportsTable 
+                    reports={getWinsReports()} 
+                    getMarkupStatus={getMarkupStatus}
+                    onReportUpdate={loadReports}
+                  />
+                )}
+              </TabsContent>
+              
+              <TabsContent value="losses" className="mt-0">
+                {getLossesReports().length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <TrendingDown className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">No reports with losses</h3>
+                    <p className="text-muted-foreground">Reports with zero or negative savings will appear here.</p>
                   </div>
+                ) : (
+                  <ReportsTable 
+                    reports={getLossesReports()} 
+                    getMarkupStatus={getMarkupStatus}
+                    onReportUpdate={loadReports}
+                  />
                 )}
               </TabsContent>
               
@@ -357,76 +310,11 @@ const ReportsPage = () => {
                     <p className="text-muted-foreground">Reports with configured markup percentages will appear here.</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-3 px-2">Report Name</th>
-                          <th className="text-left py-3 px-2">Date</th>
-                          <th className="text-left py-3 px-2">Status</th>
-                          <th className="text-right py-3 px-2">Items</th>
-                          <th className="text-right py-3 px-2">Original Savings</th>
-                          <th className="text-right py-3 px-2">Margin Revenue</th>
-                          <th className="text-right py-3 px-2">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {getSavedReports().map((report) => {
-                          const markupStatus = getMarkupStatus(report.markup_data);
-                          return (
-                            <tr key={report.id} className="border-b hover:bg-muted/50">
-                              <td className="py-3 px-2 font-medium">{report.file_name}</td>
-                              <td className="py-3 px-2">{new Date(report.analysis_date).toLocaleDateString()}</td>
-                              <td className="py-3 px-2">
-                                <div className="flex items-center gap-2">
-                                  <Badge variant={report.status === 'completed' ? 'default' : 'secondary'}>
-                                    {report.status}
-                                  </Badge>
-                                  <Badge variant="outline">
-                                    {markupStatus.marginPercentage.toFixed(1)}% Markup
-                                  </Badge>
-                                </div>
-                              </td>
-                              <td className="py-3 px-2 text-right">{report.total_shipments}</td>
-                              <td className="py-3 px-2 text-right font-medium">
-                                {report.total_savings ? `$${report.total_savings.toFixed(2)}` : '-'}
-                              </td>
-                              <td className="py-3 px-2 text-right">
-                                <div className="text-right">
-                                  <div className="font-medium text-primary">${markupStatus.totalMargin.toFixed(2)}</div>
-                                  <div className="text-xs text-muted-foreground">{markupStatus.marginPercentage.toFixed(1)}% margin</div>
-                                </div>
-                              </td>
-                              <td className="py-3 px-2">
-                                <div className="flex items-center justify-end gap-1">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={() => {
-                                      console.log('Export report:', report.id);
-                                    }}
-                                  >
-                                    <Download className="h-4 w-4" />
-                                  </Button>
-                                   <Link to={`/results?analysisId=${report.id}`}>
-                                     <Button 
-                                       variant="ghost" 
-                                       size="icon"
-                                       className="h-8 w-8"
-                                       title="View & Edit Report"
-                                     >
-                                       <Eye className="h-4 w-4" />
-                                     </Button>
-                                   </Link>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <ReportsTable 
+                    reports={getSavedReports()} 
+                    getMarkupStatus={getMarkupStatus}
+                    onReportUpdate={loadReports}
+                  />
                 )}
               </TabsContent>
             </Tabs>

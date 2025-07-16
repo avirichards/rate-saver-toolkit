@@ -205,10 +205,12 @@ export function ClientCombobox({
                         {client.company_name}
                       </div>
                       <Button
+                        type="button"
                         variant="ghost"
                         size="sm"
                         className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                         onClick={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           deleteClient(client.id, client.company_name);
                         }}

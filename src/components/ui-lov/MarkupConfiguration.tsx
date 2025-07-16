@@ -103,7 +103,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
       // First, get the current analysis to recalculate total savings with new markup
       const { data: currentAnalysis, error: fetchError } = await supabase
         .from('shipping_analyses')
-        .select('original_data, total_shipments, total_savings')
+        .select('original_data, total_shipments, total_savings, savings_analysis')
         .eq('id', analysisId)
         .single();
 
@@ -113,6 +113,13 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
 
       // Recalculate total savings including markup
       let newTotalSavings = 0;
+      let updatedSavingsAnalysis: any = {};
+      
+      // Safely handle savings_analysis which could be null or different types
+      if (currentAnalysis?.savings_analysis && typeof currentAnalysis.savings_analysis === 'object') {
+        updatedSavingsAnalysis = { ...currentAnalysis.savings_analysis };
+      }
+      
       if (currentAnalysis?.original_data) {
         let shipmentData: any[] = [];
         
@@ -125,25 +132,47 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
           shipmentData = dataObj.shipments || dataObj.data || [];
         }
         
-        newTotalSavings = shipmentData.reduce((sum: number, shipment: any) => {
+        let totalCurrentCost = 0;
+        let totalNewCost = 0;
+        
+        shipmentData.forEach((shipment: any) => {
+          const currentRate = shipment.currentRate || 0;
+          const newRate = shipment.newRate || 0;
           const baseSavings = shipment.savings || 0;
+          
+          totalCurrentCost += currentRate;
+          totalNewCost += newRate;
           
           // Add markup to the savings calculation
           let markupAmount = 0;
-          if (shipment.newRate) {
+          if (newRate) {
             const markupPercent = markupData.markupType === 'global' 
               ? markupData.globalMarkup 
               : markupData.perServiceMarkup[shipment.service] || 0;
-            markupAmount = (shipment.newRate * markupPercent) / 100;
+            markupAmount = (newRate * markupPercent) / 100;
           }
           
-          return sum + baseSavings + markupAmount;
-        }, 0);
+          newTotalSavings += baseSavings + markupAmount;
+        });
+
+        // Calculate savings percentage
+        const savingsPercentage = totalCurrentCost > 0 ? (newTotalSavings / totalCurrentCost) * 100 : 0;
+
+        // Update savings_analysis with the new calculations
+        updatedSavingsAnalysis = {
+          ...updatedSavingsAnalysis,
+          totalSavings: newTotalSavings,
+          savingsPercentage,
+          totalCurrentCost,
+          totalNewCost: totalNewCost + markupData.totalMargin,
+          updatedAt: new Date().toISOString()
+        };
       }
 
       console.log('🔄 MARKUP CHANGED: Updating database with recalculated savings:', {
         oldTotal: currentAnalysis?.total_savings,
         newTotal: newTotalSavings,
+        savingsPercentage: updatedSavingsAnalysis.savingsPercentage,
         markupData
       });
 
@@ -152,6 +181,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
         .update({
           markup_data: markupData as any,
           total_savings: newTotalSavings,
+          savings_analysis: updatedSavingsAnalysis as any,
           updated_at: new Date().toISOString()
         })
         .eq('id', analysisId);

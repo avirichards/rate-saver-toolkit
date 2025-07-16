@@ -585,7 +585,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       });
 
       // Process the shipment data and update state
-      await processShipmentData(dataToUse, analysisMetadata);
+      await processShipmentData(dataToUse, analysisMetadata, data.original_data);
 
     } catch (error: any) {
       console.error('❌ Error processing analysis from database:', error);
@@ -594,7 +594,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   };
 
-  const processShipmentData = async (dataToUse: any[], analysisMetadata: any) => {
+  const processShipmentData = async (dataToUse: any[], analysisMetadata: any, originalData?: any[]) => {
     console.log('🔍 DATA INTEGRITY: Starting processShipmentData:', {
       inputCount: dataToUse.length,
       expectedShipments: analysisMetadata.totalShipments || 0,
@@ -708,19 +708,30 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     // Create orphaned entries for missing shipments
     if (dataIntegrityLog.missingShipments > 0) {
       console.log('🔍 CREATING ORPHANED ENTRIES for missing shipments:', dataIntegrityLog.missingShipments);
+      console.log('🔍 Available originalData:', !!originalData, originalData?.length);
       
       for (let i = 0; i < dataIntegrityLog.missingShipments; i++) {
-        const missingIndex = dataIntegrityLog.processedShipments + i + 1;
+        const missingIndex = dataIntegrityLog.processedShipments + i;
+        const originalShipment = originalData?.[missingIndex];
+        
+        console.log(`🔍 Creating orphaned entry for missing shipment ${missingIndex + 1}:`, {
+          hasOriginalData: !!originalShipment,
+          originalShipment
+        });
+        
+        // Use original shipment data if available, otherwise create empty record
+        const shipmentData = originalShipment?.shipment || originalShipment || {};
+        
         orphanedShipments.push({
-          id: missingIndex,
-          trackingId: `Missing-${missingIndex}`,
-          originZip: '',
-          destinationZip: '',
-          weight: 0,
-          service: '',
-          error: 'Missing from analysis data - shipment was not processed',
+          id: missingIndex + 1,
+          trackingId: shipmentData.trackingId || `Missing-${missingIndex + 1}`,
+          originZip: shipmentData.originZip || '',
+          destinationZip: shipmentData.destZip || shipmentData.destinationZip || '',
+          weight: parseFloat(shipmentData.weight || '0'),
+          service: originalShipment?.originalService || shipmentData.service || '',
+          error: 'Missing from analysis data - shipment was not processed during analysis',
           errorType: 'Missing Data',
-          missingFields: ['All data missing']
+          missingFields: originalShipment ? ['Analysis incomplete'] : ['All data missing']
         });
         dataIntegrityLog.orphanedShipments++;
       }

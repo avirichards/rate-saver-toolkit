@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useParams, useSearchParams, Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ClientLayout } from '@/components/layout/ClientLayout';
@@ -89,6 +89,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [markupData, setMarkupData] = useState<MarkupData | null>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
+  const hasTriedAutoSave = useRef(false);
 
   // Function to generate unique file name with numbering - simplified to prevent nested parentheses
   const generateUniqueFileName = async (baseName: string): Promise<string> => {
@@ -368,15 +369,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     };
 
     // Add a small delay to ensure all data is loaded, but only run once
-    if (analysisData && !currentAnalysisId) {
-      // Use a ref to track if we've already tried to save this analysis
-      const hasTriedSave = React.useRef(false);
-      
-      if (!hasTriedSave.current) {
-        hasTriedSave.current = true;
-        const timer = setTimeout(performAutoSave, 2000);
-        return () => clearTimeout(timer);
-      }
+    if (analysisData && !currentAnalysisId && !hasTriedAutoSave.current) {
+      hasTriedAutoSave.current = true;
+      const timer = setTimeout(performAutoSave, 2000);
+      return () => clearTimeout(timer);
     }
   }, [analysisData, currentAnalysisId, isClientView]);
 

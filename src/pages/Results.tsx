@@ -4,8 +4,8 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ClientLayout } from '@/components/layout/ClientLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
 import { getSharedReport, updateViewCount } from '@/utils/shareUtils';
 import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfiguration';
-import { useAutoSave } from '@/hooks/useAutoSave';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { 
@@ -90,7 +89,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [markupData, setMarkupData] = useState<MarkupData | null>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
-  
+
   // Function to generate unique file name with numbering
   const generateUniqueFileName = async (baseName: string): Promise<string> => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1107,38 +1106,33 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             <div className="animate-pulse space-y-4">
               <div className="h-8 bg-muted rounded w-1/3 mx-auto"></div>
               <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
+              <div className="h-32 bg-muted rounded"></div>
             </div>
-            <p className="text-lg mt-4">Loading analysis results...</p>
           </div>
-      </div>
-
-    </DashboardLayout>
-  );
-}
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   if (!analysisData || shipmentData.length === 0) {
-  return (
-    <DashboardLayout>
-      <div className="max-w-7xl mx-auto p-6">
+    return (
+      <DashboardLayout>
+        <div className="max-w-7xl mx-auto p-6">
           <div className="text-center">
             <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
             <h2 className="text-2xl font-semibold mb-2">No Analysis Results Found</h2>
-            <p className="text-muted-foreground">Please run an analysis first to see results here.</p>
-            <Button className="mt-4" onClick={() => window.location.href = '/upload'}>
+            <p className="text-muted-foreground mb-4">
+              We couldn't find any analysis results to display. Please run an analysis first.
+            </p>
+            <Button onClick={() => navigate('/upload')}>
+              <Upload className="h-4 w-4 mr-2" />
               Start New Analysis
             </Button>
           </div>
-      </div>
-
-    </DashboardLayout>
-  );
-}
-
-  // Calculate filtered stats and chart data before rendering
-  const filteredStats = getFilteredStats();
-  const serviceChartData = generateServiceChartData();
-  const serviceCostData = generateServiceCostData();
-  const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'];
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const Layout = isClientView ? ClientLayout : DashboardLayout;
   const layoutProps = isClientView ? {} : {};
@@ -1146,8 +1140,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   return (
     <Layout {...layoutProps}>
       <div className="max-w-7xl mx-auto p-6 animate-fade-in">
-        {/* Breadcrumb Navigation */}
-        {(searchParams.get('analysisId') || currentAnalysisId) && (
+        {/* Breadcrumb Navigation - Hidden in client view */}
+        {!isClientView && (searchParams.get('analysisId') || currentAnalysisId) && (
           <div className="mb-6">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Link to="/" className="hover:text-foreground transition-colors">
@@ -1165,8 +1159,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
+          {/* Navigation buttons - Hidden in client view */}
+          {!isClientView && (
+            <div className="flex items-center gap-4 mb-4">
               {(searchParams.get('analysisId') || currentAnalysisId) && (
                 <Link to="/reports">
                   <Button
@@ -1186,74 +1181,73 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 <ArrowLeft className="h-4 w-4" />
                 Back to Upload
               </Button>
-              <div className="space-y-4">
-                <div>
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-2">
-                    {isClientView ? (
-                      analysisData?.report_name || analysisData?.file_name || 'Untitled Report'
-                    ) : (
-                      <InlineEditableField
-                        value={analysisData?.report_name || analysisData?.file_name || 'Untitled Report'}
-                        onSave={async (value) => {
-                          if (currentAnalysisId) {
-                            const { error } = await supabase
-                              .from('shipping_analyses')
-                              .update({ 
-                                report_name: value,
-                                updated_at: new Date().toISOString()
-                              })
-                              .eq('id', currentAnalysisId);
-                            
-                            if (error) throw error;
-                            
-                            // Update local state
-                            setAnalysisData(prev => prev ? { ...prev, report_name: value } : null);
-                            toast.success('Report name updated');
-                          }
-                        }}
-                        placeholder="Click to edit report name"
-                        required
-                        minWidth="300px"
-                      />
-                    )}
-                  </h1>
-                </div>
-                
-                <div className="flex items-center gap-4 text-sm">
-                  {!isClientView && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">Client:</span>
-                      <div className="min-w-[200px]">
-                        <ClientCombobox
-                          value={analysisData?.client_id || ''}
-                          onValueChange={async (clientId) => {
-                            if (currentAnalysisId) {
-                              const { error } = await supabase
-                                .from('shipping_analyses')
-                                .update({ 
-                                  client_id: clientId || null,
-                                  updated_at: new Date().toISOString()
-                                })
-                                .eq('id', currentAnalysisId);
-                              
-                              if (error) throw error;
-                              
-                              // Update local state
-                              setAnalysisData(prev => prev ? { ...prev, client_id: clientId } : null);
-                              toast.success('Client updated');
-                            }
-                          }}
-                          placeholder="Select client"
-                          disabled={!currentAnalysisId}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="text-muted-foreground">
-                    {analysisData.totalShipments} shipments analyzed
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-2">
+                {isClientView ? (
+                  analysisData?.report_name || analysisData?.file_name || 'Untitled Report'
+                ) : (
+                  <InlineEditableField
+                    value={analysisData?.report_name || analysisData?.file_name || 'Untitled Report'}
+                    onSave={async (value) => {
+                      if (currentAnalysisId) {
+                        const { error } = await supabase
+                          .from('shipping_analyses')
+                          .update({ 
+                            report_name: value,
+                            updated_at: new Date().toISOString()
+                          })
+                          .eq('id', currentAnalysisId);
+                        
+                        if (error) throw error;
+                        
+                        // Update local state
+                        setAnalysisData(prev => prev ? { ...prev, report_name: value } : null);
+                        toast.success('Report name updated');
+                      }
+                    }}
+                    placeholder="Click to edit report name"
+                    required
+                    minWidth="300px"
+                  />
+                )}
+              </h1>
+              
+              {!isClientView && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">Client:</span>
+                  <div className="min-w-[200px]">
+                    <ClientCombobox
+                      value={analysisData?.client_id || ''}
+                      onValueChange={async (clientId) => {
+                        if (currentAnalysisId) {
+                          const { error } = await supabase
+                            .from('shipping_analyses')
+                            .update({ 
+                              client_id: clientId || null,
+                              updated_at: new Date().toISOString()
+                            })
+                            .eq('id', currentAnalysisId);
+                          
+                          if (error) throw error;
+                          
+                          // Update local state
+                          setAnalysisData(prev => prev ? { ...prev, client_id: clientId } : null);
+                          toast.success('Client updated');
+                        }
+                      }}
+                      placeholder="Select client"
+                      disabled={!currentAnalysisId}
+                    />
                   </div>
                 </div>
+              )}
+              
+              <div className="text-muted-foreground">
+                {analysisData.totalShipments} shipments analyzed
               </div>
             </div>
             <div className="flex gap-3">
@@ -1275,8 +1269,19 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               )}
             </div>
           </div>
-
         </div>
+
+        {/* Markup Configuration - Hidden in client view */}
+        {!isClientView && (
+          <div className="mb-8">
+            <MarkupConfiguration
+              shipmentData={shipmentData}
+              analysisId={currentAnalysisId}
+              onMarkupChange={setMarkupData}
+              initialMarkupData={markupData}
+            />
+          </div>
+        )}
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
@@ -1340,79 +1345,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   )}
                 </CardTitle>
                 <CardDescription>
-                  {filteredStats.totalShipments} shipments selected out of {shipmentData.length} total shipments
+                  {filteredData.length} shipments selected out of {shipmentData.length} total shipments
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-                  <Card className="border-l-4 border-l-purple-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <Target className="h-8 w-8 text-purple-500" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Current Cost</p>
-                          <p className="text-2xl font-bold">{formatCurrency(filteredStats.totalCurrentCost)}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-l-4 border-l-blue-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <Zap className="h-8 w-8 text-blue-500" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Ship Pros Cost</p>
-                          <p className="text-2xl font-bold text-primary">{formatCurrency(filteredStats.totalShipProsCost)}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-l-4 border-l-green-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <DollarSign className="h-8 w-8 text-green-500" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Savings ($)</p>
-                          <p className={cn("text-2xl font-bold", getSavingsColor(filteredStats.totalSavings))}>{formatCurrency(filteredStats.totalSavings)}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-l-4 border-l-orange-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <TrendingUp className="h-8 w-8 text-orange-500" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Savings (%)</p>
-                          <p className={cn("text-2xl font-bold", getSavingsColor(filteredStats.totalSavings))}>{formatPercentage(filteredStats.averageSavingsPercent)}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card className="border-l-4 border-l-green-500">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <Calendar className="h-8 w-8 text-green-500" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Estimated Annual Savings</p>
-                          <p className={cn("text-2xl font-bold", getSavingsColor((filteredStats.totalSavings * 365) / snapshotDays))}>{formatCurrency((filteredStats.totalSavings * 365) / snapshotDays)}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </CardContent>
             </Card>
-
-            {/* Markup Configuration Section */}
-            {!isClientView && (
-              <MarkupConfiguration
-                shipmentData={shipmentData}
-                analysisId={currentAnalysisId}
-                onMarkupChange={setMarkupData}
-                initialMarkupData={markupData}
-              />
-            )}
 
             {/* Service Analysis Table */}
             <Card>
@@ -1566,7 +1502,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
-                          data={serviceChartData}
+                          data={generateServiceChartData()}
                           cx="50%"
                           cy="50%"
                           labelLine={false}
@@ -1578,8 +1514,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           fill="#8884d8"
                           dataKey="value"
                         >
-                          {serviceChartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                          {generateServiceChartData().map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'][index % 8]} />
                           ))}
                         </Pie>
                         <Tooltip />
@@ -1613,7 +1549,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   </div>
                   <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={serviceCostData} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
+                      <BarChart data={generateServiceCostData()} margin={{ top: 5, right: 5, left: 5, bottom: 60 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
                          <XAxis 
                            dataKey="currentService" 
@@ -1632,7 +1568,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                          <Tooltip 
                            formatter={(value, name) => [formatCurrency(Number(value)), name]} 
                            labelFormatter={(label) => {
-                             const item = serviceCostData.find(d => d.currentService === label);
+                             const item = generateServiceCostData().find(d => d.currentService === label);
                              return item ? `${item.currentService} → ${item.shipProsService}` : label;
                            }}
                            contentStyle={{
@@ -1644,7 +1580,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                          />
                          <Bar dataKey="currentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
                          <Bar dataKey="newCost" name="Ship Pros Cost" radius={[2, 2, 0, 0]}>
-                           {serviceCostData.map((entry, index) => (
+                           {generateServiceCostData().map((entry, index) => (
                              <Cell key={`cell-${index}`} fill={entry.newCostColor} />
                            ))}
                          </Bar>
@@ -2007,9 +1943,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             </Card>
           </TabsContent>
         </Tabs>
-        </div>
-      </Layout>
-    );
+      </div>
+    </Layout>
+  );
 };
 
 export default Results;

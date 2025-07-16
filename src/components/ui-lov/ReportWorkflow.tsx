@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui-lov/Button';
 import { ChevronLeft, ChevronRight, Check, Upload, Settings, BarChart3, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { IntelligentColumnMapper } from '@/components/ui-lov/IntelligentColumnMapper';
@@ -77,27 +77,38 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
     try {
       // Parse CSV data if available
       if (report.raw_csv_data) {
+        console.log('Parsing CSV data...');
         const parsed = parseCSV(report.raw_csv_data);
+        console.log('CSV parsed successfully:', { 
+          dataLength: parsed.data.length, 
+          headers: parsed.headers 
+        });
         setCsvData(parsed.data);
         setCsvHeaders(parsed.headers);
+      } else {
+        console.warn('No raw CSV data available in report');
       }
 
       // Load existing mappings
-      if (report.header_mappings) {
+      if (report.header_mappings && typeof report.header_mappings === 'object') {
+        console.log('Loading existing header mappings:', report.header_mappings);
         setFieldMappings(report.header_mappings);
       }
 
       // Load existing service mappings
-      if (report.service_mappings) {
+      if (report.service_mappings && Array.isArray(report.service_mappings)) {
+        console.log('Loading existing service mappings:', report.service_mappings);
         setServiceMappings(report.service_mappings);
       }
 
       // Load analysis results
-      if (report.analysis_results) {
+      if (report.analysis_results && typeof report.analysis_results === 'object') {
+        console.log('Loading existing analysis results:', report.analysis_results);
         setAnalysisResults(report.analysis_results);
       }
     } catch (error) {
       console.error('Error initializing section data:', error);
+      toast.error('Failed to parse CSV data');
     }
   };
 
@@ -250,8 +261,13 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
           return (
             <div className="text-center py-12">
               <p className="text-lg text-muted-foreground mb-4">
-                Loading CSV data for header mapping...
+                {report?.raw_csv_data ? 'Processing CSV data...' : 'No CSV data available'}
               </p>
+              {!report?.raw_csv_data && (
+                <Button variant="outline" onClick={() => navigate('/upload')}>
+                  Upload CSV File
+                </Button>
+              )}
             </div>
           );
         }
@@ -265,6 +281,13 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
         );
 
       case 'service_mapping':
+        console.log('Service mapping section - checking prerequisites:', {
+          hasServiceMapping: !!fieldMappings.service,
+          serviceMappingValue: fieldMappings.service,
+          csvDataLength: csvData.length,
+          fieldMappings
+        });
+        
         if (!fieldMappings.service || !csvData.length) {
           return (
             <div className="text-center py-12">

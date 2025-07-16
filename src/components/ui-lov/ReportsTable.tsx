@@ -423,15 +423,19 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          className="h-8 w-8"
-                          title="Edit report"
-                          onClick={() => navigate(`/results?analysisId=${report.id}`)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                         <Button 
+                           variant="ghost" 
+                           size="icon"
+                           className="h-8 w-8"
+                           title="Edit report"
+                           onClick={(e) => {
+                             e.preventDefault();
+                             e.stopPropagation();
+                             navigate(`/results?analysisId=${report.id}`);
+                           }}
+                         >
+                           <Edit className="h-4 w-4" />
+                         </Button>
                        <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button 

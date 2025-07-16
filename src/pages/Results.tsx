@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useParams, useSearchParams, Link } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { ClientLayout } from '@/components/layout/ClientLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
@@ -21,22 +22,19 @@ import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfi
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
+import { 
+  processNormalViewData, 
+  processClientViewData, 
+  formatShipmentData, 
+  handleDataProcessingError,
+  generateExportData,
+  validateShipmentData,
+  ProcessedAnalysisData,
+  ProcessedShipmentData 
+} from '@/utils/dataProcessing';
 
-interface AnalysisData {
-  totalCurrentCost: number;
-  totalPotentialSavings: number;
-  recommendations: any[];
-  savingsPercentage: number;
-  totalShipments: number;
-  analyzedShipments: number;
-  orphanedShipments?: any[];
-  completedShipments?: number;
-  errorShipments?: number;
-  averageSavingsPercent?: number;
-  file_name?: string;
-  report_name?: string;
-  client_id?: string;
-}
+// Use the standardized interface from dataProcessing utils
+type AnalysisData = ProcessedAnalysisData;
 
 // Custom slider component for All/Wins/Losses
 const ResultFilter = ({ value, onChange }: { value: 'all' | 'wins' | 'losses', onChange: (value: 'all' | 'wins' | 'losses') => void }) => {
@@ -77,7 +75,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const params = useParams();
   const [searchParams] = useSearchParams();
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
-  const [shipmentData, setShipmentData] = useState<any[]>([]);
+  const [shipmentData, setShipmentData] = useState<ProcessedShipmentData[]>([]);
   const [orphanedData, setOrphanedData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filteredData, setFilteredData] = useState<any[]>([]);
@@ -139,7 +137,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
 
     try {
-      // Generate unique name based on file name
       const baseName = analysisData.file_name || 'Untitled Analysis';
       const uniqueFileName = await generateUniqueFileName(baseName);
 
@@ -147,7 +144,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         user_id: user.id,
         file_name: uniqueFileName,
         total_shipments: analysisData.totalShipments,
-        total_savings: Math.max(0, analysisData.totalPotentialSavings || 0), // Ensure non-negative
+        total_savings: Math.max(0, analysisData.totalPotentialSavings || 0),
         status: 'completed',
         original_data: analysisData.recommendations as any,
         recommendations: analysisData.recommendations as any,
@@ -163,11 +160,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       if (error) throw error;
       
       setCurrentAnalysisId(data.id);
-      
-      if (!isManualSave) {
-        console.log('Analysis auto-saved with name:', uniqueFileName);
-      }
-      
       return data.id;
     } catch (error) {
       console.error('Error saving analysis:', error);
@@ -217,24 +209,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
   // Export functionality
   const exportToCSV = () => {
-    const csvData = filteredData.map(item => {
-      const markupInfo = getShipmentMarkup(item);
-      const savings = item.currentRate - markupInfo.markedUpPrice;
-      const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
-      return {
-        'Tracking ID': item.trackingId,
-        'Origin ZIP': item.originZip,
-        'Destination ZIP': item.destinationZip,
-        'Weight': item.weight,
-        'Carrier': item.carrier,
-        'Service': item.service,
-        'Current Rate': formatCurrency(item.currentRate),
-        'Ship Pros Cost': formatCurrency(markupInfo.markedUpPrice),
-        'Savings': formatCurrency(savings),
-        'Savings Percentage': formatPercentage(savingsPercent)
-      };
-    });
-
+    const csvData = generateExportData(filteredData, getShipmentMarkup);
     const csvContent = [
       Object.keys(csvData[0]).join(','),
       ...csvData.map(row => Object.values(row).join(','))
@@ -255,86 +230,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     const loadAnalysisData = async () => {
       try {
         if (isClientView && shareToken) {
-          console.log('🔍 Client view loading with shareToken:', shareToken);
-          
           // Load shared report for client view
           const sharedData = await getSharedReport(shareToken);
-          console.log('📊 Shared data loaded:', sharedData);
-          
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
-          console.log('📈 Analysis data:', analysis);
+          const processedData = processClientViewData(analysis);
           
-          // Check if we have savings_analysis or need to fall back to original_data
-          const savingsAnalysis = analysis.savings_analysis as any;
-          const originalData = analysis.original_data as any;
-          console.log('💰 Savings analysis:', savingsAnalysis);
-          console.log('📋 Original data:', originalData);
-          
-          // Calculate data from original_data if savings_analysis is not available
-          let totalCurrentCost = 0;
-          let totalPotentialSavings = 0;
-          let recommendations = [];
-          
-          if (savingsAnalysis) {
-            console.log('✅ Using savings analysis data');
-            totalCurrentCost = savingsAnalysis.totalCurrentCost || 0;
-            totalPotentialSavings = savingsAnalysis.totalPotentialSavings || analysis.total_savings || 0;
-            recommendations = savingsAnalysis.recommendations || [];
-          } else if (originalData && Array.isArray(originalData)) {
-            console.log('📊 Using original data, calculating totals');
-            // Calculate from original_data
-            recommendations = originalData;
-            totalCurrentCost = originalData.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
-            totalPotentialSavings = originalData.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
-          } else if (analysis.total_savings) {
-            console.log('💵 Using total_savings fallback');
-            // Fallback to just the total_savings
-            totalPotentialSavings = analysis.total_savings;
-            recommendations = [];
-          }
-          
-          console.log('📊 Final calculated data:', {
-            totalCurrentCost,
-            totalPotentialSavings,
-            recommendationsCount: recommendations.length,
-            totalShipments: analysis.total_shipments
-          });
-          
-          const processedData = {
-            totalCurrentCost,
-            totalPotentialSavings,
-            recommendations,
-            savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
-            totalShipments: analysis.total_shipments,
-            analyzedShipments: savingsAnalysis?.analyzedShipments || analysis.total_shipments,
-            completedShipments: savingsAnalysis?.completedShipments || recommendations.length,
-            errorShipments: savingsAnalysis?.errorShipments || 0,
-            file_name: analysis.file_name,
-            report_name: analysis.report_name,
-            client_id: analysis.client_id
-          };
-
-          console.log('🎯 Setting analysis data:', processedData);
           setAnalysisData(processedData);
           
-          // Also populate shipmentData for client view to prevent "No Analysis Results Found"
-          if (recommendations && recommendations.length > 0) {
-            const formattedShipmentData = recommendations.map((rec: any, index: number) => ({
-              id: index + 1,
-              trackingId: rec.shipment?.trackingId || rec.trackingId || `Shipment-${index + 1}`,
-              originZip: rec.shipment?.originZip || rec.originZip || '',
-              destinationZip: rec.shipment?.destZip || rec.destinationZip || '',
-              weight: parseFloat(rec.shipment?.weight || rec.weight || '0'),
-              carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-              service: rec.originalService || rec.service || 'Unknown',
-              currentRate: rec.currentCost || 0,
-              newRate: rec.recommendedCost || 0,
-              savings: rec.savings || 0,
-              savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
-            }));
-            console.log('📊 Setting shipment data for client view:', formattedShipmentData);
+          // Format shipment data if recommendations exist
+          if (processedData.recommendations && processedData.recommendations.length > 0) {
+            const formattedShipmentData = formatShipmentData(processedData.recommendations);
             setShipmentData(formattedShipmentData);
           }
           
@@ -349,65 +256,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           // Loading from Reports tab
           await loadFromDatabase(analysisIdFromQuery);
         } else if (state?.analysisComplete && state.analysisData) {
-          console.log('Using analysis data from navigation:', state.analysisData);
           setAnalysisData(state.analysisData);
           
-          // Auto-save the analysis after a short delay to ensure data is fully loaded
+          // Auto-save the analysis after a short delay
           setTimeout(() => {
             autoSaveAnalysis(false);
           }, 1000);
           
-      const formattedData = state.analysisData.recommendations.map((rec: any, index: number) => ({
-        id: index + 1,
-        trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
-        originZip: rec.shipment.originZip,
-        destinationZip: rec.shipment.destZip,
-        weight: parseFloat(rec.shipment.weight || '0'),
-        carrier: rec.shipment.carrier || rec.carrier || 'Unknown',
-        service: rec.originalService || rec.shipment.service,
-        currentRate: rec.currentCost,
-        newRate: rec.recommendedCost,
-        savings: rec.savings,
-        savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
-      }));
+          // Process the recommendations using the utility function
+          const processedData = processNormalViewData(state.analysisData.recommendations);
           
-          // Separate valid shipments from orphaned ones based on data completeness
-          const validShipments: any[] = [];
-          const orphanedShipments: any[] = [];
-          
-          state.analysisData.recommendations.forEach((rec: any, index: number) => {
-            const shipmentData = rec.shipment || rec;
-            const validation = validateShipmentData(shipmentData);
-            
-            const formattedShipment = {
-              id: index + 1,
-              trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
-              originZip: shipmentData.originZip || '',
-              destinationZip: shipmentData.destZip || '',
-              weight: parseFloat(shipmentData.weight || '0'),
-              carrier: shipmentData.carrier || rec.carrier || 'Unknown',
-              service: rec.originalService || shipmentData.service || '',
-              currentRate: rec.currentCost || 0,
-              newRate: rec.recommendedCost || 0,
-              savings: rec.savings || 0,
-              savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
-            };
-            
-            // Check if shipment has explicit error status OR missing data
-            if (rec.status === 'error' || rec.error || !validation.isValid) {
-              orphanedShipments.push({
-                ...formattedShipment,
-                error: rec.error || `Missing required data: ${validation.missingFields.join(', ')}`,
-                errorType: rec.errorType || validation.errorType,
-                missingFields: validation.missingFields
-              });
-            } else {
-              validShipments.push(formattedShipment);
-            }
-          });
-          
-          setShipmentData(validShipments);
-          setOrphanedData(orphanedShipments);
+          setShipmentData(formatShipmentData(processedData.recommendations));
+          setOrphanedData(processedData.orphanedShipments || []);
           
           // Also handle orphans from analysisData if available
           if (state.analysisData.orphanedShipments && state.analysisData.orphanedShipments.length > 0) {
@@ -442,14 +302,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         } else {
           await loadMostRecentAnalysis();
         }
-      } catch (error) {
-        console.error('❌ Error loading analysis data:', error);
-        if (isClientView) {
-          console.error('❌ Client view error details:', error);
-          setError('Failed to load shared report. The link may be invalid or expired.');
-        } else {
-          setError('Failed to load analysis results');
-        }
+        } catch (error) {
+        handleDataProcessingError(error, isClientView ? 'client view' : 'normal view');
         setLoading(false);
       }
     };
@@ -2129,9 +1983,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </DashboardLayout>
-  );
+        </div>
+      </Layout>
+    );
+  };
 };
 
 export default Results;

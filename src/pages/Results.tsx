@@ -1158,10 +1158,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         )}
 
         {/* Header Section */}
-        <div className="mb-8">
+        <div className="mb-12">
           {/* Navigation buttons - Hidden in client view */}
           {!isClientView && (
-            <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-4 mb-8">
               {(searchParams.get('analysisId') || currentAnalysisId) && (
                 <Link to="/reports">
                   <Button
@@ -1173,20 +1173,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   </Button>
                 </Link>
               )}
-              <Button
-                variant="outline"
-                onClick={() => navigate('/upload')}
-                className="flex items-center gap-2"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to Upload
-              </Button>
             </div>
           )}
 
-          <div className="space-y-4">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-2">
+          <div className="space-y-8">
+            <div className="space-y-6">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                 {isClientView ? (
                   analysisData?.report_name || analysisData?.file_name || 'Untitled Report'
                 ) : (
@@ -1217,8 +1209,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               </h1>
               
               {!isClientView && (
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">Client:</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-muted-foreground font-medium">Client:</span>
                   <div className="min-w-[200px]">
                     <ClientCombobox
                       value={analysisData?.client_id || ''}
@@ -1246,17 +1238,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 </div>
               )}
               
-              <div className="text-muted-foreground">
+              <div className="text-muted-foreground text-lg">
                 {analysisData.totalShipments} shipments analyzed
               </div>
             </div>
-            <div className="flex gap-3">
-              {!isClientView && (
-                <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
-                  <Home className="h-4 w-4 mr-2" />
-                  Dashboard
-                </Button>
-              )}
+            
+            <div className="flex gap-4">
               <Button variant="outline" size="sm" onClick={exportToCSV}>
                 <Download className="h-4 w-4 mr-2" />
                 Export Report

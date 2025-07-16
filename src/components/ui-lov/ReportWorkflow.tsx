@@ -340,6 +340,14 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
           </div>
         );
 
+      default:
+        return (
+          <div className="text-center py-12">
+            <p className="text-lg text-muted-foreground mb-4">
+              Unknown section
+            </p>
+          </div>
+        );
     }
   };
 

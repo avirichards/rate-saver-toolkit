@@ -14,7 +14,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ReportsTable } from '@/components/ui-lov/ReportsTable';
 import { GroupedReportsView } from '@/components/ui-lov/GroupedReportsView';
-import { MigrationProgressIndicator } from '@/components/ui-lov/MigrationProgressIndicator';
 import { migrateAllLegacyAnalyses } from '@/utils/migrateLegacyAnalyses';
 import { toast } from 'sonner';
 
@@ -239,10 +238,6 @@ const ReportsPage = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-1">Reports</h1>
           <p className="text-muted-foreground">View and manage your saved shipping analyses</p>
-        </div>
-
-        <div className="mb-6">
-          <MigrationProgressIndicator onRefresh={loadReports} />
         </div>
 
         <Card>

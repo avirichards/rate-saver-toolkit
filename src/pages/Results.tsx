@@ -717,6 +717,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
     
     // Update UI state
+    console.log('🔍 SETTING ORPHANED DATA:', {
+      orphanedCount: orphanedShipments.length,
+      validCount: validShipments.length,
+      orphanedItems: orphanedShipments.map(o => ({ trackingId: o.trackingId, error: o.error }))
+    });
     setShipmentData(validShipments);
     setOrphanedData(orphanedShipments);
     

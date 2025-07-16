@@ -131,7 +131,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   };
 
   // Function to auto-save analysis data to database - prevent duplicate saves
+  // Skip auto-save in client view mode
   const autoSaveAnalysis = async (isManualSave = false) => {
+    // Don't auto-save in client view mode
+    if (isClientView) {
+      console.log('⚠️ Auto-save skipped: Client view mode');
+      return null;
+    }
     // Prevent multiple saves of the same analysis
     if (!analysisData || currentAnalysisId) {
       console.log('⚠️ Auto-save skipped:', { 
@@ -342,7 +348,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
   // Auto-save effect - triggers when analysis data is loaded and user is authenticated
   // IMPORTANT: Only auto-save ONCE per analysis to prevent duplicates
+  // SKIP auto-save in client view mode
   useEffect(() => {
+    // Don't auto-save in client view mode
+    if (isClientView) return;
+    
     const performAutoSave = async () => {
       // Only auto-save if we have analysis data but no current analysis ID (not already saved)
       if (analysisData && !currentAnalysisId) {
@@ -368,7 +378,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         return () => clearTimeout(timer);
       }
     }
-  }, [analysisData, currentAnalysisId]);
+  }, [analysisData, currentAnalysisId, isClientView]);
 
   // Load clients on component mount
   useEffect(() => {
@@ -676,8 +686,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     
     console.log('📊 FINAL DATA INTEGRITY REPORT:', dataIntegrityLog);
     
-    // Critical data integrity validation
-    if (dataIntegrityLog.missingShipments > 0) {
+    // Critical data integrity validation (skip warnings in client view)
+    if (dataIntegrityLog.missingShipments > 0 && !isClientView) {
       console.error('🚨 DATA INTEGRITY ERROR: Missing shipments detected!', {
         expected: dataIntegrityLog.expectedShipments,
         processed: dataIntegrityLog.processedShipments,

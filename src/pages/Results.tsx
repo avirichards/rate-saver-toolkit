@@ -21,7 +21,6 @@ import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfi
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
-import { getSharedReport, updateViewCount } from '@/utils/shareUtils';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -255,6 +254,33 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   useEffect(() => {
     const loadAnalysisData = async () => {
       try {
+        if (isClientView && shareToken) {
+          // Load shared report for client view
+          const sharedData = await getSharedReport(shareToken);
+          await updateViewCount(shareToken);
+
+          const analysis = sharedData.shipping_analyses;
+          
+          // Process the analysis data similar to the normal flow
+          const processedData = {
+            totalCurrentCost: 0,
+            totalPotentialSavings: analysis.total_savings || 0,
+            recommendations: Array.isArray(analysis.original_data) ? analysis.original_data : [],
+            savingsPercentage: 0,
+            totalShipments: analysis.total_shipments,
+            analyzedShipments: 0,
+            completedShipments: 0,
+            errorShipments: 0,
+            file_name: analysis.file_name,
+            report_name: analysis.report_name,
+            client_id: analysis.client_id
+          };
+
+          setAnalysisData(processedData);
+          setLoading(false);
+          return;
+        }
+        
         const state = location.state as { analysisComplete?: boolean; analysisData?: AnalysisData } | null;
         const analysisIdFromQuery = searchParams.get('analysisId');
         
@@ -363,7 +389,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     };
 
     loadAnalysisData();
-  }, [location, params.id, searchParams]);
+  }, [location, params.id, searchParams, isClientView, shareToken]);
 
   // Auto-save effect - triggers when analysis data is loaded and user is authenticated
   useEffect(() => {

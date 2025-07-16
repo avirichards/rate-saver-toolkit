@@ -7,6 +7,8 @@ import { ChevronLeft, ChevronRight, Check, Upload, Settings, BarChart3, FileText
 import { cn } from '@/lib/utils';
 import { IntelligentColumnMapper } from '@/components/ui-lov/IntelligentColumnMapper';
 import { ServiceMappingReview } from '@/components/ui-lov/ServiceMappingReview';
+import { AnalysisSection } from '@/components/ui-lov/AnalysisSection';
+import { ResultsSection } from '@/components/ui-lov/ResultsSection';
 import { parseCSV, type ServiceMapping } from '@/utils/csvParser';
 import { toast } from 'sonner';
 
@@ -324,31 +326,14 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
           );
         }
         
-        // Navigate to the full Analysis page with state
-        const analysisState = {
-          readyForAnalysis: true,
-          csvData: csvData,
-          mappings: fieldMappings,
-          serviceMappings: serviceMappings,
-          fileName: report?.raw_csv_filename || 'Report Data',
-          reportId: report?.id
-        };
-        
-        return (
-          <div className="text-center py-12">
-            <p className="text-lg font-semibold mb-4">Ready to Run Analysis</p>
-            <p className="text-muted-foreground mb-6">
-              Your data is mapped and ready for UPS rate analysis.
-            </p>
-            <Button 
-              onClick={() => navigate('/analysis', { state: analysisState })}
-              className="flex items-center gap-2"
-            >
-              Start Rate Analysis
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        );
+        // Run analysis directly in the workflow
+        return <AnalysisSection 
+          csvData={csvData}
+          fieldMappings={fieldMappings}
+          serviceMappings={serviceMappings}
+          reportId={report?.id}
+          onAnalysisComplete={handleAnalysisComplete}
+        />;
 
       case 'results':
         if (!analysisResults) {
@@ -364,27 +349,11 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
           );
         }
         
-        // Navigate to the full Results page
-        return (
-          <div className="text-center py-12">
-            <p className="text-lg font-semibold mb-4">Analysis Complete!</p>
-            <p className="text-muted-foreground mb-6">
-              View your detailed shipping analysis results.
-            </p>
-            <Button 
-              onClick={() => navigate('/results', { 
-                state: { 
-                  analysisComplete: true, 
-                  analysisData: analysisResults 
-                } 
-              })}
-              className="flex items-center gap-2"
-            >
-              View Results
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        );
+        // Show results directly in the workflow
+        return <ResultsSection 
+          analysisResults={analysisResults}
+          reportId={report?.id}
+        />;
 
       default:
         return (
@@ -516,9 +485,9 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
           </CardContent>
         </Card>
 
-        {/* Navigation - Only show at bottom */}
-        {currentSectionIndex < SECTIONS.length - 1 && (
-          <div className="flex justify-end mt-8">
+        {/* Single Continue button - always show */}
+        <div className="flex justify-end mt-8">
+          {currentSectionIndex < SECTIONS.length - 1 ? (
             <Button
               onClick={goToNextSection}
               disabled={!isSectionCompleted(currentSection.id)}
@@ -527,8 +496,16 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
               Continue
               <ChevronRight className="h-4 w-4" />
             </Button>
-          </div>
-        )}
+          ) : (
+            <Button
+              onClick={() => navigate('/reports')}
+              className="flex items-center gap-2"
+            >
+              Back to Reports
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -44,7 +44,7 @@ const App = () => (
               <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
               <Route path="/mapping" element={<ProtectedRoute><Mapping /></ProtectedRoute>} />
               <Route path="/service-mapping" element={<ProtectedRoute><ServiceMapping /></ProtectedRoute>} />
-              <Route path="/analysis" element={<ProtectedRoute><Analysis /></ProtectedRoute>} />
+              
               <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
               <Route path="/report/:id" element={<ProtectedRoute><ReportWorkflow /></ProtectedRoute>} />

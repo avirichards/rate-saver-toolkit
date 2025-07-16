@@ -31,15 +31,9 @@ export function AppSidebar() {
       icon: LayoutDashboard,
     },
     {
-      title: 'Analysis',
+      title: 'New Analysis',
       path: '/upload',
       icon: BarChart3,
-      children: [
-        { title: 'Upload Data', path: '/upload' },
-        { title: 'Map Columns', path: '/mapping' },
-        { title: 'Process Data', path: '/analysis' },
-        { title: 'View Results', path: '/results' },
-      ]
     },
     {
       title: 'Reports',

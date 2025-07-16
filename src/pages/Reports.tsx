@@ -214,10 +214,8 @@ const ReportsPage = () => {
                 </Button>
               </div>
               <Link to="/upload">
-                <Button 
-                  variant="primary" 
-                  iconLeft={<FileBarChart className="h-4 w-4" />}
-                >
+                <Button>
+                  <FileBarChart className="h-4 w-4 mr-2" />
                   New Analysis
                 </Button>
               </Link>
@@ -254,7 +252,7 @@ const ReportsPage = () => {
                     <h3 className="text-lg font-medium mb-2">No reports found</h3>
                     <p className="text-muted-foreground mb-4">Create your first shipping analysis to see reports here.</p>
                     <Link to="/upload">
-                      <Button variant="primary">
+                      <Button>
                         <FileBarChart className="h-4 w-4 mr-2" />
                         New Analysis
                       </Button>

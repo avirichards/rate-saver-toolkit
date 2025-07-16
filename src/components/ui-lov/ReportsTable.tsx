@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Download, Edit, DollarSign, Percent, Trash2, Clipboard, Eye } from 'lucide-react';
+import { Download, Edit, DollarSign, Percent, Trash2, Clipboard, Eye, Link } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
@@ -242,7 +242,8 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
           </span>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="secondary" size="sm" iconLeft={<Trash2 className="h-4 w-4" />} className="text-destructive hover:text-destructive">
+              <Button variant="secondary" size="sm" className="text-destructive hover:text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
                 Delete Selected
               </Button>
             </AlertDialogTrigger>

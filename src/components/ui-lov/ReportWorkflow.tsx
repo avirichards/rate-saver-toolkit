@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
 import { ChevronLeft, ChevronRight, Check, Upload, Settings, BarChart3, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -324,16 +324,28 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
           );
         }
         
+        // Navigate to the full Analysis page with state
+        const analysisState = {
+          readyForAnalysis: true,
+          csvData: csvData,
+          mappings: fieldMappings,
+          serviceMappings: serviceMappings,
+          fileName: report?.raw_csv_filename || 'Report Data',
+          reportId: report?.id
+        };
+        
         return (
           <div className="text-center py-12">
-            <p className="text-lg text-muted-foreground mb-4">
-              Analysis functionality will be integrated here.
+            <p className="text-lg font-semibold mb-4">Ready to Run Analysis</p>
+            <p className="text-muted-foreground mb-6">
+              Your data is mapped and ready for UPS rate analysis.
             </p>
-            <p className="text-sm text-muted-foreground mb-6">
-              This will include the full Analysis page logic with UPS rate processing.
-            </p>
-            <Button onClick={() => handleAnalysisComplete({ status: 'completed' })}>
-              Skip to Results (Demo)
+            <Button 
+              onClick={() => navigate('/analysis', { state: analysisState })}
+              className="flex items-center gap-2"
+            >
+              Start Rate Analysis
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
         );
@@ -352,14 +364,25 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
           );
         }
         
+        // Navigate to the full Results page
         return (
           <div className="text-center py-12">
-            <p className="text-lg text-muted-foreground mb-4">
-              Results functionality will be integrated here.
+            <p className="text-lg font-semibold mb-4">Analysis Complete!</p>
+            <p className="text-muted-foreground mb-6">
+              View your detailed shipping analysis results.
             </p>
-            <p className="text-sm text-muted-foreground mb-6">
-              This will include the full Results page with charts, savings analysis, and export capabilities.
-            </p>
+            <Button 
+              onClick={() => navigate('/results', { 
+                state: { 
+                  analysisComplete: true, 
+                  analysisData: analysisResults 
+                } 
+              })}
+              className="flex items-center gap-2"
+            >
+              View Results
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
         );
 
@@ -493,26 +516,19 @@ export const ReportWorkflow: React.FC<ReportWorkflowProps> = ({ reportId }) => {
           </CardContent>
         </Card>
 
-        {/* Navigation */}
-        <div className="flex justify-between mt-8">
-          <Button
-            variant="outline"
-            onClick={goToPreviousSection}
-            disabled={currentSectionIndex === 0}
-            className="flex items-center gap-2"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous
-          </Button>
-          <Button
-            onClick={goToNextSection}
-            disabled={currentSectionIndex === SECTIONS.length - 1}
-            className="flex items-center gap-2"
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+        {/* Navigation - Only show at bottom */}
+        {currentSectionIndex < SECTIONS.length - 1 && (
+          <div className="flex justify-end mt-8">
+            <Button
+              onClick={goToNextSection}
+              disabled={!isSectionCompleted(currentSection.id)}
+              className="flex items-center gap-2"
+            >
+              Continue
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

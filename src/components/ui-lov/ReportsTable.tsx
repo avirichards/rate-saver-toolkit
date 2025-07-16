@@ -69,7 +69,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedReports(new Set(reports.map(r => r.id)));
+      setSelectedReports(new Set(localReports.map(r => r.id)));
     } else {
       setSelectedReports(new Set());
     }
@@ -230,8 +230,8 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
     return { completed: report.total_shipments || 0, total: report.total_shipments || 0 };
   };
 
-  const isAllSelected = selectedReports.size === reports.length && reports.length > 0;
-  const isSomeSelected = selectedReports.size > 0 && selectedReports.size < reports.length;
+  const isAllSelected = selectedReports.size === localReports.length && localReports.length > 0;
+  const isSomeSelected = selectedReports.size > 0 && selectedReports.size < localReports.length;
 
   return (
     <div className="space-y-4">

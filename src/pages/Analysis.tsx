@@ -403,6 +403,30 @@ const Analysis = () => {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
+      // Wait for all state updates to complete before saving
+      console.log('⏳ Waiting for state synchronization before saving...');
+      console.log('🔍 Current state before wait:', {
+        analysisResultsCount: analysisResults.length,
+        statusCounts: {
+          pending: analysisResults.filter(r => r.status === 'pending').length,
+          processing: analysisResults.filter(r => r.status === 'processing').length,
+          completed: analysisResults.filter(r => r.status === 'completed').length,
+          error: analysisResults.filter(r => r.status === 'error').length
+        }
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Give React time to update state
+      
+      console.log('🔍 Current state after wait:', {
+        analysisResultsCount: analysisResults.length,
+        statusCounts: {
+          pending: analysisResults.filter(r => r.status === 'pending').length,
+          processing: analysisResults.filter(r => r.status === 'processing').length,
+          completed: analysisResults.filter(r => r.status === 'completed').length,
+          error: analysisResults.filter(r => r.status === 'error').length
+        }
+      });
+      
       // Only mark complete if we processed all shipments and weren't paused
       if (!isPaused) {
         console.log('✅ Analysis complete, saving to database');

@@ -41,9 +41,9 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/share/:shareToken" element={<ClientResults />} />
               <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
-              <Route path="/mapping" element={<ProtectedRoute><Mapping /></ProtectedRoute>} />
-              <Route path="/service-mapping" element={<ProtectedRoute><ServiceMapping /></ProtectedRoute>} />
+              <Route path="/upload" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/mapping" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/service-mapping" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
               
               <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />

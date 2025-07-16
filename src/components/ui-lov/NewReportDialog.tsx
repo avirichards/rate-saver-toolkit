@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Upload, Plus } from 'lucide-react';
+import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 
 interface NewReportDialogProps {
   onReportCreated?: () => void;
@@ -26,6 +27,7 @@ export const NewReportDialog: React.FC<NewReportDialogProps> = ({ onReportCreate
   const [loading, setLoading] = useState(false);
   const [reportName, setReportName] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState('');
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -85,7 +87,8 @@ export const NewReportDialog: React.FC<NewReportDialogProps> = ({ onReportCreate
           total_rows: rowCount,
           detected_headers: headers,
           current_section: 'header_mapping',
-          sections_completed: []
+          sections_completed: [],
+          client_id: selectedClientId || null
         })
         .select()
         .single();
@@ -116,6 +119,7 @@ export const NewReportDialog: React.FC<NewReportDialogProps> = ({ onReportCreate
   const resetForm = () => {
     setReportName('');
     setFile(null);
+    setSelectedClientId('');
   };
 
   return (
@@ -126,26 +130,37 @@ export const NewReportDialog: React.FC<NewReportDialogProps> = ({ onReportCreate
       <DialogTrigger asChild>
         <Button className="flex items-center gap-2">
           <Plus className="h-4 w-4" />
-          New Analysis
+          New Report
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Create New Analysis</DialogTitle>
+          <DialogTitle>Create New Report</DialogTitle>
           <DialogDescription>
-            Upload a CSV file and give your analysis a name to get started.
+            Upload a CSV file and provide report details to get started.
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4">
           {/* Report Name */}
           <div className="space-y-2">
-            <Label htmlFor="report-name">Analysis Name</Label>
+            <Label htmlFor="report-name">Report Name</Label>
             <Input
               id="report-name"
               value={reportName}
               onChange={(e) => setReportName(e.target.value)}
-              placeholder="Enter analysis name..."
+              placeholder="Enter report name..."
+              disabled={loading}
+            />
+          </div>
+
+          {/* Client Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="client-select">Client (Optional)</Label>
+            <ClientCombobox
+              value={selectedClientId}
+              onValueChange={setSelectedClientId}
+              placeholder="Select or create client"
               disabled={loading}
             />
           </div>
@@ -196,7 +211,7 @@ export const NewReportDialog: React.FC<NewReportDialogProps> = ({ onReportCreate
               onClick={createReport}
               disabled={loading || !file || !reportName.trim()}
             >
-              {loading ? "Creating..." : "Create Analysis"}
+              {loading ? "Creating..." : "Create Report"}
             </Button>
           </div>
         </div>

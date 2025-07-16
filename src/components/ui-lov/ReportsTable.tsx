@@ -212,19 +212,16 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
     event?.stopPropagation();
     
     try {
-      console.log('🔍 Creating share for report:', reportId);
       const shareData = await getOrCreateReportShare(reportId);
-      console.log('📊 Share data received:', shareData);
       
       if (!shareData) {
         throw new Error('Failed to create share link');
       }
 
       const shareUrl = getShareUrl(shareData.shareToken);
-      console.log('🔗 Generated share URL:', shareUrl);
       window.open(shareUrl, '_blank');
     } catch (error) {
-      console.error('❌ Error opening preview:', error);
+      console.error('Error opening preview:', error);
       toast.error('Failed to open preview: ' + (error as Error).message);
     }
   };
@@ -350,11 +347,11 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
             </tr>
           </thead>
           <tbody>
-            {localReports.map((report) => {
-              const markupStatus = getMarkupStatus(report.markup_data);
-              const isSelected = selectedReports.has(report.id);
-              return (
-                <tr key={report.id} className="border-b hover:bg-muted/50">
+             {localReports.map((report, index) => {
+               const markupStatus = getMarkupStatus(report.markup_data);
+               const isSelected = selectedReports.has(report.id);
+               return (
+                 <tr key={`${report.id}-${index}`} className="border-b hover:bg-muted/50">
                   <td className="py-3 px-2">
                     <Checkbox
                       checked={isSelected}

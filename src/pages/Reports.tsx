@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { FileBarChart, Filter, Search, TrendingUp, TrendingDown, Percent, DollarSign, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { NewReportDialog } from '@/components/ui-lov/NewReportDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Switch } from '@/components/ui/switch';
@@ -53,7 +54,7 @@ const ReportsPage = () => {
   const loadReports = async () => {
     try {
       setLoading(true);
-      console.log('📊 REPORTS: Loading reports for user:', user?.id);
+      
       
       // Query both tables to get all reports (both old shipping_analyses and new reports)
       const [shipmentsData, reportsData] = await Promise.all([
@@ -126,11 +127,6 @@ const ReportsPage = () => {
       // Combine both sources, with newer reports first
       const allReports = [...newReports, ...legacyReports];
       
-      console.log('Loaded reports:', {
-        legacy: legacyReports.length,
-        new: newReports.length,
-        total: allReports.length
-      });
 
       setReports(allReports as any);
     } catch (error) {
@@ -242,12 +238,7 @@ const ReportsPage = () => {
                   <Filter className="h-4 w-4" />
                 </Button>
               </div>
-              <Link to="/upload">
-                <Button>
-                  <FileBarChart className="h-4 w-4 mr-2" />
-                  New Report
-                </Button>
-              </Link>
+              <NewReportDialog onReportCreated={loadReports} />
             </div>
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -280,12 +271,7 @@ const ReportsPage = () => {
                     <FileBarChart className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">No reports found</h3>
                     <p className="text-muted-foreground mb-4">Create your first shipping report to see data here.</p>
-                    <Link to="/upload">
-                      <Button>
-                        <FileBarChart className="h-4 w-4 mr-2" />
-                        New Report
-                      </Button>
-                    </Link>
+                    <NewReportDialog onReportCreated={loadReports} />
                   </div>
                 ) : groupByClient ? (
                   <GroupedReportsView

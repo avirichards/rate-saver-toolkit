@@ -1,8 +1,12 @@
 import React from 'react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
-import { Download, Eye, DollarSign, Percent } from 'lucide-react';
+import { Download, Edit, DollarSign, Percent } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
+import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface ShippingAnalysis {
   id: string;
@@ -29,9 +33,10 @@ interface ReportsTableProps {
     totalMargin: number;
     marginPercentage: number;
   };
+  onReportUpdate?: () => void;
 }
 
-export function ReportsTable({ reports, getMarkupStatus }: ReportsTableProps) {
+export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: ReportsTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
@@ -63,14 +68,45 @@ export function ReportsTable({ reports, getMarkupStatus }: ReportsTableProps) {
             return (
               <tr key={report.id} className="border-b hover:bg-muted/50">
                 <td className="py-3 px-2 font-medium">
-                  {report.report_name || report.file_name}
+                  <InlineEditableField
+                    value={report.report_name || report.file_name}
+                    onSave={async (value) => {
+                      const { error } = await supabase
+                        .from('shipping_analyses')
+                        .update({ 
+                          report_name: value,
+                          updated_at: new Date().toISOString()
+                        })
+                        .eq('id', report.id);
+                      
+                      if (error) throw error;
+                      toast.success('Report name updated');
+                      onReportUpdate?.();
+                    }}
+                    placeholder="Click to edit name"
+                    required
+                  />
                 </td>
                 <td className="py-3 px-2">
-                  {report.client?.company_name ? (
-                    <Badge variant="outline">{report.client.company_name}</Badge>
-                  ) : (
-                    <span className="text-muted-foreground text-xs">No client</span>
-                  )}
+                  <div className="min-w-[150px]">
+                    <ClientCombobox
+                      value={report.client_id || ''}
+                      onValueChange={async (clientId) => {
+                        const { error } = await supabase
+                          .from('shipping_analyses')
+                          .update({ 
+                            client_id: clientId || null,
+                            updated_at: new Date().toISOString()
+                          })
+                          .eq('id', report.id);
+                        
+                        if (error) throw error;
+                        toast.success('Client updated');
+                        onReportUpdate?.();
+                      }}
+                      placeholder="No client"
+                    />
+                  </div>
                 </td>
                 <td className="py-3 px-2">
                   {new Date(report.analysis_date).toLocaleDateString()}
@@ -120,8 +156,9 @@ export function ReportsTable({ reports, getMarkupStatus }: ReportsTableProps) {
                         variant="ghost" 
                         size="icon"
                         className="h-8 w-8"
+                        title="Edit report"
                       >
-                        <Eye className="h-4 w-4" />
+                        <Edit className="h-4 w-4" />
                       </Button>
                     </Link>
                   </div>

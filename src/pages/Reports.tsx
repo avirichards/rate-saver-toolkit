@@ -65,7 +65,8 @@ const ReportsPage = () => {
           status, 
           updated_at,
           report_name,
-          client_id
+          client_id,
+          client:clients(id, company_name)
         `)
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
@@ -233,10 +234,11 @@ const ReportsPage = () => {
                     getMarkupStatus={getMarkupStatus}
                   />
                 ) : (
-                  <ReportsTable
-                    reports={filteredReports}
-                    getMarkupStatus={getMarkupStatus}
-                  />
+              <ReportsTable 
+                reports={filteredReports} 
+                getMarkupStatus={getMarkupStatus}
+                onReportUpdate={loadReports}
+              />
                 )}
               </TabsContent>
               

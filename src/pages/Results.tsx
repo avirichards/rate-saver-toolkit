@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home, Save } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, ArrowDownRight, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, ArrowUpDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -17,7 +17,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
 import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfiguration';
-import { SaveReportDialog } from '@/components/ui-lov/SaveReportDialog';
+import { useAutoSave } from '@/hooks/useAutoSave';
+import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
+import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 
 interface AnalysisData {
   totalCurrentCost: number;
@@ -83,7 +85,7 @@ const Results = () => {
   const [error, setError] = useState<string | null>(null);
   const [markupData, setMarkupData] = useState<MarkupData | null>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
-  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [clients, setClients] = useState<any[]>([]);
   
   // Function to generate unique file name with numbering
   const generateUniqueFileName = async (baseName: string): Promise<string> => {
@@ -173,41 +175,18 @@ const Results = () => {
   // Legacy function for backward compatibility
   const saveAnalysisToDatabase = () => autoSaveAnalysis(true);
 
-  // Handle save report button click
-  const handleSaveReport = async () => {
-    console.log('=== SAVE REPORT CLICKED ===');
-    console.log('Current showSaveDialog state:', showSaveDialog);
-    console.log('Current analysis ID:', currentAnalysisId);
-    console.log('Analysis data exists:', !!analysisData);
-    
-    // Check if user is authenticated first
+  // Load clients for client assignment
+  const loadClients = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast.error('Please log in to save reports');
-      return;
-    }
-    
-    // Always try to open the dialog, ensure analysis is auto-saved if needed
-    let analysisIdToUse = currentAnalysisId;
-    
-    if (!analysisIdToUse && analysisData) {
-      console.log('Auto-saving analysis before opening dialog...');
-      analysisIdToUse = await autoSaveAnalysis(true);
-      console.log('Auto-save result:', analysisIdToUse);
-    }
-    
-    if (analysisIdToUse) {
-      console.log('Opening save dialog with analysis ID:', analysisIdToUse);
-      setCurrentAnalysisId(analysisIdToUse);
-      // Force the dialog to show by using a small timeout
-      setTimeout(() => {
-        setShowSaveDialog(true);
-        console.log('Dialog state set to true');
-      }, 100);
-    } else {
-      console.error('Failed to get analysis ID for saving');
-      toast.error('Failed to prepare analysis for saving');
-    }
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('clients')
+      .select('id, company_name')
+      .eq('user_id', user.id)
+      .order('company_name');
+
+    setClients(data || []);
   };
 
   // Calculate markup for individual shipment
@@ -401,6 +380,11 @@ const Results = () => {
       return () => clearTimeout(timer);
     }
   }, [analysisData, currentAnalysisId]);
+
+  // Load clients on component mount
+  useEffect(() => {
+    loadClients();
+  }, []);
 
   const loadFromDatabase = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1136,25 +1120,6 @@ const Results = () => {
           </div>
       </div>
 
-      {/* Save Report Dialog */}
-      <SaveReportDialog
-        open={showSaveDialog}
-        onOpenChange={setShowSaveDialog}
-        analysisId={currentAnalysisId || searchParams.get('analysisId') || ''}
-        currentReportName={analysisData?.report_name || analysisData?.file_name || ''}
-        currentClientId={analysisData?.client_id || ''}
-        onSaved={async () => {
-          // Reload analysis data to show updated status
-          const analysisId = searchParams.get('analysisId') || currentAnalysisId;
-          if (analysisId) {
-            try {
-              await loadFromDatabase(analysisId);
-            } catch (error) {
-              console.error('Error reloading analysis data:', error);
-            }
-          }
-        }}
-      />
     </DashboardLayout>
   );
 }
@@ -1226,22 +1191,71 @@ const Results = () => {
                 <ArrowLeft className="h-4 w-4" />
                 Back to Upload
               </Button>
-              <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                  Analysis Results
-                </h1>
-                <p className="text-muted-foreground mt-2">
-                  Comprehensive shipping analysis for {analysisData.totalShipments} shipments
-                </p>
+              <div className="space-y-4">
+                <div>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-2">
+                    <InlineEditableField
+                      value={analysisData?.report_name || analysisData?.file_name || 'Untitled Report'}
+                      onSave={async (value) => {
+                        if (currentAnalysisId) {
+                          const { error } = await supabase
+                            .from('shipping_analyses')
+                            .update({ 
+                              report_name: value,
+                              updated_at: new Date().toISOString()
+                            })
+                            .eq('id', currentAnalysisId);
+                          
+                          if (error) throw error;
+                          
+                          // Update local state
+                          setAnalysisData(prev => prev ? { ...prev, report_name: value } : null);
+                          toast.success('Report name updated');
+                        }
+                      }}
+                      placeholder="Click to edit report name"
+                      required
+                      minWidth="300px"
+                    />
+                  </h1>
+                </div>
+                
+                <div className="flex items-center gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Client:</span>
+                    <div className="min-w-[200px]">
+                      <ClientCombobox
+                        value={analysisData?.client_id || ''}
+                        onValueChange={async (clientId) => {
+                          if (currentAnalysisId) {
+                            const { error } = await supabase
+                              .from('shipping_analyses')
+                              .update({ 
+                                client_id: clientId || null,
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', currentAnalysisId);
+                            
+                            if (error) throw error;
+                            
+                            // Update local state
+                            setAnalysisData(prev => prev ? { ...prev, client_id: clientId } : null);
+                            toast.success('Client updated');
+                          }
+                        }}
+                        placeholder="Select client"
+                        disabled={!currentAnalysisId}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="text-muted-foreground">
+                    {analysisData.totalShipments} shipments analyzed
+                  </div>
+                </div>
               </div>
             </div>
             <div className="flex gap-3">
-              {analysisData && (
-                <Button variant="default" size="sm" onClick={handleSaveReport}>
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Report
-                </Button>
-              )}
               <Button variant="outline" size="sm" onClick={() => navigate('/dashboard')}>
                 <Home className="h-4 w-4 mr-2" />
                 Dashboard
@@ -1285,7 +1299,29 @@ const Results = () => {
                   <Input
                     type="number"
                     value={snapshotDays}
-                    onChange={(e) => setSnapshotDays(parseInt(e.target.value) || 30)}
+                    onChange={(e) => {
+                      const newValue = parseInt(e.target.value) || 30;
+                      setSnapshotDays(newValue);
+                      
+                      // Auto-save snapshot days if we have an analysis ID
+                      if (currentAnalysisId) {
+                        const timeoutId = setTimeout(async () => {
+                          try {
+                            await supabase
+                              .from('shipping_analyses')
+                              .update({ 
+                                recommendations: { snapshotDays: newValue },
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', currentAnalysisId);
+                          } catch (error) {
+                            console.error('Failed to auto-save snapshot days:', error);
+                          }
+                        }, 1500);
+                        
+                        return () => clearTimeout(timeoutId);
+                      }
+                    }}
                     className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
                     min="1"
                     max="365"

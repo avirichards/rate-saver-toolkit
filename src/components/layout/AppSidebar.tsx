@@ -31,7 +31,7 @@ export function AppSidebar() {
       icon: LayoutDashboard,
     },
     {
-      title: 'New Analysis',
+      title: 'Upload',
       path: '/upload',
       icon: BarChart3,
     },

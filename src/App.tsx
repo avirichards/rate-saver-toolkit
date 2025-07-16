@@ -14,7 +14,7 @@ import ServiceMapping from "./pages/ServiceMapping";
 import Analysis from "./pages/Analysis";
 import Results from "./pages/Results";
 import Dashboard from "./pages/Dashboard";
-import ReportsPage from "./pages/ReportsNew";
+import ReportsPage from "./pages/Reports";
 import SettingsPage from "./pages/Settings";
 import Auth from "./pages/Auth";
 import ClientResults from "./pages/ClientResults";

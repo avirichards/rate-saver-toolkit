@@ -114,8 +114,9 @@ export function GroupedReportsView({
                         // Helper functions matching ReportsTable
                         const getSuccessRateData = (report: ShippingAnalysis) => {
                           if (report.savings_analysis) {
+                            // Use completed vs. total from original CSV (not just valid ones)  
                             const completed = report.savings_analysis.completedShipments || 0;
-                            const total = report.savings_analysis.totalShipments || report.total_shipments || 0;
+                            const total = report.total_shipments || 0; // This is the original CSV total
                             return { completed, total };
                           }
                           return { completed: report.total_shipments || 0, total: report.total_shipments || 0 };

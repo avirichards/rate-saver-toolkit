@@ -582,7 +582,7 @@ const Results = () => {
       });
 
       // Process the shipment data and update state
-      await processShipmentData(dataToUse, analysisMetadata);
+      await await processShipmentData(dataToUse, analysisMetadata);
 
     } catch (error: any) {
       console.error('❌ Error processing analysis from database:', error);
@@ -591,7 +591,7 @@ const Results = () => {
     }
   };
 
-  const processShipmentData = (dataToUse: any[], analysisMetadata: any) => {
+  const processShipmentData = async (dataToUse: any[], analysisMetadata: any) => {
     console.log('🔍 DATA INTEGRITY: Starting processShipmentData:', {
       inputCount: dataToUse.length,
       expectedShipments: analysisMetadata.totalShipments || 0,
@@ -708,9 +708,33 @@ const Results = () => {
     // Update filtered data for display
     setFilteredData(validShipments);
     
-    // Update analysis summary
+    // Update analysis summary - use all savings (including negative ones for losses)
     const totalSavings = validShipments.reduce((sum, s) => sum + (s.savings || 0), 0);
     const totalCurrentCost = validShipments.reduce((sum, s) => sum + (s.currentRate || 0), 0);
+    
+    // Update the database total_savings to match the dynamically calculated value
+    if (currentAnalysisId && Math.abs(totalSavings - (analysisMetadata.totalSavings || 0)) > 0.01) {
+      console.log('Updating database total_savings from', analysisMetadata.totalSavings, 'to', totalSavings);
+      const { error } = await supabase
+        .from('shipping_analyses')
+        .update({ 
+          total_savings: totalSavings,
+          savings_analysis: {
+            totalShipments: dataIntegrityLog.processedShipments,
+            completedShipments: dataIntegrityLog.validShipments,
+            errorShipments: dataIntegrityLog.orphanedShipments,
+            totalCurrentCost: totalCurrentCost,
+            totalSavings: totalSavings,
+            savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentAnalysisId);
+      
+      if (error) {
+        console.error('Failed to update analysis savings:', error);
+      }
+    }
     
     setAnalysisData({
       totalShipments: dataIntegrityLog.processedShipments,

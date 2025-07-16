@@ -627,8 +627,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       // If this is a rate_quote record, extract proper shipment data
       if (rec.shipment_data && !rec.shipment) {
-        shipmentData = rec.shipment_data;
-        console.log('🔄 Converting rate_quote to shipment format for:', rec.shipment_data?.trackingId);
+        console.log('🔄 Converting rate_quote to shipment format for:', {
+          hasShipmentData: !!rec.shipment_data,
+          shipmentDataType: typeof rec.shipment_data,
+          trackingId: rec.shipment_data?.shipFrom?.Address?.PostalCode || 'unknown'
+        });
+        
+        // Convert rate_quote structure to shipment format
+        shipmentData = {
+          trackingId: rec.shipment_data?.trackingId || `Rate-${index + 1}`,
+          originZip: rec.shipment_data?.shipFrom?.Address?.PostalCode || '',
+          destZip: rec.shipment_data?.shipTo?.Address?.PostalCode || '',
+          weight: rec.shipment_data?.Package?.PackageWeight?.Weight || 0,
+          service: rec.shipment_data?.Service?.Description || 'Unknown',
+          carrier: 'UPS'
+        };
       }
       
       const validation = validateShipmentData(shipmentData);
@@ -674,13 +687,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           originZip: shipmentData?.originZip || '',
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
-          carrier: shipmentData?.carrier || rec.carrier || 'Unknown',
+          carrier: shipmentData?.carrier || rec.carrier || 'UPS',
           service: rec.originalService || shipmentData?.service || 'Unknown',
-          currentRate: rec.currentCost || rec.published_rate || 0,
-          newRate: rec.recommendedCost || rec.negotiated_rate || rec.published_rate || 0,
+          // Try multiple field names for rates based on different data sources
+          currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
+          newRate: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.newRate || 0,
           savings: rec.savings || rec.savings_amount || 0,
-          savingsPercent: (rec.currentCost || rec.published_rate || 0) > 0 ? 
-            ((rec.savings || rec.savings_amount || 0) / (rec.currentCost || rec.published_rate || 1)) * 100 : 0
+          savingsPercent: (() => {
+            const current = rec.currentCost || rec.current_rate || rec.published_rate || 0;
+            const savings = rec.savings || rec.savings_amount || 0;
+            return current > 0 ? (savings / current) * 100 : 0;
+          })()
         });
       }
     });

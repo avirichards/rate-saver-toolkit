@@ -16,10 +16,12 @@ import { getStateFromZip } from '@/utils/zipToStateMapping';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useNavigate } from 'react-router-dom';
+import { getSharedReport, updateViewCount } from '@/utils/shareUtils';
 import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfiguration';
 import { useAutoSave } from '@/hooks/useAutoSave';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
+import { getSharedReport, updateViewCount } from '@/utils/shareUtils';
 
 interface AnalysisData {
   totalCurrentCost: number;

@@ -459,16 +459,40 @@ const Analysis = () => {
       isRetry: retryCount > 0
     });
     
-      // Update status to processing using shipment ID-based update to prevent race conditions
+    // Enhanced error tracking function
+    const updateShipmentStatus = (updates: Partial<AnalysisResult>) => {
+      console.log(`📊 SHIPMENT STATE: Updating shipment ${shipment.id}:`, updates);
       setAnalysisResults(prev => {
-        return prev.map(result => 
+        const updated = prev.map(result => 
           result.shipment.id === shipment.id 
-            ? { ...result, status: 'processing' }
+            ? { ...result, ...updates }
             : result
         );
+        console.log(`📊 SHIPMENT STATE: Total results after update: ${updated.length}`);
+        return updated;
       });
+    };
+
+    // Update status to processing with enhanced tracking
+    updateShipmentStatus({ status: 'processing' });
     
     try {
+      // Enhanced validation with detailed error capture
+      console.log(`📋 Validating shipment ${shipment.id} data:`, {
+        shipmentId: shipment.id,
+        hasOriginZip: !!shipment.originZip,
+        hasDestZip: !!shipment.destZip,
+        hasService: !!shipment.service,
+        hasWeight: !!shipment.weight,
+        hasCost: !!shipment.cost,
+        rawData: {
+          originZip: shipment.originZip,
+          destZip: shipment.destZip,
+          service: shipment.service,
+          weight: shipment.weight,
+          cost: shipment.cost
+        }
+      });
       // Enhanced validation with detailed logging
       console.log(`📋 Validating shipment ${index + 1} data:`, {
         shipmentId: shipment.id,
@@ -1023,7 +1047,7 @@ const Analysis = () => {
       
       // Check if this error should trigger a retry
       const shouldRetry = retryCount < maxRetries && 
-                         (errorType === 'network_error' || 
+                         (errorType === 'network_error' ||
                           (errorType === 'api_error' && !error.message.includes('authentication')));
       
       if (shouldRetry) {
@@ -1032,20 +1056,23 @@ const Analysis = () => {
         return processShipment(index, shipment, retryCount + 1);
       }
       
-      // Update error result using functional update to prevent race conditions
-      setAnalysisResults(prev => {
-        const newResults = [...prev];
-        if (newResults[index]) {
-          newResults[index] = {
-            ...newResults[index],
-            status: 'error',
-            error: error.message,
-            errorType,
-            errorCategory,
-            attemptCount: retryCount + 1
-          };
-        }
-        return newResults;
+      // Enhanced error capture with detailed tracking
+      console.log(`🚨 SHIPMENT ERROR: Adding shipment ${shipment.id} to error results:`, {
+        shipmentId: shipment.id,
+        trackingId: shipment.trackingId,
+        errorType,
+        errorCategory,
+        errorMessage: error.message,
+        attemptCount: retryCount + 1
+      });
+      
+      // Update error result using functional update with enhanced tracking
+      updateShipmentStatus({
+        status: 'error',
+        error: error.message,
+        errorType,
+        errorCategory,
+        attemptCount: retryCount + 1
       });
     }
   };
@@ -1054,40 +1081,46 @@ const Analysis = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     
-    console.log('🗄️ DATA INTEGRITY: Saving analysis to database:', {
-      totalAnalysisResults: analysisResults.length,
-      completedResults: analysisResults.filter(r => r.status === 'completed').length,
-      errorResults: analysisResults.filter(r => r.status === 'error').length,
-      originalShipmentCount: shipments.length
-    });
-    
-    const state = location.state as any;
+    // Enhanced validation and safety net for missing shipments
     const completedResults = analysisResults.filter(r => r.status === 'completed');
     const errorResults = analysisResults.filter(r => r.status === 'error');
+    const totalTracked = completedResults.length + errorResults.length;
     
-    // Store ALL analysis results (completed + errors) for complete data integrity
-    const allResults = [...completedResults, ...errorResults];
+    console.log('🗄️ DATA INTEGRITY: Pre-save validation:', {
+      originalShipmentCount: shipments.length,
+      totalAnalysisResults: analysisResults.length,
+      completedResults: completedResults.length,
+      errorResults: errorResults.length,
+      totalTracked,
+      missingShipments: shipments.length - totalTracked,
+      allResultStatuses: analysisResults.map(r => ({ id: r.shipment.id, status: r.status }))
+    });
     
-    // Include ALL completed results, not just ones with positive savings
-    const recommendations = completedResults.map(r => ({
-      shipment: r.shipment,
-      originalService: r.originalService,
-      currentCost: r.currentCost,
-      recommendedCost: r.bestRate?.totalCharges,
-      savings: r.savings,
-      recommendedService: r.bestRate?.serviceName,
-      status: r.status,
-      error: r.error
-    }));
+    // Safety net: Recover any missing shipments that got lost during processing
+    if (totalTracked < shipments.length) {
+      console.warn('🚨 DATA INTEGRITY: Found missing shipments, adding as orphans');
+      const trackedIds = new Set(analysisResults.map(r => r.shipment.id));
+      const missingShipments = shipments.filter(s => !trackedIds.has(s.id));
+      
+      const recoveredOrphans = missingShipments.map(shipment => ({
+        shipment,
+        status: 'error' as const,
+        error: 'Shipment lost during processing - recovered as orphan',
+        errorType: 'processing_error',
+        errorCategory: 'Data Recovery'
+      }));
+      
+      console.log('🔄 DATA INTEGRITY: Recovered missing shipments:', {
+        recoveredCount: recoveredOrphans.length,
+        recoveredIds: recoveredOrphans.map(r => r.shipment.id)
+      });
+      
+      // Add recovered orphans to analysis results
+      setAnalysisResults(prev => [...prev, ...recoveredOrphans]);
+      errorResults.push(...recoveredOrphans);
+    }
     
-    // Also store error shipments for complete tracking
-    const orphanedShipments = errorResults.map(r => ({
-      shipment: r.shipment,
-      error: r.error,
-      errorType: r.errorType,
-      errorCategory: r.errorCategory,
-      status: r.status
-    }));
+    const state = location.state as any;
     
     // Prepare centralized shipment data
     const processedShipments = completedResults.map((result, index) => ({
@@ -1122,8 +1155,37 @@ const Analysis = () => {
       completedShipments: completedResults.length,
       errorShipments: errorResults.length,
       totalShipments: shipments.length,
-      dataSource: 'fresh_analysis'
+      dataSource: 'fresh_analysis',
+      dataIntegrityCheck: {
+        originalCount: shipments.length,
+        trackedCount: completedResults.length + errorResults.length,
+        missingRecovered: errorResults.filter(r => r.errorCategory === 'Data Recovery').length
+      }
     };
+    
+    console.log('🗄️ DATA INTEGRITY: Final save data prepared:', {
+      processedShipments: processedShipments.length,
+      orphanedShipments: orphanedShipmentsFormatted.length,
+      totalShipments: processedShipments.length + orphanedShipmentsFormatted.length,
+      orphanedDetails: orphanedShipmentsFormatted.map(o => ({
+        trackingId: o.trackingId,
+        error: o.error,
+        errorType: o.errorType
+      }))
+    });
+
+    // Store ALL analysis results and recommendations
+    const allResults = [...completedResults, ...errorResults];
+    const recommendations = completedResults.map(r => ({
+      shipment: r.shipment,
+      originalService: r.originalService,
+      currentCost: r.currentCost,
+      recommendedCost: r.bestRate?.totalCharges,
+      savings: r.savings,
+      recommendedService: r.bestRate?.serviceName,
+      status: r.status,
+      error: r.error
+    }));
 
     const analysisRecord = {
       user_id: user.id,
@@ -1137,11 +1199,11 @@ const Analysis = () => {
         totalShipments: shipments.length,
         completedShipments: completedResults.length,
         errorShipments: errorResults.length,
-        orphanedShipments: orphanedShipments // Include orphan data
+        orphanedShipments: orphanedShipmentsFormatted // Include orphan data
       } as any,
       recommendations: recommendations as any,
       processed_shipments: processedShipments as any, // CENTRALIZED DATA
-      orphaned_shipments: orphanedShipmentsFormatted as any, // CENTRALIZED DATA
+      orphaned_shipments: orphanedShipmentsFormatted as any, // CENTRALIZED DATA - KEY FIX
       processing_metadata: processingMetadata as any, // CENTRALIZED METADATA
       total_shipments: shipments.length,
       total_savings: totalSavings,
@@ -1152,8 +1214,9 @@ const Analysis = () => {
       totalShipments: analysisRecord.total_shipments,
       originalDataCount: allResults.length,
       recommendationsCount: recommendations.length,
-      orphanedCount: orphanedShipments.length,
-      hasAllData: allResults.length === shipments.length
+      orphanedCount: orphanedShipmentsFormatted.length,
+      hasAllData: allResults.length === shipments.length,
+      orphanedShipmentsPreview: orphanedShipmentsFormatted.slice(0, 3)
     });
 
     const { error } = await supabase

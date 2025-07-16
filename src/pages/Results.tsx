@@ -582,7 +582,7 @@ const Results = () => {
       });
 
       // Process the shipment data and update state
-      await await processShipmentData(dataToUse, analysisMetadata);
+      await processShipmentData(dataToUse, analysisMetadata);
 
     } catch (error: any) {
       console.error('❌ Error processing analysis from database:', error);

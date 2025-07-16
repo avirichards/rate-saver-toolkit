@@ -702,8 +702,29 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }
     });
     
-    // Calculate missing shipments
+    // Calculate missing shipments and CREATE orphaned entries for them
     dataIntegrityLog.missingShipments = Math.max(0, dataIntegrityLog.expectedShipments - dataIntegrityLog.processedShipments);
+    
+    // Create orphaned entries for missing shipments
+    if (dataIntegrityLog.missingShipments > 0) {
+      console.log('🔍 CREATING ORPHANED ENTRIES for missing shipments:', dataIntegrityLog.missingShipments);
+      
+      for (let i = 0; i < dataIntegrityLog.missingShipments; i++) {
+        const missingIndex = dataIntegrityLog.processedShipments + i + 1;
+        orphanedShipments.push({
+          id: missingIndex,
+          trackingId: `Missing-${missingIndex}`,
+          originZip: '',
+          destinationZip: '',
+          weight: 0,
+          service: '',
+          error: 'Missing from analysis data - shipment was not processed',
+          errorType: 'Missing Data',
+          missingFields: ['All data missing']
+        });
+        dataIntegrityLog.orphanedShipments++;
+      }
+    }
     
     console.log('📊 FINAL DATA INTEGRITY REPORT:', dataIntegrityLog);
     
@@ -712,7 +733,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       console.error('🚨 DATA INTEGRITY ERROR: Missing shipments detected!', {
         expected: dataIntegrityLog.expectedShipments,
         processed: dataIntegrityLog.processedShipments,
-        missing: dataIntegrityLog.missingShipments
+        missing: dataIntegrityLog.missingShipments,
+        orphanedEntriesCreated: dataIntegrityLog.missingShipments
       });
     }
     

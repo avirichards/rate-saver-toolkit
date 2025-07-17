@@ -3,6 +3,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
+import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
 import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 
@@ -117,10 +118,10 @@ export function OrphanedShipmentRow({
       </TableCell>
       
       <TableCell>
-        <InlineEditableField
+        <UpsServiceSelector
           value={getDisplayValue('service')}
-          onSave={(value) => handleFieldUpdate('service', value)}
-          placeholder="Enter Service Type"
+          onValueChange={(value) => handleFieldUpdate('service', value)}
+          placeholder="Select Service"
           className="min-w-[120px]"
         />
       </TableCell>

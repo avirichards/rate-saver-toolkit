@@ -82,16 +82,18 @@ export function useSelectiveReanalysis() {
     });
 
     if (error) {
-      throw new Error(`UPS API Error: ${error.message || 'Unknown API error'}`);
+      console.error('UPS API Error:', error);
+      throw new Error(`UPS API Error: ${error.message || 'Failed to get rates'}`);
     }
 
     if (!data || !data.rates || data.rates.length === 0) {
-      throw new Error('No rates returned from UPS API');
+      console.warn('No rates returned from UPS API:', data);
+      throw new Error('No rates available for this shipment. Check ZIP codes and package details.');
     }
 
     // Find the best rate (lowest cost)
     const bestRate = data.rates.reduce((best: any, current: any) => 
-      current.totalCost < best.totalCost ? current : best
+      (current.totalCost || 999999) < (best.totalCost || 999999) ? current : best
     );
 
     return {

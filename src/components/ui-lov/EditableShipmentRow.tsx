@@ -4,6 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui-lov/Button';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
+import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
 import { RotateCw, AlertCircle } from 'lucide-react';
 import { formatCurrency, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
@@ -142,10 +143,10 @@ export function EditableShipmentRow({
       
       <TableCell>
         {editMode ? (
-          <InlineEditableField
+          <UpsServiceSelector
             value={getDisplayValue('service')}
-            onSave={(value) => handleFieldSave('service', value)}
-            placeholder="Service Type"
+            onValueChange={(value) => handleFieldSave('service', value)}
+            placeholder="Select Service"
             className="min-w-[120px]"
           />
         ) : (

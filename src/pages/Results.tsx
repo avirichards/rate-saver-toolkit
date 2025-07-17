@@ -2158,49 +2158,51 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     />
                   </div>
 
-                  {/* Edit Mode Controls */}
-                  {!isClientView && (
-                    <div className="flex items-center justify-between p-4 bg-muted/20 rounded-lg border border-dashed">
-                      <div className="flex items-center gap-4">
-                        <Button
-                          variant={editMode ? "secondary" : "outline"}
-                          onClick={() => setEditMode(!editMode)}
-                          className="h-9"
-                        >
-                          {editMode ? 'Exit Edit Mode' : 'Edit Mode'}
-                        </Button>
-                        
-                        {editMode && (
-                          <div className="text-sm text-muted-foreground">
-                            Select shipments to edit and re-analyze
+                      {/* Edit Mode Controls */}
+                      {!isClientView && (
+                        <div className="flex items-center justify-between p-4 bg-muted/20 rounded-lg border border-dashed">
+                          <div className="flex items-center gap-4">
+                            <Button
+                              variant={editMode ? "secondary" : "outline"}
+                              onClick={() => setEditMode(!editMode)}
+                              className="h-9"
+                            >
+                              {editMode ? 'Exit Edit Mode' : 'Edit Mode'}
+                            </Button>
+                            
+                            {editMode && (
+                              <>
+                                <div className="text-sm text-muted-foreground">
+                                  Select shipments to edit and re-analyze
+                                </div>
+                                <Button
+                                  size="sm"
+                                  onClick={() => setIsReanalysisModalOpen(true)}
+                                  className="h-8"
+                                >
+                                  Batch Corrections
+                                </Button>
+                              </>
+                            )}
                           </div>
-                        )}
-                      </div>
 
-                      {editMode && selectedShipments.size > 0 && (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">
-                            {selectedShipments.size} selected
-                          </Badge>
-                          <Button
-                            size="sm"
-                            onClick={() => setIsReanalysisModalOpen(true)}
-                            className="h-8"
-                          >
-                            Batch Corrections
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={handleReanalyzeSelected}
-                            disabled={isReanalyzing}
-                            className="h-8"
-                          >
-                            Re-analyze Selected
-                          </Button>
+                          {editMode && selectedShipments.size > 0 && (
+                            <div className="flex items-center gap-2">
+                              <Badge variant="secondary">
+                                {selectedShipments.size} selected
+                              </Badge>
+                              <Button
+                                size="sm"
+                                onClick={handleReanalyzeSelected}
+                                disabled={isReanalyzing}
+                                className="h-8"
+                              >
+                                {isReanalyzing ? 'Re-analyzing...' : 'Re-analyze Selected'}
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
-                    </div>
-                  )}
                 </div>
               </CardHeader>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,28 @@ export function EditableShipmentRow({
   };
 
   const hasChanges = Object.keys(localChanges).length > 0;
+
+  // Calculate estimated savings based on changed service
+  const estimatedSavings = useMemo(() => {
+    const changedService = getDisplayValue('newService');
+    if (!changedService || changedService === (shipment.newService || shipment.bestService)) {
+      // No service change, use original savings
+      return {
+        savings: shipment.savings,
+        savingsPercent: shipment.savingsPercent,
+        newRate: shipment.newRate
+      };
+    }
+
+    // If service changed, show estimated savings as "Pending Re-analysis"
+    // In a real implementation, you might want to estimate based on historical data
+    return {
+      savings: 0,
+      savingsPercent: 0,
+      newRate: 0,
+      isPending: true
+    };
+  }, [localChanges, shipment]);
 
   return (
     <TableRow className={`${isSelected ? 'bg-muted/50' : ''} ${hasChanges ? 'border-l-4 border-l-primary/50' : ''}`}>
@@ -154,7 +176,7 @@ export function EditableShipmentRow({
       <TableCell>
         {editMode ? (
           <UpsServiceSelector
-            value={shipment.newService || shipment.bestService || 'UPS Ground'}
+            value={getDisplayValue('newService') || shipment.newService || shipment.bestService || 'UPS Ground'}
             onValueChange={(value) => handleFieldSave('newService', value)}
             placeholder="Select Service"
             className="w-32 text-xs"
@@ -171,19 +193,31 @@ export function EditableShipmentRow({
       </TableCell>
       
       <TableCell className="text-right">
-        {formatCurrency(shipment.newRate)}
+        {estimatedSavings.isPending ? (
+          <span className="text-xs text-muted-foreground italic">Pending</span>
+        ) : (
+          formatCurrency(estimatedSavings.newRate)
+        )}
       </TableCell>
       
       <TableCell className="text-right">
-        <div className={getSavingsColor(shipment.savings)}>
-          {formatCurrency(shipment.savings)}
-        </div>
+        {estimatedSavings.isPending ? (
+          <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
+        ) : (
+          <div className={getSavingsColor(estimatedSavings.savings)}>
+            {formatCurrency(estimatedSavings.savings)}
+          </div>
+        )}
       </TableCell>
       
       <TableCell className="text-right">
-        <div className={getSavingsColor(shipment.savings)}>
-          {shipment.savingsPercent?.toFixed(1)}%
-        </div>
+        {estimatedSavings.isPending ? (
+          <span className="text-xs text-orange-500 italic">-%</span>
+        ) : (
+          <div className={getSavingsColor(estimatedSavings.savings)}>
+            {estimatedSavings.savingsPercent?.toFixed(1)}%
+          </div>
+        )}
       </TableCell>
       
       <TableCell>

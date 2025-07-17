@@ -2263,9 +2263,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableCell className="text-foreground">
                              {item.destinationZip}
                            </TableCell>
-                           <TableCell className="text-foreground">
-                             {(item.weight || 0).toFixed(1)}
-                           </TableCell>
+                            <TableCell className="text-foreground">
+                              {parseFloat(item.weight || 0).toFixed(1)}
+                            </TableCell>
                            <TableCell className="text-foreground text-xs">
                              {item.length && item.width && item.height 
                                ? `${item.length}×${item.width}×${item.height}` 
@@ -2380,9 +2380,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              <TableCell className="text-foreground">
                                {row.destinationZip || <span className="text-muted-foreground italic">Missing</span>}
                              </TableCell>
-                              <TableCell className="text-right text-foreground">
-                                {(row.weight && row.weight > 0) ? row.weight.toFixed(1) : <span className="text-muted-foreground italic">Missing</span>}
-                              </TableCell>
+                               <TableCell className="text-right text-foreground">
+                                 {(row.weight && parseFloat(row.weight) > 0) ? parseFloat(row.weight).toFixed(1) : <span className="text-muted-foreground italic">Missing</span>}
+                               </TableCell>
                              <TableCell className="text-foreground">
                                {row.service || <span className="text-muted-foreground italic">Missing</span>}
                              </TableCell>

@@ -381,6 +381,36 @@ export type Database = {
         }
         Relationships: []
       }
+      service_notes: {
+        Row: {
+          analysis_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          service_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          analysis_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          service_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          analysis_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          service_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       shipping_analyses: {
         Row: {
           analysis_date: string

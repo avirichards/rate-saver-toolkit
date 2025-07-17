@@ -94,6 +94,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [markupData, setMarkupData] = useState<MarkupData | null>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
+  const [serviceNotes, setServiceNotes] = useState<Record<string, string>>({});
   const hasTriedAutoSave = useRef(false);
   
   // Selective re-analysis state
@@ -225,6 +226,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       console.log('✅ Analysis auto-saved successfully:', data.id);
       setCurrentAnalysisId(data.id);
+      
+      // Load service notes for the newly saved analysis
+      loadServiceNotes(data.id);
+      
       return data.id;
     } catch (error) {
       console.error('❌ Error saving analysis:', error);
@@ -250,6 +255,56 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       .order('company_name');
 
     setClients(data || []);
+  };
+
+  // Load service notes for current analysis
+  const loadServiceNotes = async (analysisId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('service_notes')
+      .select('service_name, notes')
+      .eq('analysis_id', analysisId)
+      .eq('user_id', user.id);
+
+    if (data) {
+      const notesMap = data.reduce((acc, note) => {
+        acc[note.service_name] = note.notes || '';
+        return acc;
+      }, {} as Record<string, string>);
+      setServiceNotes(notesMap);
+    }
+  };
+
+  // Save or update service note
+  const saveServiceNote = async (serviceName: string, notes: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user || !currentAnalysisId) return;
+
+    try {
+      const { error } = await supabase
+        .from('service_notes')
+        .upsert({
+          analysis_id: currentAnalysisId,
+          service_name: serviceName,
+          notes: notes,
+          user_id: user.id
+        }, {
+          onConflict: 'analysis_id,service_name'
+        });
+
+      if (error) throw error;
+      
+      // Update local state
+      setServiceNotes(prev => ({
+        ...prev,
+        [serviceName]: notes
+      }));
+    } catch (error) {
+      console.error('Error saving service note:', error);
+      toast.error('Failed to save note');
+    }
   };
 
   // Calculate markup for individual shipment
@@ -610,6 +665,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   useEffect(() => {
     loadClients();
   }, []);
+
+  // Load service notes when analysis ID changes
+  useEffect(() => {
+    if (currentAnalysisId) {
+      loadServiceNotes(currentAnalysisId);
+    }
+  }, [currentAnalysisId]);
 
   const loadFromDatabase = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1921,14 +1983,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                      {formatPercentage(avgSavingsPercentWithMarkup)}
                                    </span>
                                  </TableCell>
-                                <TableCell>
-                                  <div className="text-xs text-muted-foreground">
-                                    {avgSavingsPercentWithMarkup > 20 ? "High savings potential" : 
-                                     avgSavingsPercentWithMarkup > 10 ? "Good savings" : 
-                                     avgSavingsPercentWithMarkup > 0 ? "Moderate savings" : 
-                                     "Review needed"}
-                                  </div>
-                                </TableCell>
+                                 <TableCell>
+                                   <InlineEditableField
+                                     value={serviceNotes[service] || ''}
+                                     onSave={(notes) => saveServiceNote(service, notes)}
+                                     placeholder="Add notes..."
+                                     className="text-xs"
+                                     minWidth="150px"
+                                   />
+                                 </TableCell>
                               </TableRow>
                             );
                          });

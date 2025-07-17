@@ -2350,11 +2350,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                 ? `${item.length}×${item.width}×${item.height}` 
                                 : item.dimensions || '12×12×6'}
                             </TableCell>
-                            <TableCell>
-                              <Badge variant={item.isResidential ? "default" : "outline"} className="text-xs">
-                                {item.isResidential ? 'Residential' : 'Commercial'}
-                              </Badge>
-                            </TableCell>
+                             <TableCell>
+                               {(() => {
+                                 // Check for updated residential status first, then fallback to original
+                                 const updates = shipmentUpdates[item.id] || {};
+                                 const isResidential = updates.isResidential !== undefined 
+                                   ? updates.isResidential === 'true' || updates.isResidential === true
+                                   : item.isResidential === 'true' || item.isResidential === true;
+                                 
+                                 return (
+                                   <Badge variant={isResidential ? "default" : "outline"} className="text-xs">
+                                     {isResidential ? 'Residential' : 'Commercial'}
+                                   </Badge>
+                                 );
+                               })()}
+                             </TableCell>
                            <TableCell>
                              <Badge variant="outline" className="text-xs">
                                {item.originalService || item.service}
@@ -2510,6 +2520,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         onApplyCorrections={handleServiceCorrections}
         selectedShipments={filteredData.filter(item => selectedShipments.has(item.id))}
         allShipments={shipmentData}
+        onBatchResidentialUpdate={handleBatchResidentialUpdate}
       />
     </Layout>
   );

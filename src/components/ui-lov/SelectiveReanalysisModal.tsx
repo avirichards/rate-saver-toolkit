@@ -21,6 +21,7 @@ interface SelectiveReanalysisModalProps {
   onApplyCorrections: (corrections: ServiceMappingCorrection[]) => void;
   selectedShipments: any[];
   allShipments: any[];
+  onBatchResidentialUpdate?: (isResidential: boolean) => void;
 }
 
 export function SelectiveReanalysisModal({
@@ -28,7 +29,8 @@ export function SelectiveReanalysisModal({
   onClose,
   onApplyCorrections,
   selectedShipments,
-  allShipments
+  allShipments,
+  onBatchResidentialUpdate
 }: SelectiveReanalysisModalProps) {
   const [findValue, setFindValue] = useState('');
   const [replaceValue, setReplaceValue] = useState('');
@@ -158,6 +160,29 @@ export function SelectiveReanalysisModal({
             <Search className="h-4 w-4 mr-2" />
             Add Correction
           </Button>
+
+          {/* Residential Batch Options */}
+          {onBatchResidentialUpdate && selectedShipments.length > 0 && (
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Residential Delivery Options:</Label>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  onClick={() => onBatchResidentialUpdate(true)}
+                  className="flex-1"
+                >
+                  Mark as Residential ({selectedShipments.length})
+                </Button>
+                <Button 
+                  variant="outline" 
+                  onClick={() => onBatchResidentialUpdate(false)}
+                  className="flex-1"
+                >
+                  Mark as Commercial ({selectedShipments.length})
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* Current Services Preview */}
           {currentServices.length > 0 && (

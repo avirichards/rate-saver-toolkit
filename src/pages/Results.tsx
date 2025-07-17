@@ -2208,29 +2208,29 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
-                  <Table className="table-fixed">
+                  <Table>
                       <TableHeader className="bg-muted/50">
                         <TableRow className="border-b border-border">
                           {editMode && (
-                            <TableHead className="w-12 px-2">
+                            <TableHead className="w-12">
                               <Checkbox
                                 checked={selectedShipments.size === filteredData.length && filteredData.length > 0}
                                 onCheckedChange={handleSelectAllShipments}
                               />
                             </TableHead>
                           )}
-                          <TableHead className="text-foreground px-2 w-40">Tracking ID</TableHead>
-                          <TableHead className="text-foreground px-2 w-20">Origin</TableHead>
-                          <TableHead className="text-foreground px-2 w-24">Destination</TableHead>
-                          <TableHead className="text-foreground px-2 w-20">Weight (lbs)</TableHead>
-                          <TableHead className="text-foreground px-2 w-28">Dimensions (L×W×H)</TableHead>
-                          <TableHead className="text-foreground px-2 w-32">Current Service</TableHead>
-                          <TableHead className="text-foreground px-2 w-36">Ship Pros Service</TableHead>
-                          <TableHead className="text-right text-foreground px-2 w-24">Current Rate</TableHead>
-                          <TableHead className="text-right text-foreground px-2 w-24">Ship Pros Cost</TableHead>
-                          <TableHead className="text-right text-foreground px-2 w-20">Savings</TableHead>
-                          <TableHead className="text-right text-foreground px-2 w-16">Savings %</TableHead>
-                          {editMode && <TableHead className="text-foreground px-2 w-24">Actions</TableHead>}
+                          <TableHead className="text-foreground w-32">Tracking ID</TableHead>
+                          <TableHead className="text-foreground w-20">Origin</TableHead>
+                          <TableHead className="text-foreground w-20">Destination</TableHead>
+                          <TableHead className="text-foreground w-16">Weight (lbs)</TableHead>
+                          <TableHead className="text-foreground w-24">Dimensions (L×W×H)</TableHead>
+                          <TableHead className="text-foreground w-28">Current Service</TableHead>
+                          <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
+                          <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
+                          <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
+                          <TableHead className="text-right text-foreground w-20">Savings</TableHead>
+                          <TableHead className="text-right text-foreground w-16">Savings %</TableHead>
+                          {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
                      <TableBody className="bg-background">

@@ -43,97 +43,99 @@ export function EditableShipmentRow({
 
   return (
     <TableRow className={`${isSelected ? 'bg-muted/50' : ''} ${hasChanges ? 'border-l-4 border-l-primary/50' : ''}`}>
-      <TableCell className="px-2">
-        <div className="flex items-center gap-2">
+      <TableCell>
+        <div className="flex items-center gap-1">
           <Checkbox
             checked={isSelected}
             onCheckedChange={onSelect}
           />
           {hasChanges && (
-            <AlertCircle className="h-4 w-4 text-amber-500" />
+            <AlertCircle className="h-3 w-3 text-amber-500" />
           )}
         </div>
       </TableCell>
       
-      <TableCell className="font-medium px-2">
-        {shipment.trackingId || `Shipment-${shipment.id}`}
+      <TableCell className="font-medium">
+        <div className="truncate w-32">
+          {shipment.trackingId || `Shipment-${shipment.id}`}
+        </div>
       </TableCell>
       
-      <TableCell className="px-2">
+      <TableCell>
         {editMode ? (
           <InlineEditableField
             value={getDisplayValue('originZip')}
             onSave={(value) => handleFieldSave('originZip', value)}
             placeholder="Origin ZIP"
-            className="min-w-[60px] max-w-[80px] text-xs"
+            className="w-16 text-xs"
           />
         ) : (
-          <>
+          <div className="w-16">
             {getDisplayValue('originZip')}
             {getDisplayValue('originZip') && (
               <div className="text-xs text-muted-foreground">
                 {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
               </div>
             )}
-          </>
+          </div>
         )}
       </TableCell>
       
-      <TableCell className="px-2">
+      <TableCell>
         {editMode ? (
           <InlineEditableField
             value={getDisplayValue('destinationZip')}
             onSave={(value) => handleFieldSave('destinationZip', value)}
             placeholder="Dest ZIP"
-            className="min-w-[60px] max-w-[80px] text-xs"
+            className="w-16 text-xs"
           />
         ) : (
-          <>
+          <div className="w-16">
             {getDisplayValue('destinationZip')}
             {getDisplayValue('destinationZip') && (
               <div className="text-xs text-muted-foreground">
                 {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
               </div>
             )}
-          </>
+          </div>
         )}
       </TableCell>
       
-      <TableCell className="px-2">
+      <TableCell>
         {editMode ? (
           <InlineEditableField
             value={getDisplayValue('weight')}
             onSave={(value) => handleFieldSave('weight', value)}
             placeholder="Weight"
-            className="min-w-[40px] max-w-[60px] text-xs"
+            className="w-12 text-xs"
           />
         ) : (
           `${getDisplayValue('weight')} lbs`
         )}
       </TableCell>
       
-      <TableCell className="px-2">
+      <TableCell>
         {editMode ? (
-          <div className="flex gap-1 text-xs">
+          <div className="flex gap-1 text-xs w-24">
             <InlineEditableField
               value={getDisplayValue('length') || '12'}
               onSave={(value) => handleFieldSave('length', value)}
               placeholder="L"
-              className="min-w-[30px] max-w-[35px]"
+              className="w-6 text-xs"
             />
             ×
             <InlineEditableField
               value={getDisplayValue('width') || '12'}
               onSave={(value) => handleFieldSave('width', value)}
               placeholder="W"
-              className="min-w-[30px] max-w-[35px]"
+              className="w-6 text-xs"
             />
             ×
             <InlineEditableField
               value={getDisplayValue('height') || '6'}
               onSave={(value) => handleFieldSave('height', value)}
               placeholder="H"
-              className="min-w-[30px] max-w-[35px]"
+              className="w-6 text-xs"
             />
           </div>
         ) : (
@@ -142,55 +144,55 @@ export function EditableShipmentRow({
       </TableCell>
       
       {/* Current Service - NOT editable */}
-      <TableCell className="px-2">
-        <Badge variant="outline" className="text-xs">
+      <TableCell>
+        <Badge variant="outline" className="text-xs truncate">
           {getDisplayValue('service') || getDisplayValue('originalService')}
         </Badge>
       </TableCell>
       
       {/* Ship Pros Service - Editable */}
-      <TableCell className="px-2">
+      <TableCell>
         {editMode ? (
           <UpsServiceSelector
             value={shipment.newService || shipment.bestService || 'UPS Ground'}
             onValueChange={(value) => handleFieldSave('newService', value)}
             placeholder="Select Service"
-            className="min-w-[120px] max-w-[140px] text-xs"
+            className="w-32 text-xs"
           />
         ) : (
-          <Badge variant="outline" className="text-xs text-primary">
+          <Badge variant="outline" className="text-xs text-primary truncate">
             {shipment.newService || shipment.bestService || 'UPS Ground'}
           </Badge>
         )}
       </TableCell>
       
-      <TableCell className="text-right px-2">
+      <TableCell className="text-right">
         {formatCurrency(shipment.currentRate)}
       </TableCell>
       
-      <TableCell className="text-right px-2">
+      <TableCell className="text-right">
         {formatCurrency(shipment.newRate)}
       </TableCell>
       
-      <TableCell className="text-right px-2">
+      <TableCell className="text-right">
         <div className={getSavingsColor(shipment.savings)}>
           {formatCurrency(shipment.savings)}
         </div>
       </TableCell>
       
-      <TableCell className="text-right px-2">
+      <TableCell className="text-right">
         <div className={getSavingsColor(shipment.savings)}>
           {shipment.savingsPercent?.toFixed(1)}%
         </div>
       </TableCell>
       
-      <TableCell className="px-2">
+      <TableCell>
         <Button
           size="sm"
           variant="outline"
           onClick={() => onReanalyze(shipment.id)}
           disabled={isReanalyzing}
-          className="h-8"
+          className="h-8 text-xs"
         >
           {isReanalyzing ? (
             <RotateCw className="h-3 w-3 animate-spin mr-1" />

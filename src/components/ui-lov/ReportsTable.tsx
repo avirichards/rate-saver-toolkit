@@ -65,9 +65,11 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
   const [localReports, setLocalReports] = useState(reports);
   const navigate = useNavigate();
 
-  // Update local state when reports prop changes
+  // Update local state when reports prop changes - only if different to prevent unnecessary re-renders
   React.useEffect(() => {
-    setLocalReports(reports);
+    if (JSON.stringify(reports) !== JSON.stringify(localReports)) {
+      setLocalReports(reports);
+    }
   }, [reports]);
 
   const handleSelectAll = (checked: boolean) => {
@@ -328,8 +330,6 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                           
                           if (error) throw error;
                           toast.success('Report name updated');
-                          // Refresh after successful update
-                          setTimeout(() => onReportUpdate?.(), 500);
                         } catch (error) {
                           // Revert optimistic update on error
                           updateReportNameOptimistically(report.id, report.report_name || report.file_name);
@@ -364,8 +364,6 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                             
                             if (error) throw error;
                             toast.success('Client updated');
-                            // Refresh after successful update
-                            setTimeout(() => onReportUpdate?.(), 500);
                           } catch (error) {
                             // Revert optimistic update on error
                             updateReportClientOptimistically(report.id, report.client_id, report.client?.company_name);

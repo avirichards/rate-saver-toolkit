@@ -13,6 +13,7 @@ interface ReanalysisShipment {
   service: string;
   carrier?: string;
   trackingId?: string;
+  isResidential?: string | boolean;
 }
 
 interface ServiceMappingCorrection {
@@ -78,7 +79,7 @@ export function useSelectiveReanalysis() {
       },
       serviceTypes: [serviceCode],
       equivalentServiceCode: serviceCode,
-      isResidential: false
+      isResidential: shipment.isResidential === 'true' || shipment.isResidential === true
     };
 
     console.log('Sending shipment data to UPS API:', shipmentData);

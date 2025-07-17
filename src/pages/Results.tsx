@@ -306,6 +306,20 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }));
   };
 
+  const handleBatchResidentialUpdate = (isResidential: boolean) => {
+    if (selectedShipments.size === 0) {
+      toast.error('Please select shipments to update');
+      return;
+    }
+
+    // Update all selected shipments
+    selectedShipments.forEach(shipmentId => {
+      handleFieldUpdate(shipmentId, 'isResidential', isResidential ? 'true' : 'false');
+    });
+
+    toast.success(`Marked ${selectedShipments.size} shipments as ${isResidential ? 'residential' : 'commercial'}`);
+  };
+
   const handleReanalyzeSelected = async () => {
     if (selectedShipments.size === 0) {
       toast.error('Please select shipments to re-analyze');
@@ -2224,21 +2238,39 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             )}
                           </div>
 
-                          {editMode && selectedShipments.size > 0 && (
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary">
-                                {selectedShipments.size} selected
-                              </Badge>
-                              <Button
-                                size="sm"
-                                onClick={handleReanalyzeSelected}
-                                disabled={isReanalyzing}
-                                className="h-8"
-                              >
-                                {isReanalyzing ? 'Re-analyzing...' : 'Re-analyze Selected'}
-                              </Button>
-                            </div>
-                          )}
+                           {editMode && selectedShipments.size > 0 && (
+                             <div className="flex items-center gap-2">
+                               <Badge variant="secondary">
+                                 {selectedShipments.size} selected
+                               </Badge>
+                               <div className="flex items-center gap-1">
+                                 <Button
+                                   size="sm"
+                                   variant="outline"
+                                   onClick={() => handleBatchResidentialUpdate(true)}
+                                   className="h-8 text-xs"
+                                 >
+                                   Mark Residential
+                                 </Button>
+                                 <Button
+                                   size="sm"
+                                   variant="outline"
+                                   onClick={() => handleBatchResidentialUpdate(false)}
+                                   className="h-8 text-xs"
+                                 >
+                                   Mark Commercial
+                                 </Button>
+                                 <Button
+                                   size="sm"
+                                   onClick={handleReanalyzeSelected}
+                                   disabled={isReanalyzing}
+                                   className="h-8"
+                                 >
+                                   {isReanalyzing ? 'Re-analyzing...' : 'Re-analyze Selected'}
+                                 </Button>
+                               </div>
+                             </div>
+                           )}
                         </div>
                       )}
                 </div>
@@ -2260,9 +2292,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-foreground w-32">Tracking ID</TableHead>
                           <TableHead className="text-foreground w-20">Origin</TableHead>
                           <TableHead className="text-foreground w-20">Destination</TableHead>
-                          <TableHead className="text-foreground w-16">Weight (lbs)</TableHead>
-                          <TableHead className="text-foreground w-28">Dimensions (L×W×H)</TableHead>
-                          <TableHead className="text-foreground w-28">Current Service</TableHead>
+                           <TableHead className="text-foreground w-16">Weight (lbs)</TableHead>
+                           <TableHead className="text-foreground w-28">Dimensions (L×W×H)</TableHead>
+                           <TableHead className="text-foreground w-20">Residential</TableHead>
+                           <TableHead className="text-foreground w-28">Current Service</TableHead>
                           <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
                           <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
                           <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>

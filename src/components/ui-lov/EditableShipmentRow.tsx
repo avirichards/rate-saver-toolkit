@@ -174,6 +174,20 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
+      {/* Residential Column */}
+      <TableCell>
+        {editMode ? (
+          <Checkbox
+            checked={getDisplayValue('isResidential') === 'true' || getDisplayValue('isResidential') === true}
+            onCheckedChange={(checked) => handleFieldSave('isResidential', checked ? 'true' : 'false')}
+          />
+        ) : (
+          <Badge variant={shipment.isResidential ? "default" : "outline"} className="text-xs">
+            {shipment.isResidential ? 'Residential' : 'Commercial'}
+          </Badge>
+        )}
+      </TableCell>
+      
       {/* Current Service - NOT editable */}
       <TableCell>
         <Badge variant="outline" className="text-xs truncate">

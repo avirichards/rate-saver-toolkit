@@ -193,12 +193,12 @@ serve(async (req) => {
     }
 
     // Get access token for this specific config
-    const { data: authData, error: authError } = await supabase.functions.invoke('ups-auth', {
+    const { data: authData, error: upsAuthError } = await supabase.functions.invoke('ups-auth', {
       body: { action: 'get_token', config_id: configId }
     });
 
-    if (authError || !authData?.access_token) {
-      console.error('UPS auth error:', authError);
+    if (upsAuthError || !authData?.access_token) {
+      console.error('UPS auth error:', upsAuthError);
       return new Response(JSON.stringify({ error: 'Failed to authenticate with UPS' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

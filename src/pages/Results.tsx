@@ -1505,13 +1505,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     <>
                       <Input
                         type="number"
-                        value={snapshotDays === 30 ? '' : snapshotDays}
+                        value={snapshotDays}
                         onChange={(e) => {
                           const value = e.target.value;
                           let newValue: number;
                           
-                          if (value === '') {
-                            newValue = 30;
+                          if (value === '' || value === '0') {
+                            newValue = 30; // Default to 30 when cleared or 0 entered
                           } else {
                             const parsedValue = parseInt(value);
                             newValue = isNaN(parsedValue) || parsedValue < 1 ? 30 : parsedValue;

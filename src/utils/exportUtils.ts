@@ -24,15 +24,16 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
   // Helper function to calculate markup
   const getShipmentMarkup = (shipment: any) => {
     const markupData = report.markup_data as any;
-    if (!markupData) return { markedUpPrice: shipment.newRate, margin: 0, marginPercent: 0 };
+    if (!markupData) return { markedUpPrice: shipment.newRate || 0, margin: 0, marginPercent: 0 };
     
-    const shipProsCost = shipment.newRate || 0;
+    const shipProsCost = shipment.newRate || shipment.new_rate || shipment.recommendedRate || 0;
     let markupPercent = 0;
     
     if (markupData.markupType === 'global') {
-      markupPercent = markupData.globalMarkup;
-    } else {
-      markupPercent = markupData.perServiceMarkup?.[shipment.service] || 0;
+      markupPercent = markupData.globalMarkup || 0;
+    } else if (markupData.markupType === 'per_service') {
+      const service = shipment.service || shipment.recommended_service || shipment.recommendedService;
+      markupPercent = markupData.perServiceMarkup?.[service] || 0;
     }
     
     const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
@@ -53,7 +54,14 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
   }
   analysisData.push(['Analysis Date:', new Date(report.analysis_date).toLocaleDateString()]);
   analysisData.push(['Total Shipments:', report.total_shipments]);
-  analysisData.push(['Total Savings:', `$${(report.total_savings || 0).toFixed(2)}`]);
+  
+  // Calculate marked up total savings for overview
+  const markupData = report.markup_data || {};
+  const totalSavings = report.total_savings || 0;
+  const markupAdjustment = markupData.totalMargin || 0;
+  const adjustedSavings = totalSavings - markupAdjustment;
+  
+  analysisData.push(['Total Savings (with markup):', `$${adjustedSavings.toFixed(2)}`]);
   analysisData.push([]);
   
   // Column headers
@@ -63,25 +71,27 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
     'Ship Pros Cost', 'Savings', 'Savings %', 'Margin', 'Margin %'
   ]);
   
-  // Get shipment data from recommendations
-  const shipments = report.recommendations || [];
+  // Get shipment data - try multiple sources
+  const shipments = report.recommendations || report.processed_shipments || [];
   
   // Shipment data
   if (Array.isArray(shipments) && shipments.length > 0) {
     shipments.forEach((shipment: any) => {
-      const currentCost = shipment.currentRate || shipment.current_rate || 0;
-      const markupInfo = getShipmentMarkup(shipment);
+      // Handle different field name formats
+      const currentCost = shipment.currentRate || shipment.current_rate || shipment.originalRate || 0;
+      const newRate = shipment.newRate || shipment.new_rate || shipment.recommendedRate || 0;
+      const markupInfo = getShipmentMarkup({ ...shipment, newRate });
       const savings = currentCost - markupInfo.markedUpPrice;
       const savingsPercent = currentCost > 0 ? (savings / currentCost) * 100 : 0;
       
       analysisData.push([
-        shipment.trackingId || shipment.tracking_id || '',
-        shipment.originZip || shipment.origin_zip || '',
-        shipment.destZip || shipment.dest_zip || '',
-        shipment.weight || '',
-        shipment.currentService || shipment.current_service || '',
+        shipment.trackingId || shipment.tracking_id || shipment.trackingNumber || '',
+        shipment.originZip || shipment.origin_zip || shipment.fromZip || '',
+        shipment.destZip || shipment.dest_zip || shipment.toZip || '',
+        shipment.weight || shipment.packageWeight || '',
+        shipment.currentService || shipment.current_service || shipment.originalService || '',
         currentCost,
-        shipment.service || shipment.recommended_service || '',
+        shipment.service || shipment.recommended_service || shipment.recommendedService || '',
         markupInfo.markedUpPrice,
         savings,
         savingsPercent / 100, // Excel percentage format
@@ -91,7 +101,7 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
     });
   } else {
     // If no shipment data, add a row indicating no data
-    analysisData.push(['No shipment data available', '', '', '', '', '', '', '', '', '', '', '']);
+    analysisData.push(['No analyzed shipment data available', '', '', '', '', '', '', '', '', '', '', '']);
   }
   
   const analysisWorksheet = XLSX.utils.aoa_to_sheet(analysisData);
@@ -205,6 +215,7 @@ export const downloadReportExcel = async (reportId: string): Promise<void> => {
         savings_analysis,
         original_data,
         recommendations,
+        processed_shipments,
         orphaned_shipments,
         client_id,
         clients (company_name)

@@ -294,7 +294,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
               <th className="text-right py-3 px-2">
                 <div className="flex items-center justify-end gap-1">
                   <Percent className="h-3 w-3" />
-                  Margin
+                  Markup
                 </div>
               </th>
               <th className="text-right py-3 px-2">Actions</th>

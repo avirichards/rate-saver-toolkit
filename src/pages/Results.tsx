@@ -1505,9 +1505,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     <>
                       <Input
                         type="number"
-                        value={snapshotDays}
+                        value={snapshotDays === 30 ? '' : snapshotDays}
                         onChange={(e) => {
-                          const newValue = parseInt(e.target.value) || 30;
+                          const value = e.target.value;
+                          let newValue: number;
+                          
+                          if (value === '') {
+                            newValue = 30;
+                          } else {
+                            const parsedValue = parseInt(value);
+                            newValue = isNaN(parsedValue) || parsedValue < 1 ? 30 : parsedValue;
+                          }
+                          
                           setSnapshotDays(newValue);
                           
                           // Auto-save snapshot days if we have an analysis ID
@@ -1529,6 +1538,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             return () => clearTimeout(timeoutId);
                           }
                         }}
+                        placeholder="30"
                         className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
                         min="1"
                         max="365"

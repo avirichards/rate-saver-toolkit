@@ -255,18 +255,39 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
   // Export functionality - uses standardized download function
   const exportToExcel = async () => {
-    if (!currentAnalysisId) {
-      // If no saved analysis ID, try to save first
+    let analysisId = currentAnalysisId;
+    
+    // For client view, get analysis ID from share token by looking up the shared report
+    if (isClientView && shareToken && !analysisId) {
+      try {
+        const { getSharedReport } = await import('@/utils/shareUtils');
+        const sharedData = await getSharedReport(shareToken);
+        analysisId = sharedData.shipping_analyses.id;
+      } catch (error) {
+        console.error('Error getting analysis ID from share token:', error);
+        toast.error('Unable to export: Could not access report data');
+        return;
+      }
+    }
+    
+    // For regular view, try to save if no analysis ID exists
+    if (!isClientView && !analysisId) {
       const savedId = await autoSaveAnalysis(true);
       if (!savedId) {
         toast.error('Unable to export: Please save the analysis first');
         return;
       }
+      analysisId = savedId;
+    }
+    
+    if (!analysisId) {
+      toast.error('Unable to export: Analysis data not available');
+      return;
     }
     
     try {
       const { downloadReportExcel } = await import('@/utils/exportUtils');
-      await downloadReportExcel(currentAnalysisId!);
+      await downloadReportExcel(analysisId);
       toast.success('Report downloaded successfully');
     } catch (error) {
       console.error('Error exporting report:', error);

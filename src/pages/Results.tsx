@@ -23,8 +23,7 @@ import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfi
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { 
-  processNormalViewData, 
-  processClientViewData, 
+  processAnalysisData,
   formatShipmentData, 
   handleDataProcessingError,
   generateExportData,
@@ -281,15 +280,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
-          const processedData = processClientViewData(analysis);
+          const processedData = processAnalysisData(analysis);
           
           setAnalysisData(processedData);
-          
-          // Format shipment data if recommendations exist
-          if (processedData.recommendations && processedData.recommendations.length > 0) {
-            const formattedShipmentData = formatShipmentData(processedData.recommendations);
-            setShipmentData(formattedShipmentData);
-          }
+          setShipmentData(processedData.recommendations || []);
+          setOrphanedData(processedData.orphanedShipments || []);
           
           setLoading(false);
           return;
@@ -310,17 +305,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           }, 1000);
           
           // Process the recommendations using the utility function
-          const processedData = processNormalViewData(state.analysisData.recommendations);
-          
-          const processedShipmentData = formatShipmentData(processedData.recommendations);
+          const processedShipmentData = formatShipmentData(state.analysisData.recommendations);
           setShipmentData(processedShipmentData);
-          setOrphanedData(processedData.orphanedShipments || []);
           
-          // Also handle orphans from analysisData if available
+          // Handle orphaned shipments from state
+          const orphanedFromState = state.analysisData.orphanedShipments || [];
+          setOrphanedData(orphanedFromState);
+          
+          // Also handle additional orphans from analysisData if available
           if (state.analysisData.orphanedShipments && state.analysisData.orphanedShipments.length > 0) {
-            const currentOrphans = processedData.orphanedShipments || [];
             const additionalOrphans = state.analysisData.orphanedShipments.map((orphan: any, index: number) => ({
-              id: currentOrphans.length + index + 1,
+              id: orphanedFromState.length + index + 1,
               trackingId: orphan.shipment?.trackingId || `Orphan-${index + 1}`,
               originZip: orphan.shipment?.originZip || '',
               destinationZip: orphan.shipment?.destZip || '',
@@ -333,9 +328,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             setOrphanedData(prev => [...prev, ...additionalOrphans]);
             
             console.log('Loaded orphaned shipments:', {
-              fromRecommendations: currentOrphans.length,
               fromOrphanedShipments: additionalOrphans.length,
-              total: currentOrphans.length + additionalOrphans.length
+              total: orphanedFromState.length + additionalOrphans.length
             });
           }
           
@@ -505,81 +499,35 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   };
 
   const processAnalysisFromDatabase = async (data: any) => {
-    console.log('🔍 CENTRALIZED DATA: Processing from database:', {
-      analysisId: data.id,
-      hasProcessedShipments: !!data.processed_shipments,
-      hasOrphanedShipments: !!data.orphaned_shipments,
-      hasProcessingMetadata: !!data.processing_metadata,
-      processedCount: Array.isArray(data.processed_shipments) ? data.processed_shipments.length : 0,
-      orphanedCount: Array.isArray(data.orphaned_shipments) ? data.orphaned_shipments.length : 0,
-      fallbackToLegacyData: !data.processed_shipments && !data.orphaned_shipments
-    });
+    console.log('🔍 Processing analysis from database with unified approach:', data.id);
 
     try {
-      // Store the analysis metadata
-      const analysisMetadata = {
-        analysisId: data.id,
-        reportName: data.report_name || data.file_name,
-        totalShipments: data.total_shipments || 0,
-        totalSavings: data.total_savings || 0,
-        status: data.status,
-        clientId: data.client_id,
-        fileName: data.file_name || 'Unknown',
-        analysisDate: data.analysis_date || data.created_at
-      };
-
       // Set current analysis ID and load markup data
       setCurrentAnalysisId(data.id);
       if (data.markup_data) {
         setMarkupData(data.markup_data as MarkupData);
       }
 
-      console.log('🔍 ANALYSIS METADATA:', analysisMetadata);
-
-      // Check if we have centralized data (processed_shipments + orphaned_shipments)
-      if (data.processed_shipments || data.orphaned_shipments) {
-        console.log('✅ USING CENTRALIZED DATA from processed_shipments + orphaned_shipments');
-        
-        const processedShipments = Array.isArray(data.processed_shipments) ? data.processed_shipments : [];
-        const orphanedShipments = Array.isArray(data.orphaned_shipments) ? data.orphaned_shipments : [];
-        
-        // Set state directly from centralized data
-        setShipmentData(processedShipments);
-        setOrphanedData(orphanedShipments);
-        
-        // Calculate totals for analysis data
-        const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
-        const totalSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
-        
-        setAnalysisData({
-          totalShipments: processedShipments.length + orphanedShipments.length,
-          analyzedShipments: processedShipments.length,
-          completedShipments: processedShipments.length,
-          errorShipments: orphanedShipments.length,
-          totalCurrentCost,
-          totalPotentialSavings: totalSavings,
-          savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-          averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-          recommendations: processedShipments,
-          orphanedShipments: orphanedShipments,
-          file_name: analysisMetadata.fileName,
-          report_name: analysisMetadata.reportName,
-          client_id: analysisMetadata.clientId
-        });
-        
-        console.log('🔍 CENTRALIZED DATA LOADED:', {
-          processed: processedShipments.length,
-          orphaned: orphanedShipments.length,
-          total: processedShipments.length + orphanedShipments.length
-        });
-        
-        setLoading(false);
-        
-      } else {
-        // Fallback to legacy data processing for backwards compatibility
-        console.log('⚠️ FALLBACK: Using legacy data processing and migrating to centralized format');
-        await processLegacyDataAndMigrate(data, analysisMetadata);
-      }
+      // Use the unified processing function
+      const processedData = processAnalysisData(data);
+      
+      setAnalysisData(processedData);
+      setShipmentData(processedData.recommendations || []);
+      setOrphanedData(processedData.orphanedShipments || []);
+      
+      // Initialize services from the processed data
+      const services = [...new Set((processedData.recommendations || []).map((item: any) => item.service).filter(Boolean))] as string[];
+      setAvailableServices(services);
+      setSelectedServicesOverview([]);
+      
+      console.log('✅ Unified data processing complete:', {
+        processed: processedData.recommendations?.length || 0,
+        orphaned: processedData.orphanedShipments?.length || 0,
+        total: processedData.totalShipments,
+        services: services.length
+      });
+      
+      setLoading(false);
 
     } catch (error: any) {
       console.error('❌ Error processing analysis from database:', error);

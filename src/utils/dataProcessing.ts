@@ -63,8 +63,46 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
   };
 };
 
-// Process analysis data from database for normal view
+// Unified data processing function - works from standardized database fields
+export const processAnalysisData = (analysis: any): ProcessedAnalysisData => {
+  console.log('🔄 Processing analysis data from standardized fields:', analysis);
+  
+  // Use the centralized data structure: processed_shipments and orphaned_shipments
+  const processedShipments = analysis.processed_shipments || [];
+  const orphanedShipments = analysis.orphaned_shipments || [];
+  const markupData = analysis.markup_data;
+  
+  console.log('📊 Data sources:', {
+    processedShipmentsCount: processedShipments.length,
+    orphanedShipmentsCount: orphanedShipments.length,
+    hasMarkupData: !!markupData,
+    totalShipments: analysis.total_shipments
+  });
+  
+  // Calculate totals from processed shipments
+  const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
+  const totalPotentialSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
+  
+  return {
+    totalCurrentCost,
+    totalPotentialSavings,
+    recommendations: processedShipments,
+    savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
+    totalShipments: analysis.total_shipments || (processedShipments.length + orphanedShipments.length),
+    analyzedShipments: processedShipments.length,
+    orphanedShipments,
+    completedShipments: processedShipments.length,
+    errorShipments: orphanedShipments.length,
+    file_name: analysis.file_name,
+    report_name: analysis.report_name,
+    client_id: analysis.client_id
+  };
+};
+
+// Legacy function for backward compatibility - redirects to unified function
 export const processNormalViewData = (recommendations: any[]): ProcessedAnalysisData => {
+  console.warn('⚠️ Using legacy processNormalViewData - consider migrating to processAnalysisData');
+  
   const validShipments: any[] = [];
   const orphanedShipments: any[] = [];
   
@@ -121,67 +159,10 @@ export const processNormalViewData = (recommendations: any[]): ProcessedAnalysis
   };
 };
 
-// Process analysis data from database for client view
+// Legacy function for backward compatibility - redirects to unified function
 export const processClientViewData = (analysis: any): ProcessedAnalysisData => {
-  console.log('🔄 Processing client view data:', analysis);
-  
-  // Try to get data from different possible sources
-  const savingsAnalysis = analysis.savings_analysis;
-  const originalData = analysis.original_data;
-  const recommendations = analysis.recommendations;
-  
-  let totalCurrentCost = 0;
-  let totalPotentialSavings = 0;
-  let processedRecommendations = [];
-  
-  // Priority 1: Use savings_analysis if available and properly structured
-  if (savingsAnalysis?.totalCurrentCost && savingsAnalysis?.recommendations) {
-    console.log('✅ Using savings_analysis data');
-    totalCurrentCost = savingsAnalysis.totalCurrentCost;
-    totalPotentialSavings = savingsAnalysis.totalPotentialSavings || analysis.total_savings || 0;
-    processedRecommendations = savingsAnalysis.recommendations;
-  }
-  // Priority 2: Use recommendations array if available
-  else if (recommendations && Array.isArray(recommendations)) {
-    console.log('📊 Using recommendations array');
-    processedRecommendations = recommendations;
-    totalCurrentCost = recommendations.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
-    totalPotentialSavings = recommendations.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
-  }
-  // Priority 3: Use original_data if available
-  else if (originalData && Array.isArray(originalData)) {
-    console.log('📋 Using original_data array');
-    processedRecommendations = originalData;
-    totalCurrentCost = originalData.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
-    totalPotentialSavings = originalData.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
-  }
-  // Fallback: Use just the total_savings if available
-  else if (analysis.total_savings) {
-    console.log('💵 Using total_savings fallback');
-    totalPotentialSavings = analysis.total_savings;
-    processedRecommendations = [];
-  }
-  
-  console.log('📊 Final processed data:', {
-    totalCurrentCost,
-    totalPotentialSavings,
-    recommendationsCount: processedRecommendations.length,
-    totalShipments: analysis.total_shipments
-  });
-  
-  return {
-    totalCurrentCost,
-    totalPotentialSavings,
-    recommendations: processedRecommendations,
-    savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
-    totalShipments: analysis.total_shipments,
-    analyzedShipments: savingsAnalysis?.analyzedShipments || analysis.total_shipments,
-    completedShipments: savingsAnalysis?.completedShipments || processedRecommendations.length,
-    errorShipments: savingsAnalysis?.errorShipments || 0,
-    file_name: analysis.file_name,
-    report_name: analysis.report_name,
-    client_id: analysis.client_id
-  };
+  console.warn('⚠️ Using legacy processClientViewData - consider migrating to processAnalysisData');
+  return processAnalysisData(analysis);
 };
 
 // Convert recommendations to formatted shipment data

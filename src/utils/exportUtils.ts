@@ -103,19 +103,34 @@ export const generateReportExcelFromProcessedData = (
     
     // Orphaned shipment data spread across individual columns
     orphanedShipments.forEach((shipment: any) => {
-      // If there's original data, use it, otherwise use the shipment data directly
-      const data = shipment.originalData || shipment;
+      // Try multiple ways to access the original data
+      let data = shipment;
+      
+      // If originalData exists as a nested object, use it
+      if (shipment.originalData && typeof shipment.originalData === 'object') {
+        data = shipment.originalData;
+      }
+      
+      // Handle case where originalData might be a JSON string
+      if (typeof shipment.originalData === 'string') {
+        try {
+          data = JSON.parse(shipment.originalData);
+        } catch (e) {
+          data = shipment;
+        }
+      }
+      
       orphanedData.push([
-        data.trackingId || shipment.trackingId || '',
-        data.originZip || shipment.originZip || '',
-        data.destZip || shipment.destZip || '',
+        data.trackingId || data.tracking_id || shipment.trackingId || '',
+        data.originZip || data.origin_zip || shipment.originZip || '',
+        data.destZip || data.dest_zip || shipment.destZip || '',
         data.weight || shipment.weight || '',
         data.length || shipment.length || '',
         data.width || shipment.width || '',
         data.height || shipment.height || '',
-        data.service || shipment.currentService || '',
-        data.cost || shipment.currentRate || 0,
-        shipment.reason || 'Unable to quote'
+        data.service || data.currentService || shipment.currentService || shipment.service || '',
+        data.cost || data.currentRate || shipment.currentRate || shipment.cost || 0,
+        shipment.reason || data.reason || 'Unable to quote'
       ]);
     });
     

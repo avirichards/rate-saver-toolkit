@@ -79,6 +79,8 @@ const Analysis = () => {
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [csvResidentialField, setCsvResidentialField] = useState<string | undefined>(undefined);
   const [readyToAnalyze, setReadyToAnalyze] = useState(false);
+  const [analysisSaved, setAnalysisSaved] = useState(false); // Track if analysis has been saved
+  const [isAnalysisStarted, setIsAnalysisStarted] = useState(false); // Track if analysis has been started
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
@@ -239,20 +241,22 @@ const Analysis = () => {
   
   // Separate useEffect to start analysis once serviceMappings state is updated
   useEffect(() => {
-    if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0) {
+    if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && !isAnalysisStarted) {
       console.log('🚀 Starting analysis with service mappings:', {
         serviceMappingsCount: serviceMappings.length,
         shipmentsCount: shipments.length,
+        isAnalysisStarted,
         mappings: serviceMappings.map(m => ({
           original: m.original,
           serviceCode: m.serviceCode
         }))
       });
       
+      setIsAnalysisStarted(true); // Prevent duplicate analysis starts
       validateAndStartAnalysis(shipments);
       setReadyToAnalyze(false); // Prevent multiple analysis starts
     }
-  }, [readyToAnalyze, serviceMappings, shipments]);
+  }, [readyToAnalyze, serviceMappings, shipments, isAnalysisStarted]);
   
   const validateAndStartAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
     setIsAnalyzing(true);
@@ -1054,16 +1058,50 @@ const Analysis = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     
+    // Prevent duplicate saves
+    if (analysisSaved) {
+      console.log('⚠️ Skipping duplicate save - analysis already saved to database');
+      return;
+    }
+    
     console.log('🗄️ DATA INTEGRITY: Saving analysis to database:', {
       totalAnalysisResults: analysisResults.length,
       completedResults: analysisResults.filter(r => r.status === 'completed').length,
       errorResults: analysisResults.filter(r => r.status === 'error').length,
-      originalShipmentCount: shipments.length
+      originalShipmentCount: shipments.length,
+      analysisSaved
     });
     
     const state = location.state as any;
     const completedResults = analysisResults.filter(r => r.status === 'completed');
     const errorResults = analysisResults.filter(r => r.status === 'error');
+    
+    // Check for existing analysis with same characteristics to prevent duplicates
+    const uploadTimestamp = state?.uploadTimestamp || Date.now();
+    const fileName = state?.fileName || 'Real-time Analysis';
+    
+    // Check if a similar analysis already exists (within last 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: existingAnalyses } = await supabase
+      .from('shipping_analyses')
+      .select('id, file_name, created_at, total_shipments')
+      .eq('user_id', user.id)
+      .eq('file_name', fileName)
+      .eq('total_shipments', shipments.length)
+      .gte('created_at', fiveMinutesAgo)
+      .order('created_at', { ascending: false });
+    
+    if (existingAnalyses && existingAnalyses.length > 0) {
+      console.log('⚠️ Duplicate analysis detected - skipping save:', {
+        fileName,
+        totalShipments: shipments.length,
+        existingCount: existingAnalyses.length,
+        latestAnalysis: existingAnalyses[0]
+      });
+      setAnalysisSaved(true); // Mark as saved to prevent future attempts
+      toast.info('Analysis already exists in database');
+      return;
+    }
     
     // Store ALL analysis results (completed + errors) for complete data integrity
     const allResults = [...completedResults, ...errorResults];
@@ -1162,8 +1200,11 @@ const Analysis = () => {
 
     if (error) {
       console.error('❌ Error saving analysis:', error);
+      toast.error('Failed to save analysis to database');
     } else {
       console.log('✅ DATA INTEGRITY: Analysis saved successfully');
+      setAnalysisSaved(true); // Mark as saved to prevent duplicate saves
+      toast.success('Analysis saved to database');
     }
   };
   

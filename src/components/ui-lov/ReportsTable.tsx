@@ -279,9 +279,9 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
               </th>
                <th className="text-left py-3 px-2">Report Name</th>
               <th className="text-left py-3 px-2">Client</th>
-              <th className="text-left py-3 px-2">Date</th>
-              <th className="text-left py-3 px-2">Data Status</th>
-              <th className="text-left py-3 px-2">Status</th>
+               <th className="text-left py-3 px-2">Date</th>
+               <th className="text-left py-3 px-2">Time</th>
+               <th className="text-left py-3 px-2">Status</th>
               <th className="text-right py-3 px-2">Success Rate</th>
               <th className="text-right py-3 px-2">
                 <div className="flex items-center justify-end gap-1">
@@ -375,22 +375,14 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                         placeholder="No client"
                       />
                     </div>
-                  </td>
-                   <td className="py-3 px-2">
-                     {new Date(report.analysis_date).toLocaleDateString()}
                    </td>
-                   <td className="py-3 px-2">
-                     <DataIntegrityIndicator
-                       hasProcessedShipments={Array.isArray((report as any).processed_shipments) && (report as any).processed_shipments.length > 0}
-                       hasOrphanedShipments={Array.isArray((report as any).orphaned_shipments)}
-                       totalShipments={report.total_shipments}
-                       processedCount={(report as any).processed_shipments?.length || 0}
-                       orphanedCount={(report as any).orphaned_shipments?.length || 0}
-                       totalSavings={report.total_savings || 0}
-                       calculatedSavings={(report as any).processed_shipments?.reduce((sum: number, s: any) => sum + (s.savings || 0), 0) || 0}
-                     />
-                   </td>
-                   <td className="py-3 px-2">
+                    <td className="py-3 px-2">
+                      {new Date(report.analysis_date).toLocaleDateString()}
+                    </td>
+                    <td className="py-3 px-2">
+                      {new Date(report.analysis_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </td>
+                    <td className="py-3 px-2">
                      <div className="flex items-center gap-2">
                        <Badge variant={report.status === 'completed' ? 'default' : 'secondary'}>
                          {report.status}
@@ -400,11 +392,14 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                        )}
                      </div>
                    </td>
-                  <td className="py-3 px-2 text-right">
-                    {(() => {
-                      const { completed, total } = getSuccessRateData(report);
-                      return `${completed}/${total}`;
-                    })()}
+                   <td className="py-3 px-2 text-right">
+                     {(() => {
+                       // Calculate success rate: processed vs total (processed + orphaned)
+                       const processedCount = (report as any).processed_shipments?.length || 0;
+                       const orphanedCount = (report as any).orphaned_shipments?.length || 0;
+                       const totalUploaded = processedCount + orphanedCount || report.total_shipments || 0;
+                       return `${processedCount}/${totalUploaded}`;
+                     })()}
                   </td>
                    <td className="py-3 px-2 text-right">
                      {(() => {

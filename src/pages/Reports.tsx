@@ -262,16 +262,6 @@ const ReportsPage = () => {
                 >
                   <Filter className="h-4 w-4" />
                 </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={handleMigrateData}
-                  disabled={isMigrating}
-                  title="Migrate legacy data to new format"
-                >
-                  <Database className="h-4 w-4 mr-2" />
-                  {isMigrating ? 'Migrating...' : 'Migrate Data'}
-                </Button>
               </div>
               <Link to="/upload">
                 <Button 

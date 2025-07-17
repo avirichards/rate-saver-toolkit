@@ -102,8 +102,9 @@ export function GroupedReportsView({
                     <thead>
                       <tr className="border-b bg-muted/30">
                         <th className="text-left py-2 px-4">Report Name</th>
-                        <th className="text-left py-2 px-4">Date</th>
-                        <th className="text-left py-2 px-4">Status</th>
+                         <th className="text-left py-2 px-4">Date</th>
+                         <th className="text-left py-2 px-4">Time</th>
+                         <th className="text-left py-2 px-4">Status</th>
                         <th className="text-right py-2 px-4">Success Rate</th>
                         <th className="text-right py-2 px-4">Savings</th>
                         <th className="text-right py-2 px-4">Margin</th>
@@ -114,16 +115,13 @@ export function GroupedReportsView({
                       {reports.map((report) => {
                         const markupStatus = getMarkupStatus(report.markup_data);
                         
-                        // Helper functions matching ReportsTable
-                        const getSuccessRateData = (report: ShippingAnalysis) => {
-                          if (report.savings_analysis) {
-                            // Use completed vs. total from original CSV (not just valid ones)  
-                            const completed = report.savings_analysis.completedShipments || 0;
-                            const total = report.total_shipments || 0; // This is the original CSV total
-                            return { completed, total };
-                          }
-                          return { completed: report.total_shipments || 0, total: report.total_shipments || 0 };
-                        };
+                         // Calculate success rate: processed vs total (processed + orphaned)
+                         const getSuccessRateData = (report: ShippingAnalysis) => {
+                           const processedCount = (report as any).processed_shipments?.length || 0;
+                           const orphanedCount = (report as any).orphaned_shipments?.length || 0;
+                           const totalUploaded = processedCount + orphanedCount || report.total_shipments || 0;
+                           return { completed: processedCount, total: totalUploaded };
+                         };
 
                         const getSavingsPercentage = (report: ShippingAnalysis) => {
                           // PRIORITY 1: Use the savings percentage from savings_analysis (calculated in Results page)
@@ -156,10 +154,13 @@ export function GroupedReportsView({
                             <td className="py-2 px-4 font-medium">
                               {report.report_name || report.file_name}
                             </td>
-                            <td className="py-2 px-4">
-                              {new Date(report.analysis_date).toLocaleDateString()}
-                            </td>
-                            <td className="py-2 px-4">
+                             <td className="py-2 px-4">
+                               {new Date(report.analysis_date).toLocaleDateString()}
+                             </td>
+                             <td className="py-2 px-4">
+                               {new Date(report.analysis_date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                             </td>
+                             <td className="py-2 px-4">
                               <div className="flex items-center gap-2">
                                 <Badge variant={report.status === 'completed' ? 'default' : 'secondary'}>
                                   {report.status}

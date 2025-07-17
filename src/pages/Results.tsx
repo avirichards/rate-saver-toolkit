@@ -2223,7 +2223,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-foreground w-20">Origin</TableHead>
                           <TableHead className="text-foreground w-20">Destination</TableHead>
                           <TableHead className="text-foreground w-16">Weight (lbs)</TableHead>
-                          <TableHead className="text-foreground w-24">Dimensions (L×W×H)</TableHead>
+                          <TableHead className="text-foreground w-28">Dimensions (L×W×H)</TableHead>
                           <TableHead className="text-foreground w-28">Current Service</TableHead>
                           <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
                           <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>

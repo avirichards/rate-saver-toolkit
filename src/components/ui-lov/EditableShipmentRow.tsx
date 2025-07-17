@@ -43,7 +43,7 @@ export function EditableShipmentRow({
 
   return (
     <TableRow className={`${isSelected ? 'bg-muted/50' : ''} ${hasChanges ? 'border-l-4 border-l-primary/50' : ''}`}>
-      <TableCell>
+      <TableCell className="px-2">
         <div className="flex items-center gap-2">
           <Checkbox
             checked={isSelected}
@@ -55,11 +55,11 @@ export function EditableShipmentRow({
         </div>
       </TableCell>
       
-      <TableCell className="font-medium">
+      <TableCell className="font-medium px-2">
         {shipment.trackingId || `Shipment-${shipment.id}`}
       </TableCell>
       
-      <TableCell>
+      <TableCell className="px-2">
         {editMode ? (
           <InlineEditableField
             value={getDisplayValue('originZip')}
@@ -79,7 +79,7 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
-      <TableCell>
+      <TableCell className="px-2">
         {editMode ? (
           <InlineEditableField
             value={getDisplayValue('destinationZip')}
@@ -99,7 +99,7 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
-      <TableCell>
+      <TableCell className="px-2">
         {editMode ? (
           <InlineEditableField
             value={getDisplayValue('weight')}
@@ -112,7 +112,7 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
-      <TableCell>
+      <TableCell className="px-2">
         {editMode ? (
           <div className="flex gap-1 text-xs">
             <InlineEditableField
@@ -142,14 +142,14 @@ export function EditableShipmentRow({
       </TableCell>
       
       {/* Current Service - NOT editable */}
-      <TableCell>
+      <TableCell className="px-2">
         <Badge variant="outline" className="text-xs">
           {getDisplayValue('service') || getDisplayValue('originalService')}
         </Badge>
       </TableCell>
       
       {/* Ship Pros Service - Editable */}
-      <TableCell>
+      <TableCell className="px-2">
         {editMode ? (
           <UpsServiceSelector
             value={shipment.newService || shipment.bestService || 'UPS Ground'}
@@ -164,27 +164,27 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
-      <TableCell className="text-right">
+      <TableCell className="text-right px-2">
         {formatCurrency(shipment.currentRate)}
       </TableCell>
       
-      <TableCell className="text-right">
+      <TableCell className="text-right px-2">
         {formatCurrency(shipment.newRate)}
       </TableCell>
       
-      <TableCell className="text-right">
+      <TableCell className="text-right px-2">
         <div className={getSavingsColor(shipment.savings)}>
           {formatCurrency(shipment.savings)}
         </div>
       </TableCell>
       
-      <TableCell className="text-right">
+      <TableCell className="text-right px-2">
         <div className={getSavingsColor(shipment.savings)}>
           {shipment.savingsPercent?.toFixed(1)}%
         </div>
       </TableCell>
       
-      <TableCell>
+      <TableCell className="px-2">
         <Button
           size="sm"
           variant="outline"

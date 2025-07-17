@@ -17,6 +17,7 @@ interface EditableShipmentRowProps {
   onReanalyze: (shipmentId: number) => void;
   isReanalyzing: boolean;
   editMode: boolean;
+  getShipmentMarkup: (shipment: any) => { markedUpPrice: number; margin: number; marginPercent: number };
 }
 
 export function EditableShipmentRow({
@@ -26,7 +27,8 @@ export function EditableShipmentRow({
   onFieldUpdate,
   onReanalyze,
   isReanalyzing,
-  editMode
+  editMode,
+  getShipmentMarkup
 }: EditableShipmentRowProps) {
   const [localChanges, setLocalChanges] = useState<Record<string, string>>({});
 
@@ -46,14 +48,18 @@ export function EditableShipmentRow({
 
   const hasChanges = Object.keys(localChanges).length > 0;
 
-  // Calculate estimated savings based on changed service
+  // Calculate estimated savings using the same logic as non-edit mode
   const estimatedSavings = useMemo(() => {
-    // If there are no local changes, always show the actual shipment data
+    // If there are no local changes, use the same calculation as non-edit mode
     if (Object.keys(localChanges).length === 0) {
+      const markupInfo = getShipmentMarkup(shipment);
+      const savings = shipment.currentRate - markupInfo.markedUpPrice;
+      const savingsPercent = shipment.currentRate > 0 ? (savings / shipment.currentRate) * 100 : 0;
+      
       return {
-        savings: shipment.savings,
-        savingsPercent: shipment.savingsPercent,
-        newRate: shipment.newRate
+        savings,
+        savingsPercent,
+        newRate: markupInfo.markedUpPrice
       };
     }
 
@@ -68,13 +74,17 @@ export function EditableShipmentRow({
       };
     }
 
-    // For other field changes (weight, dimensions, etc.), still show current savings
+    // For other field changes (weight, dimensions, etc.), still use current markup calculation
+    const markupInfo = getShipmentMarkup(shipment);
+    const savings = shipment.currentRate - markupInfo.markedUpPrice;
+    const savingsPercent = shipment.currentRate > 0 ? (savings / shipment.currentRate) * 100 : 0;
+    
     return {
-      savings: shipment.savings,
-      savingsPercent: shipment.savingsPercent,
-      newRate: shipment.newRate
+      savings,
+      savingsPercent,
+      newRate: markupInfo.markedUpPrice
     };
-  }, [localChanges, shipment.savings, shipment.savingsPercent, shipment.newRate, shipment.newService, shipment.bestService]);
+  }, [localChanges, shipment, getShipmentMarkup]);
 
   return (
     <TableRow className={`${isSelected ? 'bg-muted/50' : ''} ${hasChanges ? 'border-l-4 border-l-primary/50' : ''}`}>

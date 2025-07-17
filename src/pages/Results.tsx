@@ -2274,23 +2274,24 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                      <TableBody className="bg-background">
                        {filteredData.map((item, index) => 
                          editMode ? (
-                           <EditableShipmentRow
-                             key={item.id}
-                             shipment={item}
-                             isSelected={selectedShipments.has(item.id)}
-                             onSelect={(selected) => handleSelectShipment(item.id, selected)}
-                             onFieldUpdate={handleFieldUpdate}
-                              onReanalyze={() => {
-                                // Auto-select this shipment and trigger re-analysis
-                                if (!selectedShipments.has(item.id)) {
-                                  setSelectedShipments(prev => new Set([...prev, item.id]));
-                                }
-                                // Use setTimeout to ensure the selection state updates first
-                                setTimeout(() => handleReanalyzeSelected(), 100);
-                              }}
-                             isReanalyzing={reanalyzingShipments.has(item.id)}
-                             editMode={editMode}
-                           />
+                            <EditableShipmentRow
+                              key={item.id}
+                              shipment={item}
+                              isSelected={selectedShipments.has(item.id)}
+                              onSelect={(selected) => handleSelectShipment(item.id, selected)}
+                              onFieldUpdate={handleFieldUpdate}
+                               onReanalyze={() => {
+                                 // Auto-select this shipment and trigger re-analysis
+                                 if (!selectedShipments.has(item.id)) {
+                                   setSelectedShipments(prev => new Set([...prev, item.id]));
+                                 }
+                                 // Use setTimeout to ensure the selection state updates first
+                                 setTimeout(() => handleReanalyzeSelected(), 100);
+                               }}
+                              isReanalyzing={reanalyzingShipments.has(item.id)}
+                              editMode={editMode}
+                              getShipmentMarkup={getShipmentMarkup}
+                            />
                          ) : (
                            <TableRow 
                              key={item.id} 

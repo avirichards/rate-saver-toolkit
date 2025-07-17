@@ -254,12 +254,15 @@ export const generateExportData = (filteredData: any[], getShipmentMarkup: (ship
       'Origin ZIP': item.originZip,
       'Destination ZIP': item.destinationZip,
       'Weight': item.weight,
-      'Carrier': item.carrier,
-      'Service': item.service,
+      'Dimensions': item.dimensions || `${item.length || 0}x${item.width || 0}x${item.height || 0}`,
+      'Current Service': item.originalService || item.currentService || '',
+      'Ship Pros Service': item.service,
       'Current Rate': `$${item.currentRate.toFixed(2)}`,
       'Ship Pros Cost': `$${markupInfo.markedUpPrice.toFixed(2)}`,
       'Savings': `$${savings.toFixed(2)}`,
-      'Savings Percentage': `${savingsPercent.toFixed(1)}%`
+      'Savings Percentage': `${savingsPercent.toFixed(1)}%`,
+      'Margin': `$${markupInfo.margin.toFixed(2)}`,
+      'Margin Percentage': `${markupInfo.marginPercent.toFixed(1)}%`
     };
   });
 };

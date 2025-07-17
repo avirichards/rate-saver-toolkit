@@ -2043,22 +2043,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
-                     <TableHeader className="bg-muted/50">
-                       <TableRow className="border-b border-border">
-                         <TableHead className="text-foreground">Tracking ID</TableHead>
-                         <TableHead className="text-foreground">Origin</TableHead>
-                         <TableHead className="text-foreground">Destination</TableHead>
-                         <TableHead className="text-foreground">Weight (lbs)</TableHead>
-                         <TableHead className="text-foreground">Dimensions (L×W×H)</TableHead>
-                         <TableHead className="text-foreground">Carrier</TableHead>
-                         <TableHead className="text-foreground">Current Service</TableHead>
-                         <TableHead className="text-foreground">Ship Pros Service</TableHead>
-                         <TableHead className="text-right text-foreground">Current Rate</TableHead>
-                         <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
-                         <TableHead className="text-right text-foreground">Savings</TableHead>
-                         <TableHead className="text-right text-foreground">Savings %</TableHead>
-                       </TableRow>
-                     </TableHeader>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow className="border-b border-border">
+                          <TableHead className="text-foreground">Tracking ID</TableHead>
+                          <TableHead className="text-foreground">Origin</TableHead>
+                          <TableHead className="text-foreground">Destination</TableHead>
+                          <TableHead className="text-foreground">Weight (lbs)</TableHead>
+                          <TableHead className="text-foreground">Dimensions (L×W×H)</TableHead>
+                          <TableHead className="text-foreground">Current Service</TableHead>
+                          <TableHead className="text-foreground">Ship Pros Service</TableHead>
+                          <TableHead className="text-right text-foreground">Current Rate</TableHead>
+                          <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
+                          <TableHead className="text-right text-foreground">Savings</TableHead>
+                          <TableHead className="text-right text-foreground">Savings %</TableHead>
+                        </TableRow>
+                      </TableHeader>
                      <TableBody className="bg-background">
                        {filteredData.map((item, index) => (
                          <TableRow 
@@ -2084,11 +2083,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              {item.length && item.width && item.height 
                                ? `${item.length}×${item.width}×${item.height}` 
                                : item.dimensions || '12×12×6'}
-                           </TableCell>
-                           <TableCell>
-                             <Badge variant="outline" className="text-xs">
-                               {item.carrier || 'Unknown'}
-                             </Badge>
                            </TableCell>
                            <TableCell>
                              <Badge variant="outline" className="text-xs">

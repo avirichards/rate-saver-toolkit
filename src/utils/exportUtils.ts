@@ -54,9 +54,9 @@ export const generateReportExcelFromProcessedData = (
     
     // Column headers (from the generateExportData function)
     analysisData.push([
-      'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 
-      'Carrier', 'Service', 'Current Rate', 'Ship Pros Cost', 
-      'Savings', 'Savings Percentage'
+      'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 'Dimensions',
+      'Current Service', 'Ship Pros Service', 'Current Rate', 'Ship Pros Cost', 
+      'Savings', 'Savings Percentage', 'Margin', 'Margin Percentage'
     ]);
     
     // Shipment data
@@ -66,12 +66,15 @@ export const generateReportExcelFromProcessedData = (
         row['Origin ZIP'],
         row['Destination ZIP'],
         row['Weight'],
-        row['Carrier'],
-        row['Service'],
+        row['Dimensions'],
+        row['Current Service'],
+        row['Ship Pros Service'],
         row['Current Rate'],
         row['Ship Pros Cost'],
         row['Savings'],
-        row['Savings Percentage']
+        row['Savings Percentage'],
+        row['Margin'],
+        row['Margin Percentage']
       ]);
     });
   } else {
@@ -94,21 +97,24 @@ export const generateReportExcelFromProcessedData = (
     orphanedData.push(['Analysis Date:', new Date(report.analysis_date).toLocaleDateString()]);
     orphanedData.push([]);
     
-    // Column headers
+    // Column headers - include all original shipment data
     orphanedData.push([
-      'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 
-      'Current Service', 'Current Cost', 'Reason'
+      'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 'Dimensions',
+      'Current Service', 'Current Cost', 'Original Data', 'Reason'
     ]);
     
-    // Orphaned shipment data
+    // Orphaned shipment data with all original details
     orphanedShipments.forEach((shipment: any) => {
+      const originalData = JSON.stringify(shipment.originalData || shipment, null, 2);
       orphanedData.push([
         shipment.trackingId || '',
         shipment.originZip || '',
         shipment.destZip || '',
         shipment.weight || '',
+        shipment.dimensions || `${shipment.length || 0}x${shipment.width || 0}x${shipment.height || 0}`,
         shipment.currentService || '',
         shipment.currentRate || 0,
+        originalData,
         shipment.reason || 'Unable to quote'
       ]);
     });

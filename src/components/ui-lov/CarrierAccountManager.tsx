@@ -20,6 +20,8 @@ interface CarrierConfig {
   enabled_services: string[];
   is_active: boolean;
   is_sandbox: boolean;
+  connection_status?: 'connected' | 'error' | 'unknown';
+  last_test_at?: string;
   ups_client_id?: string;
   ups_client_secret?: string;
   ups_account_number?: string;

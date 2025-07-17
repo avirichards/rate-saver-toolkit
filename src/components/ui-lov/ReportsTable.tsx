@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 import { getOrCreateReportShare, copyShareUrl, getShareUrl } from '@/utils/shareUtils';
-import { downloadReportCSV } from '@/utils/exportUtils';
+import { downloadReportExcel } from '@/utils/exportUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -183,7 +183,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
   const handleDownloadReport = async (reportId: string) => {
     try {
       setDownloadingReports(prev => new Set(prev).add(reportId));
-      await downloadReportCSV(reportId);
+      await downloadReportExcel(reportId);
       toast.success('Report downloaded successfully');
     } catch (error) {
       console.error('Error downloading report:', error);

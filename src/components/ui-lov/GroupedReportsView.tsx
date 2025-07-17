@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { ChevronDown, ChevronRight, Users, Download, Eye, DollarSign, Percent } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface ShippingAnalysis {
   id: string;
@@ -203,20 +204,21 @@ export function GroupedReportsView({
                             </td>
                             <td className="py-2 px-4">
                               <div className="flex items-center justify-end gap-1">
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon"
-                                  className="h-7 w-7"
-                                    onClick={async () => {
-                                    try {
-                                      const { downloadReportExcel } = await import('@/utils/exportUtils');
-                                      await downloadReportExcel(report.id);
-                                      console.log('Downloaded report:', report.id);
-                                    } catch (error) {
-                                      console.error('Failed to download report:', error);
-                                    }
-                                  }}
-                                >
+                                 <Button 
+                                   variant="ghost" 
+                                   size="icon"
+                                   className="h-7 w-7"
+                                   onClick={async () => {
+                                     try {
+                                       const { downloadReportExcel } = await import('@/utils/exportUtils');
+                                       await downloadReportExcel(report.id);
+                                       toast.success('Report downloaded successfully');
+                                     } catch (error) {
+                                       console.error('Failed to download report:', error);
+                                       toast.error('Failed to download report');
+                                     }
+                                   }}
+                                 >
                                   <Download className="h-3 w-3" />
                                 </Button>
                                 <Link to={`/results?analysisId=${report.id}`}>

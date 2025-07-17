@@ -253,49 +253,25 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     return { markedUpPrice, margin, marginPercent };
   };
 
-  // Export functionality
-  const exportToExcel = () => {
-    const rows: string[] = [];
-    
-    // Main shipments section
-    const csvData = generateExportData(filteredData, getShipmentMarkup);
-    if (csvData.length > 0) {
-      rows.push('ANALYZED SHIPMENTS');
-      rows.push(Object.keys(csvData[0]).join(','));
-      csvData.forEach(row => {
-        rows.push(Object.values(row).join(','));
-      });
+  // Export functionality - uses standardized download function
+  const exportToExcel = async () => {
+    if (!currentAnalysisId) {
+      // If no saved analysis ID, try to save first
+      const savedId = await autoSaveAnalysis(true);
+      if (!savedId) {
+        toast.error('Unable to export: Please save the analysis first');
+        return;
+      }
     }
     
-    // Add orphaned shipments section
-    if (orphanedData && orphanedData.length > 0) {
-      rows.push(''); // Empty row
-      rows.push('ORPHANED SHIPMENTS (Unable to Quote)');
-      rows.push('Tracking ID,Origin ZIP,Destination ZIP,Weight,Current Service,Current Cost,Reason');
-      
-      orphanedData.forEach((shipment: any) => {
-        rows.push([
-          shipment.trackingId || '',
-          shipment.originZip || '',
-          shipment.destZip || '',
-          shipment.weight || '',
-          shipment.currentService || '',
-          `$${(shipment.currentRate || 0).toFixed(2)}`,
-          shipment.reason || 'Unable to quote'
-        ].join(','));
-      });
+    try {
+      const { downloadReportExcel } = await import('@/utils/exportUtils');
+      await downloadReportExcel(currentAnalysisId!);
+      toast.success('Report downloaded successfully');
+    } catch (error) {
+      console.error('Error exporting report:', error);
+      toast.error('Failed to export report');
     }
-
-    const csvContent = rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `shipping_analysis_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   useEffect(() => {

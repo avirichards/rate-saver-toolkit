@@ -1508,14 +1508,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                         value={snapshotDays}
                         onChange={(e) => {
                           const value = e.target.value;
-                          let newValue: number;
                           
-                          if (value === '' || value === '0') {
-                            newValue = 30; // Default to 30 when cleared or 0 entered
-                          } else {
-                            const parsedValue = parseInt(value);
-                            newValue = isNaN(parsedValue) || parsedValue < 1 ? 30 : parsedValue;
+                          if (value === '') {
+                            // Allow empty during editing, but don't update snapshotDays yet
+                            return;
                           }
+                          
+                          const parsedValue = parseInt(value);
+                          const newValue = isNaN(parsedValue) || parsedValue < 1 ? 30 : parsedValue;
                           
                           setSnapshotDays(newValue);
                           
@@ -1536,6 +1536,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             }, 1500);
                             
                             return () => clearTimeout(timeoutId);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Reset to 30 if field is empty when user leaves the field
+                          const value = e.target.value;
+                          if (value === '' || value === '0') {
+                            setSnapshotDays(30);
                           }
                         }}
                         placeholder="30"

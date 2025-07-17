@@ -280,7 +280,34 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
-          const processedData = processAnalysisData(analysis, getShipmentMarkup);
+          
+          // Set markup data first
+          if (analysis.markup_data) {
+            setMarkupData(analysis.markup_data as any as MarkupData);
+          }
+          
+          // Create a markup function that uses the markup data directly from the analysis
+          const getMarkupWithData = (shipment: any) => {
+            const markupDataFromAnalysis = analysis.markup_data as any;
+            if (!markupDataFromAnalysis) return { markedUpPrice: shipment.newRate, margin: 0, marginPercent: 0 };
+            
+            const shipProsCost = shipment.newRate || 0;
+            let markupPercent = 0;
+            
+            if (markupDataFromAnalysis.markupType === 'global') {
+              markupPercent = markupDataFromAnalysis.globalMarkup;
+            } else {
+              markupPercent = markupDataFromAnalysis.perServiceMarkup[shipment.service] || 0;
+            }
+            
+            const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
+            const margin = markedUpPrice - shipProsCost;
+            const marginPercent = shipProsCost > 0 ? (margin / shipProsCost) * 100 : 0;
+            
+            return { markedUpPrice, margin, marginPercent };
+          };
+          
+          const processedData = processAnalysisData(analysis, getMarkupWithData);
           
           setAnalysisData(processedData);
           setShipmentData(processedData.recommendations || []);

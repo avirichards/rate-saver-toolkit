@@ -33,6 +33,7 @@ interface ShippingAnalysis {
   savings_analysis: any;
   recommendations?: any;
   original_data?: any;
+  processed_shipments?: any;
   created_at: string;
   status: string;
   updated_at: string;
@@ -408,14 +409,44 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                      {(() => {
                        const markupStatus = getMarkupStatus(report.markup_data);
                        
-                       // If has markup, use pre-calculated client savings from markup_data
-                       if (markupStatus.hasMarkup) {
-                         return (
-                           <div className="text-right">
-                             <div className="font-medium">${markupStatus.savingsAmount.toFixed(2)}</div>
-                             <div className="text-xs text-muted-foreground">{markupStatus.savingsPercentage.toFixed(1)}%</div>
-                           </div>
-                         );
+                       // If has markup, calculate client savings the same way as Results page
+                       if (markupStatus.hasMarkup && (report.processed_shipments || report.recommendations || report.original_data)) {
+                         // Use processed_shipments first, then fall back to recommendations or original_data
+                         const shipmentsData = report.processed_shipments || report.recommendations || report.original_data;
+                         
+                         if (Array.isArray(shipmentsData)) {
+                           // Calculate total client savings using same logic as Results page
+                           let totalClientSavings = 0;
+                           let totalCurrentCost = 0;
+                           
+                           shipmentsData.forEach((shipment: any) => {
+                             const currentCost = shipment.currentRate || shipment.currentCost || 0;
+                             const shipProsCost = shipment.newRate || shipment.recommendedCost || 0;
+                             
+                             // Apply markup to ShipPros cost (same logic as getShipmentMarkup)
+                             let markupPercent = 0;
+                             if (report.markup_data?.markupType === 'global') {
+                               markupPercent = report.markup_data.globalMarkup || 0;
+                             } else {
+                               markupPercent = report.markup_data?.perServiceMarkup?.[shipment.service || shipment.originalService] || 0;
+                             }
+                             
+                             const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
+                             const clientSavings = currentCost - markedUpPrice; // Same as Results page
+                             
+                             totalClientSavings += clientSavings;
+                             totalCurrentCost += currentCost;
+                           });
+                           
+                           const clientSavingsPercentage = totalCurrentCost > 0 ? (totalClientSavings / totalCurrentCost) * 100 : 0;
+                           
+                           return (
+                             <div className="text-right">
+                               <div className="font-medium">${totalClientSavings.toFixed(2)}</div>
+                               <div className="text-xs text-muted-foreground">{clientSavingsPercentage.toFixed(1)}%</div>
+                             </div>
+                           );
+                         }
                        }
                        
                        // No markup - show regular savings (what client saves by switching to ShipPros)

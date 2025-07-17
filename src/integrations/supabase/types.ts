@@ -16,12 +16,14 @@ export type Database = {
     Tables: {
       carrier_configs: {
         Row: {
+          account_group: string | null
           account_name: string
           carrier_type: string
           created_at: string
           dhl_account_number: string | null
           dhl_password: string | null
           dhl_site_id: string | null
+          enabled_services: Json | null
           fedex_account_number: string | null
           fedex_key: string | null
           fedex_meter_number: string | null
@@ -38,12 +40,14 @@ export type Database = {
           usps_user_id: string | null
         }
         Insert: {
+          account_group?: string | null
           account_name: string
           carrier_type: string
           created_at?: string
           dhl_account_number?: string | null
           dhl_password?: string | null
           dhl_site_id?: string | null
+          enabled_services?: Json | null
           fedex_account_number?: string | null
           fedex_key?: string | null
           fedex_meter_number?: string | null
@@ -60,12 +64,14 @@ export type Database = {
           usps_user_id?: string | null
         }
         Update: {
+          account_group?: string | null
           account_name?: string
           carrier_type?: string
           created_at?: string
           dhl_account_number?: string | null
           dhl_password?: string | null
           dhl_site_id?: string | null
+          enabled_services?: Json | null
           fedex_account_number?: string | null
           fedex_key?: string | null
           fedex_meter_number?: string | null

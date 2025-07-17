@@ -15,6 +15,8 @@ interface CarrierConfig {
   id: string;
   carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
   account_name: string;
+  account_group?: string;
+  enabled_services: string[];
   is_active: boolean;
   is_sandbox: boolean;
   ups_client_id?: string;
@@ -33,6 +35,15 @@ interface CarrierConfig {
   updated_at: string;
 }
 
+interface CarrierService {
+  id: string;
+  carrier_type: string;
+  service_code: string;
+  service_name: string;
+  description?: string;
+  is_active: boolean;
+}
+
 const CARRIER_TYPES = [
   { value: 'ups', label: 'UPS', icon: '📦' },
   { value: 'fedex', label: 'FedEx', icon: '🚚' },
@@ -42,6 +53,7 @@ const CARRIER_TYPES = [
 
 export const CarrierAccountManager = () => {
   const [configs, setConfigs] = useState<CarrierConfig[]>([]);
+  const [availableServices, setAvailableServices] = useState<CarrierService[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CarrierConfig | null>(null);
@@ -50,6 +62,8 @@ export const CarrierAccountManager = () => {
   const [newAccount, setNewAccount] = useState<{
     carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
     account_name: string;
+    account_group: string;
+    enabled_services: string[];
     is_sandbox: boolean;
     ups_client_id: string;
     ups_client_secret: string;
@@ -66,6 +80,8 @@ export const CarrierAccountManager = () => {
   }>({
     carrier_type: 'ups',
     account_name: '',
+    account_group: '',
+    enabled_services: [],
     is_sandbox: true,
     ups_client_id: '',
     ups_client_secret: '',
@@ -86,7 +102,17 @@ export const CarrierAccountManager = () => {
 
   useEffect(() => {
     loadCarrierConfigs();
+    loadAvailableServices();
   }, []);
+
+  // Update enabled services when carrier type changes
+  useEffect(() => {
+    const servicesForCarrier = availableServices.filter(s => s.carrier_type === newAccount.carrier_type);
+    setNewAccount(prev => ({
+      ...prev,
+      enabled_services: servicesForCarrier.map(s => s.service_code)
+    }));
+  }, [newAccount.carrier_type, availableServices]);
 
   const loadCarrierConfigs = async () => {
     try {
@@ -98,6 +124,7 @@ export const CarrierAccountManager = () => {
         .from('carrier_configs')
         .select('*')
         .eq('user_id', user.id)
+        .order('account_group', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -107,6 +134,23 @@ export const CarrierAccountManager = () => {
       toast.error('Failed to load carrier accounts');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAvailableServices = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('carrier_services')
+        .select('*')
+        .eq('is_active', true)
+        .order('carrier_type', { ascending: true })
+        .order('service_name', { ascending: true });
+
+      if (error) throw error;
+      setAvailableServices((data || []) as CarrierService[]);
+    } catch (error) {
+      console.error('Error loading available services:', error);
+      toast.error('Failed to load carrier services');
     }
   };
 
@@ -160,6 +204,8 @@ export const CarrierAccountManager = () => {
         user_id: user.id,
         carrier_type: newAccount.carrier_type,
         account_name: newAccount.account_name,
+        account_group: newAccount.account_group || null,
+        enabled_services: JSON.stringify(newAccount.enabled_services),
         is_sandbox: newAccount.is_sandbox,
         ups_client_id: newAccount.carrier_type === 'ups' ? newAccount.ups_client_id : null,
         ups_client_secret: newAccount.carrier_type === 'ups' ? newAccount.ups_client_secret : null,
@@ -201,6 +247,8 @@ export const CarrierAccountManager = () => {
         .from('carrier_configs')
         .update({
           account_name: account.account_name,
+          account_group: account.account_group || null,
+          enabled_services: JSON.stringify(account.enabled_services),
           is_active: account.is_active,
           is_sandbox: account.is_sandbox,
           ups_client_id: account.ups_client_id,
@@ -274,9 +322,12 @@ export const CarrierAccountManager = () => {
   };
 
   const resetNewAccount = () => {
+    const upsServices = availableServices.filter(s => s.carrier_type === 'ups').map(s => s.service_code);
     setNewAccount({
       carrier_type: 'ups',
       account_name: '',
+      account_group: '',
+      enabled_services: upsServices,
       is_sandbox: true,
       ups_client_id: '',
       ups_client_secret: '',
@@ -299,6 +350,91 @@ export const CarrierAccountManager = () => {
 
   const getCarrierIcon = (carrierType: string) => {
     return CARRIER_TYPES.find(c => c.value === carrierType)?.icon || '📦';
+  };
+
+  const getAvailableGroups = () => {
+    const groups = new Set(configs.map(config => config.account_group).filter(Boolean));
+    return Array.from(groups);
+  };
+
+  const getGroupedConfigs = () => {
+    const grouped = configs.reduce((acc, config) => {
+      const group = config.account_group || 'Ungrouped';
+      if (!acc[group]) acc[group] = [];
+      acc[group].push(config);
+      return acc;
+    }, {} as Record<string, CarrierConfig[]>);
+    
+    return grouped;
+  };
+
+  const renderServiceToggles = (account: any, setAccount: (account: any) => void) => {
+    const carrierServices = availableServices.filter(s => s.carrier_type === account.carrier_type);
+    
+    if (carrierServices.length === 0) return null;
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>Enabled Services</Label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAccount({
+                ...account,
+                enabled_services: carrierServices.map(s => s.service_code)
+              })}
+            >
+              Select All
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setAccount({
+                ...account,
+                enabled_services: []
+              })}
+            >
+              Clear All
+            </Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-3 border rounded-lg bg-muted/20">
+          {carrierServices.map(service => (
+            <div key={service.service_code} className="flex items-center justify-between space-x-2">
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={account.enabled_services.includes(service.service_code)}
+                    onCheckedChange={(checked) => {
+                      const updatedServices = checked
+                        ? [...account.enabled_services, service.service_code]
+                        : account.enabled_services.filter(code => code !== service.service_code);
+                      setAccount({
+                        ...account,
+                        enabled_services: updatedServices
+                      });
+                    }}
+                  />
+                  <div>
+                    <Label className="text-sm font-medium">{service.service_name}</Label>
+                    {service.description && (
+                      <p className="text-xs text-muted-foreground">{service.description}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-xs">
+                {service.service_code}
+              </Badge>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const renderCarrierFields = (
@@ -476,7 +612,7 @@ export const CarrierAccountManager = () => {
                 Add Account
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Carrier Account</DialogTitle>
               </DialogHeader>
@@ -512,8 +648,26 @@ export const CarrierAccountManager = () => {
                     placeholder="e.g., UPS West Coast Account"
                   />
                 </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="account_group">Account Group</Label>
+                  <Input
+                    id="account_group"
+                    value={newAccount.account_group}
+                    onChange={(e) => setNewAccount({ ...newAccount, account_group: e.target.value })}
+                    placeholder="Enter group name (optional)"
+                    list="existing-groups"
+                  />
+                  <datalist id="existing-groups">
+                    {getAvailableGroups().map(group => (
+                      <option key={group} value={group} />
+                    ))}
+                  </datalist>
+                </div>
 
                 {renderCarrierFields(newAccount, setNewAccount)}
+                
+                {renderServiceToggles(newAccount, setNewAccount)}
 
                 <div className="flex items-center justify-between py-2">
                   <div>
@@ -549,57 +703,64 @@ export const CarrierAccountManager = () => {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {configs.map((config) => (
-              <div key={config.id} className="border rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">{getCarrierIcon(config.carrier_type)}</div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-medium">{config.account_name}</h4>
-                        <Badge variant={config.is_active ? "default" : "secondary"}>
-                          {config.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                        {config.is_sandbox && (
-                          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
-                            Sandbox
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {getCarrierLabel(config.carrier_type)} • Created {new Date(config.created_at).toLocaleDateString()}
+          <div className="space-y-6">
+            {Object.entries(getGroupedConfigs()).map(([groupName, groupConfigs]) => (
+              <div key={groupName} className="space-y-3">
+                {groupName !== 'Ungrouped' && (
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium text-sm text-muted-foreground uppercase tracking-wider">
+                      {groupName}
+                    </h3>
+                    <div className="flex-1 h-px bg-border"></div>
+                    <Badge variant="outline" className="text-xs">
+                      {groupConfigs.length} account{groupConfigs.length > 1 ? 's' : ''}
+                    </Badge>
+                  </div>
+                )}
+                <div className="space-y-3">
+                  {groupConfigs.map((config) => (
+                    <div key={config.id} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-2xl">{getCarrierIcon(config.carrier_type)}</span>
+                          <div>
+                            <h3 className="font-medium">{config.account_name}</h3>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <span>{getCarrierLabel(config.carrier_type)}</span>
+                              <span>•</span>
+                              <span>{config.is_sandbox ? 'Sandbox' : 'Production'}</span>
+                              <span>•</span>
+                              <span>{config.enabled_services?.length || 0} services</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {config.is_active ? (
+                            <Badge variant="default">Active</Badge>
+                          ) : (
+                            <Badge variant="secondary">Inactive</Badge>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => testConnection(config)}
+                            disabled={testingAccount === config.id}
+                            iconLeft={<TestTube className="h-4 w-4" />}
+                          >
+                            {testingAccount === config.id ? 'Testing...' : 'Test'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingAccount({ ...config })}
+                            iconLeft={<Edit2 className="h-4 w-4" />}
+                          >
+                            Edit
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => testConnection(config)}
-                      disabled={!config.is_active || testingAccount === config.id}
-                      iconLeft={<TestTube className="h-3 w-3" />}
-                    >
-                      {testingAccount === config.id ? 'Testing...' : 'Test'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingAccount(config)}
-                      iconLeft={<Edit2 className="h-3 w-3" />}
-                    >
-                      Edit
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => deleteAccount(config.id)}
-                      iconLeft={<Trash2 className="h-3 w-3" />}
-                    >
-                      Delete
-                    </Button>
-                  </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -608,7 +769,7 @@ export const CarrierAccountManager = () => {
 
         {/* Edit Account Dialog */}
         <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Carrier Account</DialogTitle>
             </DialogHeader>
@@ -622,8 +783,26 @@ export const CarrierAccountManager = () => {
                     onChange={(e) => setEditingAccount({ ...editingAccount, account_name: e.target.value })}
                   />
                 </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit_account_group">Account Group</Label>
+                  <Input
+                    id="edit_account_group"
+                    value={editingAccount.account_group || ''}
+                    onChange={(e) => setEditingAccount({ ...editingAccount, account_group: e.target.value })}
+                    placeholder="Enter group name (optional)"
+                    list="edit-existing-groups"
+                  />
+                  <datalist id="edit-existing-groups">
+                    {getAvailableGroups().map(group => (
+                      <option key={group} value={group} />
+                    ))}
+                  </datalist>
+                </div>
 
                 {renderCarrierFields(editingAccount as any, setEditingAccount as any, true)}
+                
+                {renderServiceToggles(editingAccount as any, setEditingAccount as any)}
 
                 <div className="flex items-center justify-between py-2">
                   <div>
@@ -647,13 +826,18 @@ export const CarrierAccountManager = () => {
                   />
                 </div>
 
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setEditingAccount(null)}>
-                    Cancel
+                <div className="flex justify-between pt-4">
+                  <Button variant="secondary" onClick={() => deleteAccount(editingAccount.id)}>
+                    Delete Account
                   </Button>
-                  <Button variant="primary" onClick={() => updateAccount(editingAccount)}>
-                    Update Account
-                  </Button>
+                  <div className="space-x-2">
+                    <Button variant="outline" onClick={() => setEditingAccount(null)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={() => updateAccount(editingAccount)}>
+                      Update Account
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}

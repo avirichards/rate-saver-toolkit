@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +29,11 @@ export function EditableShipmentRow({
   editMode
 }: EditableShipmentRowProps) {
   const [localChanges, setLocalChanges] = useState<Record<string, string>>({});
+
+  // Clear local changes when shipment data is updated (after re-analysis)
+  useEffect(() => {
+    setLocalChanges({});
+  }, [shipment.savings, shipment.newRate, shipment.savingsPercent]);
 
   const handleFieldSave = async (field: string, value: string) => {
     setLocalChanges(prev => ({ ...prev, [field]: value }));

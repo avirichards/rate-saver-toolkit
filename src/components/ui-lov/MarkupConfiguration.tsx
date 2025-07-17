@@ -328,12 +328,21 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
                       <div className="relative flex-1 max-w-[150px]">
                         <Input
                           type="number"
-                          value={perServiceMarkup[service] || 0}
-                          onChange={(e) => handlePerServiceMarkupChange(service, parseFloat(e.target.value) || 0)}
+                          value={perServiceMarkup[service] === 0 ? '' : perServiceMarkup[service] || ''}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === '') {
+                              handlePerServiceMarkupChange(service, 0);
+                            } else {
+                              const numValue = parseFloat(value);
+                              handlePerServiceMarkupChange(service, isNaN(numValue) ? 0 : numValue);
+                            }
+                          }}
                           className="pr-8"
                           step="1"
                           min="0"
                           max="100"
+                          placeholder="0"
                         />
                         <Percent className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       </div>

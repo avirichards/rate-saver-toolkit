@@ -36,21 +36,11 @@ export function SelectiveReanalysisModal({
 
   // Get unique current service types from all shipments
   const currentServices = useMemo(() => {
-    console.log('🔍 Debug: All shipments for service extraction:', allShipments.slice(0, 3));
     const services = [...new Set(allShipments.map(s => {
       // Try multiple field names for service
       const serviceValue = s.service || s.originalService || s.currentService || s.currentServiceType || s.serviceType;
-      console.log('🔍 Debug: Shipment service fields:', {
-        id: s.id,
-        service: s.service,
-        originalService: s.originalService, 
-        currentService: s.currentService,
-        serviceType: s.serviceType,
-        extractedValue: serviceValue
-      });
       return serviceValue;
     }).filter(Boolean))];
-    console.log('🔍 Debug: Extracted services:', services);
     return services.sort();
   }, [allShipments]);
 

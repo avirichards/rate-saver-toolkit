@@ -347,12 +347,26 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
     try {
       const selectedData = filteredData.filter(item => selectedShipments.has(item.id));
-      await applyServiceCorrections(corrections, selectedData, currentAnalysisId);
+      const result = await applyServiceCorrections(corrections, selectedData, currentAnalysisId);
       
-      // Refresh the data after corrections
-      window.location.reload(); // Simple approach for now
+      // Update local state with the corrected data instead of reloading the page
+      if (result && result.success) {
+        // Update shipmentData with the new results
+        setShipmentData(prev => prev.map(item => {
+          const updated = result.success.find((r: any) => r.id === item.id);
+          return updated ? { ...item, ...updated } : item;
+        }));
+
+        // Clear selections and close modal
+        setSelectedShipments(new Set());
+        setShipmentUpdates({});
+        setIsReanalysisModalOpen(false);
+        
+        toast.success(`Successfully applied corrections and re-analyzed ${result.success.length} shipments`);
+      }
     } catch (error) {
       console.error('Service corrections failed:', error);
+      toast.error('Failed to apply corrections. Please try again.');
     }
   };
 

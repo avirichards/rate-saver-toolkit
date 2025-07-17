@@ -3,6 +3,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronDown, ChevronRight, Users, Download, Eye, DollarSign, Percent } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatCurrency } from '@/lib/utils';
 
 interface ShippingAnalysis {
   id: string;
@@ -82,7 +83,7 @@ export function GroupedReportsView({
               <div className="flex items-center gap-4 text-sm">
                 <div className="text-right">
                   <div className="font-medium">
-                    ${summary.totalSavings.toFixed(2)}
+                    {formatCurrency(summary.totalSavings)}
                   </div>
                   <div className="text-xs text-muted-foreground">Total Savings</div>
                 </div>
@@ -177,7 +178,7 @@ export function GroupedReportsView({
                                     
                                     return (
                                       <div className="text-right">
-                                        <div className="font-medium">${savingsAmount.toFixed(2)}</div>
+                                        <div className="font-medium">{formatCurrency(savingsAmount)}</div>
                                         <div className="text-xs text-muted-foreground">
                                           {savingsPercentage.toFixed(1)}%
                                         </div>
@@ -189,7 +190,7 @@ export function GroupedReportsView({
                               {markupStatus.hasMarkup ? (
                                 <div className="text-right">
                                   <div className="font-medium">
-                                    ${markupStatus.totalMargin.toFixed(2)}
+                                    {formatCurrency(markupStatus.totalMargin)}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
                                     {markupStatus.marginPercentage.toFixed(1)}%

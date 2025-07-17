@@ -9,6 +9,7 @@ import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { DataIntegrityIndicator } from '@/components/ui-lov/DataIntegrityIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/utils';
 import { getOrCreateReportShare, copyShareUrl, getShareUrl } from '@/utils/shareUtils';
 import { downloadReportCSV } from '@/utils/exportUtils';
 import {
@@ -442,7 +443,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                            
                            return (
                              <div className="text-right">
-                               <div className="font-medium">${totalClientSavings.toFixed(2)}</div>
+                               <div className="font-medium">{formatCurrency(totalClientSavings)}</div>
                                <div className="text-xs text-muted-foreground">{clientSavingsPercentage.toFixed(1)}%</div>
                              </div>
                            );
@@ -455,7 +456,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                        
                        return (
                          <div className="text-right">
-                           <div className="font-medium">${savingsAmount.toFixed(2)}</div>
+                           <div className="font-medium">{formatCurrency(savingsAmount)}</div>
                            <div className="text-xs text-muted-foreground">{savingsPercentage.toFixed(1)}%</div>
                          </div>
                        );
@@ -465,7 +466,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                     {markupStatus.hasMarkup ? (
                       <div className="text-right">
                         <div className="font-medium">
-                          ${markupStatus.totalMargin.toFixed(2)}
+                          {formatCurrency(markupStatus.totalMargin)}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {markupStatus.marginPercentage.toFixed(1)}%

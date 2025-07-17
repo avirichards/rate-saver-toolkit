@@ -1383,49 +1383,22 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           )}
 
           <div className="space-y-8">
-            <div className="space-y-6">
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                {isClientView ? (
-                  analysisData?.report_name || analysisData?.file_name || 'Untitled Report'
-                ) : (
-                  <InlineEditableField
-                    value={analysisData?.report_name || analysisData?.file_name || 'Untitled Report'}
-                    onSave={async (value) => {
-                      if (currentAnalysisId) {
-                        const { error } = await supabase
-                          .from('shipping_analyses')
-                          .update({ 
-                            report_name: value,
-                            updated_at: new Date().toISOString()
-                          })
-                          .eq('id', currentAnalysisId);
-                        
-                        if (error) throw error;
-                        
-                        // Update local state
-                        setAnalysisData(prev => prev ? { ...prev, report_name: value } : null);
-                        toast.success('Report name updated');
-                      }
-                    }}
-                    placeholder="Click to edit report name"
-                    required
-                    minWidth="300px"
-                  />
-                )}
-              </h1>
-              
-              {!isClientView && (
-                <div className="flex items-center gap-3">
-                  <span className="text-muted-foreground font-medium">Client:</span>
-                  <div className="min-w-[200px]">
-                    <ClientCombobox
-                      value={analysisData?.client_id || ''}
-                      onValueChange={async (clientId) => {
+            {/* Header Section with improved layout */}
+            <div className="flex items-start justify-between gap-6">
+              {/* Left side - Title and info */}
+              <div className="flex-1 space-y-4">
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  {isClientView ? (
+                    analysisData?.report_name || analysisData?.file_name || 'Untitled Report'
+                  ) : (
+                    <InlineEditableField
+                      value={analysisData?.report_name || analysisData?.file_name || 'Untitled Report'}
+                      onSave={async (value) => {
                         if (currentAnalysisId) {
                           const { error } = await supabase
                             .from('shipping_analyses')
                             .update({ 
-                              client_id: clientId || null,
+                              report_name: value,
                               updated_at: new Date().toISOString()
                             })
                             .eq('id', currentAnalysisId);
@@ -1433,33 +1406,65 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           if (error) throw error;
                           
                           // Update local state
-                          setAnalysisData(prev => prev ? { ...prev, client_id: clientId } : null);
-                          toast.success('Client updated');
+                          setAnalysisData(prev => prev ? { ...prev, report_name: value } : null);
+                          toast.success('Report name updated');
                         }
                       }}
-                      placeholder="Select client"
-                      disabled={!currentAnalysisId}
+                      placeholder="Click to edit report name"
+                      required
+                      minWidth="300px"
                     />
+                  )}
+                </h1>
+                
+                {!isClientView && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-muted-foreground font-medium">Client:</span>
+                    <div className="min-w-[200px]">
+                      <ClientCombobox
+                        value={analysisData?.client_id || ''}
+                        onValueChange={async (clientId) => {
+                          if (currentAnalysisId) {
+                            const { error } = await supabase
+                              .from('shipping_analyses')
+                              .update({ 
+                                client_id: clientId || null,
+                                updated_at: new Date().toISOString()
+                              })
+                              .eq('id', currentAnalysisId);
+                            
+                            if (error) throw error;
+                            
+                            // Update local state
+                            setAnalysisData(prev => prev ? { ...prev, client_id: clientId } : null);
+                            toast.success('Client updated');
+                          }
+                        }}
+                        placeholder="Select client"
+                        disabled={!currentAnalysisId}
+                      />
+                    </div>
                   </div>
+                )}
+                
+                <div className="text-muted-foreground text-lg">
+                  {shipmentData.length} shipments analyzed
                 </div>
-              )}
-              
-              <div className="text-muted-foreground text-lg">
-                {shipmentData.length} shipments analyzed
               </div>
-            </div>
-            
-            <div className="flex gap-4">
-              <Button variant="outline" size="sm" onClick={exportToCSV}>
-                <Download className="h-4 w-4 mr-2" />
-                Export Report
-              </Button>
-              {!isClientView && (
-                <Button size="sm" onClick={() => navigate('/upload')}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  New Analysis
+              
+              {/* Right side - Action buttons */}
+              <div className="flex flex-col gap-3 min-w-[200px]">
+                <Button variant="outline" onClick={exportToCSV} className="w-full">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Report
                 </Button>
-              )}
+                {!isClientView && (
+                  <Button onClick={() => navigate('/upload')} className="w-full">
+                    <Upload className="h-4 w-4 mr-2" />
+                    New Analysis
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1568,7 +1573,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Current Cost</p>
-                      <p className="text-2xl font-bold">${getFilteredStats().totalCurrentCost.toLocaleString()}</p>
+                      <p className="text-2xl font-bold">{formatCurrency(getFilteredStats().totalCurrentCost)}</p>
                     </div>
                     <DollarSign className="h-8 w-8 text-muted-foreground" />
                   </div>
@@ -1581,7 +1586,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Ship Pros Cost</p>
-                      <p className="text-2xl font-bold">${getFilteredStats().totalShipProsCost.toLocaleString()}</p>
+                      <p className="text-2xl font-bold">{formatCurrency(getFilteredStats().totalShipProsCost)}</p>
                     </div>
                     <TrendingUp className="h-8 w-8 text-muted-foreground" />
                   </div>
@@ -1595,7 +1600,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Total Savings</p>
                       <p className={`text-2xl font-bold ${getFilteredStats().totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${Math.abs(getFilteredStats().totalSavings).toLocaleString()}
+                        {formatCurrency(Math.abs(getFilteredStats().totalSavings))}
                       </p>
                       <p className={`text-sm ${getFilteredStats().totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {getFilteredStats().totalSavings >= 0 ? '+' : '-'}{Math.abs(getFilteredStats().averageSavingsPercent).toFixed(1)}%
@@ -1613,7 +1618,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Est. Annual Savings</p>
                       <p className={`text-2xl font-bold ${getFilteredStats().totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${Math.abs(getFilteredStats().totalSavings * (365 / snapshotDays)).toLocaleString()}
+                        {formatCurrency(Math.abs(getFilteredStats().totalSavings * (365 / snapshotDays)))}
                       </p>
                       <p className="text-xs text-muted-foreground">Based on {snapshotDays}-day snapshot</p>
                     </div>

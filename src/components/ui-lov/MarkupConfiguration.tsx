@@ -9,7 +9,6 @@ import { Percent, DollarSign, TrendingUp, Globe, Settings } from 'lucide-react';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
 export interface MarkupData {
   markupType: 'global' | 'per-service';
   globalMarkup: number;
@@ -19,14 +18,12 @@ export interface MarkupData {
   savingsAmount?: number;
   savingsPercentage?: number;
 }
-
 interface MarkupConfigurationProps {
   shipmentData: any[];
   analysisId?: string;
   onMarkupChange: (markupData: MarkupData) => void;
   initialMarkupData?: MarkupData;
 }
-
 export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
   shipmentData,
   analysisId,
@@ -68,34 +65,27 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
     let totalMarkedUpRevenue = 0;
     let totalSavings = 0;
     let totalCurrentCost = 0;
-
     shipmentData.forEach(shipment => {
       const shipProsCost = shipment.newRate || 0;
       const currentCost = shipment.currentRate || 0;
       const savings = shipment.savings || 0;
-      
       totalShipProsCost += shipProsCost;
       totalCurrentCost += currentCost;
       totalSavings += savings;
-
       let markupPercent = 0;
       if (markupType === 'global') {
         markupPercent = globalMarkup;
       } else {
         markupPercent = perServiceMarkup[shipment.service] || 0;
       }
-
       const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
       const margin = markedUpPrice - shipProsCost;
-      
       totalMargin += margin;
       totalMarkedUpRevenue += markedUpPrice;
     });
-
-    const marginPercentage = totalShipProsCost > 0 ? (totalMargin / totalShipProsCost) * 100 : 0;
+    const marginPercentage = totalShipProsCost > 0 ? totalMargin / totalShipProsCost * 100 : 0;
     const finalSavingsAmount = totalSavings + totalMargin;
-    const savingsPercentage = totalCurrentCost > 0 ? (finalSavingsAmount / totalCurrentCost) * 100 : 0;
-
+    const savingsPercentage = totalCurrentCost > 0 ? finalSavingsAmount / totalCurrentCost * 100 : 0;
     return {
       markupType,
       globalMarkup,
@@ -111,16 +101,13 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
   // Debounced save to database
   const saveMarkupData = useCallback(async (markupData: MarkupData) => {
     if (!analysisId) return;
-
     setIsSaving(true);
     try {
       // First, get the current analysis to recalculate total savings with new markup
-      const { data: currentAnalysis, error: fetchError } = await supabase
-        .from('shipping_analyses')
-        .select('original_data, total_shipments, total_savings, savings_analysis')
-        .eq('id', analysisId)
-        .single();
-
+      const {
+        data: currentAnalysis,
+        error: fetchError
+      } = await supabase.from('shipping_analyses').select('original_data, total_shipments, total_savings, savings_analysis').eq('id', analysisId).single();
       if (fetchError) {
         throw fetchError;
       }
@@ -128,15 +115,16 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
       // Recalculate total savings including markup
       let newTotalSavings = 0;
       let updatedSavingsAnalysis: any = {};
-      
+
       // Safely handle savings_analysis which could be null or different types
       if (currentAnalysis?.savings_analysis && typeof currentAnalysis.savings_analysis === 'object') {
-        updatedSavingsAnalysis = { ...currentAnalysis.savings_analysis };
+        updatedSavingsAnalysis = {
+          ...currentAnalysis.savings_analysis
+        };
       }
-      
       if (currentAnalysis?.original_data) {
         let shipmentData: any[] = [];
-        
+
         // Handle different data structures
         if (Array.isArray(currentAnalysis.original_data)) {
           shipmentData = currentAnalysis.original_data;
@@ -145,32 +133,26 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
           const dataObj = currentAnalysis.original_data as any;
           shipmentData = dataObj.shipments || dataObj.data || [];
         }
-        
         let totalCurrentCost = 0;
         let totalNewCost = 0;
-        
         shipmentData.forEach((shipment: any) => {
           const currentRate = shipment.currentRate || 0;
           const newRate = shipment.newRate || 0;
           const baseSavings = shipment.savings || 0;
-          
           totalCurrentCost += currentRate;
           totalNewCost += newRate;
-          
+
           // Add markup to the savings calculation
           let markupAmount = 0;
           if (newRate) {
-            const markupPercent = markupData.markupType === 'global' 
-              ? markupData.globalMarkup 
-              : markupData.perServiceMarkup[shipment.service] || 0;
-            markupAmount = (newRate * markupPercent) / 100;
+            const markupPercent = markupData.markupType === 'global' ? markupData.globalMarkup : markupData.perServiceMarkup[shipment.service] || 0;
+            markupAmount = newRate * markupPercent / 100;
           }
-          
           newTotalSavings += baseSavings + markupAmount;
         });
 
         // Calculate savings percentage
-        const savingsPercentage = totalCurrentCost > 0 ? (newTotalSavings / totalCurrentCost) * 100 : 0;
+        const savingsPercentage = totalCurrentCost > 0 ? newTotalSavings / totalCurrentCost * 100 : 0;
 
         // Update savings_analysis with the new calculations
         updatedSavingsAnalysis = {
@@ -182,7 +164,6 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
           updatedAt: new Date().toISOString()
         };
       }
-
       console.log('🔄 MARKUP CHANGED: Updating database with recalculated savings:', {
         oldTotal: currentAnalysis?.total_savings,
         newTotal: newTotalSavings,
@@ -196,17 +177,14 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
         savingsAmount: newTotalSavings,
         savingsPercentage: updatedSavingsAnalysis.savingsPercentage
       };
-
-      const { error } = await supabase
-        .from('shipping_analyses')
-        .update({
-          markup_data: updatedMarkupData as any,
-          total_savings: newTotalSavings,
-          savings_analysis: updatedSavingsAnalysis as any,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', analysisId);
-
+      const {
+        error
+      } = await supabase.from('shipping_analyses').update({
+        markup_data: updatedMarkupData as any,
+        total_savings: newTotalSavings,
+        savings_analysis: updatedSavingsAnalysis as any,
+        updated_at: new Date().toISOString()
+      }).eq('id', analysisId);
       if (error) {
         console.error('Error saving markup data:', error);
         toast.error('Failed to save markup configuration');
@@ -233,23 +211,18 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
         saveMarkupData(markupData);
       }
     }, 1000);
-
     return () => clearTimeout(saveTimeout);
   }, [markupType, globalMarkup, perServiceMarkup, analysisId]);
-
   const handlePerServiceMarkupChange = (service: string, value: number) => {
     setPerServiceMarkup(prev => ({
       ...prev,
       [service]: value
     }));
   };
-
   const markupData = calculateMarkupMetrics();
   const totalShipProsCost = shipmentData.reduce((sum, item) => sum + (item.newRate || 0), 0);
   const totalMarkedUpRevenue = totalShipProsCost + markupData.totalMargin;
-
-  return (
-    <Card className="animate-fade-in">
+  return <Card className="animate-fade-in">
       <CardHeader>
         <CardTitle className="text-2xl flex items-center gap-2">
           <Percent className="h-6 w-6 text-primary" />
@@ -267,19 +240,11 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
             <div className="space-y-4">
               <Label className="text-base font-medium">Markup Type</Label>
               <div className="flex gap-4">
-                <Button
-                  variant={markupType === 'global' ? 'default' : 'outline'}
-                  onClick={() => setMarkupType('global')}
-                  className="flex items-center gap-2"
-                >
+                <Button variant={markupType === 'global' ? 'default' : 'outline'} onClick={() => setMarkupType('global')} className="flex items-center gap-2">
                   <Globe className="h-4 w-4" />
                   Global Markup %
                 </Button>
-                <Button
-                  variant={markupType === 'per-service' ? 'default' : 'outline'}
-                  onClick={() => setMarkupType('per-service')}
-                  className="flex items-center gap-2"
-                >
+                <Button variant={markupType === 'per-service' ? 'default' : 'outline'} onClick={() => setMarkupType('per-service')} className="flex items-center gap-2">
                   <Settings className="h-4 w-4" />
                   Per-Service Markup %
                 </Button>
@@ -287,70 +252,45 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
             </div>
 
             {/* Configuration Area */}
-            {markupType === 'global' ? (
-              <div className="space-y-2">
+            {markupType === 'global' ? <div className="space-y-2">
                 <Label htmlFor="global-markup">Global Markup Percentage</Label>
                 <div className="relative">
-                  <Input
-                    id="global-markup"
-                    type="number"
-                    value={globalMarkup === 0 ? '' : globalMarkup}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      if (value === '') {
-                        setGlobalMarkup(0);
-                      } else {
-                        const numValue = parseFloat(value);
-                        setGlobalMarkup(isNaN(numValue) ? 0 : numValue);
-                      }
-                    }}
-                    className="pr-8"
-                    step="1"
-                    min="0"
-                    max="100"
-                    placeholder="0"
-                  />
+                  <Input id="global-markup" type="number" value={globalMarkup === 0 ? '' : globalMarkup} onChange={e => {
+                const value = e.target.value;
+                if (value === '') {
+                  setGlobalMarkup(0);
+                } else {
+                  const numValue = parseFloat(value);
+                  setGlobalMarkup(isNaN(numValue) ? 0 : numValue);
+                }
+              }} className="pr-8" step="1" min="0" max="100" placeholder="0" />
                   <Percent className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
                 <p className="text-sm text-muted-foreground">
                   Apply a {globalMarkup}% markup to all shipments
                 </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
+              </div> : <div className="space-y-4">
                 <Label className="text-base font-medium">Service-Specific Markup Percentages</Label>
                 <div className="space-y-3">
-                  {availableServices.map(service => (
-                    <div key={service} className="flex items-center gap-4">
+                  {availableServices.map(service => <div key={service} className="flex items-center gap-4">
                       <Badge variant="outline" className="min-w-[120px] justify-center">
                         {service}
                       </Badge>
                       <div className="relative flex-1 max-w-[150px]">
-                        <Input
-                          type="number"
-                          value={perServiceMarkup[service] === 0 ? '' : perServiceMarkup[service] || ''}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '') {
-                              handlePerServiceMarkupChange(service, 0);
-                            } else {
-                              const numValue = parseFloat(value);
-                              handlePerServiceMarkupChange(service, isNaN(numValue) ? 0 : numValue);
-                            }
-                          }}
-                          className="pr-8"
-                          step="1"
-                          min="0"
-                          max="100"
-                          placeholder="0"
-                        />
+                        <Input type="number" value={perServiceMarkup[service] === 0 ? '' : perServiceMarkup[service] || ''} onChange={e => {
+                    const value = e.target.value;
+                    if (value === '') {
+                      handlePerServiceMarkupChange(service, 0);
+                    } else {
+                      const numValue = parseFloat(value);
+                      handlePerServiceMarkupChange(service, isNaN(numValue) ? 0 : numValue);
+                    }
+                  }} className="pr-8" step="1" min="0" max="100" placeholder="0" />
                         <Percent className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       </div>
-                    </div>
-                  ))}
+                    </div>)}
                 </div>
-              </div>
-            )}
+              </div>}
           </div>
 
           {/* Right Panel - Margin Summary */}
@@ -378,7 +318,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
                 <div className="flex items-center justify-between p-3 bg-green-500/10 rounded-lg">
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">Total Margin</span>
+                    <span className="text-sm">Total Markup</span>
                   </div>
                   <span className="font-medium text-green-500">{formatCurrency(markupData.totalMargin)}</span>
                 </div>
@@ -386,22 +326,19 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
                 <div className="flex items-center justify-between p-3 bg-orange-500/10 rounded-lg">
                   <div className="flex items-center gap-2">
                     <Percent className="h-4 w-4 text-orange-500" />
-                    <span className="text-sm">Margin %</span>
+                    <span className="text-sm">Markup %</span>
                   </div>
                   <span className="font-medium text-orange-500">{formatPercentage(markupData.marginPercentage)}</span>
                 </div>
               </div>
 
-              {isSaving && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {isSaving && <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <div className="animate-pulse w-2 h-2 bg-primary rounded-full"></div>
                   Auto-saving...
-                </div>
-              )}
+                </div>}
             </div>
           </div>
         </div>
       </CardContent>
-    </Card>
-  );
+    </Card>;
 };

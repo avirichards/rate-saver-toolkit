@@ -141,25 +141,27 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
+      {/* Current Service - NOT editable */}
+      <TableCell>
+        <Badge variant="outline" className="text-xs">
+          {getDisplayValue('service') || getDisplayValue('originalService')}
+        </Badge>
+      </TableCell>
+      
+      {/* Ship Pros Service - Editable */}
       <TableCell>
         {editMode ? (
           <UpsServiceSelector
-            value={getDisplayValue('service')}
-            onValueChange={(value) => handleFieldSave('service', value)}
+            value={shipment.newService || shipment.bestService || 'UPS Ground'}
+            onValueChange={(value) => handleFieldSave('newService', value)}
             placeholder="Select Service"
-            className="min-w-[120px]"
+            className="min-w-[140px]"
           />
         ) : (
-          <Badge variant="outline" className="text-xs">
-            {getDisplayValue('service')}
+          <Badge variant="outline" className="text-xs text-primary">
+            {shipment.newService || shipment.bestService || 'UPS Ground'}
           </Badge>
         )}
-      </TableCell>
-      
-      <TableCell>
-        <Badge variant="outline" className="text-xs">
-          {shipment.newService || 'UPS Ground'}
-        </Badge>
       </TableCell>
       
       <TableCell className="text-right">
@@ -174,7 +176,10 @@ export function EditableShipmentRow({
         <div className={getSavingsColor(shipment.savings)}>
           {formatCurrency(shipment.savings)}
         </div>
-        <div className="text-xs text-muted-foreground">
+      </TableCell>
+      
+      <TableCell className="text-right">
+        <div className={getSavingsColor(shipment.savings)}>
           {shipment.savingsPercent?.toFixed(1)}%
         </div>
       </TableCell>

@@ -2219,17 +2219,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                               />
                             </TableHead>
                           )}
-                          <TableHead className="text-foreground">Tracking ID</TableHead>
-                          <TableHead className="text-foreground">Origin</TableHead>
-                          <TableHead className="text-foreground">Destination</TableHead>
-                          <TableHead className="text-foreground">Weight (lbs)</TableHead>
-                          <TableHead className="text-foreground">Dimensions (L×W×H)</TableHead>
-                          <TableHead className="text-foreground">Current Service</TableHead>
-                          <TableHead className="text-foreground">Ship Pros Service</TableHead>
-                          <TableHead className="text-right text-foreground">Current Rate</TableHead>
-                          <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
-                          <TableHead className="text-right text-foreground">Savings</TableHead>
-                          {editMode && <TableHead className="text-foreground">Actions</TableHead>}
+                          <TableHead className="text-foreground w-32">Tracking ID</TableHead>
+                          <TableHead className="text-foreground w-20">Origin</TableHead>
+                          <TableHead className="text-foreground w-24">Destination</TableHead>
+                          <TableHead className="text-foreground w-16">Weight (lbs)</TableHead>
+                          <TableHead className="text-foreground w-24">Dimensions (L×W×H)</TableHead>
+                          <TableHead className="text-foreground w-28">Current Service</TableHead>
+                          <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
+                          <TableHead className="text-right text-foreground w-20">Current Rate</TableHead>
+                          <TableHead className="text-right text-foreground w-20">Ship Pros Cost</TableHead>
+                          <TableHead className="text-right text-foreground w-20">Savings</TableHead>
+                          <TableHead className="text-right text-foreground w-16">Savings %</TableHead>
+                          {editMode && <TableHead className="text-foreground w-24">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
                      <TableBody className="bg-background">

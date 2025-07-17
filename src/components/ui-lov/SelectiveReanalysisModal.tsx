@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
 import { Search, Replace, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -114,11 +115,10 @@ export function SelectiveReanalysisModal({
             </div>
             <div className="space-y-2">
               <Label htmlFor="replace-service">Replace With</Label>
-              <Input
-                id="replace-service"
+              <UpsServiceSelector
                 value={replaceValue}
-                onChange={(e) => setReplaceValue(e.target.value)}
-                placeholder="e.g., FedEx Ground"
+                onValueChange={setReplaceValue}
+                placeholder="Select UPS Service"
                 className="w-full"
               />
             </div>

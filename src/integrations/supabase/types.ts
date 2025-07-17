@@ -14,6 +14,108 @@ export type Database = {
   }
   public: {
     Tables: {
+      carrier_configs: {
+        Row: {
+          account_name: string
+          carrier_type: string
+          created_at: string
+          dhl_account_number: string | null
+          dhl_password: string | null
+          dhl_site_id: string | null
+          fedex_account_number: string | null
+          fedex_key: string | null
+          fedex_meter_number: string | null
+          fedex_password: string | null
+          id: string
+          is_active: boolean
+          is_sandbox: boolean
+          updated_at: string
+          ups_account_number: string | null
+          ups_client_id: string | null
+          ups_client_secret: string | null
+          user_id: string
+          usps_password: string | null
+          usps_user_id: string | null
+        }
+        Insert: {
+          account_name: string
+          carrier_type: string
+          created_at?: string
+          dhl_account_number?: string | null
+          dhl_password?: string | null
+          dhl_site_id?: string | null
+          fedex_account_number?: string | null
+          fedex_key?: string | null
+          fedex_meter_number?: string | null
+          fedex_password?: string | null
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          updated_at?: string
+          ups_account_number?: string | null
+          ups_client_id?: string | null
+          ups_client_secret?: string | null
+          user_id: string
+          usps_password?: string | null
+          usps_user_id?: string | null
+        }
+        Update: {
+          account_name?: string
+          carrier_type?: string
+          created_at?: string
+          dhl_account_number?: string | null
+          dhl_password?: string | null
+          dhl_site_id?: string | null
+          fedex_account_number?: string | null
+          fedex_key?: string | null
+          fedex_meter_number?: string | null
+          fedex_password?: string | null
+          id?: string
+          is_active?: boolean
+          is_sandbox?: boolean
+          updated_at?: string
+          ups_account_number?: string | null
+          ups_client_id?: string | null
+          ups_client_secret?: string | null
+          user_id?: string
+          usps_password?: string | null
+          usps_user_id?: string | null
+        }
+        Relationships: []
+      }
+      carrier_services: {
+        Row: {
+          carrier_type: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_international: boolean
+          service_code: string
+          service_name: string
+        }
+        Insert: {
+          carrier_type: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_international?: boolean
+          service_code: string
+          service_name: string
+        }
+        Update: {
+          carrier_type?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_international?: boolean
+          service_code?: string
+          service_name?: string
+        }
+        Relationships: []
+      }
       clients: {
         Row: {
           branding_config: Json | null
@@ -354,6 +456,7 @@ export type Database = {
       service_mappings: {
         Row: {
           carrier: string
+          carrier_type: string | null
           confidence_score: number | null
           created_at: string
           id: string
@@ -363,6 +466,7 @@ export type Database = {
         }
         Insert: {
           carrier: string
+          carrier_type?: string | null
           confidence_score?: number | null
           created_at?: string
           id?: string
@@ -372,6 +476,7 @@ export type Database = {
         }
         Update: {
           carrier?: string
+          carrier_type?: string | null
           confidence_score?: number | null
           created_at?: string
           id?: string
@@ -415,6 +520,7 @@ export type Database = {
         Row: {
           analysis_date: string
           base_data: Json | null
+          carrier_configs_used: Json | null
           client_facing_data: Json | null
           client_id: string | null
           created_at: string
@@ -444,6 +550,7 @@ export type Database = {
         Insert: {
           analysis_date?: string
           base_data?: Json | null
+          carrier_configs_used?: Json | null
           client_facing_data?: Json | null
           client_id?: string | null
           created_at?: string
@@ -473,6 +580,7 @@ export type Database = {
         Update: {
           analysis_date?: string
           base_data?: Json | null
+          carrier_configs_used?: Json | null
           client_facing_data?: Json | null
           client_id?: string | null
           created_at?: string

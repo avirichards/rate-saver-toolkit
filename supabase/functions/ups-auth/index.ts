@@ -37,22 +37,52 @@ serve(async (req) => {
       });
     }
 
-    const { action } = await req.json();
+    const { action, config_id } = await req.json();
 
     if (action === 'get_token') {
-      // Get UPS configuration for user
-      const { data: config, error: configError } = await supabase
-        .from('ups_configs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .single();
+      let config;
+      
+      if (config_id) {
+        // Get specific carrier config by ID (new multi-carrier approach)
+        const { data: carrierConfig, error: configError } = await supabase
+          .from('carrier_configs')
+          .select('*')
+          .eq('id', config_id)
+          .eq('user_id', user.id)
+          .eq('carrier_type', 'ups')
+          .eq('is_active', true)
+          .single();
 
-      if (configError || !config) {
-        return new Response(JSON.stringify({ error: 'UPS configuration not found' }), {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+        if (configError || !carrierConfig) {
+          return new Response(JSON.stringify({ error: 'UPS configuration not found' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        config = {
+          client_id: carrierConfig.ups_client_id,
+          client_secret: carrierConfig.ups_client_secret,
+          account_number: carrierConfig.ups_account_number,
+          is_sandbox: carrierConfig.is_sandbox
+        };
+      } else {
+        // Fallback to legacy ups_configs table for backward compatibility
+        const { data: legacyConfig, error: configError } = await supabase
+          .from('ups_configs')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+
+        if (configError || !legacyConfig) {
+          return new Response(JSON.stringify({ error: 'UPS configuration not found' }), {
+            status: 404,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+
+        config = legacyConfig;
       }
 
       // Get OAuth token from UPS

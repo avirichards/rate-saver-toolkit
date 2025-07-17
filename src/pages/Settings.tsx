@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, User, Shield, BellRing, Truck, Cog, Database, CheckCircle, AlertTriangle, Zap } from 'lucide-react';
 import { UpsTestButton } from '@/components/ui-lov/UpsTestButton';
+import { CarrierAccountManager } from '@/components/ui-lov/CarrierAccountManager';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
@@ -213,53 +214,7 @@ const SettingsPage = () => {
           </TabsContent>
           
           <TabsContent value="carriers">
-            <Card>
-              <CardHeader>
-                <CardTitle>Carrier Settings</CardTitle>
-                <CardDescription>Configure shipping carriers and service options</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">UPS</div>
-                      <div className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">Active</div>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">FedEx</div>
-                      <div className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full">Active</div>
-                    </div>
-                    <Switch defaultChecked />
-                  </div>
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">USPS</div>
-                      <div className="text-xs bg-muted-foreground/20 text-muted-foreground px-2 py-1 rounded-full">Inactive</div>
-                    </div>
-                    <Switch />
-                  </div>
-                  <div className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">DHL</div>
-                      <div className="text-xs bg-muted-foreground/20 text-muted-foreground px-2 py-1 rounded-full">Inactive</div>
-                    </div>
-                    <Switch />
-                  </div>
-                </div>
-                
-                <div className="flex justify-end">
-                  <Button 
-                    variant="primary" 
-                    iconLeft={<Save className="h-4 w-4" />}
-                  >
-                    Save Changes
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            <CarrierAccountManager />
           </TabsContent>
           
           <TabsContent value="ups">

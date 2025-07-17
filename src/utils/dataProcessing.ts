@@ -64,7 +64,7 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
 };
 
 // Unified data processing function - works from standardized database fields
-export const processAnalysisData = (analysis: any): ProcessedAnalysisData => {
+export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment: any) => any): ProcessedAnalysisData => {
   console.log('🔄 Processing analysis data from standardized fields:', analysis);
   
   // Use the centralized data structure: processed_shipments and orphaned_shipments
@@ -79,9 +79,25 @@ export const processAnalysisData = (analysis: any): ProcessedAnalysisData => {
     totalShipments: analysis.total_shipments
   });
   
-  // Calculate totals from processed shipments
-  const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
-  const totalPotentialSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
+  // Calculate totals from processed shipments - with markup applied if available
+  let totalCurrentCost = 0;
+  let totalPotentialSavings = 0;
+  
+  if (markupData && getShipmentMarkup) {
+    // Calculate with markup applied
+    processedShipments.forEach((item: any) => {
+      const markupInfo = getShipmentMarkup(item);
+      const savings = item.currentRate - markupInfo.markedUpPrice;
+      totalCurrentCost += item.currentRate || 0;
+      totalPotentialSavings += savings;
+    });
+    console.log('✅ Applied markup calculations to totals');
+  } else {
+    // Fallback to raw values
+    totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
+    totalPotentialSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
+    console.log('⚠️ Using raw savings (no markup applied)');
+  }
   
   return {
     totalCurrentCost,

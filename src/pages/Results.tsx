@@ -280,7 +280,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await updateViewCount(shareToken);
 
           const analysis = sharedData.shipping_analyses;
-          const processedData = processAnalysisData(analysis);
+          const processedData = processAnalysisData(analysis, getShipmentMarkup);
           
           setAnalysisData(processedData);
           setShipmentData(processedData.recommendations || []);
@@ -508,8 +508,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setMarkupData(data.markup_data as MarkupData);
       }
 
-      // Use the unified processing function
-      const processedData = processAnalysisData(data);
+      // Use the unified processing function with markup calculations
+      const processedData = processAnalysisData(data, getShipmentMarkup);
       
       setAnalysisData(processedData);
       setShipmentData(processedData.recommendations || []);

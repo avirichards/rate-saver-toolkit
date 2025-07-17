@@ -2520,7 +2520,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         onApplyCorrections={handleServiceCorrections}
         selectedShipments={filteredData.filter(item => selectedShipments.has(item.id))}
         allShipments={shipmentData}
-        onBatchResidentialUpdate={handleBatchResidentialUpdate}
       />
     </Layout>
   );

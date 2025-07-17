@@ -13,6 +13,7 @@ interface ServiceMappingCorrection {
   from: string;
   to: string;
   affectedCount: number;
+  isResidential?: boolean;
 }
 
 interface SelectiveReanalysisModalProps {
@@ -21,7 +22,6 @@ interface SelectiveReanalysisModalProps {
   onApplyCorrections: (corrections: ServiceMappingCorrection[]) => void;
   selectedShipments: any[];
   allShipments: any[];
-  onBatchResidentialUpdate?: (isResidential: boolean) => void;
 }
 
 export function SelectiveReanalysisModal({
@@ -29,8 +29,7 @@ export function SelectiveReanalysisModal({
   onClose,
   onApplyCorrections,
   selectedShipments,
-  allShipments,
-  onBatchResidentialUpdate
+  allShipments
 }: SelectiveReanalysisModalProps) {
   const [findValue, setFindValue] = useState('');
   const [replaceValue, setReplaceValue] = useState('');
@@ -161,28 +160,6 @@ export function SelectiveReanalysisModal({
             Add Correction
           </Button>
 
-          {/* Residential Batch Options */}
-          {onBatchResidentialUpdate && selectedShipments.length > 0 && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Residential Delivery Options:</Label>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => onBatchResidentialUpdate(true)}
-                  className="flex-1"
-                >
-                  Mark as Residential ({selectedShipments.length})
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={() => onBatchResidentialUpdate(false)}
-                  className="flex-1"
-                >
-                  Mark as Commercial ({selectedShipments.length})
-                </Button>
-              </div>
-            </div>
-          )}
 
           {/* Current Services Preview */}
           {currentServices.length > 0 && (
@@ -208,33 +185,78 @@ export function SelectiveReanalysisModal({
             <div className="space-y-2">
               <Label className="text-sm font-medium">Pending Corrections:</Label>
               <div className="space-y-2 max-h-32 overflow-y-auto">
-                {corrections.map((correction, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between bg-muted/30 p-3 rounded-md"
-                  >
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="font-mono bg-muted px-2 py-1 rounded">
-                        {correction.from}
-                      </span>
-                      <Replace className="h-3 w-3 text-muted-foreground" />
-                      <span className="font-mono bg-muted px-2 py-1 rounded">
-                        {correction.to}
-                      </span>
-                      <Badge variant="secondary" className="text-xs">
-                        {correction.affectedCount} shipments
-                      </Badge>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => handleRemoveCorrection(index)}
-                      className="h-8 w-8 p-0"
-                    >
-                      ×
-                    </Button>
-                  </div>
-                ))}
+                 {corrections.map((correction, index) => (
+                   <div
+                     key={index}
+                     className="bg-muted/30 p-3 rounded-md space-y-3"
+                   >
+                     <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-2 text-sm">
+                         <span className="font-mono bg-muted px-2 py-1 rounded">
+                           {correction.from}
+                         </span>
+                         <Replace className="h-3 w-3 text-muted-foreground" />
+                         <span className="font-mono bg-muted px-2 py-1 rounded">
+                           {correction.to}
+                         </span>
+                         <Badge variant="secondary" className="text-xs">
+                           {correction.affectedCount} shipments
+                         </Badge>
+                       </div>
+                       <Button
+                         size="sm"
+                         variant="ghost"
+                         onClick={() => handleRemoveCorrection(index)}
+                         className="h-8 w-8 p-0"
+                       >
+                         ×
+                       </Button>
+                     </div>
+                     
+                     {/* Residential/Commercial options for this correction */}
+                     <div className="flex items-center gap-2">
+                       <Label className="text-xs text-muted-foreground">Mark as:</Label>
+                       <div className="flex gap-1">
+                         <Button
+                           size="sm"
+                           variant={correction.isResidential === true ? "default" : "outline"}
+                           onClick={() => {
+                             const updated = [...corrections];
+                             updated[index] = { ...correction, isResidential: true };
+                             setCorrections(updated);
+                           }}
+                           className="h-6 px-2 text-xs"
+                         >
+                           Residential
+                         </Button>
+                         <Button
+                           size="sm"
+                           variant={correction.isResidential === false ? "default" : "outline"}
+                           onClick={() => {
+                             const updated = [...corrections];
+                             updated[index] = { ...correction, isResidential: false };
+                             setCorrections(updated);
+                           }}
+                           className="h-6 px-2 text-xs"
+                         >
+                           Commercial
+                         </Button>
+                         <Button
+                           size="sm"
+                           variant={correction.isResidential === undefined ? "default" : "outline"}
+                           onClick={() => {
+                             const updated = [...corrections];
+                             updated[index] = { ...correction, isResidential: undefined };
+                             setCorrections(updated);
+                           }}
+                           className="h-6 px-2 text-xs"
+                         >
+                           No Change
+                         </Button>
+                       </div>
+                     </div>
+                   </div>
+                 ))}
               </div>
             </div>
           )}

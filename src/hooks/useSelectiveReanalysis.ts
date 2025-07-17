@@ -20,6 +20,7 @@ interface ServiceMappingCorrection {
   from: string;
   to: string;
   affectedCount: number;
+  isResidential?: boolean;
 }
 
 export function useSelectiveReanalysis() {
@@ -215,6 +216,12 @@ export function useSelectiveReanalysis() {
           updatedShipment.newService = correction.to;
           updatedShipment.bestService = correction.to; // Also update bestService for consistency
           updatedShipment.corrected = true;
+          
+          // Apply residential status if specified in the correction
+          if (correction.isResidential !== undefined) {
+            updatedShipment.isResidential = correction.isResidential;
+          }
+          
           // Keep the original service unchanged - this represents what the customer actually used
         }
       });

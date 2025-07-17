@@ -206,7 +206,7 @@ export const CarrierAccountManager = () => {
         carrier_type: newAccount.carrier_type,
         account_name: newAccount.account_name,
         account_group: newAccount.account_group || null,
-        enabled_services: JSON.stringify(newAccount.enabled_services),
+        enabled_services: newAccount.enabled_services,
         is_sandbox: newAccount.is_sandbox,
         ups_client_id: newAccount.carrier_type === 'ups' ? newAccount.ups_client_id : null,
         ups_client_secret: newAccount.carrier_type === 'ups' ? newAccount.ups_client_secret : null,
@@ -249,7 +249,7 @@ export const CarrierAccountManager = () => {
         .update({
           account_name: account.account_name,
           account_group: account.account_group || null,
-          enabled_services: JSON.stringify(account.enabled_services),
+          enabled_services: account.enabled_services,
           is_active: account.is_active,
           is_sandbox: account.is_sandbox,
           ups_client_id: account.ups_client_id,

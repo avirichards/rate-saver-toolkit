@@ -186,13 +186,16 @@ serve(async (req) => {
     };
 
     // Get UPS account number from carrier_configs
+    // This function gets called by multi-carrier-quote which should specify which config to use
+    // For now, we'll get the first active UPS config
     const { data: config } = await supabase
       .from('carrier_configs')
       .select('ups_account_number')
       .eq('user_id', user.id)
       .eq('carrier_type', 'ups')
       .eq('is_active', true)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (!config?.ups_account_number) {
       return new Response(JSON.stringify({ error: 'UPS account number is required for rate quotes' }), {

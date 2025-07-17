@@ -40,14 +40,20 @@ serve(async (req) => {
     const { action, config_id } = await req.json();
 
       if (action === 'get_token') {
-        // Get carrier config for UPS
-        const { data: carrierConfig, error: configError } = await supabase
+        // Get carrier config for UPS - handle multiple configs
+        let query = supabase
           .from('carrier_configs')
           .select('*')
           .eq('user_id', user.id)
           .eq('carrier_type', 'ups')
-          .eq('is_active', true)
-          .single();
+          .eq('is_active', true);
+
+        // If config_id is provided, use specific config, otherwise get the first one
+        if (config_id) {
+          query = query.eq('id', config_id);
+        }
+        
+        const { data: carrierConfig, error: configError } = await query.maybeSingle();
 
         if (configError || !carrierConfig) {
           return new Response(JSON.stringify({ error: 'UPS configuration not found' }), {

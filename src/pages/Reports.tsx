@@ -79,8 +79,8 @@ const ReportsPage = () => {
         `)
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
-        .neq('status', 'processing')  // Exclude incomplete analyses
-        .not('total_shipments', 'eq', 0)  // Exclude analyses with 0 shipments
+        .eq('status', 'completed')  // Only show completed analyses
+        .not('file_name', 'like', '%.csv')  // Exclude original CSV files (duplicates)
         .order('created_at', { ascending: false });
 
       if (error) {

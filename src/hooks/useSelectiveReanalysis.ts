@@ -26,7 +26,7 @@ export function useSelectiveReanalysis() {
   const [reanalyzingShipments, setReanalyzingShipments] = useState<Set<number>>(new Set());
 
   // Process a single shipment (similar to Analysis.tsx processShipment function)
-  const processShipment = useCallback(async (shipment: ReanalysisShipment & { newService?: string }) => {
+  const processShipment = useCallback(async (shipment: ReanalysisShipment & { newService?: string; bestService?: string }) => {
     console.log('🔄 Re-analyzing shipment:', shipment.id);
 
     // Validate UPS configuration
@@ -47,8 +47,8 @@ export function useSelectiveReanalysis() {
     }
 
     // Prepare shipment data for UPS API - match the expected interface
-    // Use the corrected service if available, otherwise default to UPS Ground
-    const targetService = shipment.newService || 'UPS Ground';
+    // Use the corrected service if available, check both newService and bestService fields
+    const targetService = shipment.newService || shipment.bestService || 'UPS Ground';
     const serviceCode = getServiceCode(targetService);
     
     const shipmentData = {
@@ -136,6 +136,7 @@ export function useSelectiveReanalysis() {
             ...shipment,
             newRate: result.newRate,
             newService: result.recommendedService,
+            bestService: result.recommendedService, // Ensure both fields are updated
             upsRates: result.upsRates,
             reanalyzed: true,
             reanalyzedAt: new Date().toISOString()

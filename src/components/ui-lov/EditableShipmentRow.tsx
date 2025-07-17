@@ -50,22 +50,8 @@ export function EditableShipmentRow({
 
   // Calculate estimated savings using the same logic as non-edit mode
   const estimatedSavings = useMemo(() => {
-    // If there are no local changes, use the same calculation as non-edit mode
-    if (Object.keys(localChanges).length === 0) {
-      const markupInfo = getShipmentMarkup(shipment);
-      const savings = shipment.currentRate - markupInfo.markedUpPrice;
-      const savingsPercent = shipment.currentRate > 0 ? (savings / shipment.currentRate) * 100 : 0;
-      
-      return {
-        savings,
-        savingsPercent,
-        newRate: markupInfo.markedUpPrice
-      };
-    }
-
-    // If user has made local changes to the service, show pending state
-    const changedService = localChanges['newService'];
-    if (changedService && changedService !== (shipment.newService || shipment.bestService)) {
+    // If there are ANY local changes, show pending state
+    if (Object.keys(localChanges).length > 0) {
       return {
         savings: 0,
         savingsPercent: 0,
@@ -74,7 +60,7 @@ export function EditableShipmentRow({
       };
     }
 
-    // For other field changes (weight, dimensions, etc.), still use current markup calculation
+    // If no local changes, use the same calculation as non-edit mode
     const markupInfo = getShipmentMarkup(shipment);
     const savings = shipment.currentRate - markupInfo.markedUpPrice;
     const savingsPercent = shipment.currentRate > 0 ? (savings / shipment.currentRate) * 100 : 0;

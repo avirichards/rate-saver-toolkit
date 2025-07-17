@@ -254,12 +254,38 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
   // Export functionality
   const exportToCSV = () => {
+    const rows: string[] = [];
+    
+    // Main shipments section
     const csvData = generateExportData(filteredData, getShipmentMarkup);
-    const csvContent = [
-      Object.keys(csvData[0]).join(','),
-      ...csvData.map(row => Object.values(row).join(','))
-    ].join('\n');
+    if (csvData.length > 0) {
+      rows.push('ANALYZED SHIPMENTS');
+      rows.push(Object.keys(csvData[0]).join(','));
+      csvData.forEach(row => {
+        rows.push(Object.values(row).join(','));
+      });
+    }
+    
+    // Add orphaned shipments section
+    if (orphanedData && orphanedData.length > 0) {
+      rows.push(''); // Empty row
+      rows.push('ORPHANED SHIPMENTS (Unable to Quote)');
+      rows.push('Tracking ID,Origin ZIP,Destination ZIP,Weight,Current Service,Current Cost,Reason');
+      
+      orphanedData.forEach((shipment: any) => {
+        rows.push([
+          shipment.trackingId || '',
+          shipment.originZip || '',
+          shipment.destZip || '',
+          shipment.weight || '',
+          shipment.currentService || '',
+          `$${(shipment.currentRate || 0).toFixed(2)}`,
+          shipment.reason || 'Unable to quote'
+        ].join(','));
+      });
+    }
 
+    const csvContent = rows.join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);

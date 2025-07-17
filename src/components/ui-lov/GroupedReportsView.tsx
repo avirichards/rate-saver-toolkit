@@ -207,8 +207,14 @@ export function GroupedReportsView({
                                   variant="ghost" 
                                   size="icon"
                                   className="h-7 w-7"
-                                  onClick={() => {
-                                    console.log('Export report:', report.id);
+                                  onClick={async () => {
+                                    try {
+                                      const { downloadReportCSV } = await import('@/utils/exportUtils');
+                                      await downloadReportCSV(report.id);
+                                      console.log('Downloaded report:', report.id);
+                                    } catch (error) {
+                                      console.error('Failed to download report:', error);
+                                    }
                                   }}
                                 >
                                   <Download className="h-3 w-3" />

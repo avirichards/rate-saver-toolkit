@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import * as XLSX from 'xlsx';
+import { generateExportData, processAnalysisData } from '@/utils/dataProcessing';
 
 export interface ExportableReportData {
   id: string;
@@ -17,33 +18,16 @@ export interface ExportableReportData {
   processed_shipments?: any;
 }
 
-// Generate Excel workbook from report data with markup applied
-export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook => {
+// Generate Excel workbook from processed shipment data (same as Results page)
+export const generateReportExcelFromProcessedData = (
+  report: ExportableReportData, 
+  processedShipments: any[], 
+  orphanedShipments: any[], 
+  getShipmentMarkup: (shipment: any) => any
+): XLSX.WorkBook => {
   const workbook = XLSX.utils.book_new();
   
-  // Helper function to calculate markup
-  const getShipmentMarkup = (shipment: any) => {
-    const markupData = report.markup_data as any;
-    if (!markupData) return { markedUpPrice: shipment.newRate || 0, margin: 0, marginPercent: 0 };
-    
-    const shipProsCost = shipment.newRate || shipment.new_rate || shipment.recommendedRate || 0;
-    let markupPercent = 0;
-    
-    if (markupData.markupType === 'global') {
-      markupPercent = markupData.globalMarkup || 0;
-    } else if (markupData.markupType === 'per_service') {
-      const service = shipment.service || shipment.recommended_service || shipment.recommendedService;
-      markupPercent = markupData.perServiceMarkup?.[service] || 0;
-    }
-    
-    const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
-    const margin = markedUpPrice - shipProsCost;
-    const marginPercent = shipProsCost > 0 ? (margin / shipProsCost) * 100 : 0;
-    
-    return { markedUpPrice, margin, marginPercent };
-  };
-  
-  // Create Analyzed Shipments worksheet
+  // Create Analyzed Shipments worksheet using the same data structure as Results page
   const analysisData = [];
   
   // Header information
@@ -64,92 +48,41 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
   analysisData.push(['Total Savings (with markup):', `$${adjustedSavings.toFixed(2)}`]);
   analysisData.push([]);
   
-  // Column headers
-  analysisData.push([
-    'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 
-    'Current Service', 'Current Cost', 'Recommended Service', 
-    'Ship Pros Cost', 'Savings', 'Savings %', 'Margin', 'Margin %'
-  ]);
-  
-  // Get shipment data - try multiple sources
-  const shipments = report.recommendations || report.processed_shipments || [];
-  
-  // Shipment data
-  if (Array.isArray(shipments) && shipments.length > 0) {
-    shipments.forEach((shipment: any) => {
-      // Handle different field name formats
-      const currentCost = shipment.currentRate || shipment.current_rate || shipment.originalRate || 0;
-      const newRate = shipment.newRate || shipment.new_rate || shipment.recommendedRate || 0;
-      const markupInfo = getShipmentMarkup({ ...shipment, newRate });
-      const savings = currentCost - markupInfo.markedUpPrice;
-      const savingsPercent = currentCost > 0 ? (savings / currentCost) * 100 : 0;
-      
+  // Use the same export data generation as Results page
+  if (processedShipments && processedShipments.length > 0) {
+    const exportDataFromResults = generateExportData(processedShipments, getShipmentMarkup);
+    
+    // Column headers (from the generateExportData function)
+    analysisData.push([
+      'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 
+      'Carrier', 'Service', 'Current Rate', 'Ship Pros Cost', 
+      'Savings', 'Savings Percentage'
+    ]);
+    
+    // Shipment data
+    exportDataFromResults.forEach((row: any) => {
       analysisData.push([
-        shipment.trackingId || shipment.tracking_id || shipment.trackingNumber || '',
-        shipment.originZip || shipment.origin_zip || shipment.fromZip || '',
-        shipment.destZip || shipment.dest_zip || shipment.toZip || '',
-        shipment.weight || shipment.packageWeight || '',
-        shipment.currentService || shipment.current_service || shipment.originalService || '',
-        currentCost,
-        shipment.service || shipment.recommended_service || shipment.recommendedService || '',
-        markupInfo.markedUpPrice,
-        savings,
-        savingsPercent / 100, // Excel percentage format
-        markupInfo.margin,
-        markupInfo.marginPercent / 100 // Excel percentage format
+        row['Tracking ID'],
+        row['Origin ZIP'],
+        row['Destination ZIP'],
+        row['Weight'],
+        row['Carrier'],
+        row['Service'],
+        row['Current Rate'],
+        row['Ship Pros Cost'],
+        row['Savings'],
+        row['Savings Percentage']
       ]);
     });
   } else {
-    // If no shipment data, add a row indicating no data
-    analysisData.push(['No analyzed shipment data available', '', '', '', '', '', '', '', '', '', '', '']);
+    analysisData.push(['No analyzed shipment data available', '', '', '', '', '', '', '', '', '']);
   }
   
   const analysisWorksheet = XLSX.utils.aoa_to_sheet(analysisData);
-  
-  // Format currency and percentage columns
-  const range = XLSX.utils.decode_range(analysisWorksheet['!ref'] || 'A1');
-  for (let row = 8; row <= range.e.r; row++) { // Start from data rows (after headers)
-      // Current Cost (column F)
-      const currentCostCell = XLSX.utils.encode_cell({ r: row, c: 5 });
-      if (analysisWorksheet[currentCostCell]) {
-        analysisWorksheet[currentCostCell].z = '"$"#,##0.00';
-      }
-      
-      // Ship Pros Cost (column H)
-      const shipProsCostCell = XLSX.utils.encode_cell({ r: row, c: 7 });
-      if (analysisWorksheet[shipProsCostCell]) {
-        analysisWorksheet[shipProsCostCell].z = '"$"#,##0.00';
-      }
-      
-      // Savings (column I)
-      const savingsCell = XLSX.utils.encode_cell({ r: row, c: 8 });
-      if (analysisWorksheet[savingsCell]) {
-        analysisWorksheet[savingsCell].z = '"$"#,##0.00';
-      }
-      
-      // Savings % (column J)
-      const savingsPercentCell = XLSX.utils.encode_cell({ r: row, c: 9 });
-      if (analysisWorksheet[savingsPercentCell]) {
-        analysisWorksheet[savingsPercentCell].z = '0.00%';
-      }
-      
-      // Margin (column K)
-      const marginCell = XLSX.utils.encode_cell({ r: row, c: 10 });
-      if (analysisWorksheet[marginCell]) {
-        analysisWorksheet[marginCell].z = '"$"#,##0.00';
-      }
-      
-      // Margin % (column L)
-      const marginPercentCell = XLSX.utils.encode_cell({ r: row, c: 11 });
-      if (analysisWorksheet[marginPercentCell]) {
-        analysisWorksheet[marginPercentCell].z = '0.00%';
-      }
-  }
-  
   XLSX.utils.book_append_sheet(workbook, analysisWorksheet, 'Analyzed Shipments');
   
   // Create Orphaned Shipments worksheet
-  if (report.orphaned_shipments && Array.isArray(report.orphaned_shipments) && report.orphaned_shipments.length > 0) {
+  if (orphanedShipments && Array.isArray(orphanedShipments) && orphanedShipments.length > 0) {
     const orphanedData = [];
     
     // Header information
@@ -168,7 +101,7 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
     ]);
     
     // Orphaned shipment data
-    report.orphaned_shipments.forEach((shipment: any) => {
+    orphanedShipments.forEach((shipment: any) => {
       orphanedData.push([
         shipment.trackingId || '',
         shipment.originZip || '',
@@ -181,22 +114,13 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
     });
     
     const orphanedWorksheet = XLSX.utils.aoa_to_sheet(orphanedData);
-    
-    // Format currency column
-    const range = XLSX.utils.decode_range(orphanedWorksheet['!ref'] || 'A1');
-    for (let row = 5; row <= range.e.r; row++) { // Start from data rows (after headers)
-      // Current Cost (column F)
-      const currentCostCell = XLSX.utils.encode_cell({ r: row, c: 5 });
-      if (orphanedWorksheet[currentCostCell]) {
-        orphanedWorksheet[currentCostCell].z = '"$"#,##0.00';
-      }
-    }
-    
     XLSX.utils.book_append_sheet(workbook, orphanedWorksheet, 'Orphaned Shipments');
   }
   
   return workbook;
 };
+
+// Generate Excel workbook from report data with markup applied (legacy function for compatibility)
 
 // Download report as Excel
 export const downloadReportExcel = async (reportId: string): Promise<void> => {
@@ -221,7 +145,7 @@ export const downloadReportExcel = async (reportId: string): Promise<void> => {
         clients (company_name)
       `)
       .eq('id', reportId)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
     
@@ -229,14 +153,39 @@ export const downloadReportExcel = async (reportId: string): Promise<void> => {
       throw new Error('Report not found');
     }
 
-    // Prepare export data
+    // Process the analysis data using the same function as Results page
+    const analysisData = processAnalysisData(report);
+    
+    // Create markup function
+    const getShipmentMarkup = (shipment: any) => {
+      const markupData = report.markup_data as any;
+      if (!markupData) return { markedUpPrice: shipment.newRate || 0, margin: 0, marginPercent: 0 };
+      
+      const shipProsCost = shipment.newRate || 0;
+      let markupPercent = 0;
+      
+      if (markupData.markupType === 'global') {
+        markupPercent = markupData.globalMarkup || 0;
+      } else if (markupData.markupType === 'per_service') {
+        markupPercent = markupData.perServiceMarkup?.[shipment.service] || 0;
+      }
+      
+      const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
+      const margin = markedUpPrice - shipProsCost;
+      const marginPercent = shipProsCost > 0 ? (margin / shipProsCost) * 100 : 0;
+      
+      return { markedUpPrice, margin, marginPercent };
+    };
+
+    // Prepare export data using the same function as Results page
     const exportData: ExportableReportData = {
       ...report,
       client_name: (report.clients as any)?.company_name || undefined
     };
 
-    // Generate Excel workbook
-    const workbook = generateReportExcel(exportData);
+    // Generate Excel workbook using processed data
+    const orphanedData = Array.isArray(report.orphaned_shipments) ? report.orphaned_shipments : [];
+    const workbook = generateReportExcelFromProcessedData(exportData, analysisData.recommendations, orphanedData, getShipmentMarkup);
     
     // Write workbook to buffer
     const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });

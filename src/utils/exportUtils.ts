@@ -106,13 +106,16 @@ export const generateReportExcelFromProcessedData = (
       // Try multiple ways to access the original data
       let data = shipment;
       
+      // Check for nested shipment data first (most common case)
+      if (shipment.shipment && typeof shipment.shipment === 'object') {
+        data = shipment.shipment;
+      }
       // If originalData exists as a nested object, use it
-      if (shipment.originalData && typeof shipment.originalData === 'object') {
+      else if (shipment.originalData && typeof shipment.originalData === 'object') {
         data = shipment.originalData;
       }
-      
       // Handle case where originalData might be a JSON string
-      if (typeof shipment.originalData === 'string') {
+      else if (typeof shipment.originalData === 'string') {
         try {
           data = JSON.parse(shipment.originalData);
         } catch (e) {

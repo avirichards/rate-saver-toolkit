@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { CarrierGroupCombobox } from './CarrierGroupCombobox';
 
 interface CarrierConfig {
   id: string;
@@ -352,10 +353,6 @@ export const CarrierAccountManager = () => {
     return CARRIER_TYPES.find(c => c.value === carrierType)?.icon || '📦';
   };
 
-  const getAvailableGroups = () => {
-    const groups = new Set(configs.map(config => config.account_group).filter(Boolean));
-    return Array.from(groups);
-  };
 
   const getGroupedConfigs = () => {
     const grouped = configs.reduce((acc, config) => {
@@ -651,18 +648,11 @@ export const CarrierAccountManager = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="account_group">Account Group</Label>
-                  <Input
-                    id="account_group"
+                  <CarrierGroupCombobox
                     value={newAccount.account_group}
-                    onChange={(e) => setNewAccount({ ...newAccount, account_group: e.target.value })}
-                    placeholder="Enter group name (optional)"
-                    list="existing-groups"
+                    onValueChange={(value) => setNewAccount({ ...newAccount, account_group: value })}
+                    placeholder="Select or create group"
                   />
-                  <datalist id="existing-groups">
-                    {getAvailableGroups().map(group => (
-                      <option key={group} value={group} />
-                    ))}
-                  </datalist>
                 </div>
 
                 {renderCarrierFields(newAccount, setNewAccount)}
@@ -786,18 +776,11 @@ export const CarrierAccountManager = () => {
                 
                 <div className="space-y-2">
                   <Label htmlFor="edit_account_group">Account Group</Label>
-                  <Input
-                    id="edit_account_group"
+                  <CarrierGroupCombobox
                     value={editingAccount.account_group || ''}
-                    onChange={(e) => setEditingAccount({ ...editingAccount, account_group: e.target.value })}
-                    placeholder="Enter group name (optional)"
-                    list="edit-existing-groups"
+                    onValueChange={(value) => setEditingAccount({ ...editingAccount, account_group: value })}
+                    placeholder="Select or create group"
                   />
-                  <datalist id="edit-existing-groups">
-                    {getAvailableGroups().map(group => (
-                      <option key={group} value={group} />
-                    ))}
-                  </datalist>
                 </div>
 
                 {renderCarrierFields(editingAccount as any, setEditingAccount as any, true)}

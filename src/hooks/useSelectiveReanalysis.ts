@@ -28,7 +28,7 @@ export function useSelectiveReanalysis() {
 
   // Process a single shipment (similar to Analysis.tsx processShipment function)
   const processShipment = useCallback(async (shipment: ReanalysisShipment & { newService?: string; bestService?: string }) => {
-    console.log('🔄 Re-analyzing shipment:', shipment.id);
+    console.log('🔄 Re-analyzing shipment:', shipment.id, 'with residential status:', shipment.isResidential);
 
     // Validate UPS configuration
     const { data: { user } } = await supabase.auth.getUser();
@@ -106,6 +106,14 @@ export function useSelectiveReanalysis() {
       (current.totalCharges || 999999) < (best.totalCharges || 999999) ? current : best
     );
 
+    console.log('🔄 Re-analysis result:', {
+      shipmentId: shipment.id,
+      isResidential: shipment.isResidential,
+      newRate: bestRate.totalCharges,
+      recommendedService: bestRate.serviceName,
+      ratesReceived: data.rates.length
+    });
+
     return {
       shipment: shipment,
       originalRate: 0, // We don't know the original rate in re-analysis
@@ -139,6 +147,7 @@ export function useSelectiveReanalysis() {
             newService: result.recommendedService,
             bestService: result.recommendedService, // Ensure both fields are updated
             upsRates: result.upsRates,
+            isResidential: shipment.isResidential, // Preserve residential status
             reanalyzed: true,
             reanalyzedAt: new Date().toISOString()
           });

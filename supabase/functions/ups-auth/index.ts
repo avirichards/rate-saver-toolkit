@@ -39,15 +39,11 @@ serve(async (req) => {
 
     const { action, config_id } = await req.json();
 
-    if (action === 'get_token') {
-      let config;
-      
-      if (config_id) {
-        // Get specific carrier config by ID (new multi-carrier approach)
+      if (action === 'get_token') {
+        // Get carrier config for UPS
         const { data: carrierConfig, error: configError } = await supabase
           .from('carrier_configs')
           .select('*')
-          .eq('id', config_id)
           .eq('user_id', user.id)
           .eq('carrier_type', 'ups')
           .eq('is_active', true)
@@ -60,65 +56,41 @@ serve(async (req) => {
           });
         }
 
-        config = {
-          client_id: carrierConfig.ups_client_id,
-          client_secret: carrierConfig.ups_client_secret,
-          account_number: carrierConfig.ups_account_number,
-          is_sandbox: carrierConfig.is_sandbox
-        };
-      } else {
-        // Fallback to legacy ups_configs table for backward compatibility
-        const { data: legacyConfig, error: configError } = await supabase
-          .from('ups_configs')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .single();
+        // Get OAuth token from UPS
+        const tokenEndpoint = carrierConfig.is_sandbox 
+          ? 'https://wwwcie.ups.com/security/v1/oauth/token'
+          : 'https://onlinetools.ups.com/security/v1/oauth/token';
 
-        if (configError || !legacyConfig) {
-          return new Response(JSON.stringify({ error: 'UPS configuration not found' }), {
-            status: 404,
+        const credentials = btoa(`${carrierConfig.ups_client_id}:${carrierConfig.ups_client_secret}`);
+        
+        const tokenResponse = await fetch(tokenEndpoint, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${credentials}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: 'grant_type=client_credentials',
+        });
+
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text();
+          console.error('UPS token error:', errorText);
+          return new Response(JSON.stringify({ error: 'Failed to authenticate with UPS' }), {
+            status: 500,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
         }
 
-        config = legacyConfig;
-      }
-
-      // Get OAuth token from UPS
-      const tokenEndpoint = config.is_sandbox 
-        ? 'https://wwwcie.ups.com/security/v1/oauth/token'
-        : 'https://onlinetools.ups.com/security/v1/oauth/token';
-
-      const credentials = btoa(`${config.client_id}:${config.client_secret}`);
-      
-      const tokenResponse = await fetch(tokenEndpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Basic ${credentials}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'grant_type=client_credentials',
-      });
-
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error('UPS token error:', errorText);
-        return new Response(JSON.stringify({ error: 'Failed to authenticate with UPS' }), {
-          status: 500,
+        const tokenData = await tokenResponse.json();
+        
+        return new Response(JSON.stringify({ 
+          access_token: tokenData.access_token,
+          expires_in: tokenData.expires_in,
+          is_sandbox: carrierConfig.is_sandbox,
+          config_id: carrierConfig.id
+        }), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
-      }
-
-      const tokenData = await tokenResponse.json();
-      
-      return new Response(JSON.stringify({ 
-        access_token: tokenData.access_token,
-        expires_in: tokenData.expires_in,
-        is_sandbox: config.is_sandbox 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
     }
 
     return new Response(JSON.stringify({ error: 'Invalid action' }), {

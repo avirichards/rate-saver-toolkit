@@ -294,12 +294,21 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
                   <Input
                     id="global-markup"
                     type="number"
-                    value={globalMarkup}
-                    onChange={(e) => setGlobalMarkup(parseFloat(e.target.value) || 0)}
+                    value={globalMarkup === 0 ? '' : globalMarkup}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '') {
+                        setGlobalMarkup(0);
+                      } else {
+                        const numValue = parseFloat(value);
+                        setGlobalMarkup(isNaN(numValue) ? 0 : numValue);
+                      }
+                    }}
                     className="pr-8"
                     step="1"
                     min="0"
                     max="100"
+                    placeholder="0"
                   />
                   <Percent className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>

@@ -346,8 +346,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
 
     try {
-      const selectedData = filteredData.filter(item => selectedShipments.has(item.id));
-      const result = await applyServiceCorrections(corrections, selectedData, currentAnalysisId);
+      // Apply corrections to ALL shipments with matching services, not just selected ones
+      const allAffectedShipments = shipmentData.filter(shipment => {
+        return corrections.some(correction => {
+          const currentService = shipment.service || shipment.originalService || '';
+          return currentService === correction.from;
+        });
+      });
+
+      if (allAffectedShipments.length === 0) {
+        toast.error('No shipments found with the specified service types');
+        return;
+      }
+
+      console.log(`Applying corrections to ${allAffectedShipments.length} shipments`);
+      const result = await applyServiceCorrections(corrections, allAffectedShipments, currentAnalysisId);
       
       // Update local state with the corrected data instead of reloading the page
       if (result && result.success) {
@@ -363,6 +376,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setIsReanalysisModalOpen(false);
         
         toast.success(`Successfully applied corrections and re-analyzed ${result.success.length} shipments`);
+      } else {
+        toast.error('No shipments were successfully processed');
       }
     } catch (error) {
       console.error('Service corrections failed:', error);

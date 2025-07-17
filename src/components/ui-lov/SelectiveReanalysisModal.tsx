@@ -102,11 +102,11 @@ export function SelectiveReanalysisModal({
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">
-                {selectedShipments.length} shipments selected for re-analysis
+                Batch Service Correction
               </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              Corrections will apply to matching services in all shipments, then re-analyze selected shipments
+              Corrections will apply to ALL shipments with matching service types and re-analyze them
             </div>
           </div>
 

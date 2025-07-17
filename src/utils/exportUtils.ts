@@ -56,7 +56,7 @@ export const generateReportExcelFromProcessedData = (
     analysisData.push([
       'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 'Dimensions',
       'Current Service', 'Ship Pros Service', 'Current Rate', 'Ship Pros Cost', 
-      'Savings', 'Savings Percentage', 'Margin', 'Margin Percentage'
+      'Savings', 'Savings Percentage'
     ]);
     
     // Shipment data
@@ -72,9 +72,7 @@ export const generateReportExcelFromProcessedData = (
         row['Current Rate'],
         row['Ship Pros Cost'],
         row['Savings'],
-        row['Savings Percentage'],
-        row['Margin'],
-        row['Margin Percentage']
+        row['Savings Percentage']
       ]);
     });
   } else {
@@ -97,24 +95,26 @@ export const generateReportExcelFromProcessedData = (
     orphanedData.push(['Analysis Date:', new Date(report.analysis_date).toLocaleDateString()]);
     orphanedData.push([]);
     
-    // Column headers - include all original shipment data
+    // Column headers - spread original data fields
     orphanedData.push([
-      'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 'Dimensions',
-      'Current Service', 'Current Cost', 'Original Data', 'Reason'
+      'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 'Length', 'Width', 'Height',
+      'Current Service', 'Current Cost', 'Reason'
     ]);
     
-    // Orphaned shipment data with all original details
+    // Orphaned shipment data spread across individual columns
     orphanedShipments.forEach((shipment: any) => {
-      const originalData = JSON.stringify(shipment.originalData || shipment, null, 2);
+      // If there's original data, use it, otherwise use the shipment data directly
+      const data = shipment.originalData || shipment;
       orphanedData.push([
-        shipment.trackingId || '',
-        shipment.originZip || '',
-        shipment.destZip || '',
-        shipment.weight || '',
-        shipment.dimensions || `${shipment.length || 0}x${shipment.width || 0}x${shipment.height || 0}`,
-        shipment.currentService || '',
-        shipment.currentRate || 0,
-        originalData,
+        data.trackingId || shipment.trackingId || '',
+        data.originZip || shipment.originZip || '',
+        data.destZip || shipment.destZip || '',
+        data.weight || shipment.weight || '',
+        data.length || shipment.length || '',
+        data.width || shipment.width || '',
+        data.height || shipment.height || '',
+        data.service || shipment.currentService || '',
+        data.cost || shipment.currentRate || 0,
         shipment.reason || 'Unable to quote'
       ]);
     });

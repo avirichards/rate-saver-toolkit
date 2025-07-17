@@ -260,9 +260,7 @@ export const generateExportData = (filteredData: any[], getShipmentMarkup: (ship
       'Current Rate': `$${item.currentRate.toFixed(2)}`,
       'Ship Pros Cost': `$${markupInfo.markedUpPrice.toFixed(2)}`,
       'Savings': `$${savings.toFixed(2)}`,
-      'Savings Percentage': `${savingsPercent.toFixed(1)}%`,
-      'Margin': `$${markupInfo.margin.toFixed(2)}`,
-      'Margin Percentage': `${markupInfo.marginPercent.toFixed(1)}%`
+      'Savings Percentage': `${savingsPercent.toFixed(1)}%`
     };
   });
 };

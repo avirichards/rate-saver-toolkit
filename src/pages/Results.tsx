@@ -2345,11 +2345,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             <TableCell className="text-foreground">
                               {parseFloat(item.weight || 0).toFixed(1)}
                             </TableCell>
-                           <TableCell className="text-foreground text-xs">
-                             {item.length && item.width && item.height 
-                               ? `${item.length}×${item.width}×${item.height}` 
-                               : item.dimensions || '12×12×6'}
-                           </TableCell>
+                            <TableCell className="text-foreground text-xs">
+                              {item.length && item.width && item.height 
+                                ? `${item.length}×${item.width}×${item.height}` 
+                                : item.dimensions || '12×12×6'}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={item.isResidential ? "default" : "outline"} className="text-xs">
+                                {item.isResidential ? 'Residential' : 'Commercial'}
+                              </Badge>
+                            </TableCell>
                            <TableCell>
                              <Badge variant="outline" className="text-xs">
                                {item.originalService || item.service}

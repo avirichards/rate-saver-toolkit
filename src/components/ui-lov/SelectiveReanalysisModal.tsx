@@ -36,9 +36,21 @@ export function SelectiveReanalysisModal({
 
   // Get unique current service types from all shipments
   const currentServices = useMemo(() => {
-    const services = [...new Set(allShipments.map(s => 
-      s.service || s.originalService || s.currentService
-    ).filter(Boolean))];
+    console.log('🔍 Debug: All shipments for service extraction:', allShipments.slice(0, 3));
+    const services = [...new Set(allShipments.map(s => {
+      // Try multiple field names for service
+      const serviceValue = s.service || s.originalService || s.currentService || s.currentServiceType || s.serviceType;
+      console.log('🔍 Debug: Shipment service fields:', {
+        id: s.id,
+        service: s.service,
+        originalService: s.originalService, 
+        currentService: s.currentService,
+        serviceType: s.serviceType,
+        extractedValue: serviceValue
+      });
+      return serviceValue;
+    }).filter(Boolean))];
+    console.log('🔍 Debug: Extracted services:', services);
     return services.sort();
   }, [allShipments]);
 
@@ -48,8 +60,8 @@ export function SelectiveReanalysisModal({
       return;
     }
 
-    // Count how many shipments will be affected
-    const affectedCount = selectedShipments.filter(s => {
+    // Count how many shipments will be affected (from all shipments, but corrections apply only to selected)
+    const affectedCount = allShipments.filter(s => {
       const currentService = s.service || s.originalService || s.currentService || '';
       return currentService === findValue; // Exact match for dropdown selection
     }).length;
@@ -104,7 +116,7 @@ export function SelectiveReanalysisModal({
               </span>
             </div>
             <div className="text-xs text-muted-foreground">
-              Corrections will only apply to selected shipments
+              Corrections will apply to matching services in all shipments, then re-analyze selected shipments
             </div>
           </div>
 
@@ -117,22 +129,27 @@ export function SelectiveReanalysisModal({
                   <SelectValue placeholder="Select current service to replace" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover border border-border max-h-60 overflow-y-auto z-50">
-                  {currentServices.map((service) => (
-                    <SelectItem 
-                      key={service} 
-                      value={service}
-                      className="hover:bg-accent"
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <span>{service}</span>
-                        <div className="text-xs text-muted-foreground ml-4">
-                          {selectedShipments.filter(s => 
-                            (s.service || s.originalService || s.currentService) === service
-                          ).length} shipments
+                  {currentServices.map((service) => {
+                    // Count from all shipments, not just selected ones
+                    const serviceCount = allShipments.filter(s => 
+                      (s.service || s.originalService || s.currentService) === service
+                    ).length;
+                    
+                    return (
+                      <SelectItem 
+                        key={service} 
+                        value={service}
+                        className="hover:bg-accent"
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>{service}</span>
+                          <div className="text-xs text-muted-foreground ml-4">
+                            {serviceCount} shipments
+                          </div>
                         </div>
-                      </div>
-                    </SelectItem>
-                  ))}
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
             </div>

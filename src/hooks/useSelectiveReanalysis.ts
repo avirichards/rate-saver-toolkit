@@ -26,7 +26,7 @@ export function useSelectiveReanalysis() {
   const [reanalyzingShipments, setReanalyzingShipments] = useState<Set<number>>(new Set());
 
   // Process a single shipment (similar to Analysis.tsx processShipment function)
-  const processShipment = useCallback(async (shipment: ReanalysisShipment) => {
+  const processShipment = useCallback(async (shipment: ReanalysisShipment & { newService?: string }) => {
     console.log('🔄 Re-analyzing shipment:', shipment.id);
 
     // Validate UPS configuration
@@ -47,6 +47,10 @@ export function useSelectiveReanalysis() {
     }
 
     // Prepare shipment data for UPS API - match the expected interface
+    // Use the corrected service if available, otherwise default to UPS Ground
+    const targetService = shipment.newService || 'UPS Ground';
+    const serviceCode = getServiceCode(targetService);
+    
     const shipmentData = {
       shipFrom: {
         name: 'Shipper',
@@ -72,8 +76,8 @@ export function useSelectiveReanalysis() {
         height: parseFloat((shipment.height || 6).toString()),
         dimensionUnit: 'IN'
       },
-      serviceTypes: ['03'], // UPS Ground as default
-      equivalentServiceCode: '03',
+      serviceTypes: [serviceCode],
+      equivalentServiceCode: serviceCode,
       isResidential: false
     };
 
@@ -195,10 +199,12 @@ export function useSelectiveReanalysis() {
       
       corrections.forEach(correction => {
         const currentService = updatedShipment.service || updatedShipment.originalService || '';
-        if (currentService.toLowerCase().includes(correction.from.toLowerCase())) {
-          updatedShipment.service = correction.to;
-          updatedShipment.originalService = currentService; // Preserve original
+        if (currentService === correction.from) {
+          // Update the Ship Pros service (newService), NOT the current service
+          updatedShipment.newService = correction.to;
+          updatedShipment.bestService = correction.to; // Also update bestService for consistency
           updatedShipment.corrected = true;
+          // Keep the original service unchanged - this represents what the customer actually used
         }
       });
       
@@ -252,6 +258,26 @@ export function useSelectiveReanalysis() {
     applyServiceCorrections,
     fixOrphanedShipment
   };
+}
+
+// Helper function to map service names to UPS service codes
+function getServiceCode(serviceName: string): string {
+  const serviceMap: Record<string, string> = {
+    'UPS Ground': '03',
+    'UPS 3 Day Select': '12',
+    'UPS 2nd Day Air': '02',
+    'UPS 2nd Day Air A.M.': '59',
+    'UPS Next Day Air': '01',
+    'UPS Next Day Air Saver': '13',
+    'UPS Next Day Air Early': '14',
+    'UPS Worldwide Express': '07',
+    'UPS Worldwide Expedited': '08',
+    'UPS Standard': '11',
+    'UPS Worldwide Express Plus': '54',
+    'UPS Worldwide Saver': '65'
+  };
+  
+  return serviceMap[serviceName] || '03'; // Default to Ground if not found
 }
 
 // Helper function to update analysis in database

@@ -185,15 +185,16 @@ serve(async (req) => {
       return ''; // Unknown ZIP code
     };
 
-    // Get UPS account number first since we need it for the request structure
+    // Get UPS account number from carrier_configs
     const { data: config } = await supabase
-      .from('ups_configs')
-      .select('account_number')
+      .from('carrier_configs')
+      .select('ups_account_number')
       .eq('user_id', user.id)
+      .eq('carrier_type', 'ups')
       .eq('is_active', true)
       .single();
 
-    if (!config?.account_number) {
+    if (!config?.ups_account_number) {
       return new Response(JSON.stringify({ error: 'UPS account number is required for rate quotes' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -210,7 +211,7 @@ serve(async (req) => {
         Shipment: {
           Shipper: {
             Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
-            ShipperNumber: config.account_number,
+            ShipperNumber: config.ups_account_number,
             Address: {
               PostalCode: cleanZip(shipment.shipFrom.zipCode),
               CountryCode: shipment.shipFrom.country || 'US'
@@ -231,7 +232,7 @@ serve(async (req) => {
               BillShipper: {
                 AttentionName: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
                 Name: (shipment.shipFrom.name || 'Shipper').substring(0, 35),
-                AccountNumber: config.account_number,
+                AccountNumber: config.ups_account_number,
                 Address: {
                   AddressLine: formatAddress(shipment.shipFrom.address || '123 Main St'),
                   City: (shipment.shipFrom.city || '').substring(0, 30),

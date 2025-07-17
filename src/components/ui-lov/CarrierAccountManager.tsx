@@ -303,13 +303,21 @@ export const CarrierAccountManager = () => {
       if (config.carrier_type === 'ups') {
         // Test UPS connection using existing edge function
         const { data, error } = await supabase.functions.invoke('ups-auth', {
-          body: { action: 'get_token', config_id: config.id }
+          body: { action: 'get_token' }
         });
 
         if (error || !data.access_token) {
           throw new Error('Failed to authenticate with UPS');
         }
         toast.success(`${config.account_name} connection successful!`);
+        
+        // Update config to mark as working
+        await supabase
+          .from('carrier_configs')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', config.id);
+          
+        loadCarrierConfigs();
       } else {
         // For other carriers, we'll implement testing later
         toast.info(`${config.carrier_type.toUpperCase()} connection testing will be available soon`);
@@ -317,6 +325,7 @@ export const CarrierAccountManager = () => {
     } catch (error: any) {
       console.error('Error testing connection:', error);
       toast.error(`${config.account_name} connection failed: ${error.message}`);
+      loadCarrierConfigs();
     } finally {
       setTestingAccount(null);
     }

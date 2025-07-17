@@ -16,23 +16,24 @@ export function useUpsConnectivity() {
     try {
       console.log('Testing UPS connectivity...');
 
-      // Test 1: Check if UPS config exists
+      // Test 1: Check if UPS config exists in carrier_configs
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         return { success: false, message: 'User not authenticated' };
       }
 
       const { data: config, error: configError } = await supabase
-        .from('ups_configs')
+        .from('carrier_configs')
         .select('*')
         .eq('user_id', user.id)
+        .eq('carrier_type', 'ups')
         .eq('is_active', true)
         .single();
 
       if (configError || !config) {
         return { 
           success: false, 
-          message: 'UPS configuration not found. Please set up UPS API credentials in Settings.',
+          message: 'UPS configuration not found. Please set up UPS carrier account in Settings.',
           details: configError 
         };
       }
@@ -105,7 +106,7 @@ export function useUpsConnectivity() {
         details: { 
           config: { 
             sandbox: config.is_sandbox,
-            hasAccount: !!config.account_number 
+            hasAccount: !!config.ups_account_number 
           },
           testRates: rateData.rates 
         }

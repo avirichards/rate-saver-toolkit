@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
 import { Search, Replace, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -33,8 +34,13 @@ export function SelectiveReanalysisModal({
   const [replaceValue, setReplaceValue] = useState('');
   const [corrections, setCorrections] = useState<ServiceMappingCorrection[]>([]);
 
-  // Get unique service types from all shipments
-  const uniqueServices = [...new Set(allShipments.map(s => s.service || s.originalService).filter(Boolean))];
+  // Get unique current service types from all shipments
+  const currentServices = useMemo(() => {
+    const services = [...new Set(allShipments.map(s => 
+      s.service || s.originalService || s.currentService
+    ).filter(Boolean))];
+    return services.sort();
+  }, [allShipments]);
 
   const handleAddCorrection = () => {
     if (!findValue.trim() || !replaceValue.trim()) {
@@ -43,9 +49,10 @@ export function SelectiveReanalysisModal({
     }
 
     // Count how many shipments will be affected
-    const affectedCount = selectedShipments.filter(s => 
-      (s.service || s.originalService || '').toLowerCase().includes(findValue.toLowerCase())
-    ).length;
+    const affectedCount = selectedShipments.filter(s => {
+      const currentService = s.service || s.originalService || s.currentService || '';
+      return currentService === findValue; // Exact match for dropdown selection
+    }).length;
 
     if (affectedCount === 0) {
       toast.error('No shipments found with the specified service type');
@@ -104,14 +111,30 @@ export function SelectiveReanalysisModal({
           {/* Find & Replace Interface */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="find-service">Find Service</Label>
-              <Input
-                id="find-service"
-                value={findValue}
-                onChange={(e) => setFindValue(e.target.value)}
-                placeholder="e.g., FedX, Ground"
-                className="w-full"
-              />
+              <Label htmlFor="find-service">Find Current Service</Label>
+              <Select value={findValue} onValueChange={setFindValue}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select current service to replace" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover border border-border max-h-60 overflow-y-auto z-50">
+                  {currentServices.map((service) => (
+                    <SelectItem 
+                      key={service} 
+                      value={service}
+                      className="hover:bg-accent"
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span>{service}</span>
+                        <div className="text-xs text-muted-foreground ml-4">
+                          {selectedShipments.filter(s => 
+                            (s.service || s.originalService || s.currentService) === service
+                          ).length} shipments
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="replace-service">Replace With</Label>
@@ -130,18 +153,18 @@ export function SelectiveReanalysisModal({
           </Button>
 
           {/* Current Services Preview */}
-          {uniqueServices.length > 0 && (
+          {currentServices.length > 0 && (
             <div>
-              <Label className="text-sm font-medium">Current Service Types:</Label>
+              <Label className="text-sm font-medium">Available Current Services:</Label>
               <div className="flex flex-wrap gap-2 mt-2">
-                {uniqueServices.slice(0, 10).map((service, index) => (
+                {currentServices.slice(0, 8).map((service, index) => (
                   <Badge key={index} variant="outline" className="text-xs">
                     {service}
                   </Badge>
                 ))}
-                {uniqueServices.length > 10 && (
+                {currentServices.length > 8 && (
                   <Badge variant="outline" className="text-xs text-muted-foreground">
-                    +{uniqueServices.length - 10} more...
+                    +{currentServices.length - 8} more...
                   </Badge>
                 )}
               </div>

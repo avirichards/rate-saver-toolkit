@@ -1,0 +1,331 @@
+import { useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+interface ReanalysisShipment {
+  id: number;
+  originZip: string;
+  destinationZip: string;
+  weight: string | number;
+  length?: string | number;
+  width?: string | number;
+  height?: string | number;
+  service: string;
+  carrier?: string;
+  trackingId?: string;
+}
+
+interface ServiceMappingCorrection {
+  from: string;
+  to: string;
+  affectedCount: number;
+}
+
+export function useSelectiveReanalysis() {
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
+  const [reanalyzingShipments, setReanalyzingShipments] = useState<Set<number>>(new Set());
+
+  // Process a single shipment (similar to Analysis.tsx processShipment function)
+  const processShipment = useCallback(async (shipment: ReanalysisShipment) => {
+    console.log('🔄 Re-analyzing shipment:', shipment.id);
+
+    // Validate UPS configuration
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Please log in to run analysis');
+    }
+
+    const { data: config } = await supabase
+      .from('ups_configs')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single();
+
+    if (!config) {
+      throw new Error('UPS configuration not found. Please configure UPS API in Settings.');
+    }
+
+    // Prepare shipment data for UPS API
+    const shipmentData = {
+      shipper: {
+        address: {
+          postalCode: shipment.originZip
+        }
+      },
+      shipTo: {
+        address: {
+          postalCode: shipment.destinationZip
+        }
+      },
+      package: {
+        weight: {
+          unitOfMeasurement: { code: 'LBS' },
+          weight: shipment.weight.toString()
+        },
+        dimensions: {
+          unitOfMeasurement: { code: 'IN' },
+          length: (shipment.length || 12).toString(),
+          width: (shipment.width || 12).toString(),
+          height: (shipment.height || 6).toString()
+        }
+      },
+      service: shipment.service
+    };
+
+    // Call UPS rate quote API
+    const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
+      body: { 
+        action: 'get_rates',
+        shipment: shipmentData 
+      }
+    });
+
+    if (error) {
+      throw new Error(`UPS API Error: ${error.message || 'Unknown API error'}`);
+    }
+
+    if (!data || !data.rates || data.rates.length === 0) {
+      throw new Error('No rates returned from UPS API');
+    }
+
+    // Find the best rate (lowest cost)
+    const bestRate = data.rates.reduce((best: any, current: any) => 
+      current.totalCost < best.totalCost ? current : best
+    );
+
+    return {
+      shipment: shipment,
+      originalRate: 0, // We don't know the original rate in re-analysis
+      newRate: bestRate.totalCost,
+      savings: 0, // Will be calculated when we know the original rate
+      recommendedService: bestRate.serviceName,
+      upsRates: data.rates
+    };
+  }, []);
+
+  // Re-analyze selected shipments
+  const reanalyzeShipments = useCallback(async (
+    shipments: ReanalysisShipment[],
+    analysisId: string,
+    onProgress?: (processed: number, total: number) => void
+  ) => {
+    setIsReanalyzing(true);
+    const updatedShipments: any[] = [];
+    const failedShipments: any[] = [];
+
+    try {
+      for (let i = 0; i < shipments.length; i++) {
+        const shipment = shipments[i];
+        setReanalyzingShipments(prev => new Set([...prev, shipment.id]));
+
+        try {
+          const result = await processShipment(shipment);
+          updatedShipments.push({
+            ...shipment,
+            newRate: result.newRate,
+            newService: result.recommendedService,
+            upsRates: result.upsRates,
+            reanalyzed: true,
+            reanalyzedAt: new Date().toISOString()
+          });
+
+          onProgress?.(i + 1, shipments.length);
+        } catch (error: any) {
+          console.error(`Failed to re-analyze shipment ${shipment.id}:`, error);
+          failedShipments.push({
+            ...shipment,
+            error: error.message,
+            errorType: 'reanalysis_error'
+          });
+        } finally {
+          setReanalyzingShipments(prev => {
+            const next = new Set(prev);
+            next.delete(shipment.id);
+            return next;
+          });
+        }
+
+        // Small delay to prevent overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // Update the database with re-analyzed results
+      if (updatedShipments.length > 0) {
+        await updateAnalysisInDatabase(analysisId, updatedShipments);
+      }
+
+      if (failedShipments.length > 0) {
+        toast.error(`${failedShipments.length} shipments failed to re-analyze`);
+      } else {
+        toast.success(`Successfully re-analyzed ${updatedShipments.length} shipments`);
+      }
+
+      return {
+        success: updatedShipments,
+        failed: failedShipments
+      };
+
+    } catch (error: any) {
+      console.error('Re-analysis error:', error);
+      toast.error(`Re-analysis failed: ${error.message}`);
+      throw error;
+    } finally {
+      setIsReanalyzing(false);
+      setReanalyzingShipments(new Set());
+    }
+  }, [processShipment]);
+
+  // Apply service mapping corrections and re-analyze
+  const applyServiceCorrections = useCallback(async (
+    corrections: ServiceMappingCorrection[],
+    selectedShipments: any[],
+    analysisId: string
+  ) => {
+    // Apply corrections to shipment data
+    const correctedShipments = selectedShipments.map(shipment => {
+      let updatedShipment = { ...shipment };
+      
+      corrections.forEach(correction => {
+        const currentService = updatedShipment.service || updatedShipment.originalService || '';
+        if (currentService.toLowerCase().includes(correction.from.toLowerCase())) {
+          updatedShipment.service = correction.to;
+          updatedShipment.originalService = currentService; // Preserve original
+          updatedShipment.corrected = true;
+        }
+      });
+      
+      return updatedShipment;
+    });
+
+    // Re-analyze the corrected shipments
+    return reanalyzeShipments(correctedShipments, analysisId);
+  }, [reanalyzeShipments]);
+
+  // Fix orphaned shipment and move it to processed shipments
+  const fixOrphanedShipment = useCallback(async (
+    shipment: any,
+    analysisId: string
+  ) => {
+    setReanalyzingShipments(prev => new Set([...prev, shipment.id]));
+
+    try {
+      const result = await processShipment(shipment);
+      
+      // Update the analysis to move this shipment from orphaned to processed
+      await moveOrphanToProcessed(analysisId, shipment.id, {
+        ...shipment,
+        newRate: result.newRate,
+        newService: result.recommendedService,
+        upsRates: result.upsRates,
+        fixed: true,
+        fixedAt: new Date().toISOString()
+      });
+
+      toast.success(`Successfully fixed and analyzed shipment ${shipment.trackingId || shipment.id}`);
+      return result;
+
+    } catch (error: any) {
+      console.error(`Failed to fix orphaned shipment ${shipment.id}:`, error);
+      toast.error(`Failed to fix shipment: ${error.message}`);
+      throw error;
+    } finally {
+      setReanalyzingShipments(prev => {
+        const next = new Set(prev);
+        next.delete(shipment.id);
+        return next;
+      });
+    }
+  }, [processShipment]);
+
+  return {
+    isReanalyzing,
+    reanalyzingShipments,
+    reanalyzeShipments,
+    applyServiceCorrections,
+    fixOrphanedShipment
+  };
+}
+
+// Helper function to update analysis in database
+async function updateAnalysisInDatabase(analysisId: string, updatedShipments: any[]) {
+  const { data: currentAnalysis } = await supabase
+    .from('shipping_analyses')
+    .select('processed_shipments, processing_metadata')
+    .eq('id', analysisId)
+    .single();
+
+  if (!currentAnalysis) {
+    throw new Error('Analysis not found');
+  }
+
+  const currentShipments = Array.isArray(currentAnalysis.processed_shipments) 
+    ? currentAnalysis.processed_shipments as any[]
+    : [];
+  
+  // Update existing shipments with re-analyzed data
+  const mergedShipments = currentShipments.map((existing: any) => {
+    const updated = updatedShipments.find(u => u.id === existing.id);
+    return updated ? { ...existing, ...updated } : existing;
+  });
+
+  // Update metadata
+  const currentMetadata = typeof currentAnalysis.processing_metadata === 'object' && currentAnalysis.processing_metadata !== null
+    ? currentAnalysis.processing_metadata as Record<string, any>
+    : {};
+    
+  const updatedMetadata = {
+    ...currentMetadata,
+    lastReanalysis: new Date().toISOString(),
+    reanalyzedShipments: updatedShipments.length
+  };
+
+  const { error } = await supabase
+    .from('shipping_analyses')
+    .update({
+      processed_shipments: mergedShipments as any,
+      processing_metadata: updatedMetadata as any
+    })
+    .eq('id', analysisId);
+
+  if (error) {
+    throw new Error(`Failed to update analysis: ${error.message}`);
+  }
+}
+
+// Helper function to move orphaned shipment to processed
+async function moveOrphanToProcessed(analysisId: string, shipmentId: number, fixedShipment: any) {
+  const { data: currentAnalysis } = await supabase
+    .from('shipping_analyses')
+    .select('processed_shipments, orphaned_shipments')
+    .eq('id', analysisId)
+    .single();
+
+  if (!currentAnalysis) {
+    throw new Error('Analysis not found');
+  }
+
+  const processedShipments = Array.isArray(currentAnalysis.processed_shipments)
+    ? currentAnalysis.processed_shipments as any[]
+    : [];
+  const orphanedShipments = Array.isArray(currentAnalysis.orphaned_shipments)
+    ? currentAnalysis.orphaned_shipments as any[]
+    : [];
+
+  // Remove from orphaned and add to processed
+  const updatedOrphaned = orphanedShipments.filter((orphan: any) => orphan.id !== shipmentId);
+  const updatedProcessed = [...processedShipments, fixedShipment];
+
+  const { error } = await supabase
+    .from('shipping_analyses')
+    .update({
+      processed_shipments: updatedProcessed as any,
+      orphaned_shipments: updatedOrphaned as any,
+      total_shipments: updatedProcessed.length + updatedOrphaned.length
+    })
+    .eq('id', analysisId);
+
+  if (error) {
+    throw new Error(`Failed to update analysis: ${error.message}`);
+  }
+}

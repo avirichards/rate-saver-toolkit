@@ -22,6 +22,10 @@ import { getSharedReport, updateViewCount } from '@/utils/shareUtils';
 import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfiguration';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
+import { SelectiveReanalysisModal } from '@/components/ui-lov/SelectiveReanalysisModal';
+import { EditableShipmentRow } from '@/components/ui-lov/EditableShipmentRow';
+import { OrphanedShipmentRow } from '@/components/ui-lov/OrphanedShipmentRow';
+import { useSelectiveReanalysis } from '@/hooks/useSelectiveReanalysis';
 import { 
   processAnalysisData,
   formatShipmentData, 
@@ -91,6 +95,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
   const hasTriedAutoSave = useRef(false);
+  
+  // Selective re-analysis state
+  const [editMode, setEditMode] = useState(false);
+  const [selectedShipments, setSelectedShipments] = useState<Set<number>>(new Set());
+  const [isReanalysisModalOpen, setIsReanalysisModalOpen] = useState(false);
+  const [shipmentUpdates, setShipmentUpdates] = useState<Record<number, any>>({});
+  
+  // Use selective re-analysis hook
+  const { 
+    isReanalyzing, 
+    reanalyzingShipments, 
+    reanalyzeShipments, 
+    applyServiceCorrections, 
+    fixOrphanedShipment 
+  } = useSelectiveReanalysis();
 
   // Function to generate unique file name with numbering - simplified to prevent nested parentheses
   const generateUniqueFileName = async (baseName: string): Promise<string> => {
@@ -251,6 +270,108 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     const marginPercent = shipProsCost > 0 ? (margin / shipProsCost) * 100 : 0;
     
     return { markedUpPrice, margin, marginPercent };
+  };
+
+  // Selective re-analysis handlers
+  const handleSelectShipment = (shipmentId: number, selected: boolean) => {
+    setSelectedShipments(prev => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(shipmentId);
+      } else {
+        next.delete(shipmentId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllShipments = (selected: boolean) => {
+    if (selected) {
+      setSelectedShipments(new Set(filteredData.map(item => item.id)));
+    } else {
+      setSelectedShipments(new Set());
+    }
+  };
+
+  const handleFieldUpdate = (shipmentId: number, field: string, value: string) => {
+    setShipmentUpdates(prev => ({
+      ...prev,
+      [shipmentId]: {
+        ...prev[shipmentId],
+        [field]: value
+      }
+    }));
+  };
+
+  const handleReanalyzeSelected = async () => {
+    if (selectedShipments.size === 0) {
+      toast.error('Please select shipments to re-analyze');
+      return;
+    }
+
+    if (!currentAnalysisId) {
+      toast.error('Analysis ID not found');
+      return;
+    }
+
+    const selectedData = filteredData.filter(item => selectedShipments.has(item.id));
+    const shipmentsToReanalyze = selectedData.map(item => ({
+      ...item,
+      ...shipmentUpdates[item.id] // Apply any field updates
+    }));
+
+    try {
+      const result = await reanalyzeShipments(shipmentsToReanalyze, currentAnalysisId);
+      
+      // Update local state with re-analyzed data
+      setShipmentData(prev => prev.map(item => {
+        const reanalyzed = result.success.find(r => r.id === item.id);
+        return reanalyzed ? { ...item, ...reanalyzed } : item;
+      }));
+
+      // Clear selections and updates
+      setSelectedShipments(new Set());
+      setShipmentUpdates({});
+      setEditMode(false);
+
+    } catch (error) {
+      console.error('Re-analysis failed:', error);
+    }
+  };
+
+  const handleServiceCorrections = async (corrections: any[]) => {
+    if (!currentAnalysisId) {
+      toast.error('Analysis ID not found');
+      return;
+    }
+
+    try {
+      const selectedData = filteredData.filter(item => selectedShipments.has(item.id));
+      await applyServiceCorrections(corrections, selectedData, currentAnalysisId);
+      
+      // Refresh the data after corrections
+      window.location.reload(); // Simple approach for now
+    } catch (error) {
+      console.error('Service corrections failed:', error);
+    }
+  };
+
+  const handleFixOrphaned = async (shipmentId: number, updatedData: any) => {
+    if (!currentAnalysisId) {
+      toast.error('Analysis ID not found');
+      return;
+    }
+
+    try {
+      await fixOrphanedShipment(updatedData, currentAnalysisId);
+      
+      // Remove from orphaned and add to processed
+      setOrphanedData(prev => prev.filter(item => item.id !== shipmentId));
+      setShipmentData(prev => [...prev, updatedData]);
+      
+    } catch (error) {
+      console.error('Fix orphaned shipment failed:', error);
+    }
   };
 
   // Export functionality - uses standardized download function
@@ -2007,33 +2128,79 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   </Badge>
                 </div>
 
-                {/* Filters */}
-                <div className="flex flex-wrap gap-4 pt-4">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">Filters:</span>
+                {/* Filters and Edit Controls */}
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Filters:</span>
+                    </div>
+                    
+                    <ResultFilter value={resultFilter} onChange={setResultFilter} />
+                    
+                    <Select value={selectedService} onValueChange={setSelectedService}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue placeholder="Filter by service" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Services</SelectItem>
+                        {availableServices.map(service => (
+                          <SelectItem key={service} value={service}>{service}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    
+                    <Input
+                      placeholder="Search tracking ID, zip codes..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-64"
+                    />
                   </div>
-                  
-                  <ResultFilter value={resultFilter} onChange={setResultFilter} />
-                  
-                  <Select value={selectedService} onValueChange={setSelectedService}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Filter by service" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Services</SelectItem>
-                      {availableServices.map(service => (
-                        <SelectItem key={service} value={service}>{service}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <Input
-                    placeholder="Search tracking ID, zip codes..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-64"
-                  />
+
+                  {/* Edit Mode Controls */}
+                  {!isClientView && (
+                    <div className="flex items-center justify-between p-4 bg-muted/20 rounded-lg border border-dashed">
+                      <div className="flex items-center gap-4">
+                        <Button
+                          variant={editMode ? "secondary" : "outline"}
+                          onClick={() => setEditMode(!editMode)}
+                          className="h-9"
+                        >
+                          {editMode ? 'Exit Edit Mode' : 'Edit Mode'}
+                        </Button>
+                        
+                        {editMode && (
+                          <div className="text-sm text-muted-foreground">
+                            Select shipments to edit and re-analyze
+                          </div>
+                        )}
+                      </div>
+
+                      {editMode && selectedShipments.size > 0 && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">
+                            {selectedShipments.size} selected
+                          </Badge>
+                          <Button
+                            size="sm"
+                            onClick={() => setIsReanalysisModalOpen(true)}
+                            className="h-8"
+                          >
+                            Batch Corrections
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleReanalyzeSelected}
+                            disabled={isReanalyzing}
+                            className="h-8"
+                          >
+                            Re-analyze Selected
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </CardHeader>
 
@@ -2042,6 +2209,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   <Table>
                       <TableHeader className="bg-muted/50">
                         <TableRow className="border-b border-border">
+                          {editMode && (
+                            <TableHead className="w-12">
+                              <Checkbox
+                                checked={selectedShipments.size === filteredData.length && filteredData.length > 0}
+                                onCheckedChange={handleSelectAllShipments}
+                              />
+                            </TableHead>
+                          )}
                           <TableHead className="text-foreground">Tracking ID</TableHead>
                           <TableHead className="text-foreground">Origin</TableHead>
                           <TableHead className="text-foreground">Destination</TableHead>
@@ -2052,18 +2227,30 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-right text-foreground">Current Rate</TableHead>
                           <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
                           <TableHead className="text-right text-foreground">Savings</TableHead>
-                          <TableHead className="text-right text-foreground">Savings %</TableHead>
+                          {editMode && <TableHead className="text-foreground">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
                      <TableBody className="bg-background">
-                       {filteredData.map((item, index) => (
-                         <TableRow 
-                           key={item.id} 
-                           className={cn(
-                             "hover:bg-muted/30 border-b border-border/30",
-                             index % 2 === 0 ? "bg-background" : "bg-muted/20"
-                           )}
-                         >
+                       {filteredData.map((item, index) => 
+                         editMode ? (
+                           <EditableShipmentRow
+                             key={item.id}
+                             shipment={item}
+                             isSelected={selectedShipments.has(item.id)}
+                             onSelect={(selected) => handleSelectShipment(item.id, selected)}
+                             onFieldUpdate={handleFieldUpdate}
+                             onReanalyze={(shipmentId) => handleReanalyzeSelected()}
+                             isReanalyzing={reanalyzingShipments.has(item.id)}
+                             editMode={editMode}
+                           />
+                         ) : (
+                           <TableRow 
+                             key={item.id} 
+                             className={cn(
+                               "hover:bg-muted/30 border-b border-border/30",
+                               index % 2 === 0 ? "bg-background" : "bg-muted/20"
+                             )}
+                           >
                            <TableCell className="font-medium text-foreground">
                              {item.trackingId}
                            </TableCell>
@@ -2138,9 +2325,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                })()}
                              </span>
                            </TableCell>
-                         </TableRow>
-                       ))}
-                     </TableBody>
+                           </TableRow>
+                         )
+                       )}
+                      </TableBody>
                   </Table>
                 </div>
               </CardContent>
@@ -2227,6 +2415,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Selective Re-analysis Modal */}
+      <SelectiveReanalysisModal
+        isOpen={isReanalysisModalOpen}
+        onClose={() => setIsReanalysisModalOpen(false)}
+        onApplyCorrections={handleServiceCorrections}
+        selectedShipments={filteredData.filter(item => selectedShipments.has(item.id))}
+        allShipments={shipmentData}
+      />
     </Layout>
   );
 };

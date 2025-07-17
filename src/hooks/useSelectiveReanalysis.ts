@@ -46,37 +46,42 @@ export function useSelectiveReanalysis() {
       throw new Error('UPS configuration not found. Please configure UPS API in Settings.');
     }
 
-    // Prepare shipment data for UPS API
+    // Prepare shipment data for UPS API - match the expected interface
     const shipmentData = {
-      shipper: {
-        address: {
-          postalCode: shipment.originZip
-        }
+      shipFrom: {
+        name: 'Shipper',
+        address: '123 Main St',
+        city: 'City',
+        state: 'FL',
+        zipCode: shipment.originZip,
+        country: 'US'
       },
       shipTo: {
-        address: {
-          postalCode: shipment.destinationZip
-        }
+        name: 'Recipient',
+        address: '456 Main St',
+        city: 'City',
+        state: 'TX',
+        zipCode: shipment.destinationZip,
+        country: 'US'
       },
       package: {
-        weight: {
-          unitOfMeasurement: { code: 'LBS' },
-          weight: shipment.weight.toString()
-        },
-        dimensions: {
-          unitOfMeasurement: { code: 'IN' },
-          length: (shipment.length || 12).toString(),
-          width: (shipment.width || 12).toString(),
-          height: (shipment.height || 6).toString()
-        }
+        weight: parseFloat(shipment.weight.toString()),
+        weightUnit: 'LBS',
+        length: parseFloat((shipment.length || 12).toString()),
+        width: parseFloat((shipment.width || 12).toString()),
+        height: parseFloat((shipment.height || 6).toString()),
+        dimensionUnit: 'IN'
       },
-      service: shipment.service
+      serviceTypes: ['03'], // UPS Ground as default
+      equivalentServiceCode: '03',
+      isResidential: false
     };
+
+    console.log('Sending shipment data to UPS API:', shipmentData);
 
     // Call UPS rate quote API
     const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
       body: { 
-        action: 'get_rates',
         shipment: shipmentData 
       }
     });
@@ -93,13 +98,13 @@ export function useSelectiveReanalysis() {
 
     // Find the best rate (lowest cost)
     const bestRate = data.rates.reduce((best: any, current: any) => 
-      (current.totalCost || 999999) < (best.totalCost || 999999) ? current : best
+      (current.totalCharges || 999999) < (best.totalCharges || 999999) ? current : best
     );
 
     return {
       shipment: shipment,
       originalRate: 0, // We don't know the original rate in re-analysis
-      newRate: bestRate.totalCost,
+      newRate: bestRate.totalCharges,
       savings: 0, // Will be calculated when we know the original rate
       recommendedService: bestRate.serviceName,
       upsRates: data.rates

@@ -14,6 +14,7 @@ export interface ExportableReportData {
   original_data: any;
   recommendations: any;
   orphaned_shipments: any;
+  processed_shipments?: any;
 }
 
 // Generate Excel workbook from report data with markup applied
@@ -42,42 +43,45 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
   };
   
   // Create Analyzed Shipments worksheet
-  if (report.recommendations && Array.isArray(report.recommendations)) {
-    const analysisData = [];
-    
-    // Header information
-    analysisData.push(['Shipping Analysis Report']);
-    analysisData.push(['Report Name:', report.report_name || report.file_name]);
-    if (report.client_name) {
-      analysisData.push(['Client:', report.client_name]);
-    }
-    analysisData.push(['Analysis Date:', new Date(report.analysis_date).toLocaleDateString()]);
-    analysisData.push(['Total Shipments:', report.total_shipments]);
-    analysisData.push(['Total Savings:', `$${(report.total_savings || 0).toFixed(2)}`]);
-    analysisData.push([]);
-    
-    // Column headers
-    analysisData.push([
-      'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 
-      'Current Service', 'Current Cost', 'Recommended Service', 
-      'Ship Pros Cost', 'Savings', 'Savings %', 'Margin', 'Margin %'
-    ]);
-    
-    // Shipment data
-    report.recommendations.forEach((shipment: any) => {
-      const currentCost = shipment.currentRate || 0;
+  const analysisData = [];
+  
+  // Header information
+  analysisData.push(['Shipping Analysis Report']);
+  analysisData.push(['Report Name:', report.report_name || report.file_name]);
+  if (report.client_name) {
+    analysisData.push(['Client:', report.client_name]);
+  }
+  analysisData.push(['Analysis Date:', new Date(report.analysis_date).toLocaleDateString()]);
+  analysisData.push(['Total Shipments:', report.total_shipments]);
+  analysisData.push(['Total Savings:', `$${(report.total_savings || 0).toFixed(2)}`]);
+  analysisData.push([]);
+  
+  // Column headers
+  analysisData.push([
+    'Tracking ID', 'Origin ZIP', 'Destination ZIP', 'Weight', 
+    'Current Service', 'Current Cost', 'Recommended Service', 
+    'Ship Pros Cost', 'Savings', 'Savings %', 'Margin', 'Margin %'
+  ]);
+  
+  // Get shipment data from recommendations
+  const shipments = report.recommendations || [];
+  
+  // Shipment data
+  if (Array.isArray(shipments) && shipments.length > 0) {
+    shipments.forEach((shipment: any) => {
+      const currentCost = shipment.currentRate || shipment.current_rate || 0;
       const markupInfo = getShipmentMarkup(shipment);
       const savings = currentCost - markupInfo.markedUpPrice;
       const savingsPercent = currentCost > 0 ? (savings / currentCost) * 100 : 0;
       
       analysisData.push([
-        shipment.trackingId || '',
-        shipment.originZip || '',
-        shipment.destZip || '',
+        shipment.trackingId || shipment.tracking_id || '',
+        shipment.originZip || shipment.origin_zip || '',
+        shipment.destZip || shipment.dest_zip || '',
         shipment.weight || '',
-        shipment.currentService || '',
+        shipment.currentService || shipment.current_service || '',
         currentCost,
-        shipment.service || '',
+        shipment.service || shipment.recommended_service || '',
         markupInfo.markedUpPrice,
         savings,
         savingsPercent / 100, // Excel percentage format
@@ -85,12 +89,16 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
         markupInfo.marginPercent / 100 // Excel percentage format
       ]);
     });
-    
-    const analysisWorksheet = XLSX.utils.aoa_to_sheet(analysisData);
-    
-    // Format currency and percentage columns
-    const range = XLSX.utils.decode_range(analysisWorksheet['!ref'] || 'A1');
-    for (let row = 8; row <= range.e.r; row++) { // Start from data rows (after headers)
+  } else {
+    // If no shipment data, add a row indicating no data
+    analysisData.push(['No shipment data available', '', '', '', '', '', '', '', '', '', '', '']);
+  }
+  
+  const analysisWorksheet = XLSX.utils.aoa_to_sheet(analysisData);
+  
+  // Format currency and percentage columns
+  const range = XLSX.utils.decode_range(analysisWorksheet['!ref'] || 'A1');
+  for (let row = 8; row <= range.e.r; row++) { // Start from data rows (after headers)
       // Current Cost (column F)
       const currentCostCell = XLSX.utils.encode_cell({ r: row, c: 5 });
       if (analysisWorksheet[currentCostCell]) {
@@ -126,10 +134,9 @@ export const generateReportExcel = (report: ExportableReportData): XLSX.WorkBook
       if (analysisWorksheet[marginPercentCell]) {
         analysisWorksheet[marginPercentCell].z = '0.00%';
       }
-    }
-    
-    XLSX.utils.book_append_sheet(workbook, analysisWorksheet, 'Analyzed Shipments');
   }
+  
+  XLSX.utils.book_append_sheet(workbook, analysisWorksheet, 'Analyzed Shipments');
   
   // Create Orphaned Shipments worksheet
   if (report.orphaned_shipments && Array.isArray(report.orphaned_shipments) && report.orphaned_shipments.length > 0) {

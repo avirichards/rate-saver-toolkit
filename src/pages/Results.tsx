@@ -31,6 +31,7 @@ import {
   ProcessedAnalysisData,
   ProcessedShipmentData 
 } from '@/utils/dataProcessing';
+import * as XLSX from 'xlsx';
 
 // Use the standardized interface from dataProcessing utils
 type AnalysisData = ProcessedAnalysisData;
@@ -253,7 +254,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   };
 
   // Export functionality
-  const exportToCSV = () => {
+  const exportToExcel = () => {
     const rows: string[] = [];
     
     // Main shipments section
@@ -1455,7 +1456,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               
               {/* Right side - Action buttons */}
               <div className="flex flex-col gap-3 min-w-[200px]">
-                <Button variant="outline" onClick={exportToCSV} className="w-full">
+                <Button variant="outline" onClick={exportToExcel} className="w-full">
                   <Download className="h-4 w-4 mr-2" />
                   Export Report
                 </Button>

@@ -294,6 +294,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   };
 
   const handleFieldUpdate = (shipmentId: number, field: string, value: string) => {
+    // Auto-select the shipment when any field is edited
+    setSelectedShipments(prev => new Set([...prev, shipmentId]));
+    
     setShipmentUpdates(prev => ({
       ...prev,
       [shipmentId]: {
@@ -323,19 +326,26 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     try {
       const result = await reanalyzeShipments(shipmentsToReanalyze, currentAnalysisId);
       
-      // Update local state with re-analyzed data
+      // Update local state with re-analyzed data WITHOUT exiting edit mode
       setShipmentData(prev => prev.map(item => {
-        const reanalyzed = result.success.find(r => r.id === item.id);
+        const reanalyzed = result.success.find((r: any) => r.id === item.id);
         return reanalyzed ? { ...item, ...reanalyzed } : item;
       }));
 
-      // Clear selections and updates
-      setSelectedShipments(new Set());
-      setShipmentUpdates({});
-      setEditMode(false);
+      // Clear shipment updates for re-analyzed items but keep them selected
+      const reanalyzedIds = result.success.map((r: any) => r.id);
+      setShipmentUpdates(prev => {
+        const updated = { ...prev };
+        reanalyzedIds.forEach(id => delete updated[id]);
+        return updated;
+      });
+
+      // Keep edit mode ON and don't clear selections - user stays in edit mode
+      toast.success(`Successfully re-analyzed ${result.success.length} shipments`);
 
     } catch (error) {
       console.error('Re-analysis failed:', error);
+      toast.error('Re-analysis failed. Please try again.');
     }
   };
 
@@ -370,8 +380,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           return updated ? { ...item, ...updated } : item;
         }));
 
-        // Clear selections and close modal
-        setSelectedShipments(new Set());
+        // Don't clear selections or exit edit mode - keep user in edit mode
         setShipmentUpdates({});
         setIsReanalysisModalOpen(false);
         
@@ -2271,7 +2280,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              isSelected={selectedShipments.has(item.id)}
                              onSelect={(selected) => handleSelectShipment(item.id, selected)}
                              onFieldUpdate={handleFieldUpdate}
-                             onReanalyze={(shipmentId) => handleReanalyzeSelected()}
+                              onReanalyze={() => {
+                                // Auto-select this shipment and trigger re-analysis
+                                if (!selectedShipments.has(item.id)) {
+                                  setSelectedShipments(prev => new Set([...prev, item.id]));
+                                }
+                                // Use setTimeout to ensure the selection state updates first
+                                setTimeout(() => handleReanalyzeSelected(), 100);
+                              }}
                              isReanalyzing={reanalyzingShipments.has(item.id)}
                              editMode={editMode}
                            />

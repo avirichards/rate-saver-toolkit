@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
+import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToServiceCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
@@ -43,9 +44,13 @@ interface AnalysisResult {
   status: 'pending' | 'processing' | 'completed' | 'error';
   currentCost?: number;
   originalService?: string; // Original service from CSV
-  upsRates?: any[];
+  upsRates?: any[]; // Legacy UPS rates
+  allRates?: any[]; // All rates from all carriers
+  carrierResults?: any[]; // Results by carrier
   bestRate?: any;
+  bestOverallRate?: any;
   savings?: number;
+  maxSavings?: number;
   error?: string;
   errorType?: string;
   errorCategory?: string;
@@ -81,6 +86,8 @@ const Analysis = () => {
   const [readyToAnalyze, setReadyToAnalyze] = useState(false);
   const [analysisSaved, setAnalysisSaved] = useState(false); // Track if analysis has been saved
   const [isAnalysisStarted, setIsAnalysisStarted] = useState(false); // Track if analysis has been started
+  const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
+  const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
@@ -239,12 +246,40 @@ const Analysis = () => {
     setReadyToAnalyze(true);
   }, [location, navigate]);
   
-  // Separate useEffect to start analysis once serviceMappings state is updated
+  // Auto-select all carriers on initial load if available
   useEffect(() => {
-    if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && !isAnalysisStarted) {
-      console.log('🚀 Starting analysis with service mappings:', {
+    const loadInitialCarriers = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data, error } = await supabase
+          .from('carrier_configs')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('is_active', true);
+
+        if (!error && data && data.length > 0) {
+          setSelectedCarriers(data.map(config => config.id));
+        }
+      } catch (error) {
+        console.error('Error loading carrier configs:', error);
+      }
+    };
+
+    if (shipments.length > 0 && selectedCarriers.length === 0) {
+      loadInitialCarriers();
+    }
+  }, [shipments, selectedCarriers]);
+
+  // Wait for both service mappings and carrier selection to complete
+  useEffect(() => {
+    if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && 
+        selectedCarriers.length > 0 && carrierSelectionComplete && !isAnalysisStarted) {
+      console.log('🚀 Starting analysis with service mappings and carriers:', {
         serviceMappingsCount: serviceMappings.length,
         shipmentsCount: shipments.length,
+        selectedCarriersCount: selectedCarriers.length,
         isAnalysisStarted,
         mappings: serviceMappings.map(m => ({
           original: m.original,
@@ -256,7 +291,7 @@ const Analysis = () => {
       validateAndStartAnalysis(shipments);
       setReadyToAnalyze(false); // Prevent multiple analysis starts
     }
-  }, [readyToAnalyze, serviceMappings, shipments, isAnalysisStarted]);
+  }, [readyToAnalyze, serviceMappings, shipments, selectedCarriers, carrierSelectionComplete, isAnalysisStarted]);
   
   const validateAndStartAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
     setIsAnalyzing(true);
@@ -383,8 +418,8 @@ const Analysis = () => {
     });
     
     try {
-      // Validate UPS configuration first
-      await validateUpsConfiguration();
+      // Validate carrier configuration first
+      await validateCarrierConfiguration();
       
       // Process shipments sequentially (one at a time) to prevent race conditions
       for (let i = 0; i < shipmentsToAnalyze.length; i++) {
@@ -422,31 +457,32 @@ const Analysis = () => {
     }
   };
   
-  const validateUpsConfiguration = async () => {
+  const validateCarrierConfiguration = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('Please log in to run analysis');
     }
 
-    const { data: config, error } = await supabase
-      .from('ups_configs')
+    if (selectedCarriers.length === 0) {
+      throw new Error('Please select at least one carrier account for analysis.');
+    }
+
+    const { data: configs, error } = await supabase
+      .from('carrier_configs')
       .select('*')
       .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single();
+      .in('id', selectedCarriers)
+      .eq('is_active', true);
 
-    if (error || !config) {
-      throw new Error('UPS configuration not found. Please configure UPS API in Settings.');
+    if (error || !configs || configs.length === 0) {
+      throw new Error('No valid carrier configurations found. Please check your carrier accounts in Settings.');
     }
 
-    // Test UPS connection
-    const { data, error: authError } = await supabase.functions.invoke('ups-auth', {
-      body: { action: 'get_token' }
+    console.log('✅ Carrier validation passed:', {
+      selectedCarriers: selectedCarriers.length,
+      validConfigs: configs.length,
+      carriers: configs.map(c => ({ type: c.carrier_type, name: c.account_name }))
     });
-
-    if (authError || !data?.access_token) {
-      throw new Error('Failed to authenticate with UPS. Please check your API credentials.');
-    }
   };
   
   const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0) => {
@@ -710,23 +746,31 @@ const Analysis = () => {
         }
       });
       
-      const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
-        body: { shipment: shipmentRequest }
+      const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
+        body: { 
+          shipment: {
+            ...shipmentRequest,
+            carrierConfigIds: selectedCarriers
+          }
+        }
       });
 
-      console.log(`📦 UPS API response for shipment ${index + 1}:`, {
+      console.log(`📦 Multi-carrier API response for shipment ${index + 1}:`, {
         hasData: !!data,
         hasError: !!error,
         errorDetails: error,
         dataStructure: data ? {
-          hasRates: !!data.rates,
-          ratesCount: data.rates?.length || 0,
-          hasOtherFields: Object.keys(data).filter(k => k !== 'rates')
+          hasAllRates: !!data.allRates,
+          allRatesCount: data.allRates?.length || 0,
+          hasBestRates: !!data.bestRates,
+          bestRatesCount: data.bestRates?.length || 0,
+          carrierResults: data.carrierResults?.length || 0,
+          summary: data.summary
         } : null
       });
 
       if (error) {
-        console.error(`❌ UPS API Error for shipment ${index + 1}:`, {
+        console.error(`❌ Multi-carrier API Error for shipment ${index + 1}:`, {
           errorMessage: error.message,
           errorDetails: error,
           shipmentRequest: {
@@ -734,7 +778,8 @@ const Analysis = () => {
             destZip: shipmentRequest.shipTo.zipCode,
             weight: shipmentRequest.package.weight,
             serviceTypes: shipmentRequest.serviceTypes,
-            isResidential: shipmentRequest.isResidential
+            isResidential: shipmentRequest.isResidential,
+            carrierConfigIds: selectedCarriers
           }
         });
         
@@ -750,15 +795,15 @@ const Analysis = () => {
           return processShipment(index, shipment, retryCount + 1);
         }
         
-        throw new Error(`UPS API Error: ${error.message || 'Unknown API error'}`);
+        throw new Error(`Multi-carrier API Error: ${error.message || 'Unknown API error'}`);
       }
       
       if (!data) {
-        console.error(`❌ No data returned from UPS API for shipment ${index + 1}`);
-        throw new Error('No data returned from UPS API');
+        console.error(`❌ No data returned from multi-carrier API for shipment ${index + 1}`);
+        throw new Error('No data returned from multi-carrier API');
       }
       
-      if (!data.rates || !Array.isArray(data.rates) || data.rates.length === 0) {
+      if (!data.allRates || !Array.isArray(data.allRates) || data.allRates.length === 0) {
         console.error(`❌ No rates returned for shipment ${index + 1}:`, {
           fullResponse: data,
           shipmentDetails: {
@@ -767,100 +812,95 @@ const Analysis = () => {
             weight: shipmentRequest.package.weight,
             dimensions: `${shipmentRequest.package.length}×${shipmentRequest.package.width}×${shipmentRequest.package.height}`,
             serviceTypes: shipmentRequest.serviceTypes,
-            isResidential: shipmentRequest.isResidential
+            isResidential: shipmentRequest.isResidential,
+            carrierConfigIds: selectedCarriers
           }
         });
         
         // Provide more specific error messages based on common issues
-        let detailedError = 'No rates returned from UPS.';
+        let detailedError = 'No rates returned from any carrier.';
         if (data.error || data.errors) {
           detailedError += ` API Error: ${data.error || JSON.stringify(data.errors)}`;
         } else {
-          detailedError += ' This may indicate:\n• Invalid ZIP codes\n• Package dimensions exceed limits\n• Service unavailable for this route\n• UPS API configuration issues';
+          detailedError += ' This may indicate:\n• Invalid ZIP codes\n• Package dimensions exceed limits\n• Service unavailable for this route\n• Carrier API configuration issues';
         }
         
         throw new Error(detailedError);
       }
       
-      console.log(`✅ Successfully retrieved ${data.rates.length} rates for shipment ${index + 1}`);
+      console.log(`✅ Successfully retrieved ${data.allRates.length} rates from ${data.summary?.successfulCarriers || 0} carriers for shipment ${index + 1}`);
       
-      // Enhanced rate selection with detailed debugging
+      // Enhanced rate selection with multi-carrier data
       let comparisonRate;
+      let bestRate = null;
       
-      console.log(`🔍 Rate selection for shipment ${index + 1}:`, {
+      console.log(`🔍 Multi-carrier rate selection for shipment ${index + 1}:`, {
         originalService: shipment.service,
         isConfirmedMapping,
         equivalentServiceCode,
-        totalRatesReturned: data.rates.length,
-        allReturnedRates: data.rates.map((r: any) => ({
-          serviceCode: r.serviceCode,
-          serviceName: r.serviceName,
-          cost: r.totalCharges
+        totalRatesReturned: data.allRates.length,
+        bestRatesCount: data.bestRates?.length || 0,
+        carrierBreakdown: data.carrierResults?.map((c: any) => ({
+          carrier: c.carrierType,
+          name: c.carrierName,
+          success: c.success,
+          rateCount: c.rateCount || 0
         }))
       });
       
+      // Find the best rate from all carriers for this service
       if (isConfirmedMapping) {
-        // User confirmed this mapping - use the specific service rate they mapped to
-        comparisonRate = data.rates.find((rate: any) => rate.serviceCode === equivalentServiceCode);
-        
-        if (!comparisonRate) {
-          console.error(`❌ No rate found for mapped service code:`, {
-            requestedServiceCode: equivalentServiceCode,
-            availableServiceCodes: data.rates.map(r => r.serviceCode),
-            originalService: shipment.service
-          });
-          throw new Error(`No rate returned for user-mapped service code ${equivalentServiceCode} (${serviceMapping.serviceName})`);
-        }
-        
-        console.log(`✅ Using confirmed mapping rate for comparison:`, {
-          originalService: shipment.service,
-          mappedServiceCode: equivalentServiceCode,
-          mappedServiceName: comparisonRate.serviceName,
-          cost: comparisonRate.totalCharges,
-          userConfirmedMapping: true,
-          rateValidation: {
-            serviceCodeMatches: comparisonRate.serviceCode === equivalentServiceCode,
-            hasValidCost: typeof comparisonRate.totalCharges === 'number'
-          }
-        });
-      } else {
-        // Auto-mapping - find equivalent service rate (for apples-to-apples comparison)
-        const equivalentServiceRate = data.rates.find((rate: any) => rate.isEquivalentService);
-        
-        // Find best overall rate (lowest cost)
-        const bestOverallRate = data.rates.reduce((best: any, current: any) => 
-          (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
+        // User confirmed this mapping - find the best rate for the mapped service across all carriers
+        const serviceRates = data.allRates.filter((rate: any) => 
+          rate.serviceCode === equivalentServiceCode || 
+          rate.serviceName?.toLowerCase().includes(serviceMapping.serviceName?.toLowerCase())
         );
         
-        // Use equivalent service for comparison if available, otherwise use best overall rate
-        comparisonRate = equivalentServiceRate || bestOverallRate;
+        if (serviceRates.length > 0) {
+          comparisonRate = serviceRates.reduce((best: any, current: any) => 
+            (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
+          );
+        }
         
-        console.log('🤖 Auto-mapping service rate analysis:', {
-          totalRates: data.rates.length,
-          ratesWithEquivalentFlag: data.rates.filter((r: any) => r.isEquivalentService).length,
-          equivalentServiceFound: !!equivalentServiceRate,
-          equivalentServiceDetails: equivalentServiceRate ? {
-            serviceName: equivalentServiceRate.serviceName,
-            serviceCode: equivalentServiceRate.serviceCode,
-            cost: equivalentServiceRate.totalCharges
-          } : null,
-          allRates: data.rates.map((r: any) => ({
-            code: r.serviceCode,
-            name: r.serviceName,
-            cost: r.totalCharges,
-            isEquivalent: r.isEquivalentService
-          })),
-          usingEquivalentService: !!equivalentServiceRate
+        console.log(`✅ Multi-carrier confirmed mapping analysis:`, {
+          originalService: shipment.service,
+          mappedServiceCode: equivalentServiceCode,
+          mappedServiceName: serviceMapping.serviceName,
+          serviceRatesFound: serviceRates.length,
+          bestServiceRate: comparisonRate ? {
+            carrier: comparisonRate.carrierType,
+            serviceName: comparisonRate.serviceName,
+            cost: comparisonRate.totalCharges
+          } : null
         });
+      }
+      
+      // If no specific service match found, or for auto-mapping, use the overall best rate
+      if (!comparisonRate && data.bestRates && data.bestRates.length > 0) {
+        comparisonRate = data.bestRates[0]; // Best overall rate
+        console.log('🏆 Using overall best rate from multi-carrier comparison:', {
+          carrier: comparisonRate.carrierType,
+          serviceName: comparisonRate.serviceName,
+          cost: comparisonRate.totalCharges,
+          isBestRate: comparisonRate.isBestRate
+        });
+      }
+      
+      // Find the absolute best rate for savings calculation
+      if (data.allRates.length > 0) {
+        bestRate = data.allRates.reduce((best: any, current: any) => 
+          (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
+        );
       }
       
       // Comparison rate is now properly defined above based on mapping type
       
       if (!comparisonRate || comparisonRate.totalCharges === undefined) {
-        throw new Error('Invalid rate data returned from UPS');
+        throw new Error('Invalid rate data returned from carriers');
       }
       
       const savings = currentCost - comparisonRate.totalCharges;
+      const maxSavings = bestRate ? currentCost - bestRate.totalCharges : savings;
       
       console.log(`Shipment ${index + 1} analysis complete:`, {
         originalService: shipment.service,
@@ -949,9 +989,12 @@ const Analysis = () => {
               status: 'completed' as const,
               currentCost,
               originalService: shipment.service, // Store original service from CSV
-              upsRates: data.rates,
+              allRates: data.allRates,
+              carrierResults: data.carrierResults,
               bestRate: comparisonRate,
+              bestOverallRate: bestRate,
               savings,
+              maxSavings,
               expectedServiceCode: equivalentServiceCode,
               mappingValidation
             };
@@ -1167,7 +1210,8 @@ const Analysis = () => {
       user_id: user.id,
       file_name: state?.fileName || 'Real-time Analysis',
       original_data: allResults as any, // Store ALL analysis results (completed + errors)
-      ups_quotes: completedResults.map(r => r.upsRates) as any,
+      carrier_configs_used: selectedCarriers as any,
+      ups_quotes: completedResults.map(r => r.allRates || r.upsRates || []) as any,
       savings_analysis: {
         totalCurrentCost,
         totalPotentialSavings: totalSavings,
@@ -1333,10 +1377,31 @@ const Analysis = () => {
         <div className="mb-6">
           <h1 className="text-3xl font-semibold mb-2">Real-Time Shipping Analysis</h1>
           <p className="text-muted-foreground">
-            Processing {shipments.length} shipments and comparing current rates with UPS optimization.
+            Processing {shipments.length} shipments and comparing current rates across multiple carriers for optimal savings.
           </p>
         </div>
         
+        {/* Carrier Selection */}
+        {!isAnalysisStarted && !carrierSelectionComplete && (
+          <div className="mb-6">
+            <CarrierSelector
+              selectedCarriers={selectedCarriers}
+              onCarrierChange={setSelectedCarriers}
+              showAllOption={true}
+            />
+            {selectedCarriers.length > 0 && (
+              <div className="mt-4 flex justify-end">
+                <Button 
+                  onClick={() => setCarrierSelectionComplete(true)}
+                  disabled={selectedCarriers.length === 0}
+                  iconLeft={<CheckCircle className="h-4 w-4" />}
+                >
+                  Start Analysis with {selectedCarriers.length} Carrier{selectedCarriers.length > 1 ? 's' : ''}
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* Progress Overview */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">

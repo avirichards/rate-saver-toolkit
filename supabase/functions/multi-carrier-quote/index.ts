@@ -134,6 +134,12 @@ serve(async (req) => {
         let rates: any[] = [];
         
         if (config.carrier_type === 'ups') {
+          // Skip if missing critical data
+          if (!shipmentData.shipFromZip || !shipmentData.shipToZip || !shipmentData.weight || shipmentData.weight === null) {
+            console.log(`⚠️ Skipping UPS rates for ${config.account_name}: Missing required data`);
+            continue;
+          }
+
           // Convert simple data to UPS format
           const upsShipment = {
             shipFrom: {

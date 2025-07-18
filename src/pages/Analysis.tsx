@@ -124,12 +124,12 @@ const Analysis = () => {
             },
             body: JSON.stringify({
               carrierConfigs: selectedCarriers,
-              shipFromZip: shipment.originZip,
-              shipToZip: shipment.destZip || shipment.destinationZip,
-              weight: parseFloat(shipment.weight),
-              length: parseFloat(shipment.length) || 12,
-              width: parseFloat(shipment.width) || 12, 
-              height: parseFloat(shipment.height) || 6,
+              shipFromZip: shipment.originZip || shipment['Ship From - Postal Code'] || '34986',
+              shipToZip: shipment.destZip || shipment.destinationZip || shipment['Ship To - Postal Code'] || '90210',
+              weight: parseFloat(shipment.weight || shipment['Shipment - Weight lbs']) || 10, // Fallback to 10 lbs if no weight
+              length: parseFloat(shipment.length || shipment['Shipment - Length']) || 12,
+              width: parseFloat(shipment.width || shipment['Shipment - Width']) || 12, 
+              height: parseFloat(shipment.height || shipment['Shipment - Height']) || 6,
               serviceTypes: [shipment.serviceCode || '03'],
               isResidential: shipment.isResidential || false
             })
@@ -156,7 +156,13 @@ const Analysis = () => {
           // Find the best rate (lowest cost)
           const allRates = multiCarrierResult?.allRates || [];
           let bestRate = null;
-          let currentRate = parseFloat(shipment.currentCost || shipment.current_rate || '0');
+          let currentRate = parseFloat(
+            shipment.currentCost || 
+            shipment.current_rate || 
+            shipment['Carrier - Fee'] || 
+            shipment['Rate'] || 
+            '0'
+          );
 
           if (allRates.length > 0) {
             bestRate = allRates.reduce((best, rate) => {
@@ -172,13 +178,13 @@ const Analysis = () => {
           // Create processed shipment with multi-carrier data
           const processedShipment = {
             id: i + 1,
-            trackingId: shipment.trackingId || shipment.tracking_id || `SHIP-${String(i + 1).padStart(4, '0')}`,
-            originZip: shipment.originZip,
-            destinationZip: shipment.destZip || shipment.destinationZip,
-            weight: parseFloat(shipment.weight),
-            length: parseFloat(shipment.length) || undefined,
-            width: parseFloat(shipment.width) || undefined,
-            height: parseFloat(shipment.height) || undefined,
+            trackingId: shipment.trackingId || shipment.tracking_id || shipment['Shipment - Tracking Number'] || `SHIP-${String(i + 1).padStart(4, '0')}`,
+            originZip: shipment.originZip || shipment['Ship From - Postal Code'],
+            destinationZip: shipment.destZip || shipment.destinationZip || shipment['Ship To - Postal Code'],
+            weight: parseFloat(shipment.weight || shipment['Shipment - Weight lbs']) || 10,
+            length: parseFloat(shipment.length || shipment['Shipment - Length']) || 12,
+            width: parseFloat(shipment.width || shipment['Shipment - Width']) || 12,
+            height: parseFloat(shipment.height || shipment['Shipment - Height']) || 6,
             carrier: shipment.carrier || 'Unknown',
             service: shipment.service || 'Standard',
             originalService: shipment.originalService || shipment.service || 'Unknown',

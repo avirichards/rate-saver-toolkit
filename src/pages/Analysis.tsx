@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
@@ -11,16 +11,35 @@ import { Play, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 const Analysis = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [analysis, setAnalysis] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState('');
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    if (id) {
+    // Check if we have fresh data from navigation state first
+    const state = location.state as any;
+    if (state && state.readyForAnalysis) {
+      console.log('📊 Analysis page - Received fresh data from service mapping:', state);
+      // Create a mock analysis object from the navigation state
+      setAnalysis({
+        id: 'new-analysis',
+        status: 'processing',
+        csvUploadId: state.csvUploadId,
+        fileName: state.fileName,
+        mappings: state.mappings,
+        serviceMappings: state.serviceMappings,
+        csvData: state.csvData,
+        rowCount: state.rowCount,
+        originZipOverride: state.originZipOverride,
+        uploadTimestamp: state.uploadTimestamp
+      });
+    } else if (id) {
+      // Fallback to loading existing analysis from database
       loadAnalysis();
     }
-  }, [id]);
+  }, [id, location.state]);
 
   const loadAnalysis = async () => {
     try {

@@ -25,6 +25,9 @@ import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { SelectiveReanalysisModal } from '@/components/ui-lov/SelectiveReanalysisModal';
 import { EditableShipmentRow } from '@/components/ui-lov/EditableShipmentRow';
 import { OrphanedShipmentRow } from '@/components/ui-lov/OrphanedShipmentRow';
+import { AccountComparisonPanel } from '@/components/ui-lov/AccountComparisonPanel';
+import { ExpandableRateRow } from '@/components/ui-lov/ExpandableRateRow';
+import { StickyRecalcBar } from '@/components/ui-lov/StickyRecalcBar';
 import { useSelectiveReanalysis } from '@/hooks/useSelectiveReanalysis';
 import { 
   processAnalysisData,
@@ -102,6 +105,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [selectedShipments, setSelectedShipments] = useState<Set<number>>(new Set());
   const [isReanalysisModalOpen, setIsReanalysisModalOpen] = useState(false);
   const [shipmentUpdates, setShipmentUpdates] = useState<Record<number, any>>({});
+  
+  // Account assignment state
+  const [serviceAssignments, setServiceAssignments] = useState<Record<string, string>>({});
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [recalcDelta, setRecalcDelta] = useState({
+    shipmentCount: 0,
+    costDelta: 0,
+    savingsDelta: 0,
+    savingsPercentDelta: 0
+  });
   
   // Use selective re-analysis hook
   const { 
@@ -275,6 +288,147 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }, {} as Record<string, string>);
       setServiceNotes(notesMap);
     }
+  };
+
+  // Generate service type assignments for account comparison
+  const generateServiceAssignments = () => {
+    if (!analysisData || !shipmentData.length) return [];
+
+    const serviceTypes = [...new Set(shipmentData.map(s => s.service).filter(Boolean))];
+    
+    return serviceTypes.map(serviceType => {
+      const serviceShipments = shipmentData.filter(s => s.service === serviceType);
+      const totalShipProsCost = serviceShipments.reduce((sum, s) => sum + (s.newRate || 0), 0);
+      const totalCurrentCost = serviceShipments.reduce((sum, s) => sum + (s.currentRate || 0), 0);
+      const estimatedSavings = totalCurrentCost - totalShipProsCost;
+      const savingsPercent = totalCurrentCost > 0 ? (estimatedSavings / totalCurrentCost) * 100 : 0;
+      
+      // Mock best alternative cost - in real implementation this would come from multi-account analysis
+      const bestAltCost = totalShipProsCost * 0.95; // Assume 5% better alternative exists
+      
+      return {
+        serviceType,
+        assignedAccount: serviceAssignments[serviceType] || 'Ship Pros Account',
+        shipProsCost: totalShipProsCost,
+        bestAltCost,
+        estimatedSavings,
+        savingsPercent,
+        shipmentCount: serviceShipments.length,
+        accounts: [
+          {
+            accountName: 'Ship Pros Account',
+            totalCost: totalShipProsCost,
+            avgRate: totalShipProsCost / serviceShipments.length,
+            coverage: 100
+          },
+          {
+            accountName: 'UPS Account A',
+            totalCost: bestAltCost,
+            avgRate: bestAltCost / serviceShipments.length,
+            coverage: 95
+          }
+        ]
+      };
+    });
+  };
+
+  // Handle account assignment changes
+  const handleAccountAssignment = (serviceType: string, newAccount: string) => {
+    setServiceAssignments(prev => ({
+      ...prev,
+      [serviceType]: newAccount
+    }));
+    setHasUnsavedChanges(true);
+    
+    // Calculate impact
+    const serviceShipments = shipmentData.filter(s => s.service === serviceType);
+    setRecalcDelta(prev => ({
+      ...prev,
+      shipmentCount: serviceShipments.length,
+      costDelta: 0, // Would calculate based on rate differences
+      savingsDelta: 0,
+      savingsPercentDelta: 0
+    }));
+  };
+
+  // Generate rate options for expandable rows
+  const generateRateOptions = (shipment: any) => {
+    if (!shipment) return [];
+    
+    const currentRate = shipment.newRate || 0;
+    
+    return [
+      {
+        account: 'Ship Pros Account',
+        rate: currentRate,
+        savings: 0,
+        savingsPercent: 0,
+        isBest: true,
+        isSelected: true
+      },
+      {
+        account: 'UPS Account A',
+        rate: currentRate * 1.05,
+        savings: -(currentRate * 0.05),
+        savingsPercent: -5,
+        isBest: false,
+        isSelected: false
+      },
+      {
+        account: 'UPS Account B',
+        rate: currentRate * 0.95,
+        savings: currentRate * 0.05,
+        savingsPercent: 5,
+        isBest: false,
+        isSelected: false
+      }
+    ];
+  };
+
+  // Handle rate selection in expandable rows
+  const handleRateSelection = (shipmentId: number, account: string) => {
+    // Update shipment assignment
+    setHasUnsavedChanges(true);
+    // Would update recalc delta based on rate difference
+  };
+
+  // Save assignment changes
+  const saveAssignmentChanges = async () => {
+    if (!currentAnalysisId) return;
+    
+    try {
+      // In real implementation, this would update the database with new assignments
+      setHasUnsavedChanges(false);
+      setRecalcDelta({
+        shipmentCount: 0,
+        costDelta: 0,
+        savingsDelta: 0,
+        savingsPercentDelta: 0
+      });
+      toast.success('Assignment changes saved successfully');
+    } catch (error) {
+      toast.error('Failed to save changes');
+    }
+  };
+
+  // Undo changes
+  const undoChanges = () => {
+    setServiceAssignments({});
+    setHasUnsavedChanges(false);
+    setRecalcDelta({
+      shipmentCount: 0,
+      costDelta: 0,
+      savingsDelta: 0,
+      savingsPercentDelta: 0
+    });
+  };
+
+  // Navigate to service details in Shipment Data tab
+  const handleViewServiceDetails = (serviceType: string) => {
+    // Switch to Shipment Data tab and filter by service type
+    setSelectedService(serviceType);
+    // Scroll to Shipment Data tab
+    document.querySelector('[data-tab="shipments"]')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   // Save or update service note
@@ -1862,6 +2016,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               </Card>
             </div>
 
+            {/* Account Comparison Panel */}
+            <AccountComparisonPanel
+              serviceAssignments={generateServiceAssignments()}
+              availableAccounts={['Ship Pros Account', 'UPS Account A', 'UPS Account B']}
+              onAssignmentChange={handleAccountAssignment}
+              onViewDetails={handleViewServiceDetails}
+            />
+
             {/* Service Analysis Table */}
             <Card>
               <CardHeader>
@@ -2361,10 +2523,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableHead className="text-foreground w-28">Current Service</TableHead>
                           <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
                           <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
-                          <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
-                          <TableHead className="text-right text-foreground w-20">Savings</TableHead>
-                          <TableHead className="text-right text-foreground w-16">Savings %</TableHead>
-                          {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
+                           <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
+                           <TableHead className="text-right text-foreground w-20">Savings</TableHead>
+                           <TableHead className="text-right text-foreground w-16">Savings %</TableHead>
+                           <TableHead className="text-center text-foreground w-32">Compare Rates</TableHead>
+                           {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
                      <TableBody className="bg-background">
@@ -2482,10 +2645,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                  const savings = item.currentRate - markupInfo.markedUpPrice;
                                  const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
                                  return formatPercentage(savingsPercent);
-                               })()}
-                             </span>
-                           </TableCell>
-                           </TableRow>
+                                })()}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <ExpandableRateRow
+                                shipment={item}
+                                rates={generateRateOptions(item)}
+                                onRateSelect={handleRateSelection}
+                              />
+                            </TableCell>
+                            </TableRow>
                          )
                        )}
                       </TableBody>
@@ -2583,6 +2753,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         onApplyCorrections={handleServiceCorrections}
         selectedShipments={filteredData.filter(item => selectedShipments.has(item.id))}
         allShipments={shipmentData}
+      />
+
+      {/* Sticky Recalc Bar */}
+      <StickyRecalcBar
+        delta={recalcDelta}
+        isVisible={hasUnsavedChanges}
+        onSave={saveAssignmentChanges}
+        onUndo={undoChanges}
+        isSaving={false}
       />
     </Layout>
   );

@@ -306,6 +306,139 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   };
 
+  // Mock data generators for the three-level progressive analysis
+  const mockAccountPerformanceData = [
+    {
+      rank: 1,
+      accountName: "UPS Account A",
+      shipmentCount: 1250,
+      shipProsCost: 12450.00,
+      currentCost: 15230.00,
+      grossSavings: 2780.00,
+      savingsPercent: 18.2,
+      accountType: "Primary"
+    },
+    {
+      rank: 2,
+      accountName: "UPS Account B", 
+      shipmentCount: 890,
+      shipProsCost: 9890.00,
+      currentCost: 11200.00,
+      grossSavings: 1310.00,
+      savingsPercent: 11.7,
+      accountType: "Secondary"
+    },
+    {
+      rank: 3,
+      accountName: "FedEx Account",
+      shipmentCount: 567,
+      shipProsCost: 7890.00,
+      currentCost: 8450.00,
+      grossSavings: 560.00,
+      savingsPercent: 6.6,
+      accountType: "Backup"
+    }
+  ];
+
+  const mockServiceComparisonData = [
+    {
+      serviceType: "Ground",
+      bestAccount: {
+        name: "UPS Account A",
+        cost: 5600,
+        savings: 1400,
+        savingsPercent: 22
+      },
+      shipmentCount: 800,
+      competitors: [
+        { name: "UPS Account B", cost: 5890, savings: 1110, savingsPercent: 15 },
+        { name: "FedEx Account", cost: 6200, savings: 800, savingsPercent: 8 }
+      ],
+      weightBands: [
+        { range: "< 10 lbs", bestAccount: "UPS Account A", savings: 500 },
+        { range: "10-50 lbs", bestAccount: "UPS Account A", savings: 900 }
+      ]
+    },
+    {
+      serviceType: "2DA",
+      bestAccount: {
+        name: "UPS Account B",
+        cost: 3200,
+        savings: 700,
+        savingsPercent: 18
+      },
+      shipmentCount: 450,
+      competitors: [
+        { name: "UPS Account A", cost: 3350, savings: 550, savingsPercent: 12 },
+        { name: "FedEx Account", cost: 3890, savings: 200, savingsPercent: 5 }
+      ],
+      weightBands: [
+        { range: "< 5 lbs", bestAccount: "UPS Account B", savings: 300 },
+        { range: "5-25 lbs", bestAccount: "UPS Account B", savings: 400 }
+      ]
+    }
+  ];
+
+  const mockShipmentDetailData = [
+    {
+      id: 1,
+      trackingId: "1Z999AA1234567890",
+      origin: "10001",
+      destination: "90210", 
+      weight: 5.2,
+      zone: "7",
+      residential: true,
+      serviceType: "Ground",
+      assignedAccount: "UPS Account A",
+      currentRate: 12.45,
+      bestRate: 9.80,
+      savings: 2.65,
+      savingsPercent: 21.3,
+      rates: [
+        { account: "UPS Account A", rate: 9.80, savings: 2.65, isBest: true, isAssigned: true },
+        { account: "UPS Account B", rate: 10.20, savings: 2.25, isBest: false, isAssigned: false },
+        { account: "FedEx Account", rate: 11.50, savings: 0.95, isBest: false, isAssigned: false }
+      ]
+    },
+    {
+      id: 2,
+      trackingId: "1Z999AA1234567891",
+      origin: "10001",
+      destination: "60601",
+      weight: 15.8,
+      zone: "4", 
+      residential: false,
+      serviceType: "2DA",
+      assignedAccount: "UPS Account B",
+      currentRate: 18.90,
+      bestRate: 15.60,
+      savings: 3.30,
+      savingsPercent: 17.5,
+      rates: [
+        { account: "UPS Account A", rate: 16.20, savings: 2.70, isBest: false, isAssigned: false },
+        { account: "UPS Account B", rate: 15.60, savings: 3.30, isBest: true, isAssigned: true },
+        { account: "FedEx Account", rate: 17.80, savings: 1.10, isBest: false, isAssigned: false }
+      ]
+    }
+  ];
+
+  const mockAccountOptions = [
+    "UPS Account A",
+    "UPS Account B", 
+    "FedEx Account"
+  ];
+
+  // Handlers for progressive analysis levels
+  const handleShipmentAccountAssign = (shipmentIds: number[], accountName: string) => {
+    console.log('Assigning shipments', shipmentIds, 'to account', accountName);
+    setHasUnsavedChanges(true);
+  };
+
+  const handleBulkShipmentEdit = (shipmentIds: number[]) => {
+    console.log('Bulk editing shipments', shipmentIds);
+    setHasUnsavedChanges(true);
+  };
+
   // Generate service type assignments for account comparison
   const generateServiceAssignments = () => {
     if (!analysisData || !shipmentData.length) return [];
@@ -2076,71 +2209,59 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
+            {/* Analysis Navigator */}
+            <AnalysisNavigator
+              currentLevel={currentAnalysisLevel}
+              onLevelChange={handleAnalysisLevelChange}
+              breadcrumb={{
+                accountName: analysisFilters.accountName,
+                serviceType: analysisFilters.serviceType
+              }}
+              versionInfo={versionInfo}
+            />
 
-            {/* Snapshot Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-2xl flex items-center gap-2">
-                  {isClientView ? (
-                    <span>{snapshotDays} Day Snapshot</span>
-                  ) : (
-                    <>
-                      <Input
-                        type="number"
-                        value={snapshotDays}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          
-                          if (value === '') {
-                            // Allow empty during editing, but don't update snapshotDays yet
-                            return;
-                          }
-                          
-                          const parsedValue = parseInt(value);
-                          const newValue = isNaN(parsedValue) || parsedValue < 1 ? 30 : parsedValue;
-                          
-                          setSnapshotDays(newValue);
-                          
-                          // Auto-save snapshot days if we have an analysis ID
-                          if (currentAnalysisId) {
-                            const timeoutId = setTimeout(async () => {
-                              try {
-                                await supabase
-                                  .from('shipping_analyses')
-                                  .update({ 
-                                    recommendations: { snapshotDays: newValue },
-                                    updated_at: new Date().toISOString()
-                                  })
-                                  .eq('id', currentAnalysisId);
-                              } catch (error) {
-                                console.error('Failed to auto-save snapshot days:', error);
-                              }
-                            }, 1500);
-                            
-                            return () => clearTimeout(timeoutId);
-                          }
-                        }}
-                        onBlur={(e) => {
-                          // Reset to 30 if field is empty when user leaves the field
-                          const value = e.target.value;
-                          if (value === '' || value === '0') {
-                            setSnapshotDays(30);
-                          }
-                        }}
-                        placeholder="30"
-                        className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
-                        min="1"
-                        max="365"
-                      />
-                      <span>Day Snapshot</span>
-                    </>
-                  )}
-                </CardTitle>
-                <CardDescription>
-                  {filteredData.length} shipments selected out of {shipmentData.length} total shipments
-                </CardDescription>
-              </CardHeader>
-            </Card>
+            {/* Level 1: Account Performance Summary */}
+            {currentAnalysisLevel === 1 && (
+              <AccountPerformanceSummary
+                accounts={mockAccountPerformanceData}
+                onAccountSelect={handleAccountSelection}
+                onDrillDown={() => handleAnalysisLevelChange(2)}
+              />
+            )}
+
+            {/* Level 2: Service Type Comparison */}
+            {currentAnalysisLevel === 2 && (
+              <ServiceTypeComparison
+                services={mockServiceComparisonData}
+                onServiceSelect={handleServiceSelection}
+                onAccountAssign={handleAccountAssignmentInLevel}
+                onDrillDown={() => handleAnalysisLevelChange(3)}
+                onBack={() => handleAnalysisLevelChange(1)}
+              />
+            )}
+
+            {/* Level 3: Shipment Detail View */}
+            {currentAnalysisLevel === 3 && (
+              <ShipmentDetailView
+                shipments={mockShipmentDetailData.map(s => ({
+                  ...s,
+                  rates: s.rates.map(r => ({
+                    accountName: r.account,
+                    rate: r.rate,
+                    savings: r.savings,
+                    savingsPercent: r.rate > 0 ? (r.savings / r.rate) * 100 : 0,
+                    isBest: r.isBest,
+                    isAssigned: r.isAssigned
+                  }))
+                }))}
+                accounts={mockAccountOptions}
+                onAccountAssign={handleShipmentAccountAssign}
+                onBulkEdit={handleBulkShipmentEdit}
+                onRecalculate={saveAssignmentChanges}
+                onBack={() => handleAnalysisLevelChange(2)}
+                filterServiceType={analysisFilters.serviceType}
+              />
+            )}
 
             {/* Summary Statistics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
@@ -39,29 +40,50 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
     assignments
   } = useAccountAssignments(shipmentData, markupFunction, analysisId);
 
-  // Enhanced data quality check
+  // Enhanced data quality check with detailed logging
   const dataQualityCheck = useMemo(() => {
-    const shipmentsWithMultiCarrierData = shipmentData.filter(s => 
-      (s.allRates && s.allRates.length > 0) || 
-      (s.carrierResults && s.carrierResults.length > 0) ||
-      (s.accounts && s.accounts.length > 0)
-    );
+    console.log('🔍 AccountReviewTab - Data quality check:', {
+      totalShipments: shipmentData.length,
+      sampleShipment: shipmentData[0] ? {
+        trackingId: shipmentData[0].trackingId,
+        hasAccounts: !!shipmentData[0].accounts,
+        accountsLength: shipmentData[0].accounts?.length || 0,
+        hasAllRates: !!shipmentData[0].allRates,
+        allRatesLength: shipmentData[0].allRates?.length || 0,
+        hasCarrierResults: !!shipmentData[0].carrierResults,
+        carrierResultsLength: shipmentData[0].carrierResults?.length || 0,
+        accountsSample: shipmentData[0].accounts?.slice(0, 2),
+        allRatesSample: shipmentData[0].allRates?.slice(0, 2)
+      } : null
+    });
+
+    const shipmentsWithAccountData = shipmentData.filter(s => {
+      const hasAccounts = s.accounts && s.accounts.length > 0;
+      const hasAllRates = s.allRates && s.allRates.length > 0;
+      const hasCarrierResults = s.carrierResults && s.carrierResults.length > 0;
+      
+      return hasAccounts || hasAllRates || hasCarrierResults;
+    });
     
     const shipmentsWithMultipleAccounts = shipmentData.filter(s => {
-      const accountCount = (s.allRates?.length || 0) + 
-                          (s.carrierResults?.reduce((sum: number, cr: any) => sum + (cr.rates?.length || 0), 0) || 0) +
-                          (s.accounts?.length || 0);
+      const accountCount = (s.accounts?.length || 0) + 
+                          (s.allRates?.length || 0) +
+                          (s.carrierResults?.reduce((sum: number, cr: any) => sum + (cr.rates?.length || 0), 0) || 0);
       return accountCount > 1;
     });
 
-    return {
+    const result = {
       totalShipments: shipmentData.length,
-      shipmentsWithData: shipmentsWithMultiCarrierData.length,
+      shipmentsWithData: shipmentsWithAccountData.length,
       shipmentsWithMultipleAccounts: shipmentsWithMultipleAccounts.length,
-      hasUsableData: shipmentsWithMultiCarrierData.length > 0,
-      hasMultiAccountData: shipmentsWithMultipleAccounts.length > 0
+      hasUsableData: shipmentsWithAccountData.length > 0,
+      hasMultiAccountData: shipmentsWithMultipleAccounts.length > 0,
+      availableAccountsCount: availableAccounts.length
     };
-  }, [shipmentData]);
+
+    console.log('📊 Data quality result:', result);
+    return result;
+  }, [shipmentData, availableAccounts.length]);
 
   // Sort account performance based on current sort config
   const sortedAccountPerformance = useMemo(() => {
@@ -149,7 +171,7 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
     }
   };
 
-  // Enhanced data availability check
+  // Enhanced data availability check with troubleshooting info
   if (!dataQualityCheck.hasUsableData) {
     return (
       <Card>
@@ -165,9 +187,12 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
             <h3 className="text-lg font-semibold mb-2">Multi-Carrier Data Required</h3>
             <p className="text-muted-foreground mb-4">
               Account review requires shipment data with multiple carrier accounts. 
-              Please ensure your analysis includes multi-carrier rate comparisons.
+              {dataQualityCheck.totalShipments > 0 
+                ? 'Your shipments need to be processed through the multi-carrier analysis first.'
+                : 'Please run a multi-carrier analysis to generate account comparison data.'
+              }
             </p>
-            <div className="bg-muted/50 rounded-lg p-4 text-sm">
+            <div className="bg-muted/50 rounded-lg p-4 text-sm space-y-2">
               <div className="grid grid-cols-2 gap-4 text-left">
                 <div>
                   <span className="font-medium">Total Shipments:</span> {dataQualityCheck.totalShipments}
@@ -179,9 +204,18 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
                   <span className="font-medium">Multi-Account:</span> {dataQualityCheck.shipmentsWithMultipleAccounts}
                 </div>
                 <div>
-                  <span className="font-medium">Available Accounts:</span> {availableAccounts.length}
+                  <span className="font-medium">Available Accounts:</span> {dataQualityCheck.availableAccountsCount}
                 </div>
               </div>
+              {dataQualityCheck.totalShipments > 0 && dataQualityCheck.shipmentsWithData === 0 && (
+                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded text-amber-800">
+                  <p className="font-medium">Troubleshooting:</p>
+                  <p className="text-sm">
+                    Your shipments appear to be in the system but lack multi-carrier data. 
+                    Please run the multi-carrier analysis from the Analysis page to generate account comparisons.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -214,6 +248,9 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
                   </Badge>
                   <Badge variant="outline" className="bg-green-50">
                     {dataQualityCheck.shipmentsWithMultipleAccounts} Multi-Account Shipments
+                  </Badge>
+                  <Badge variant="outline" className="bg-purple-50">
+                    {dataQualityCheck.shipmentsWithData} Processed Shipments
                   </Badge>
                   <span className="text-sm text-muted-foreground">
                     {assignments.global ? `Global: ${assignments.global.account.displayName}` : 'No Global Assignment'} | 

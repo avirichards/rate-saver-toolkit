@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 
 // Standardized interfaces for data processing
@@ -81,7 +82,15 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
     processedShipmentsCount: processedShipments.length,
     orphanedShipmentsCount: orphanedShipments.length,
     hasMarkupData: !!markupData,
-    totalShipments: analysis.total_shipments
+    totalShipments: analysis.total_shipments,
+    sampleProcessedShipment: processedShipments[0] ? {
+      hasAccounts: !!processedShipments[0].accounts,
+      accountsCount: processedShipments[0].accounts?.length || 0,
+      hasAllRates: !!processedShipments[0].allRates,
+      allRatesCount: processedShipments[0].allRates?.length || 0,
+      hasCarrierResults: !!processedShipments[0].carrierResults,
+      carrierResultsCount: processedShipments[0].carrierResults?.length || 0
+    } : null
   });
   
   // Calculate totals from processed shipments - with markup applied if available
@@ -129,7 +138,8 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
     savingsPercentage: result.savingsPercentage,
     totalShipments: result.totalShipments,
     analyzedShipments: result.analyzedShipments,
-    orphanedShipmentsCount: orphanedShipments.length
+    orphanedShipmentsCount: orphanedShipments.length,
+    hasAccountData: processedShipments.some((ship: any) => ship.accounts && ship.accounts.length > 0)
   });
   
   return result;
@@ -199,151 +209,63 @@ export const processClientViewData = (analysis: any): ProcessedAnalysisData => {
   return processAnalysisData(analysis);
 };
 
-// Enhanced account data extraction for the new standardized format
-const extractAccountData = (shipment: any): any[] => {
-  console.log('🔍 extractAccountData - Analyzing shipment structure:', {
-    shipmentId: shipment.id || shipment.trackingId,
-    availableFields: Object.keys(shipment),
-    hasAccounts: !!shipment.accounts,
-    hasAllRates: !!shipment.allRates,
-    hasCarrierResults: !!shipment.carrierResults,
-    hasMultiCarrierResults: !!shipment.multi_carrier_results
-  });
-  
-  // Priority order for account data sources - new standardized format first
-  const sources = [
-    { name: 'multi_carrier_results.allRates', data: shipment.multi_carrier_results?.allRates },
-    { name: 'multi_carrier_results.carrierResults', data: shipment.multi_carrier_results?.carrierResults },
-    { name: 'allRates', data: shipment.allRates },
-    { name: 'carrierResults', data: shipment.carrierResults },
-    { name: 'accounts', data: shipment.accounts },
-    { name: 'rates', data: shipment.rates },
-    { name: 'ups_response.rates', data: shipment.ups_response?.rates }
-  ];
-  
-  for (const source of sources) {
-    if (source.data && Array.isArray(source.data) && source.data.length > 0) {
-      console.log(`✅ Found account data in ${source.name}:`, source.data.slice(0, 2));
-      
-      // Handle carrier results format (contains rates array)
-      if (source.name.includes('carrierResults')) {
-        const allAccountRates: any[] = [];
-        source.data.forEach((carrierResult: any) => {
-          if (carrierResult.rates && Array.isArray(carrierResult.rates)) {
-            allAccountRates.push(...carrierResult.rates.map((rate: any) => ({
-              carrierId: rate.carrierId || carrierResult.carrierId || 'default',
-              carrierType: rate.carrierType || carrierResult.carrierType || 'Unknown',
-              accountName: rate.accountName || carrierResult.carrierName || 'Default',
-              displayName: rate.displayName || carrierResult.displayName || 
-                `${rate.carrierType || carrierResult.carrierType || 'Unknown'} – ${rate.accountName || carrierResult.carrierName || 'Default'}`,
-              rate: parseFloat(rate.rate || rate.cost || rate.price || rate.totalCharges || '0') || 0,
-              service: rate.serviceName || rate.serviceCode || 'Standard',
-              ...rate
-            })));
-          }
-        });
-        if (allAccountRates.length > 0) {
-          return allAccountRates;
-        }
-      } else {
-        // Handle direct rates format
-        return source.data.map((account: any) => ({
-          carrierId: account.carrierId || account.id || account.carrier_id || 'default',
-          carrierType: account.carrierType || account.carrier || account.carrier_name || 'Unknown',
-          accountName: account.accountName || account.name || account.account || 'Default',
-          displayName: account.displayName || 
-            `${account.carrierType || account.carrier || account.carrier_name || 'Unknown'} – ${account.accountName || account.name || account.account || 'Default'}`,
-          rate: parseFloat(account.rate || account.cost || account.price || account.total_cost || account.totalCharges || '0') || 0,
-          service: account.serviceName || account.serviceType || account.service_type || account.service || 'Standard',
-          ...account
-        }));
-      }
-    }
-  }
-  
-  console.log('❌ No account data found in any source for shipment:', shipment.id || shipment.trackingId);
-  return [];
-};
-
-// Enhanced formatShipmentData to handle multi-carrier results properly
+// Enhanced formatShipmentData to work with the new processed_shipments structure
 export const formatShipmentData = (recommendations: any[], markup?: any, includeMarkup = false): ProcessedShipmentData[] => {
   console.log('🔍 formatShipmentData - Processing recommendations:', recommendations?.length || 0, 'items');
-  if (recommendations?.length > 0) {
-    console.log('🔍 Sample recommendation structure:', {
-      keys: Object.keys(recommendations[0]),
-      hasMultiCarrierResults: !!recommendations[0].multi_carrier_results,
-      multiCarrierStructure: recommendations[0].multi_carrier_results ? {
-        hasAllRates: !!recommendations[0].multi_carrier_results.allRates,
-        allRatesCount: recommendations[0].multi_carrier_results.allRates?.length || 0,
-        hasCarrierResults: !!recommendations[0].multi_carrier_results.carrierResults,
-        carrierResultsCount: recommendations[0].multi_carrier_results.carrierResults?.length || 0
-      } : null
-    });
-  }
   
-  return recommendations.map((rec: any, index: number) => {
-    // Enhanced rate extraction - prioritize multi-carrier results
-    const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
-                       rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
+  // The recommendations parameter now comes directly from processed_shipments
+  // which already has the enhanced multi-carrier data structure
+  return recommendations.map((shipment: any, index: number) => {
+    // Data is already processed and standardized in the new pipeline
+    const currentRate = shipment.currentRate || 0;
+    let newRate = shipment.newRate || 0;
     
-    // For new rate, prefer the best rate from multi-carrier results
-    let newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
-                  rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
-    
-    // If we have multi-carrier results, use the best rate
-    if (rec.multi_carrier_results?.bestRates && rec.multi_carrier_results.bestRates.length > 0) {
-      const bestRate = rec.multi_carrier_results.bestRates[0];
-      newRate = bestRate.rate || bestRate.cost || bestRate.totalCharges || newRate;
+    // Calculate markup if provided
+    if (includeMarkup && markup && newRate > 0) {
+      if (markup.markupType === 'global') {
+        newRate = newRate * (1 + markup.globalMarkup / 100);
+      } else {
+        const serviceMarkup = markup.perServiceMarkup?.[shipment.service] || 0;
+        newRate = newRate * (1 + serviceMarkup / 100);
+      }
     }
     
     const calculatedSavings = currentRate - newRate;
     
-    // Extract account data using the enhanced function
-    const extractedAccounts = extractAccountData(rec);
-    
-    console.log('🏢 Account extraction for shipment:', {
-      shipmentId: rec.id || rec.trackingId || index,
-      accountsFound: extractedAccounts.length,
-      sampleAccount: extractedAccounts[0],
-      hasMultiCarrierData: !!rec.multi_carrier_results
+    console.log(`🏢 Shipment ${shipment.trackingId} account data:`, {
+      hasAccounts: !!shipment.accounts,
+      accountsCount: shipment.accounts?.length || 0,
+      hasAllRates: !!shipment.allRates,
+      allRatesCount: shipment.allRates?.length || 0,
+      hasCarrierResults: !!shipment.carrierResults,
+      carrierResultsCount: shipment.carrierResults?.length || 0
     });
     
-    // Calculate markup if provided
-    let finalNewRate = newRate;
-    if (includeMarkup && markup && finalNewRate > 0) {
-      if (markup.markupType === 'global') {
-        finalNewRate = finalNewRate * (1 + markup.globalMarkup / 100);
-      } else {
-        const serviceMarkup = markup.perServiceMarkup?.[rec.service] || 0;
-        finalNewRate = finalNewRate * (1 + serviceMarkup / 100);
-      }
-    }
-    
     return {
-      id: index + 1,
-      trackingId: rec.trackingId || rec.tracking_id || rec.Tracking_ID || `SHIP-${String(index + 1).padStart(4, '0')}`,
-      originZip: rec.originZip || rec.origin_zip || rec.Origin_Zip || rec.fromZip || rec.from_zip || 'N/A',
-      destinationZip: rec.destinationZip || rec.destination_zip || rec.destZip || rec.dest_zip || rec.Destination_Zip || rec.toZip || rec.to_zip || 'N/A',
-      weight: parseFloat(rec.weight || rec.Weight || rec.weight_lbs || '0') || 0,
-      length: parseFloat(rec.length || rec.Length || '0') || undefined,
-      width: parseFloat(rec.width || rec.Width || '0') || undefined,
-      height: parseFloat(rec.height || rec.Height || '0') || undefined,
-      dimensions: rec.dimensions || (rec.length && rec.width && rec.height ? `${rec.length}x${rec.width}x${rec.height}` : undefined),
-      carrier: rec.carrier || rec.Carrier || rec.current_carrier || 'Unknown',
-      service: rec.service || rec.Service || rec.newService || rec.bestService || rec.Ship_Pros_Service || 'Standard',
-      originalService: rec.originalService || rec.original_service || rec.current_service || rec.Service || 'Unknown',
-      bestService: rec.bestService || rec.best_service || rec.Ship_Pros_Service || rec.newService,
-      newService: rec.newService || rec.new_service || rec.Ship_Pros_Service || rec.bestService,
-      currentRate: parseFloat(String(currentRate)) || 0,
-      newRate: finalNewRate,
+      id: shipment.id || index + 1,
+      trackingId: shipment.trackingId || `SHIP-${String(index + 1).padStart(4, '0')}`,
+      originZip: shipment.originZip || 'N/A',
+      destinationZip: shipment.destinationZip || 'N/A',
+      weight: shipment.weight || 0,
+      length: shipment.length,
+      width: shipment.width,
+      height: shipment.height,
+      dimensions: shipment.dimensions,
+      carrier: shipment.carrier || 'Unknown',
+      service: shipment.service || 'Standard',
+      originalService: shipment.originalService || 'Unknown',
+      bestService: shipment.bestService || shipment.service,
+      newService: shipment.newService || shipment.service,
+      currentRate: currentRate,
+      newRate: newRate,
       savings: calculatedSavings,
-      savingsPercent: calculateSavingsPercent(currentRate, finalNewRate),
+      savingsPercent: calculateSavingsPercent(currentRate, newRate),
       
-      // Enhanced multi-carrier account data
-      accounts: extractedAccounts,
-      allRates: rec.multi_carrier_results?.allRates || rec.allRates || rec.rates || [],
-      carrierResults: rec.multi_carrier_results?.carrierResults || rec.carrierResults || [],
-      rates: rec.rates || rec.multi_carrier_results?.allRates || []
+      // Multi-carrier account data (already processed in Analysis.tsx)
+      accounts: shipment.accounts || [],
+      allRates: shipment.allRates || [],
+      carrierResults: shipment.carrierResults || [],
+      rates: shipment.allRates || [] // Legacy compatibility
     };
   });
 };

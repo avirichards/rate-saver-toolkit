@@ -295,13 +295,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const getAccountOptions = () => {
     console.log('🔍 Getting account options...');
     console.log('🔍 Shipment data length:', shipmentData.length);
-    console.log('🔍 Analysis data:', analysisData);
+    console.log('🔍 Analysis data has recommendations:', !!analysisData?.recommendations?.length);
     
     if (!shipmentData.length && !analysisData) return ['Primary Account'];
     
     // Check if we have analysis data with recommendations that might contain account info
     if (analysisData?.recommendations?.length > 0) {
-      console.log('🔍 Sample recommendation from analysis data:', analysisData.recommendations[0]);
+      console.log('🔍 Sample recommendation from analysis data:', {
+        fullObject: analysisData.recommendations[0],
+        keys: Object.keys(analysisData.recommendations[0]),
+        shipmentKeys: analysisData.recommendations[0].shipment ? Object.keys(analysisData.recommendations[0].shipment) : null
+      });
       
       // Extract accounts from the original recommendations data
       const accountsFromAnalysis = [...new Set(analysisData.recommendations.map((rec: any) => {
@@ -311,19 +315,25 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                        (rec as any).customerAccount || (rec as any).customer_account ||
                        (rec.shipment as any)?.account || (rec.shipment as any)?.accountName ||
                        (rec.shipment as any)?.client || (rec.shipment as any)?.clientName ||
+                       (rec.shipment as any)?.carrier_account || (rec.shipment as any)?.carrier_name ||
                        rec.carrier || rec.shipment?.carrier || 'Primary Account';
         
-        console.log('🏢 Account from analysis:', account, 'from rec:', {
-          keys: Object.keys(rec),
+        console.log('🏢 Account extraction attempt:', {
+          foundAccount: account,
+          recKeys: Object.keys(rec),
           shipmentKeys: rec.shipment ? Object.keys(rec.shipment) : null,
-          account: (rec as any).account,
-          accountName: (rec as any).accountName,
-          client: (rec as any).client,
-          carrier: rec.carrier
+          directAccount: (rec as any).account,
+          directClient: (rec as any).client,
+          directCarrier: rec.carrier,
+          shipmentAccount: (rec.shipment as any)?.account,
+          shipmentClient: (rec.shipment as any)?.client,
+          shipmentCarrier: rec.shipment?.carrier
         });
         
         return account;
       }))];
+      
+      console.log('🏢 All accounts from analysis:', accountsFromAnalysis);
       
       if (accountsFromAnalysis.some(acc => acc !== 'Primary Account' && acc !== 'Unknown')) {
         console.log('🏢 Using accounts from analysis data:', accountsFromAnalysis);
@@ -333,7 +343,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     
     // Fallback to shipment data
     if (shipmentData.length > 0) {
-      console.log('🔍 Sample processed shipment data:', shipmentData[0]);
+      console.log('🔍 Sample processed shipment data:', {
+        fullObject: shipmentData[0],
+        keys: Object.keys(shipmentData[0]),
+        carrier: shipmentData[0].carrier
+      });
       
       const uniqueAccounts = [...new Set(shipmentData.map(s => 
         s.carrier || 'Primary Account'

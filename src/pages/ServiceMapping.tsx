@@ -90,8 +90,8 @@ const ServiceMapping = () => {
     
     toast.success('Service mappings confirmed!');
     
-    // Navigate to analysis with all the data including confirmed service mappings
-    navigate('/analysis', { 
+    // Navigate directly to results page to start the processing
+    navigate('/results', { 
       state: { 
         csvUploadId,
         fileName,
@@ -100,7 +100,7 @@ const ServiceMapping = () => {
         rowCount,
         csvData,
         originZipOverride,
-        readyForAnalysis: true,
+        readyForAnalysis: true, // Flag to start processing immediately
         uploadTimestamp // Pass through the upload timestamp for data freshness tracking
       } 
     });

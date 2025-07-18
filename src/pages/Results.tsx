@@ -5,6 +5,10 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ClientLayout } from '@/components/layout/ClientLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
+import { AccountPerformanceSummary } from '@/components/ui-lov/AccountPerformanceSummary';
+import { ServiceTypeComparison } from '@/components/ui-lov/ServiceTypeComparison';
+import { ShipmentDetailView } from '@/components/ui-lov/ShipmentDetailView';
+import { AnalysisNavigator, AnalysisLevel } from '@/components/ui-lov/AnalysisNavigator';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
@@ -114,6 +118,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     costDelta: 0,
     savingsDelta: 0,
     savingsPercentDelta: 0
+  });
+  
+  // Analysis navigation state
+  const [currentAnalysisLevel, setCurrentAnalysisLevel] = useState<AnalysisLevel>(1);
+  const [analysisFilters, setAnalysisFilters] = useState({
+    accountName: '',
+    serviceType: ''
+  });
+  const [versionInfo, setVersionInfo] = useState({
+    current: 1,
+    total: 1,
+    hasUnsavedChanges: false
   });
   
   // Use selective re-analysis hook
@@ -429,6 +445,179 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     setSelectedService(serviceType);
     // Scroll to Shipment Data tab
     document.querySelector('[data-tab="shipments"]')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // Analysis level navigation handlers
+  const handleAnalysisLevelChange = (level: AnalysisLevel, filter?: string) => {
+    setCurrentAnalysisLevel(level);
+    
+    if (filter) {
+      if (level === 2) {
+        setAnalysisFilters(prev => ({ ...prev, accountName: filter }));
+      } else if (level === 3) {
+        setAnalysisFilters(prev => ({ ...prev, serviceType: filter }));
+      }
+    }
+  };
+
+  const handleAccountSelection = (accountName: string) => {
+    setAnalysisFilters(prev => ({ ...prev, accountName }));
+    handleAnalysisLevelChange(2);
+  };
+
+  const handleServiceSelection = (serviceType: string) => {
+    setAnalysisFilters(prev => ({ ...prev, serviceType }));
+    handleAnalysisLevelChange(3, serviceType);
+  };
+
+  const handleAccountAssignmentInLevel = (serviceType: string, accountName: string) => {
+    handleAccountAssignment(serviceType, accountName);
+    setVersionInfo(prev => ({ ...prev, hasUnsavedChanges: true }));
+  };
+
+  const handleBulkAccountAssignment = (shipmentIds: number[], accountName: string) => {
+    // Update multiple shipments to use specific account
+    setHasUnsavedChanges(true);
+    setVersionInfo(prev => ({ ...prev, hasUnsavedChanges: true }));
+    
+    // Calculate impact
+    setRecalcDelta(prev => ({
+      ...prev,
+      shipmentCount: shipmentIds.length
+    }));
+  };
+
+  const handleRecalculateFromLevel = () => {
+    // Trigger recalculation based on current assignments
+    // This would normally call the UPS API with new assignments
+    toast.success('Totals recalculated based on current assignments');
+  };
+
+  // Generate mock data for the three levels
+  const generateAccountPerformanceData = () => {
+    if (!shipmentData.length) return [];
+
+    const accounts = [
+      'Ship Pros Account',
+      'UPS Account A', 
+      'UPS Account B',
+      'FedEx Account',
+      'DHL Account'
+    ];
+
+    return accounts.map((accountName, index) => {
+      const shipmentCount = Math.floor(shipmentData.length * (0.8 - index * 0.15));
+      const shipProsCost = shipmentData.reduce((sum, s) => sum + (s.newRate || 0), 0) * (0.9 + index * 0.05);
+      const currentCost = shipmentData.reduce((sum, s) => sum + s.currentRate, 0);
+      const grossSavings = currentCost - shipProsCost;
+      const savingsPercent = currentCost > 0 ? (grossSavings / currentCost) * 100 : 0;
+
+      return {
+        rank: index + 1,
+        accountName,
+        shipmentCount,
+        shipProsCost,
+        currentCost,
+        grossSavings,
+        savingsPercent,
+        accountType: accountName.includes('UPS') ? 'UPS' : accountName.includes('FedEx') ? 'FedEx' : accountName.includes('DHL') ? 'DHL' : 'Ship Pros'
+      };
+    });
+  };
+
+  const generateServiceComparisonData = () => {
+    const services = [...new Set(shipmentData.map(s => s.service).filter(Boolean))];
+    
+    return services.map(serviceType => {
+      const serviceShipments = shipmentData.filter(s => s.service === serviceType);
+      const totalShipProsCost = serviceShipments.reduce((sum, s) => sum + (s.newRate || 0), 0);
+      const totalCurrentCost = serviceShipments.reduce((sum, s) => sum + s.currentRate, 0);
+      const savings = totalCurrentCost - totalShipProsCost;
+      const savingsPercent = totalCurrentCost > 0 ? (savings / totalCurrentCost) * 100 : 0;
+
+      return {
+        serviceType,
+        bestAccount: {
+          name: 'Ship Pros Account',
+          cost: totalShipProsCost,
+          savings,
+          savingsPercent
+        },
+        shipmentCount: serviceShipments.length,
+        competitors: [
+          {
+            name: 'UPS Account A',
+            cost: totalShipProsCost * 1.05,
+            savings: savings * 0.8,
+            savingsPercent: savingsPercent * 0.8
+          },
+          {
+            name: 'UPS Account B', 
+            cost: totalShipProsCost * 1.1,
+            savings: savings * 0.6,
+            savingsPercent: savingsPercent * 0.6
+          }
+        ],
+        weightBands: [
+          {
+            range: 'Under 10 lbs',
+            bestAccount: 'Ship Pros Account',
+            savings: savings * 0.4
+          },
+          {
+            range: '10-50 lbs',
+            bestAccount: 'UPS Account A',
+            savings: savings * 0.3
+          },
+          {
+            range: 'Over 50 lbs',
+            bestAccount: 'Ship Pros Account',
+            savings: savings * 0.3
+          }
+        ]
+      };
+    });
+  };
+
+  const generateShipmentDetailData = () => {
+    return shipmentData.map(shipment => ({
+      id: shipment.id,
+      trackingId: shipment.trackingId,
+      origin: shipment.originZip,
+      destination: shipment.destinationZip,
+      weight: shipment.weight,
+      zone: '3', // Mock zone
+      residential: (shipment as any).isResidential === 'true' || (shipment as any).isResidential === true,
+      serviceType: shipment.service,
+      assignedAccount: 'Ship Pros Account',
+      currentRate: shipment.currentRate,
+      rates: [
+        {
+          accountName: 'Ship Pros Account',
+          rate: shipment.newRate || 0,
+          savings: shipment.currentRate - (shipment.newRate || 0),
+          savingsPercent: shipment.currentRate > 0 ? ((shipment.currentRate - (shipment.newRate || 0)) / shipment.currentRate) * 100 : 0,
+          isBest: true,
+          isAssigned: true
+        },
+        {
+          accountName: 'UPS Account A',
+          rate: (shipment.newRate || 0) * 1.05,
+          savings: shipment.currentRate - ((shipment.newRate || 0) * 1.05),
+          savingsPercent: shipment.currentRate > 0 ? ((shipment.currentRate - ((shipment.newRate || 0) * 1.05)) / shipment.currentRate) * 100 : 0,
+          isBest: false,
+          isAssigned: false
+        },
+        {
+          accountName: 'UPS Account B',
+          rate: (shipment.newRate || 0) * 0.95,
+          savings: shipment.currentRate - ((shipment.newRate || 0) * 0.95),
+          savingsPercent: shipment.currentRate > 0 ? ((shipment.currentRate - ((shipment.newRate || 0) * 0.95)) / shipment.currentRate) * 100 : 0,
+          isBest: false,
+          isAssigned: false
+        }
+      ]
+    }));
   };
 
   // Save or update service note

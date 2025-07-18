@@ -108,9 +108,14 @@ const Analysis = () => {
         setProcessingStep(`Processing shipment ${i + 1} of ${shipmentData.length}: ${shipment.trackingId || 'Unknown'}`);
 
         try {
-          // Call the multi-carrier quote function
-          const { data: multiCarrierResult, error: quoteError } = await supabase.functions.invoke('multi-carrier-quote', {
-            body: {
+          // Call the multi-carrier quote function using direct fetch (the working method)
+          const response = await fetch(`https://olehfhquezzfkdgilkut.supabase.co/functions/v1/multi-carrier-quote`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+            },
+            body: JSON.stringify({
               carrierConfigs: activeConfigs.map(c => c.id),
               shipFromZip: shipment.originZip,
               shipToZip: shipment.destZip || shipment.destinationZip,
@@ -119,13 +124,15 @@ const Analysis = () => {
               width: parseFloat(shipment.width) || 12, 
               height: parseFloat(shipment.height) || 6,
               serviceTypes: [shipment.serviceCode || '03']
-            }
+            })
           });
 
-          if (quoteError) {
-            console.error('❌ Quote error for shipment:', shipment.trackingId, quoteError);
+          if (!response.ok) {
+            console.error('❌ HTTP error for shipment:', shipment.trackingId, response.status, response.statusText);
             continue;
           }
+
+          const multiCarrierResult = await response.json();
 
           console.log('✅ Multi-carrier result:', {
             totalRates: multiCarrierResult?.allRates?.length || 0,

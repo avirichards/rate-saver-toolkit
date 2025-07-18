@@ -50,7 +50,7 @@ export const generateReportExcelFromProcessedData = (
   
   // Use the same export data generation as Results page
   if (processedShipments && processedShipments.length > 0) {
-    const exportDataFromResults = generateExportData(processedShipments, getShipmentMarkup);
+    const exportDataFromResults = generateExportData(processedShipments, true);
     
     // Column headers (from the generateExportData function)
     analysisData.push([

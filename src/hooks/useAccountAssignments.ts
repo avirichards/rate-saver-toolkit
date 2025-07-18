@@ -85,12 +85,13 @@ export const useAccountAssignments = (
 
         if (data) {
           setAssignments({
-            global: data.global_assignment || null,
-            service: data.service_assignments || {},
-            individual: (data.account_assignments || []).reduce((acc: any, assignment: any) => {
-              acc[assignment.shipmentId] = assignment;
-              return acc;
-            }, {})
+            global: (data.global_assignment as any) || null,
+            service: (data.service_assignments as any) || {},
+            individual: Array.isArray(data.account_assignments) ? 
+              (data.account_assignments as any[]).reduce((acc: any, assignment: any) => {
+                acc[assignment.shipmentId] = assignment;
+                return acc;
+              }, {}) : {}
           });
           console.log('📥 Loaded assignments from database:', data);
         }
@@ -271,10 +272,20 @@ export const useAccountAssignments = (
         .update({
           account_assignments: Object.entries(newAssignments.individual).map(([shipmentId, assignment]) => ({
             shipmentId: Number(shipmentId),
-            ...assignment
-          })),
-          service_assignments: newAssignments.service,
-          global_assignment: newAssignments.global,
+            account: assignment.account,
+            assignedAt: assignment.assignedAt.toISOString(),
+            isOverride: assignment.isOverride
+          })) as any,
+          service_assignments: Object.fromEntries(
+            Object.entries(newAssignments.service).map(([key, value]) => [
+              key, 
+              { account: value.account, assignedAt: value.assignedAt.toISOString() }
+            ])
+          ) as any,
+          global_assignment: newAssignments.global ? {
+            account: newAssignments.global.account,
+            assignedAt: newAssignments.global.assignedAt.toISOString()
+          } as any : null,
           updated_at: new Date().toISOString()
         })
         .eq('id', currentAnalysisId)

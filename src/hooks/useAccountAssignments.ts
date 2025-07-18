@@ -43,14 +43,42 @@ export const useAccountAssignments = (
 
   // Extract available accounts from shipment data
   const availableAccounts = useMemo(() => {
+    console.log('🔍 useAccountAssignments - Extracting accounts from shipment data:', {
+      shipmentCount: shipmentData.length,
+      sampleShipment: shipmentData[0] ? {
+        id: shipmentData[0].id,
+        trackingId: shipmentData[0].trackingId,
+        hasAccounts: !!shipmentData[0].accounts,
+        accountsCount: shipmentData[0].accounts?.length || 0,
+        hasRates: !!shipmentData[0].rates,
+        ratesCount: shipmentData[0].rates?.length || 0,
+        hasAllRates: !!shipmentData[0].allRates,
+        allRatesCount: shipmentData[0].allRates?.length || 0,
+        hasCarrierResults: !!shipmentData[0].carrierResults,
+        carrierResultsCount: shipmentData[0].carrierResults?.length || 0,
+        availableFields: Object.keys(shipmentData[0])
+      } : null
+    });
+    
     const accountMap = new Map<string, AccountInfo>();
     
-    shipmentData.forEach(shipment => {
+    shipmentData.forEach((shipment, index) => {
       // Extract account information from various data structures
       const accounts = shipment.accounts || shipment.rates || [];
       
+      if (index < 3) {
+        console.log(`🔍 Processing shipment ${shipment.id} for accounts:`, {
+          accountsFound: accounts.length,
+          accounts: accounts.map((acc: any) => ({
+            carrier: acc.carrierType || acc.carrier,
+            account: acc.accountName || acc.name,
+            rate: acc.rate || acc.cost
+          }))
+        });
+      }
+      
       accounts.forEach((account: any) => {
-        const accountKey = `${account.carrier}-${account.accountName}`;
+        const accountKey = `${account.carrier || account.carrierType}-${account.accountName || account.name}`;
         if (!accountMap.has(accountKey)) {
           accountMap.set(accountKey, {
             carrierId: account.carrierId || account.id,
@@ -62,7 +90,13 @@ export const useAccountAssignments = (
       });
     });
     
-    return Array.from(accountMap.values());
+    const accounts = Array.from(accountMap.values());
+    console.log('🔍 useAccountAssignments - Extracted accounts:', {
+      totalAccounts: accounts.length,
+      accounts: accounts.map(acc => ({ carrier: acc.carrierType, account: acc.accountName }))
+    });
+    
+    return accounts;
   }, [shipmentData]);
 
   // Calculate account performance metrics

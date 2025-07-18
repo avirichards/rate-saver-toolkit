@@ -36,6 +36,11 @@ export interface ProcessedShipmentData {
   newRate: number;
   savings: number;
   savingsPercent: number;
+  // Account data for Account Review tab
+  accounts?: any[];
+  rates?: any[];
+  allRates?: any[];
+  carrierResults?: any[];
 }
 
 export interface ValidationResult {
@@ -187,7 +192,11 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
   if (recommendations?.length > 0) {
     console.log('🔍 Sample recommendation data structure:', {
       keys: Object.keys(recommendations[0]),
-      sampleData: recommendations[0]
+      sampleData: recommendations[0],
+      hasAllRates: !!recommendations[0].allRates,
+      allRatesCount: recommendations[0].allRates?.length || 0,
+      hasCarrierResults: !!recommendations[0].carrierResults,
+      carrierResultsCount: recommendations[0].carrierResults?.length || 0
     });
   }
   
@@ -199,13 +208,59 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
                    rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
     const calculatedSavings = currentRate - newRate;
     
+    // Extract account data from allRates and carrierResults
+    const accountData = [];
+    
+    // Process allRates to extract account information
+    if (rec.allRates && Array.isArray(rec.allRates)) {
+      rec.allRates.forEach((rate: any) => {
+        accountData.push({
+          carrierId: rate.carrierId || rate.accountId || rate.id,
+          accountName: rate.accountName || rate.carrierName || rate.name,
+          carrierType: rate.carrierType || rate.carrier || 'Unknown',
+          rate: rate.cost || rate.totalCharges || rate.rate || 0,
+          serviceCode: rate.serviceCode,
+          serviceName: rate.serviceName || rate.service,
+          displayName: `${rate.carrierType || rate.carrier || 'Unknown'} – ${rate.accountName || rate.carrierName || 'Unknown'}`
+        });
+      });
+    }
+
+    // Also process carrierResults for additional account info
+    if (rec.carrierResults && Array.isArray(rec.carrierResults)) {
+      rec.carrierResults.forEach((carrier: any) => {
+        if (carrier.rates && Array.isArray(carrier.rates)) {
+          carrier.rates.forEach((rate: any) => {
+            // Only add if not already present
+            if (!accountData.find(acc => acc.carrierId === (rate.carrierId || carrier.carrierId))) {
+              accountData.push({
+                carrierId: rate.carrierId || carrier.carrierId || carrier.id,
+                accountName: carrier.carrierName || carrier.name,
+                carrierType: carrier.carrierType || 'Unknown',
+                rate: rate.cost || rate.totalCharges || rate.rate || 0,
+                serviceCode: rate.serviceCode,
+                serviceName: rate.serviceName || rate.service,
+                displayName: `${carrier.carrierType || 'Unknown'} – ${carrier.carrierName || 'Unknown'}`
+              });
+            }
+          });
+        }
+      });
+    }
+    
     if (index < 3) { // Debug first 3 items
       console.log(`🔍 Processing shipment ${index + 1}:`, {
         trackingId: rec.shipment?.trackingId || rec.trackingId,
         currentRate,
         newRate,
         calculatedSavings,
-        availableFields: Object.keys(rec)
+        availableFields: Object.keys(rec),
+        hasAllRates: !!rec.allRates,
+        allRatesCount: rec.allRates?.length || 0,
+        hasCarrierResults: !!rec.carrierResults,
+        carrierResultsCount: rec.carrierResults?.length || 0,
+        extractedAccountsCount: accountData.length,
+        accounts: accountData.map(acc => ({ carrier: acc.carrierType, account: acc.accountName, rate: acc.rate }))
       });
     }
     
@@ -227,7 +282,12 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
       currentRate,
       newRate,
       savings: rec.savings || calculatedSavings || 0,
-      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0
+      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0,
+      // Add account data for Account Review tab
+      accounts: accountData,
+      rates: accountData, // Legacy support
+      allRates: rec.allRates || [],
+      carrierResults: rec.carrierResults || []
     };
   });
 };

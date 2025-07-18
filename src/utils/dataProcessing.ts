@@ -201,29 +201,51 @@ export const processClientViewData = (analysis: any): ProcessedAnalysisData => {
 
 // Enhanced account data extraction and persistence
 const extractAccountData = (shipment: any): any[] => {
-  // Multiple sources where account data might be stored
+  console.log('🔍 extractAccountData - Analyzing shipment structure:', {
+    shipmentId: shipment.id || shipment.trackingId,
+    availableFields: Object.keys(shipment),
+    hasAccounts: !!shipment.accounts,
+    hasAllRates: !!shipment.allRates,
+    hasCarrierResults: !!shipment.carrierResults,
+    hasRates: !!shipment.rates,
+    sampleData: {
+      accounts: shipment.accounts?.slice(0, 2),
+      allRates: shipment.allRates?.slice(0, 2),
+      carrierResults: shipment.carrierResults?.slice(0, 2),
+      rates: shipment.rates?.slice(0, 2)
+    }
+  });
+  
+  // Multiple sources where account data might be stored - check all
   const sources = [
-    shipment.accounts,
-    shipment.allRates,
-    shipment.carrierResults,
-    shipment.rates
+    { name: 'accounts', data: shipment.accounts },
+    { name: 'allRates', data: shipment.allRates },
+    { name: 'carrierResults', data: shipment.carrierResults },
+    { name: 'rates', data: shipment.rates },
+    // Check for UPS-specific structure from API responses
+    { name: 'ups_response.rates', data: shipment.ups_response?.rates },
+    { name: 'multi_carrier_results', data: shipment.multi_carrier_results }
   ];
   
   for (const source of sources) {
-    if (source && Array.isArray(source) && source.length > 0) {
+    if (source.data && Array.isArray(source.data) && source.data.length > 0) {
+      console.log(`✅ Found account data in ${source.name}:`, source.data.slice(0, 2));
+      
       // Ensure each account has proper structure
-      return source.map(account => ({
-        carrierType: account.carrierType || account.carrier || 'Unknown',
-        accountName: account.accountName || account.account_name || account.name || 'Default',
+      return source.data.map(account => ({
+        carrierId: account.carrierId || account.id || account.carrier_id || 'default',
+        carrierType: account.carrierType || account.carrier || account.carrier_name || 'Unknown',
+        accountName: account.accountName || account.account_name || account.name || account.account || 'Default',
         displayName: account.displayName || 
-          `${account.carrierType || account.carrier || 'Unknown'} – ${account.accountName || account.account_name || account.name || 'Default'}`,
-        rate: account.rate || account.cost || account.price || 0,
-        service: account.service || account.serviceType || 'Standard',
+          `${account.carrierType || account.carrier || account.carrier_name || 'Unknown'} – ${account.accountName || account.account_name || account.name || account.account || 'Default'}`,
+        rate: parseFloat(account.rate || account.cost || account.price || account.total_cost || '0') || 0,
+        service: account.service || account.serviceType || account.service_type || 'Standard',
         ...account
       }));
     }
   }
   
+  console.log('❌ No account data found in any source for shipment:', shipment.id || shipment.trackingId);
   return [];
 };
 

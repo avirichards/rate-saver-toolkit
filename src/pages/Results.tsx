@@ -1741,6 +1741,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             <AccountReviewTab 
               shipmentData={shipmentData}
               markupFunction={getShipmentMarkup}
+              analysisId={currentAnalysisId}
             />
           </TabsContent>
 

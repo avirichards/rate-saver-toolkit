@@ -112,43 +112,62 @@ export const useAccountAssignments = (
         trackingId: shipmentData[0].trackingId,
         hasAccounts: !!shipmentData[0].accounts,
         accountsCount: shipmentData[0].accounts?.length || 0,
-        availableFields: Object.keys(shipmentData[0])
+        availableFields: Object.keys(shipmentData[0]),
+        fullShipmentStructure: shipmentData[0]
       } : null
     });
     
     const accountMap = new Map<string, AccountInfo>();
     
     shipmentData.forEach((shipment, index) => {
-      // Extract account information from enhanced data structure
-      const accounts = shipment.accounts || [];
+      // Try multiple sources for account data
+      const accountSources = [
+        shipment.accounts,
+        shipment.allRates,
+        shipment.carrierResults,
+        shipment.rates,
+        shipment.ups_response?.rates,
+        shipment.multi_carrier_results
+      ];
+      
+      let accounts: any[] = [];
+      for (const source of accountSources) {
+        if (source && Array.isArray(source) && source.length > 0) {
+          accounts = source;
+          break;
+        }
+      }
       
       if (index < 3) {
-        console.log(`🔍 Processing shipment ${shipment.id} for accounts:`, {
+        console.log(`🔍 Processing shipment ${shipment.id || shipment.trackingId} for accounts:`, {
           accountsFound: accounts.length,
-          accounts: accounts.map((acc: any) => ({
-            carrier: acc.carrierType || acc.carrier,
-            account: acc.accountName || acc.name,
-            rate: acc.rate || acc.cost
+          sourceUsed: accountSources.findIndex(source => source === accounts),
+          accounts: accounts.slice(0, 2).map((acc: any) => ({
+            carrier: acc.carrierType || acc.carrier || acc.carrier_name,
+            account: acc.accountName || acc.name || acc.account,
+            rate: acc.rate || acc.cost || acc.price || acc.total_cost
           }))
         });
       }
       
       accounts.forEach((account: any) => {
-        const accountKey = `${account.carrierType}-${account.accountName}`;
+        const carrierType = account.carrierType || account.carrier || account.carrier_name || 'Unknown';
+        const accountName = account.accountName || account.name || account.account || 'Default';
+        const accountKey = `${carrierType}-${accountName}`;
+        
         if (!accountMap.has(accountKey)) {
           accountMap.set(accountKey, {
-            carrierId: account.carrierId || account.id,
-            accountName: account.accountName || account.name || 'Default',
-            carrierType: account.carrierType || account.carrier || 'Unknown',
-            displayName: account.displayName || 
-              `${account.carrierType || account.carrier || 'Unknown'} – ${account.accountName || account.name || 'Default'}`
+            carrierId: account.carrierId || account.id || account.carrier_id || 'default',
+            accountName,
+            carrierType,
+            displayName: account.displayName || `${carrierType} – ${accountName}`
           });
         }
       });
     });
     
     const accounts = Array.from(accountMap.values());
-    console.log('🔍 useAccountAssignments - Extracted accounts:', {
+    console.log('🔍 useAccountAssignments - Final extracted accounts:', {
       totalAccounts: accounts.length,
       accounts: accounts.map(acc => ({ carrier: acc.carrierType, account: acc.accountName }))
     });

@@ -8,7 +8,6 @@ import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
 import { RotateCw, AlertCircle } from 'lucide-react';
 import { formatCurrency, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
-import { ExpandableRateRow } from './ExpandableRateRow';
 
 interface EditableShipmentRowProps {
   shipment: any;
@@ -242,23 +241,6 @@ export function EditableShipmentRow({
             {estimatedSavings.savingsPercent?.toFixed(1)}%
           </div>
         )}
-      </TableCell>
-      
-      <TableCell className="text-center">
-        <ExpandableRateRow
-          shipment={shipment}
-          rates={[
-            {
-              account: 'Ship Pros Account',
-              rate: estimatedSavings.newRate || shipment.newRate || 0,
-              savings: 0,
-              savingsPercent: 0,
-              isBest: true,
-              isSelected: true
-            }
-          ]}
-          onRateSelect={() => {}} // Disabled in edit mode
-        />
       </TableCell>
       
       <TableCell>

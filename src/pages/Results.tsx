@@ -5,10 +5,6 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ClientLayout } from '@/components/layout/ClientLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
-import { AccountPerformanceSummary } from '@/components/ui-lov/AccountPerformanceSummary';
-import { ServiceTypeComparison } from '@/components/ui-lov/ServiceTypeComparison';
-import { ShipmentDetailView } from '@/components/ui-lov/ShipmentDetailView';
-import { AnalysisNavigator, AnalysisLevel } from '@/components/ui-lov/AnalysisNavigator';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
@@ -29,9 +25,6 @@ import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { SelectiveReanalysisModal } from '@/components/ui-lov/SelectiveReanalysisModal';
 import { EditableShipmentRow } from '@/components/ui-lov/EditableShipmentRow';
 import { OrphanedShipmentRow } from '@/components/ui-lov/OrphanedShipmentRow';
-import { AccountComparisonPanel } from '@/components/ui-lov/AccountComparisonPanel';
-import { ExpandableRateRow } from '@/components/ui-lov/ExpandableRateRow';
-import { StickyRecalcBar } from '@/components/ui-lov/StickyRecalcBar';
 import { useSelectiveReanalysis } from '@/hooks/useSelectiveReanalysis';
 import { 
   processAnalysisData,
@@ -109,256 +102,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [selectedShipments, setSelectedShipments] = useState<Set<number>>(new Set());
   const [isReanalysisModalOpen, setIsReanalysisModalOpen] = useState(false);
   const [shipmentUpdates, setShipmentUpdates] = useState<Record<number, any>>({});
-  
-  // Account assignment state
-  const [serviceAssignments, setServiceAssignments] = useState<Record<string, string>>({});
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [recalcDelta, setRecalcDelta] = useState({
-    shipmentCount: 0,
-    costDelta: 0,
-    savingsDelta: 0,
-    savingsPercentDelta: 0
-  });
-  
-  // Analysis navigation state
-  const [currentAnalysisLevel, setCurrentAnalysisLevel] = useState<AnalysisLevel>(1);
-  const [analysisFilters, setAnalysisFilters] = useState({
-    accountName: '',
-    serviceType: ''
-  });
-  const [versionInfo, setVersionInfo] = useState({
-    current: 1,
-    total: 1,
-    hasUnsavedChanges: false
-  });
-
-  // Real data transformations for progressive analysis
-  const getAccountPerformanceData = () => {
-    if (!shipmentData.length) return [];
-    
-    // Group shipments by carrier
-    const accountGroups = shipmentData.reduce((acc, shipment) => {
-      const accountName = shipment.carrier || 'Unknown Carrier';
-      if (!acc[accountName]) {
-        acc[accountName] = {
-          accountName,
-          shipments: [],
-          totalShipProsCost: 0,
-          totalCurrentCost: 0
-        };
-      }
-      acc[accountName].shipments.push(shipment);
-      acc[accountName].totalShipProsCost += shipment.newRate || 0;
-      acc[accountName].totalCurrentCost += shipment.currentRate || 0;
-      return acc;
-    }, {} as Record<string, any>);
-
-    return Object.values(accountGroups).map((group: any, index) => {
-      const grossSavings = group.totalCurrentCost - group.totalShipProsCost;
-      const savingsPercent = group.totalCurrentCost > 0 ? (grossSavings / group.totalCurrentCost) * 100 : 0;
-      
-      return {
-        rank: index + 1,
-        accountName: group.accountName,
-        shipmentCount: group.shipments.length,
-        shipProsCost: group.totalShipProsCost,
-        currentCost: group.totalCurrentCost,
-        grossSavings,
-        savingsPercent,
-        accountType: index === 0 ? "Primary" : index === 1 ? "Secondary" : "Backup"
-      };
-    }).sort((a, b) => b.grossSavings - a.grossSavings).map((item, index) => ({
-      ...item,
-      rank: index + 1
-    }));
-  };
-
-  const getServiceComparisonData = () => {
-    if (!shipmentData.length) return [];
-    
-    // Group by service type
-    const serviceGroups = shipmentData.reduce((acc, shipment) => {
-      const serviceType = shipment.service || 'Unknown Service';
-      if (!acc[serviceType]) {
-        acc[serviceType] = {
-          serviceType,
-          shipments: [],
-          accounts: {}
-        };
-      }
-      acc[serviceType].shipments.push(shipment);
-      
-      // Group by carrier within service
-      const accountName = shipment.carrier || 'Unknown Carrier';
-      if (!acc[serviceType].accounts[accountName]) {
-        acc[serviceType].accounts[accountName] = {
-          name: accountName,
-          cost: 0,
-          savings: 0,
-          shipmentCount: 0
-        };
-      }
-      acc[serviceType].accounts[accountName].cost += shipment.newRate || 0;
-      acc[serviceType].accounts[accountName].savings += (shipment.currentRate || 0) - (shipment.newRate || 0);
-      acc[serviceType].accounts[accountName].shipmentCount++;
-      
-      return acc;
-    }, {} as Record<string, any>);
-
-    return Object.values(serviceGroups).map((group: any) => {
-      const accounts = Object.values(group.accounts) as any[];
-      const bestAccount = accounts.reduce((best: any, current: any) => 
-        current.savings > best.savings ? current : best, accounts[0] || { name: 'N/A', cost: 0, savings: 0 });
-      
-      const competitors = accounts.filter(acc => acc.name !== bestAccount.name).slice(0, 2);
-      
-      return {
-        serviceType: group.serviceType,
-        bestAccount: {
-          name: bestAccount.name,
-          cost: bestAccount.cost,
-          savings: bestAccount.savings,
-          savingsPercent: bestAccount.cost > 0 ? (bestAccount.savings / bestAccount.cost) * 100 : 0
-        },
-        shipmentCount: group.shipments.length,
-        competitors: competitors.map((comp: any) => ({
-          name: comp.name,
-          cost: comp.cost,
-          savings: comp.savings,
-          savingsPercent: comp.cost > 0 ? (comp.savings / comp.cost) * 100 : 0
-        })),
-        weightBands: [
-          { range: "< 10 lbs", bestAccount: bestAccount.name, savings: bestAccount.savings * 0.4 },
-          { range: "10+ lbs", bestAccount: bestAccount.name, savings: bestAccount.savings * 0.6 }
-        ]
-      };
-    });
-  };
-
-  const getShipmentDetailData = () => {
-    if (!shipmentData.length) return [];
-    
-    return shipmentData.slice(0, 50).map((shipment, index) => {
-      const currentRate = shipment.currentRate || 0;
-      const newRate = shipment.newRate || 0;
-      const savings = currentRate - newRate;
-      const savingsPercent = currentRate > 0 ? (savings / currentRate) * 100 : 0;
-      
-      // Generate rate options based on available data
-      const baseRate = newRate || currentRate || 10;
-      const rates = [
-        {
-          accountName: shipment.carrier || 'Primary Account',
-          rate: baseRate,
-          savings: savings,
-          savingsPercent: savingsPercent,
-          isBest: true,
-          isAssigned: true
-        },
-        {
-          accountName: 'Alternative Account A',
-          rate: baseRate * 1.05,
-          savings: currentRate - (baseRate * 1.05),
-          savingsPercent: currentRate > 0 ? ((currentRate - (baseRate * 1.05)) / currentRate) * 100 : 0,
-          isBest: false,
-          isAssigned: false
-        },
-        {
-          accountName: 'Alternative Account B', 
-          rate: baseRate * 1.1,
-          savings: currentRate - (baseRate * 1.1),
-          savingsPercent: currentRate > 0 ? ((currentRate - (baseRate * 1.1)) / currentRate) * 100 : 0,
-          isBest: false,
-          isAssigned: false
-        }
-      ];
-      
-      return {
-        id: index + 1,
-        trackingId: shipment.trackingId || `TRACK-${index + 1}`,
-        origin: shipment.originZip || 'Unknown',
-        destination: shipment.destinationZip || 'Unknown',
-        weight: shipment.weight || 0,
-        zone: 'N/A', // Zone info not available in current data structure
-        residential: false, // Residential info not available in current data structure
-        serviceType: shipment.service || 'Unknown Service',
-        assignedAccount: shipment.carrier || 'Primary Account',
-        currentRate: currentRate,
-        bestRate: newRate,
-        savings: savings,
-        savingsPercent: savingsPercent,
-        rates: rates
-      };
-    });
-  };
-
-  const getAccountOptions = () => {
-    console.log('🔍 Getting account options...');
-    console.log('🔍 Shipment data length:', shipmentData.length);
-    console.log('🔍 Analysis data has recommendations:', !!analysisData?.recommendations?.length);
-    
-    if (!shipmentData.length && !analysisData) return ['Primary Account'];
-    
-    // Check if we have analysis data with recommendations that might contain account info
-    if (analysisData?.recommendations?.length > 0) {
-      console.log('🔍 Sample recommendation from analysis data:', {
-        fullObject: analysisData.recommendations[0],
-        keys: Object.keys(analysisData.recommendations[0]),
-        shipmentKeys: analysisData.recommendations[0].shipment ? Object.keys(analysisData.recommendations[0].shipment) : null
-      });
-      
-      // Extract accounts from the original recommendations data
-      const accountsFromAnalysis = [...new Set(analysisData.recommendations.map((rec: any) => {
-        // Look for account info in the original recommendation data
-        const account = (rec as any).account || (rec as any).accountName || (rec as any).account_name ||
-                       (rec as any).client || (rec as any).clientName || (rec as any).client_name ||
-                       (rec as any).customerAccount || (rec as any).customer_account ||
-                       (rec.shipment as any)?.account || (rec.shipment as any)?.accountName ||
-                       (rec.shipment as any)?.client || (rec.shipment as any)?.clientName ||
-                       (rec.shipment as any)?.carrier_account || (rec.shipment as any)?.carrier_name ||
-                       rec.carrier || rec.shipment?.carrier || 'Primary Account';
-        
-        console.log('🏢 Account extraction attempt:', {
-          foundAccount: account,
-          recKeys: Object.keys(rec),
-          shipmentKeys: rec.shipment ? Object.keys(rec.shipment) : null,
-          directAccount: (rec as any).account,
-          directClient: (rec as any).client,
-          directCarrier: rec.carrier,
-          shipmentAccount: (rec.shipment as any)?.account,
-          shipmentClient: (rec.shipment as any)?.client,
-          shipmentCarrier: rec.shipment?.carrier
-        });
-        
-        return account;
-      }))];
-      
-      console.log('🏢 All accounts from analysis:', accountsFromAnalysis);
-      
-      if (accountsFromAnalysis.some(acc => acc !== 'Primary Account' && acc !== 'Unknown')) {
-        console.log('🏢 Using accounts from analysis data:', accountsFromAnalysis);
-        return accountsFromAnalysis.slice(0, 10);
-      }
-    }
-    
-    // Fallback to shipment data
-    if (shipmentData.length > 0) {
-      console.log('🔍 Sample processed shipment data:', {
-        fullObject: shipmentData[0],
-        keys: Object.keys(shipmentData[0]),
-        carrier: shipmentData[0].carrier
-      });
-      
-      const uniqueAccounts = [...new Set(shipmentData.map(s => 
-        s.carrier || 'Primary Account'
-      ))];
-      
-      console.log('🏢 Using accounts from shipment data:', uniqueAccounts);
-      return uniqueAccounts.slice(0, 10);
-    }
-    
-    return ['Primary Account'];
-  };
   
   // Use selective re-analysis hook
   const { 
@@ -532,162 +275,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }, {} as Record<string, string>);
       setServiceNotes(notesMap);
     }
-  };
-
-  // Handlers for progressive analysis levels
-  const handleShipmentAccountAssign = (shipmentIds: number[], accountName: string) => {
-    console.log('Assigning shipments', shipmentIds, 'to account', accountName);
-    setHasUnsavedChanges(true);
-  };
-
-  const handleBulkShipmentEdit = (shipmentIds: number[]) => {
-    console.log('Bulk editing shipments', shipmentIds);
-    setHasUnsavedChanges(true);
-  };
-
-  // Handle account assignment changes
-  const handleAccountAssignment = (serviceType: string, newAccount: string) => {
-    setServiceAssignments(prev => ({
-      ...prev,
-      [serviceType]: newAccount
-    }));
-    setHasUnsavedChanges(true);
-    
-    // Calculate impact
-    const serviceShipments = shipmentData.filter(s => s.service === serviceType);
-    setRecalcDelta(prev => ({
-      ...prev,
-      shipmentCount: serviceShipments.length,
-      costDelta: 0, // Would calculate based on rate differences
-      savingsDelta: 0,
-      savingsPercentDelta: 0
-    }));
-  };
-
-  // Generate rate options for expandable rows
-  const generateRateOptions = (shipment: any) => {
-    if (!shipment) return [];
-    
-    const currentRate = shipment.newRate || 0;
-    
-    return [
-      {
-        account: 'Ship Pros Account',
-        rate: currentRate,
-        savings: 0,
-        savingsPercent: 0,
-        isBest: true,
-        isSelected: true
-      },
-      {
-        account: 'UPS Account A',
-        rate: currentRate * 1.05,
-        savings: -(currentRate * 0.05),
-        savingsPercent: -5,
-        isBest: false,
-        isSelected: false
-      },
-      {
-        account: 'UPS Account B',
-        rate: currentRate * 0.95,
-        savings: currentRate * 0.05,
-        savingsPercent: 5,
-        isBest: false,
-        isSelected: false
-      }
-    ];
-  };
-
-  // Handle rate selection in expandable rows
-  const handleRateSelection = (shipmentId: number, account: string) => {
-    // Update shipment assignment
-    setHasUnsavedChanges(true);
-    // Would update recalc delta based on rate difference
-  };
-
-  // Save assignment changes
-  const saveAssignmentChanges = async () => {
-    if (!currentAnalysisId) return;
-    
-    try {
-      // In real implementation, this would update the database with new assignments
-      setHasUnsavedChanges(false);
-      setRecalcDelta({
-        shipmentCount: 0,
-        costDelta: 0,
-        savingsDelta: 0,
-        savingsPercentDelta: 0
-      });
-      toast.success('Assignment changes saved successfully');
-    } catch (error) {
-      toast.error('Failed to save changes');
-    }
-  };
-
-  // Undo changes
-  const undoChanges = () => {
-    setServiceAssignments({});
-    setHasUnsavedChanges(false);
-    setRecalcDelta({
-      shipmentCount: 0,
-      costDelta: 0,
-      savingsDelta: 0,
-      savingsPercentDelta: 0
-    });
-  };
-
-  // Navigate to service details in Shipment Data tab
-  const handleViewServiceDetails = (serviceType: string) => {
-    // Switch to Shipment Data tab and filter by service type
-    setSelectedService(serviceType);
-    // Scroll to Shipment Data tab
-    document.querySelector('[data-tab="shipments"]')?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  // Analysis level navigation handlers
-  const handleAnalysisLevelChange = (level: AnalysisLevel, filter?: string) => {
-    setCurrentAnalysisLevel(level);
-    
-    if (filter) {
-      if (level === 2) {
-        setAnalysisFilters(prev => ({ ...prev, accountName: filter }));
-      } else if (level === 3) {
-        setAnalysisFilters(prev => ({ ...prev, serviceType: filter }));
-      }
-    }
-  };
-
-  const handleAccountSelection = (accountName: string) => {
-    setAnalysisFilters(prev => ({ ...prev, accountName }));
-    handleAnalysisLevelChange(2);
-  };
-
-  const handleServiceSelection = (serviceType: string) => {
-    setAnalysisFilters(prev => ({ ...prev, serviceType }));
-    handleAnalysisLevelChange(3, serviceType);
-  };
-
-  const handleAccountAssignmentInLevel = (serviceType: string, accountName: string) => {
-    handleAccountAssignment(serviceType, accountName);
-    setVersionInfo(prev => ({ ...prev, hasUnsavedChanges: true }));
-  };
-
-  const handleBulkAccountAssignment = (shipmentIds: number[], accountName: string) => {
-    // Update multiple shipments to use specific account
-    setHasUnsavedChanges(true);
-    setVersionInfo(prev => ({ ...prev, hasUnsavedChanges: true }));
-    
-    // Calculate impact
-    setRecalcDelta(prev => ({
-      ...prev,
-      shipmentCount: shipmentIds.length
-    }));
-  };
-
-  const handleRecalculateFromLevel = () => {
-    // Trigger recalculation based on current assignments
-    // This would normally call the UPS API with new assignments
-    toast.success('Totals recalculated based on current assignments');
   };
 
   // Save or update service note
@@ -2146,49 +1733,71 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
-            {/* Analysis Navigator */}
-            <AnalysisNavigator
-              currentLevel={currentAnalysisLevel}
-              onLevelChange={handleAnalysisLevelChange}
-              breadcrumb={{
-                accountName: analysisFilters.accountName,
-                serviceType: analysisFilters.serviceType
-              }}
-              versionInfo={versionInfo}
-            />
 
-            {/* Level 1: Account Performance Summary */}
-            {currentAnalysisLevel === 1 && (
-              <AccountPerformanceSummary
-                accounts={getAccountPerformanceData()}
-                onAccountSelect={handleAccountSelection}
-                onDrillDown={() => handleAnalysisLevelChange(2)}
-              />
-            )}
-
-            {/* Level 2: Service Type Comparison */}
-            {currentAnalysisLevel === 2 && (
-              <ServiceTypeComparison
-                services={getServiceComparisonData()}
-                onServiceSelect={handleServiceSelection}
-                onAccountAssign={handleAccountAssignmentInLevel}
-                onDrillDown={() => handleAnalysisLevelChange(3)}
-                onBack={() => handleAnalysisLevelChange(1)}
-              />
-            )}
-
-            {/* Level 3: Shipment Detail View */}
-            {currentAnalysisLevel === 3 && (
-              <ShipmentDetailView
-                shipments={getShipmentDetailData()}
-                accounts={getAccountOptions()}
-                onAccountAssign={handleShipmentAccountAssign}
-                onBulkEdit={handleBulkShipmentEdit}
-                onRecalculate={saveAssignmentChanges}
-                onBack={() => handleAnalysisLevelChange(2)}
-                filterServiceType={analysisFilters.serviceType}
-              />
-            )}
+            {/* Snapshot Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  {isClientView ? (
+                    <span>{snapshotDays} Day Snapshot</span>
+                  ) : (
+                    <>
+                      <Input
+                        type="number"
+                        value={snapshotDays}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          
+                          if (value === '') {
+                            // Allow empty during editing, but don't update snapshotDays yet
+                            return;
+                          }
+                          
+                          const parsedValue = parseInt(value);
+                          const newValue = isNaN(parsedValue) || parsedValue < 1 ? 30 : parsedValue;
+                          
+                          setSnapshotDays(newValue);
+                          
+                          // Auto-save snapshot days if we have an analysis ID
+                          if (currentAnalysisId) {
+                            const timeoutId = setTimeout(async () => {
+                              try {
+                                await supabase
+                                  .from('shipping_analyses')
+                                  .update({ 
+                                    recommendations: { snapshotDays: newValue },
+                                    updated_at: new Date().toISOString()
+                                  })
+                                  .eq('id', currentAnalysisId);
+                              } catch (error) {
+                                console.error('Failed to auto-save snapshot days:', error);
+                              }
+                            }, 1500);
+                            
+                            return () => clearTimeout(timeoutId);
+                          }
+                        }}
+                        onBlur={(e) => {
+                          // Reset to 30 if field is empty when user leaves the field
+                          const value = e.target.value;
+                          if (value === '' || value === '0') {
+                            setSnapshotDays(30);
+                          }
+                        }}
+                        placeholder="30"
+                        className="w-20 text-2xl font-bold border-none p-0 h-auto bg-transparent"
+                        min="1"
+                        max="365"
+                      />
+                      <span>Day Snapshot</span>
+                    </>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {filteredData.length} shipments selected out of {shipmentData.length} total shipments
+                </CardDescription>
+              </CardHeader>
+            </Card>
 
             {/* Summary Statistics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2252,14 +1861,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 </CardContent>
               </Card>
             </div>
-
-            {/* Account Comparison Panel */}
-            <AccountComparisonPanel
-              serviceAssignments={[]}
-              availableAccounts={getAccountOptions()}
-              onAssignmentChange={handleAccountAssignment}
-              onViewDetails={handleViewServiceDetails}
-            />
 
             {/* Service Analysis Table */}
             <Card>
@@ -2760,11 +2361,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableHead className="text-foreground w-28">Current Service</TableHead>
                           <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
                           <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
-                           <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
-                           <TableHead className="text-right text-foreground w-20">Savings</TableHead>
-                           <TableHead className="text-right text-foreground w-16">Savings %</TableHead>
-                           <TableHead className="text-center text-foreground w-32">Compare Rates</TableHead>
-                           {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
+                          <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
+                          <TableHead className="text-right text-foreground w-20">Savings</TableHead>
+                          <TableHead className="text-right text-foreground w-16">Savings %</TableHead>
+                          {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
                      <TableBody className="bg-background">
@@ -2882,17 +2482,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                  const savings = item.currentRate - markupInfo.markedUpPrice;
                                  const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
                                  return formatPercentage(savingsPercent);
-                                })()}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <ExpandableRateRow
-                                shipment={item}
-                                rates={generateRateOptions(item)}
-                                onRateSelect={handleRateSelection}
-                              />
-                            </TableCell>
-                            </TableRow>
+                               })()}
+                             </span>
+                           </TableCell>
+                           </TableRow>
                          )
                        )}
                       </TableBody>
@@ -2990,15 +2583,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         onApplyCorrections={handleServiceCorrections}
         selectedShipments={filteredData.filter(item => selectedShipments.has(item.id))}
         allShipments={shipmentData}
-      />
-
-      {/* Sticky Recalc Bar */}
-      <StickyRecalcBar
-        delta={recalcDelta}
-        isVisible={hasUnsavedChanges}
-        onSave={saveAssignmentChanges}
-        onUndo={undoChanges}
-        isSaving={false}
       />
     </Layout>
   );

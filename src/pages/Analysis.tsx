@@ -5,15 +5,12 @@ import { Button } from '@/components/ui-lov/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, Shield, Clock, Pause, Play, Target } from 'lucide-react';
+import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, Shield, Clock, Pause, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
-import { ServiceTypeCarrierAssignment } from '@/components/ui-lov/ServiceTypeCarrierAssignment';
-import { DetailedRateTable } from '@/components/ui-lov/DetailedRateTable';
-import { EditableServiceAssignments } from '@/components/ui-lov/EditableServiceAssignments';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToServiceCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
@@ -91,50 +88,7 @@ const Analysis = () => {
   const [isAnalysisStarted, setIsAnalysisStarted] = useState(false); // Track if analysis has been started
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
-  const [showServiceTypeAssignment, setShowServiceTypeAssignment] = useState(false);
-  const [serviceTypeAssignments, setServiceTypeAssignments] = useState<any[]>([]);
-  const [showDetailedRates, setShowDetailedRates] = useState(false);
-  const [showEditableAssignments, setShowEditableAssignments] = useState(false);
-  const [isReanalyzing, setIsReanalyzing] = useState(false);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
-
-  // Helper function to handle carrier reassignment
-  const handleCarrierReassignment = (shipmentId: number, serviceType: string, newCarrierId: string) => {
-    console.log('🔄 Carrier reassignment requested:', { shipmentId, serviceType, newCarrierId });
-    toast.info(`Reassigned shipment #${shipmentId} to new carrier. Use "Re-analyze" to see updated results.`);
-  };
-
-  // Helper function to convert service type assignments to editable format
-  const convertToEditableAssignments = () => {
-    // This would process analysisResults to create the format needed by EditableServiceAssignments
-    // For now, return empty array - will be implemented when actual data structure is available
-    console.log('🔄 Converting assignments to editable format...');
-    return [];
-  };
-
-  // Helper function to handle reassignment completion
-  const handleReassignmentComplete = (newAssignments: any[], impactAnalysis: any) => {
-    console.log('✅ Reassignment completed:', { newAssignments, impactAnalysis });
-    toast.success(`Updated assignments for ${newAssignments.length} service types`);
-  };
-
-  // Helper function to handle reanalysis
-  const handleReanalyze = async (serviceTypes: string[], newCarrierIds: string[]) => {
-    console.log('🔄 Starting reanalysis:', { serviceTypes, newCarrierIds });
-    setIsReanalyzing(true);
-    toast.info('Starting reanalysis with new assignments...');
-    
-    try {
-      // This would trigger a new analysis with the updated carrier assignments
-      // For now, just simulate the process
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      toast.success('Reanalysis completed with new assignments');
-    } catch (error) {
-      toast.error('Reanalysis failed');
-    } finally {
-      setIsReanalyzing(false);
-    }
-  };
   
   useEffect(() => {
     const state = location.state as { 
@@ -493,11 +447,6 @@ const Analysis = () => {
         console.log('✅ Analysis complete, saving to database');
         setIsComplete(true);
         await saveAnalysisToDatabase();
-        
-        // Show service type assignment option
-        setTimeout(() => {
-          setShowServiceTypeAssignment(true);
-        }, 1000);
       }
       
     } catch (error: any) {
@@ -1418,71 +1367,9 @@ const Analysis = () => {
       } 
     });
   };
-
-  const handleServiceTypeAssignmentComplete = (assignments: any[]) => {
-    console.log('🎯 Service type assignments complete:', assignments);
-    setServiceTypeAssignments(assignments);
-    setShowServiceTypeAssignment(false);
-    
-    // Navigate to results with the service-type assignments
-    const completedResults = analysisResults.filter(r => r.status === 'completed');
-    const errorResults = analysisResults.filter(r => r.status === 'error');
-    const recommendations = completedResults.map(result => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost,
-      recommendedCost: result.bestRate?.totalCharges || result.bestOverallRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      originalService: result.originalService,
-      recommendedService: result.bestRate?.serviceName || result.bestOverallRate?.serviceName || 'Unknown',
-      carrier: result.bestRate?.carrier || result.bestOverallRate?.carrier || 'UPS',
-      status: result.status
-    }));
-    const orphanedShipments = analysisResults.filter(r => r.status === 'error');
-
-    const analysisData = {
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      recommendations,
-      orphanedShipments,
-      serviceTypeAssignments: assignments
-    };
-
-    navigate('/results', { 
-      state: { 
-        analysisComplete: true, 
-        analysisData 
-      } 
-    });
-  };
-
   const progress = shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
   const completedCount = analysisResults.filter(r => r.status === 'completed').length;
   const errorCount = analysisResults.filter(r => r.status === 'error').length;
-  
-  // Show service type assignment interface if analysis is complete
-  if (showServiceTypeAssignment && isComplete) {
-    return (
-      <DashboardLayout>
-        <div className="max-w-6xl mx-auto p-6">
-          <div className="mb-6">
-            <h1 className="text-3xl font-semibold mb-2">Service Type Assignment</h1>
-            <p className="text-muted-foreground">
-              Assign optimal carrier accounts by service type for operational efficiency.
-            </p>
-          </div>
-          
-          <ServiceTypeCarrierAssignment
-            analysisResults={analysisResults}
-            onAssignmentComplete={handleServiceTypeAssignmentComplete}
-            onBack={() => setShowServiceTypeAssignment(false)}
-          />
-        </div>
-      </DashboardLayout>
-    );
-  }
   
   return (
     <DashboardLayout>
@@ -1771,86 +1658,19 @@ const Analysis = () => {
             </div>
             
             {isComplete && (
-              <div className="flex justify-between items-center mt-6">
-                <div className="text-sm text-muted-foreground">
-                  Analysis complete! Choose how to proceed with the results.
-                </div>
-                <div className="flex gap-3">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowDetailedRates(true)}
-                    iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
-                  >
-                    View All Rates
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleViewResults}
-                    iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
-                  >
-                    View Best Rates
-                  </Button>
-                  <Button 
-                    variant="primary" 
-                    onClick={() => setShowServiceTypeAssignment(true)}
-                    iconRight={<Target className="ml-1 h-4 w-4" />}
-                  >
-                    Assign by Service Type
-                  </Button>
-                </div>
+              <div className="flex justify-end mt-6">
+                <Button 
+                  variant="primary" 
+                  onClick={handleViewResults}
+                  iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
+                >
+                  View Detailed Results
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-
-      {/* Detailed Rate Table Modal */}
-      {showDetailedRates && (
-        <div className="fixed inset-0 bg-background z-50 overflow-auto">
-          <div className="container mx-auto py-6">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-bold">All Rates - Detailed Analysis</h1>
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowEditableAssignments(true)}
-                >
-                  Edit Assignments
-                </Button>
-                <Button variant="outline" onClick={() => setShowDetailedRates(false)}>
-                  Close
-                </Button>
-              </div>
-            </div>
-            <DetailedRateTable 
-              analysisResults={analysisResults}
-              onCarrierReassign={handleCarrierReassignment}
-              allowReassignment={true}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Editable Service Assignments Modal */}
-      {showEditableAssignments && (
-        <div className="fixed inset-0 bg-background z-50 overflow-auto">
-          <div className="container mx-auto py-6">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-2xl font-bold">Edit Service Type Assignments</h1>
-              <Button variant="outline" onClick={() => setShowEditableAssignments(false)}>
-                Close
-              </Button>
-            </div>
-            <EditableServiceAssignments
-              initialAssignments={convertToEditableAssignments()}
-              analysisResults={analysisResults}
-              onReassignmentComplete={handleReassignmentComplete}
-              onReanalyze={handleReanalyze}
-              isReanalyzing={isReanalyzing}
-            />
-          </div>
-        </div>
-      )}
     </DashboardLayout>
   );
 };

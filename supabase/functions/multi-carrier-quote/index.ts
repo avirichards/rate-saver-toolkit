@@ -225,7 +225,7 @@ async function getUpsRates(supabase: any, shipment: ShipmentRequest, config: Car
         ...shipment,
         serviceTypes: shipment.serviceTypes
       },
-      configId: config.id // Pass specific config ID for this carrier
+      configId: config.id
     }
   });
 

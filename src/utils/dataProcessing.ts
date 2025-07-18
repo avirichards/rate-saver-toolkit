@@ -219,12 +219,7 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
       width: parseFloat(rec.shipment?.width || rec.width || '12'),
       height: parseFloat(rec.shipment?.height || rec.height || '6'),
       dimensions: rec.shipment?.dimensions || rec.dimensions,
-      carrier: rec.account || rec.accountName || rec.account_name ||
-               rec.client || rec.clientName || rec.client_name ||
-               rec.customerAccount || rec.customer_account ||
-               rec.shipment?.account || rec.shipment?.accountName ||
-               rec.shipment?.client || rec.shipment?.clientName ||
-               rec.shipment?.carrier || rec.carrier || 'Unknown',
+      carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
       service: rec.originalService || rec.service || 'Unknown',
       originalService: rec.originalService || rec.service || 'Unknown',
       bestService: rec.bestService || rec.recommendedService || 'UPS Ground',

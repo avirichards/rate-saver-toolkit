@@ -103,7 +103,7 @@ export const useAccountAssignments = (
     loadAssignments();
   }, [currentAnalysisId]);
 
-  // Extract available accounts from shipment data with enhanced extraction
+  // Enhanced account extraction with standardized format support
   const availableAccounts = useMemo(() => {
     console.log('🔍 useAccountAssignments - Extracting accounts from shipment data:', {
       shipmentCount: shipmentData.length,
@@ -112,29 +112,52 @@ export const useAccountAssignments = (
         trackingId: shipmentData[0].trackingId,
         hasAccounts: !!shipmentData[0].accounts,
         accountsCount: shipmentData[0].accounts?.length || 0,
-        availableFields: Object.keys(shipmentData[0]),
-        fullShipmentStructure: shipmentData[0]
+        hasAllRates: !!shipmentData[0].allRates,
+        allRatesCount: shipmentData[0].allRates?.length || 0,
+        hasCarrierResults: !!shipmentData[0].carrierResults,
+        carrierResultsCount: shipmentData[0].carrierResults?.length || 0
       } : null
     });
     
     const accountMap = new Map<string, AccountInfo>();
     
     shipmentData.forEach((shipment, index) => {
-      // Try multiple sources for account data
+      // Enhanced account sources - prioritize standardized multi-carrier data
       const accountSources = [
-        shipment.accounts,
-        shipment.allRates,
-        shipment.carrierResults,
-        shipment.rates,
-        shipment.ups_response?.rates,
-        shipment.multi_carrier_results
+        shipment.allRates, // Standardized multi-carrier rates
+        shipment.carrierResults, // Multi-carrier results with rates
+        shipment.accounts, // Legacy account data
+        shipment.rates, // Legacy rates
+        shipment.ups_response?.rates, // UPS-specific
+        shipment.multi_carrier_results?.allRates, // Direct multi-carrier results
+        shipment.multi_carrier_results?.carrierResults // Direct carrier results
       ];
       
       let accounts: any[] = [];
+      
+      // Handle carrier results format (contains rates arrays)
       for (const source of accountSources) {
         if (source && Array.isArray(source) && source.length > 0) {
-          accounts = source;
-          break;
+          // Check if this is carrier results format
+          if (source[0] && source[0].rates && Array.isArray(source[0].rates)) {
+            // Extract rates from carrier results
+            accounts = source.flatMap((carrierResult: any) => 
+              carrierResult.rates?.map((rate: any) => ({
+                carrierId: rate.carrierId || carrierResult.carrierId || 'default',
+                carrierType: rate.carrierType || carrierResult.carrierType || 'Unknown',
+                accountName: rate.accountName || carrierResult.carrierName || 'Default',
+                displayName: rate.displayName || carrierResult.displayName || 
+                  `${rate.carrierType || carrierResult.carrierType || 'Unknown'} – ${rate.accountName || carrierResult.carrierName || 'Default'}`,
+                rate: rate.rate || rate.cost || rate.totalCharges || 0,
+                service: rate.serviceName || rate.serviceCode || 'Standard'
+              })) || []
+            );
+            break;
+          } else if (source[0] && (source[0].carrierId || source[0].carrierType || source[0].displayName)) {
+            // Direct rates format
+            accounts = source;
+            break;
+          }
         }
       }
       
@@ -142,10 +165,11 @@ export const useAccountAssignments = (
         console.log(`🔍 Processing shipment ${shipment.id || shipment.trackingId} for accounts:`, {
           accountsFound: accounts.length,
           sourceUsed: accountSources.findIndex(source => source === accounts),
-          accounts: accounts.slice(0, 2).map((acc: any) => ({
-            carrier: acc.carrierType || acc.carrier || acc.carrier_name,
-            account: acc.accountName || acc.name || acc.account,
-            rate: acc.rate || acc.cost || acc.price || acc.total_cost
+          sampleAccounts: accounts.slice(0, 2).map((acc: any) => ({
+            carrier: acc.carrierType,
+            account: acc.accountName,
+            displayName: acc.displayName,
+            rate: acc.rate
           }))
         });
       }
@@ -169,32 +193,52 @@ export const useAccountAssignments = (
     const accounts = Array.from(accountMap.values());
     console.log('🔍 useAccountAssignments - Final extracted accounts:', {
       totalAccounts: accounts.length,
-      accounts: accounts.map(acc => ({ carrier: acc.carrierType, account: acc.accountName }))
+      accounts: accounts.map(acc => ({ 
+        carrier: acc.carrierType, 
+        account: acc.accountName,
+        displayName: acc.displayName 
+      }))
     });
     
     return accounts;
   }, [shipmentData]);
 
-  // Calculate account performance metrics
+  // Enhanced account performance calculation with multi-carrier support
   const accountPerformance = useMemo((): AccountPerformance[] => {
     const performanceMap = new Map<string, AccountPerformance>();
     
     shipmentData.forEach(shipment => {
-      const accounts = shipment.accounts || [];
+      // Get all available rates for this shipment
+      const allRates = shipment.allRates || shipment.accounts || [];
+      const carrierResults = shipment.carrierResults || [];
       
-      accounts.forEach((account: any) => {
-        const accountKey = `${account.carrierType}-${account.accountName}`;
-        const rate = account.rate || account.cost || 0;
+      // Combine rates from all sources
+      const allAvailableRates: any[] = [];
+      
+      // Add direct rates
+      allAvailableRates.push(...allRates);
+      
+      // Add rates from carrier results
+      carrierResults.forEach((carrierResult: any) => {
+        if (carrierResult.rates && Array.isArray(carrierResult.rates)) {
+          allAvailableRates.push(...carrierResult.rates);
+        }
+      });
+      
+      allAvailableRates.forEach((account: any) => {
+        const carrierType = account.carrierType || account.carrier || 'Unknown';
+        const accountName = account.accountName || account.name || 'Default';
+        const accountKey = `${carrierType}-${accountName}`;
+        const rate = account.rate || account.cost || account.totalCharges || 0;
         const savings = shipment.currentRate - rate;
         
         if (!performanceMap.has(accountKey)) {
           performanceMap.set(accountKey, {
             account: {
-              carrierId: account.carrierId || account.id,
-              accountName: account.accountName || account.name || 'Default',
-              carrierType: account.carrierType || account.carrier || 'Unknown',
-              displayName: account.displayName || 
-                `${account.carrierType || account.carrier || 'Unknown'} – ${account.accountName || account.name || 'Default'}`
+              carrierId: account.carrierId || account.id || 'default',
+              accountName,
+              carrierType,
+              displayName: account.displayName || `${carrierType} – ${accountName}`
             },
             shipmentCount: 0,
             totalSavings: 0,
@@ -214,7 +258,7 @@ export const useAccountAssignments = (
     // Calculate percentages and rank accounts
     const performances = Array.from(performanceMap.values());
     performances.forEach(perf => {
-      const totalCurrentCost = perf.shipmentCount * (shipmentData.reduce((sum, s) => sum + s.currentRate, 0) / shipmentData.length);
+      const totalCurrentCost = perf.totalCost + perf.totalSavings;
       perf.savingsPercentage = totalCurrentCost > 0 ? (perf.totalSavings / totalCurrentCost) * 100 : 0;
     });
     

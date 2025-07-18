@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -53,7 +54,6 @@ interface CarrierConfig {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -73,7 +73,6 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    // Verify user authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -136,29 +135,47 @@ serve(async (req) => {
         }
 
         if (rates.length > 0) {
-          // Add carrier information to each rate
-          const carrierRates = rates.map(rate => ({
-            ...rate,
+          // Standardize rate format with complete account information
+          const standardizedRates = rates.map(rate => ({
+            // Core rate data
             carrierId: config.id,
-            carrierName: config.account_name,
-            carrierType: config.carrier_type,
-            isSandbox: config.is_sandbox
+            carrierType: config.carrier_type.toUpperCase(),
+            accountName: config.account_name,
+            displayName: `${config.carrier_type.toUpperCase()} – ${config.account_name}`,
+            serviceName: rate.serviceName || rate.serviceCode || 'Standard',
+            serviceCode: rate.serviceCode || rate.serviceName || 'STD',
+            
+            // Pricing
+            rate: parseFloat(rate.totalCharges || rate.cost || rate.price || '0'),
+            totalCharges: parseFloat(rate.totalCharges || rate.cost || rate.price || '0'),
+            cost: parseFloat(rate.totalCharges || rate.cost || rate.price || '0'),
+            price: parseFloat(rate.totalCharges || rate.cost || rate.price || '0'),
+            
+            // Metadata
+            isSandbox: config.is_sandbox,
+            transitTime: rate.transitTime || rate.deliveryTime || 'N/A',
+            guaranteedDelivery: rate.guaranteedDelivery || false,
+            
+            // Original response data for debugging
+            originalResponse: rate
           }));
 
-          allRates.push(...carrierRates);
+          allRates.push(...standardizedRates);
           carrierResults.push({
             carrierId: config.id,
             carrierName: config.account_name,
             carrierType: config.carrier_type,
+            displayName: `${config.carrier_type.toUpperCase()} – ${config.account_name}`,
             success: true,
-            rateCount: rates.length,
-            rates: carrierRates
+            rateCount: standardizedRates.length,
+            rates: standardizedRates
           });
         } else {
           carrierResults.push({
             carrierId: config.id,
             carrierName: config.account_name,
             carrierType: config.carrier_type,
+            displayName: `${config.carrier_type.toUpperCase()} – ${config.account_name}`,
             success: false,
             error: 'No rates returned',
             rates: []
@@ -171,6 +188,7 @@ serve(async (req) => {
           carrierId: config.id,
           carrierName: config.account_name,
           carrierType: config.carrier_type,
+          displayName: `${config.carrier_type.toUpperCase()} – ${config.account_name}`,
           success: false,
           error: error.message,
           rates: []
@@ -193,6 +211,14 @@ serve(async (req) => {
       carrierResults,
       allRates,
       bestRates,
+      // Enhanced response with account data for easy access
+      accountData: carrierConfigs.map(config => ({
+        carrierId: config.id,
+        carrierType: config.carrier_type.toUpperCase(),
+        accountName: config.account_name,
+        displayName: `${config.carrier_type.toUpperCase()} – ${config.account_name}`,
+        isSandbox: config.is_sandbox
+      })),
       summary: {
         totalCarriers: carrierConfigs.length,
         successfulCarriers: carrierResults.filter(r => r.success).length,
@@ -218,14 +244,13 @@ serve(async (req) => {
 async function getUpsRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig) {
   console.log('📦 Getting UPS rates...');
   
-  // Call existing UPS rate quote function
   const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
     body: { 
       shipment: {
         ...shipment,
         serviceTypes: shipment.serviceTypes
       },
-      configId: config.id // Pass specific config ID for this carrier
+      configId: config.id
     }
   });
 
@@ -239,32 +264,22 @@ async function getUpsRates(supabase: any, shipment: ShipmentRequest, config: Car
 
 async function getFedexRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig) {
   console.log('🚚 Getting FedEx rates... (placeholder)');
-  
-  // TODO: Implement FedEx API integration
-  // For now, return empty array
   return [];
 }
 
 async function getDhlRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig) {
   console.log('✈️ Getting DHL rates... (placeholder)');
-  
-  // TODO: Implement DHL API integration
-  // For now, return empty array
   return [];
 }
 
 async function getUspsRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig) {
   console.log('📮 Getting USPS rates... (placeholder)');
-  
-  // TODO: Implement USPS API integration
-  // For now, return empty array
   return [];
 }
 
 function findBestRatesByService(allRates: any[]) {
   if (!allRates || allRates.length === 0) return [];
 
-  // Group rates by service type/category
   const ratesByService: { [key: string]: any[] } = {};
   
   allRates.forEach(rate => {
@@ -275,12 +290,11 @@ function findBestRatesByService(allRates: any[]) {
     ratesByService[serviceKey].push(rate);
   });
 
-  // Find lowest cost rate for each service type
   const bestRates: any[] = [];
   
   Object.entries(ratesByService).forEach(([serviceType, rates]) => {
     const sortedRates = rates.sort((a, b) => 
-      (a.totalCharges || 0) - (b.totalCharges || 0)
+      (a.totalCharges || a.cost || a.rate || 0) - (b.totalCharges || b.cost || b.rate || 0)
     );
     
     if (sortedRates.length > 0) {
@@ -293,5 +307,5 @@ function findBestRatesByService(allRates: any[]) {
     }
   });
 
-  return bestRates.sort((a, b) => (a.totalCharges || 0) - (b.totalCharges || 0));
+  return bestRates.sort((a, b) => (a.totalCharges || a.cost || a.rate || 0) - (b.totalCharges || b.cost || b.rate || 0));
 }

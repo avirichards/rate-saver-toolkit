@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, User, Package, Target, DollarSign } from 'lucide-react';
+import { ArrowLeft, User, Package, Target, DollarSign, TrendingUp } from 'lucide-react';
 import { AccountPerformanceSummary } from '@/components/ui-lov/AccountPerformanceSummary';
 import { ServiceTypeComparison } from '@/components/ui-lov/ServiceTypeComparison';
 import { ShipmentDetailAssignment } from '@/components/ui-lov/ShipmentDetailAssignment';
@@ -38,6 +38,30 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
     totalMetrics,
     assignments
   } = useAccountAssignments(shipmentData, markupFunction, analysisId);
+
+  // Enhanced data quality check
+  const dataQualityCheck = useMemo(() => {
+    const shipmentsWithMultiCarrierData = shipmentData.filter(s => 
+      (s.allRates && s.allRates.length > 0) || 
+      (s.carrierResults && s.carrierResults.length > 0) ||
+      (s.accounts && s.accounts.length > 0)
+    );
+    
+    const shipmentsWithMultipleAccounts = shipmentData.filter(s => {
+      const accountCount = (s.allRates?.length || 0) + 
+                          (s.carrierResults?.reduce((sum: number, cr: any) => sum + (cr.rates?.length || 0), 0) || 0) +
+                          (s.accounts?.length || 0);
+      return accountCount > 1;
+    });
+
+    return {
+      totalShipments: shipmentData.length,
+      shipmentsWithData: shipmentsWithMultiCarrierData.length,
+      shipmentsWithMultipleAccounts: shipmentsWithMultipleAccounts.length,
+      hasUsableData: shipmentsWithMultiCarrierData.length > 0,
+      hasMultiAccountData: shipmentsWithMultipleAccounts.length > 0
+    };
+  }, [shipmentData]);
 
   // Sort account performance based on current sort config
   const sortedAccountPerformance = useMemo(() => {
@@ -115,31 +139,50 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
   const getBreadcrumb = () => {
     switch (currentLevel) {
       case 'accounts':
-        return 'Account Performance Summary';
+        return 'Multi-Carrier Account Performance';
       case 'services':
-        return `${selectedAccount?.displayName} → Service Comparison`;
+        return `${selectedAccount?.displayName} → Service Analysis`;
       case 'shipments':
-        return `${selectedAccount?.displayName} → ${selectedService} → Shipment Details`;
+        return `${selectedAccount?.displayName} → ${selectedService} → Assignments`;
       default:
         return '';
     }
   };
 
-  // Check if we have multi-account data
-  if (availableAccounts.length === 0) {
+  // Enhanced data availability check
+  if (!dataQualityCheck.hasUsableData) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Account Review</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Account Review & Assignment
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No Multi-Account Data Available</h3>
-            <p className="text-muted-foreground">
+            <h3 className="text-lg font-semibold mb-2">Multi-Carrier Data Required</h3>
+            <p className="text-muted-foreground mb-4">
               Account review requires shipment data with multiple carrier accounts. 
               Please ensure your analysis includes multi-carrier rate comparisons.
             </p>
+            <div className="bg-muted/50 rounded-lg p-4 text-sm">
+              <div className="grid grid-cols-2 gap-4 text-left">
+                <div>
+                  <span className="font-medium">Total Shipments:</span> {dataQualityCheck.totalShipments}
+                </div>
+                <div>
+                  <span className="font-medium">With Account Data:</span> {dataQualityCheck.shipmentsWithData}
+                </div>
+                <div>
+                  <span className="font-medium">Multi-Account:</span> {dataQualityCheck.shipmentsWithMultipleAccounts}
+                </div>
+                <div>
+                  <span className="font-medium">Available Accounts:</span> {availableAccounts.length}
+                </div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -148,7 +191,7 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Header with breadcrumb and key metrics */}
+      {/* Enhanced header with data quality indicators */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -166,39 +209,42 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
               <div>
                 <CardTitle className="text-xl">{getBreadcrumb()}</CardTitle>
                 <div className="flex items-center gap-4 mt-2">
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="bg-blue-50">
                     {availableAccounts.length} Accounts Available
                   </Badge>
+                  <Badge variant="outline" className="bg-green-50">
+                    {dataQualityCheck.shipmentsWithMultipleAccounts} Multi-Account Shipments
+                  </Badge>
                   <span className="text-sm text-muted-foreground">
-                    Global: {assignments.global?.account.displayName || 'None'} | 
-                    Service-level: {Object.keys(assignments.service).length} | 
+                    {assignments.global ? `Global: ${assignments.global.account.displayName}` : 'No Global Assignment'} | 
+                    Service: {Object.keys(assignments.service).length} | 
                     Individual: {Object.keys(assignments.individual).length}
                   </span>
                 </div>
               </div>
             </div>
             
-            {/* Key metrics summary */}
+            {/* Enhanced metrics summary */}
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <div className="text-2xl font-bold text-green-600">
                   {formatCurrency(totalMetrics.totalSavings)}
                 </div>
-                <div className="text-sm text-muted-foreground">Total Savings</div>
+                <div className="text-sm text-muted-foreground">Potential Savings</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-blue-600">
                   {formatCurrency(totalMetrics.totalCost)}
                 </div>
-                <div className="text-sm text-muted-foreground">Total Cost</div>
+                <div className="text-sm text-muted-foreground">Ship Pros Cost</div>
               </div>
               <div>
                 <div className="text-center text-2xl font-bold text-primary">
                   {totalMetrics.assignedShipments}/{totalMetrics.totalShipments}
                 </div>
                 <div className="text-center text-sm text-muted-foreground mt-1">
-                  Assigned: {Object.keys(assignments.individual).length > 0 ? 
-                    `${((Object.keys(assignments.individual).length / totalMetrics.totalShipments) * 100).toFixed(1)}%` : 
+                  Assignments: {totalMetrics.assignedShipments > 0 ? 
+                    `${((totalMetrics.assignedShipments / totalMetrics.totalShipments) * 100).toFixed(1)}%` : 
                     '0%'}
                 </div>
               </div>
@@ -210,7 +256,7 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
       {/* Dynamic content based on current level */}
       {currentLevel === 'accounts' && (
         <AccountPerformanceSummary
-          accountPerformance={sortedAccountPerformance}
+          accountPerformance={accountPerformance}
           onAssignGlobal={assignGlobalAccount}
           onViewAccount={handleViewAccount}
           sortConfig={sortConfig}
@@ -220,57 +266,64 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
 
       {currentLevel === 'services' && selectedAccount && (
         <div className="text-center py-8">
-          <h3 className="text-lg font-semibold mb-2">Service Type Comparison</h3>
-          <p className="text-muted-foreground">Service comparison view coming soon for {selectedAccount.displayName}</p>
+          <h3 className="text-lg font-semibold mb-2">Service Type Analysis</h3>
+          <p className="text-muted-foreground">
+            Detailed service comparison for {selectedAccount.displayName} coming soon
+          </p>
         </div>
       )}
 
       {currentLevel === 'shipments' && selectedAccount && selectedService && (
         <div className="text-center py-8">
-          <h3 className="text-lg font-semibold mb-2">Shipment Detail Assignment</h3>
+          <h3 className="text-lg font-semibold mb-2">Individual Shipment Assignments</h3>
           <p className="text-muted-foreground">
-            Shipment assignment view coming soon for {selectedAccount.displayName} - {selectedService}
+            Granular shipment assignment interface for {selectedAccount.displayName} - {selectedService} coming soon
           </p>
         </div>
       )}
 
-      {/* Assignment Status Summary */}
+      {/* Enhanced assignment status */}
       {(assignments.global || Object.keys(assignments.service).length > 0 || Object.keys(assignments.individual).length > 0) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Current Assignments
+              Active Account Assignments
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               {assignments.global && (
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center gap-2">
-                    <Target className="h-4 w-4" />
-                    <span>Global assignment to all shipments:</span>
-                    <span className="font-medium">{assignments.global.account.displayName}</span>
+                    <Target className="h-4 w-4 text-blue-600" />
+                    <span>Global assignment:</span>
+                    <span className="font-medium text-blue-800">{assignments.global.account.displayName}</span>
                   </div>
+                  <Badge variant="secondary">All Shipments</Badge>
                 </div>
               )}
               
               {Object.entries(assignments.service).map(([serviceType, assignment]) => (
-                <div key={serviceType} className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div key={serviceType} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
                   <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    <span>{serviceType} shipments</span>
-                    <span>assigned to {assignment.account.displayName}</span>
+                    <Package className="h-4 w-4 text-green-600" />
+                    <span className="font-medium text-green-800">{serviceType}</span>
+                    <span>→ {assignment.account.displayName}</span>
                   </div>
+                  <Badge variant="secondary">Service Level</Badge>
                 </div>
               ))}
               
               {Object.keys(assignments.individual).length > 0 && (
-                <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg border border-orange-200">
                   <div className="flex items-center gap-2">
-                    <Package className="h-4 w-4" />
-                    <span>{Object.keys(assignments.individual).length} individual shipment assignments</span>
+                    <Package className="h-4 w-4 text-orange-600" />
+                    <span className="font-medium text-orange-800">
+                      {Object.keys(assignments.individual).length} individual assignments
+                    </span>
                   </div>
+                  <Badge variant="secondary">Custom</Badge>
                 </div>
               )}
             </div>

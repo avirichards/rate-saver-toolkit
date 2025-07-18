@@ -131,6 +131,128 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     total: 1,
     hasUnsavedChanges: false
   });
+
+  // Mock data for the three-level progressive analysis
+  const mockAccountPerformanceData = [
+    {
+      rank: 1,
+      accountName: "UPS Account A",
+      shipmentCount: 1250,
+      shipProsCost: 12450.00,
+      currentCost: 15230.00,
+      grossSavings: 2780.00,
+      savingsPercent: 18.2,
+      accountType: "Primary"
+    },
+    {
+      rank: 2,
+      accountName: "UPS Account B", 
+      shipmentCount: 890,
+      shipProsCost: 9890.00,
+      currentCost: 11200.00,
+      grossSavings: 1310.00,
+      savingsPercent: 11.7,
+      accountType: "Secondary"
+    },
+    {
+      rank: 3,
+      accountName: "FedEx Account",
+      shipmentCount: 567,
+      shipProsCost: 7890.00,
+      currentCost: 8450.00,
+      grossSavings: 560.00,
+      savingsPercent: 6.6,
+      accountType: "Backup"
+    }
+  ];
+
+  const mockServiceComparisonData = [
+    {
+      serviceType: "Ground",
+      bestAccount: {
+        name: "UPS Account A",
+        cost: 5600,
+        savings: 1400,
+        savingsPercent: 22
+      },
+      shipmentCount: 800,
+      competitors: [
+        { name: "UPS Account B", cost: 5890, savings: 1110, savingsPercent: 15 },
+        { name: "FedEx Account", cost: 6200, savings: 800, savingsPercent: 8 }
+      ],
+      weightBands: [
+        { range: "< 10 lbs", bestAccount: "UPS Account A", savings: 500 },
+        { range: "10-50 lbs", bestAccount: "UPS Account A", savings: 900 }
+      ]
+    },
+    {
+      serviceType: "2DA",
+      bestAccount: {
+        name: "UPS Account B",
+        cost: 3200,
+        savings: 700,
+        savingsPercent: 18
+      },
+      shipmentCount: 450,
+      competitors: [
+        { name: "UPS Account A", cost: 3350, savings: 550, savingsPercent: 12 },
+        { name: "FedEx Account", cost: 3890, savings: 200, savingsPercent: 5 }
+      ],
+      weightBands: [
+        { range: "< 5 lbs", bestAccount: "UPS Account B", savings: 300 },
+        { range: "5-25 lbs", bestAccount: "UPS Account B", savings: 400 }
+      ]
+    }
+  ];
+
+  const mockShipmentDetailData = [
+    {
+      id: 1,
+      trackingId: "1Z999AA1234567890",
+      origin: "10001",
+      destination: "90210", 
+      weight: 5.2,
+      zone: "7",
+      residential: true,
+      serviceType: "Ground",
+      assignedAccount: "UPS Account A",
+      currentRate: 12.45,
+      bestRate: 9.80,
+      savings: 2.65,
+      savingsPercent: 21.3,
+      rates: [
+        { account: "UPS Account A", rate: 9.80, savings: 2.65, isBest: true, isAssigned: true },
+        { account: "UPS Account B", rate: 10.20, savings: 2.25, isBest: false, isAssigned: false },
+        { account: "FedEx Account", rate: 11.50, savings: 0.95, isBest: false, isAssigned: false }
+      ]
+    },
+    {
+      id: 2,
+      trackingId: "1Z999AA1234567891",
+      origin: "10001",
+      destination: "60601",
+      weight: 15.8,
+      zone: "4", 
+      residential: false,
+      serviceType: "2DA",
+      assignedAccount: "UPS Account B",
+      currentRate: 18.90,
+      bestRate: 15.60,
+      savings: 3.30,
+      savingsPercent: 17.5,
+      rates: [
+        { account: "UPS Account A", rate: 16.20, savings: 2.70, isBest: false, isAssigned: false },
+        { account: "UPS Account B", rate: 15.60, savings: 3.30, isBest: true, isAssigned: true },
+        { account: "FedEx Account", rate: 17.80, savings: 1.10, isBest: false, isAssigned: false }
+      ]
+    }
+  ];
+
+  const mockAccountOptions = [
+    "UPS Account A",
+    "UPS Account B", 
+    "FedEx Account"
+  ];
   
   // Use selective re-analysis hook
   const { 
@@ -305,128 +427,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       setServiceNotes(notesMap);
     }
   };
-
-  // Mock data generators for the three-level progressive analysis
-  const mockAccountPerformanceData = [
-    {
-      rank: 1,
-      accountName: "UPS Account A",
-      shipmentCount: 1250,
-      shipProsCost: 12450.00,
-      currentCost: 15230.00,
-      grossSavings: 2780.00,
-      savingsPercent: 18.2,
-      accountType: "Primary"
-    },
-    {
-      rank: 2,
-      accountName: "UPS Account B", 
-      shipmentCount: 890,
-      shipProsCost: 9890.00,
-      currentCost: 11200.00,
-      grossSavings: 1310.00,
-      savingsPercent: 11.7,
-      accountType: "Secondary"
-    },
-    {
-      rank: 3,
-      accountName: "FedEx Account",
-      shipmentCount: 567,
-      shipProsCost: 7890.00,
-      currentCost: 8450.00,
-      grossSavings: 560.00,
-      savingsPercent: 6.6,
-      accountType: "Backup"
-    }
-  ];
-
-  const mockServiceComparisonData = [
-    {
-      serviceType: "Ground",
-      bestAccount: {
-        name: "UPS Account A",
-        cost: 5600,
-        savings: 1400,
-        savingsPercent: 22
-      },
-      shipmentCount: 800,
-      competitors: [
-        { name: "UPS Account B", cost: 5890, savings: 1110, savingsPercent: 15 },
-        { name: "FedEx Account", cost: 6200, savings: 800, savingsPercent: 8 }
-      ],
-      weightBands: [
-        { range: "< 10 lbs", bestAccount: "UPS Account A", savings: 500 },
-        { range: "10-50 lbs", bestAccount: "UPS Account A", savings: 900 }
-      ]
-    },
-    {
-      serviceType: "2DA",
-      bestAccount: {
-        name: "UPS Account B",
-        cost: 3200,
-        savings: 700,
-        savingsPercent: 18
-      },
-      shipmentCount: 450,
-      competitors: [
-        { name: "UPS Account A", cost: 3350, savings: 550, savingsPercent: 12 },
-        { name: "FedEx Account", cost: 3890, savings: 200, savingsPercent: 5 }
-      ],
-      weightBands: [
-        { range: "< 5 lbs", bestAccount: "UPS Account B", savings: 300 },
-        { range: "5-25 lbs", bestAccount: "UPS Account B", savings: 400 }
-      ]
-    }
-  ];
-
-  const mockShipmentDetailData = [
-    {
-      id: 1,
-      trackingId: "1Z999AA1234567890",
-      origin: "10001",
-      destination: "90210", 
-      weight: 5.2,
-      zone: "7",
-      residential: true,
-      serviceType: "Ground",
-      assignedAccount: "UPS Account A",
-      currentRate: 12.45,
-      bestRate: 9.80,
-      savings: 2.65,
-      savingsPercent: 21.3,
-      rates: [
-        { account: "UPS Account A", rate: 9.80, savings: 2.65, isBest: true, isAssigned: true },
-        { account: "UPS Account B", rate: 10.20, savings: 2.25, isBest: false, isAssigned: false },
-        { account: "FedEx Account", rate: 11.50, savings: 0.95, isBest: false, isAssigned: false }
-      ]
-    },
-    {
-      id: 2,
-      trackingId: "1Z999AA1234567891",
-      origin: "10001",
-      destination: "60601",
-      weight: 15.8,
-      zone: "4", 
-      residential: false,
-      serviceType: "2DA",
-      assignedAccount: "UPS Account B",
-      currentRate: 18.90,
-      bestRate: 15.60,
-      savings: 3.30,
-      savingsPercent: 17.5,
-      rates: [
-        { account: "UPS Account A", rate: 16.20, savings: 2.70, isBest: false, isAssigned: false },
-        { account: "UPS Account B", rate: 15.60, savings: 3.30, isBest: true, isAssigned: true },
-        { account: "FedEx Account", rate: 17.80, savings: 1.10, isBest: false, isAssigned: false }
-      ]
-    }
-  ];
-
-  const mockAccountOptions = [
-    "UPS Account A",
-    "UPS Account B", 
-    "FedEx Account"
-  ];
 
   // Handlers for progressive analysis levels
   const handleShipmentAccountAssign = (shipmentIds: number[], accountName: string) => {

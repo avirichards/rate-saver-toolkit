@@ -293,13 +293,57 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   };
 
   const getAccountOptions = () => {
-    if (!shipmentData.length) return ['Primary Account'];
+    console.log('🔍 Getting account options...');
+    console.log('🔍 Shipment data length:', shipmentData.length);
+    console.log('🔍 Analysis data:', analysisData);
     
-    const uniqueAccounts = [...new Set(shipmentData.map(s => 
-      s.carrier || 'Primary Account'
-    ))];
+    if (!shipmentData.length && !analysisData) return ['Primary Account'];
     
-    return uniqueAccounts.slice(0, 10); // Limit to 10 accounts for performance
+    // Check if we have analysis data with recommendations that might contain account info
+    if (analysisData?.recommendations?.length > 0) {
+      console.log('🔍 Sample recommendation from analysis data:', analysisData.recommendations[0]);
+      
+      // Extract accounts from the original recommendations data
+      const accountsFromAnalysis = [...new Set(analysisData.recommendations.map((rec: any) => {
+        // Look for account info in the original recommendation data
+        const account = (rec as any).account || (rec as any).accountName || (rec as any).account_name ||
+                       (rec as any).client || (rec as any).clientName || (rec as any).client_name ||
+                       (rec as any).customerAccount || (rec as any).customer_account ||
+                       (rec.shipment as any)?.account || (rec.shipment as any)?.accountName ||
+                       (rec.shipment as any)?.client || (rec.shipment as any)?.clientName ||
+                       rec.carrier || rec.shipment?.carrier || 'Primary Account';
+        
+        console.log('🏢 Account from analysis:', account, 'from rec:', {
+          keys: Object.keys(rec),
+          shipmentKeys: rec.shipment ? Object.keys(rec.shipment) : null,
+          account: (rec as any).account,
+          accountName: (rec as any).accountName,
+          client: (rec as any).client,
+          carrier: rec.carrier
+        });
+        
+        return account;
+      }))];
+      
+      if (accountsFromAnalysis.some(acc => acc !== 'Primary Account' && acc !== 'Unknown')) {
+        console.log('🏢 Using accounts from analysis data:', accountsFromAnalysis);
+        return accountsFromAnalysis.slice(0, 10);
+      }
+    }
+    
+    // Fallback to shipment data
+    if (shipmentData.length > 0) {
+      console.log('🔍 Sample processed shipment data:', shipmentData[0]);
+      
+      const uniqueAccounts = [...new Set(shipmentData.map(s => 
+        s.carrier || 'Primary Account'
+      ))];
+      
+      console.log('🏢 Using accounts from shipment data:', uniqueAccounts);
+      return uniqueAccounts.slice(0, 10);
+    }
+    
+    return ['Primary Account'];
   };
   
   // Use selective re-analysis hook

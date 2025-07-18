@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -5,7 +6,8 @@ import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
 import { Progress } from '@/components/ui/progress';
-import { Play, Clock, CheckCircle, AlertCircle, Package, TrendingUp, DollarSign } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Play, Clock, CheckCircle, AlertCircle, Package, TrendingUp, DollarSign, Settings } from 'lucide-react';
 
 const Analysis = () => {
   const { id } = useParams();
@@ -17,6 +19,8 @@ const Analysis = () => {
   const [progress, setProgress] = useState(0);
   const [processedShipments, setProcessedShipments] = useState<any[]>([]);
   const [carrierConfigs, setCarrierConfigs] = useState<any[]>([]);
+  const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
+  const [processingResults, setProcessingResults] = useState<any[]>([]);
 
   useEffect(() => {
     // Check if we have fresh data from navigation state first
@@ -54,6 +58,8 @@ const Analysis = () => {
       
       console.log('🚚 Loaded carrier configs:', data);
       setCarrierConfigs(data || []);
+      // Select all carriers by default
+      setSelectedCarriers((data || []).map(c => c.id));
     } catch (error: any) {
       console.error('Error loading carrier configs:', error);
       toast.error('Failed to load carrier configurations');
@@ -76,25 +82,26 @@ const Analysis = () => {
     }
   };
 
+  const handleCarrierSelection = (carrierId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedCarriers(prev => [...prev, carrierId]);
+    } else {
+      setSelectedCarriers(prev => prev.filter(id => id !== carrierId));
+    }
+  };
+
   const processMultiCarrierAnalysis = async () => {
-    if (!analysis) return;
+    if (!analysis || selectedCarriers.length === 0) {
+      toast.error('Please select at least one carrier account.');
+      return;
+    }
 
     setIsProcessing(true);
     setProgress(0);
+    setProcessingResults([]);
     setProcessingStep('Initializing multi-carrier analysis...');
 
     try {
-      // Get user's carrier configurations
-      const activeConfigs = carrierConfigs.filter(config => config.is_active);
-      
-      if (activeConfigs.length === 0) {
-        toast.error('No active carrier configurations found. Please configure at least one carrier account.');
-        setIsProcessing(false);
-        return;
-      }
-
-      console.log('🚛 Starting multi-carrier analysis with configs:', activeConfigs.map(c => c.id));
-
       const shipmentData = analysis.csvData || [];
       const processedShipments = [];
 
@@ -108,7 +115,7 @@ const Analysis = () => {
         setProcessingStep(`Processing shipment ${i + 1} of ${shipmentData.length}: ${shipment.trackingId || 'Unknown'}`);
 
         try {
-          // Call the multi-carrier quote function using direct fetch (the working method)
+          // Call the multi-carrier quote function
           const response = await fetch(`https://olehfhquezzfkdgilkut.supabase.co/functions/v1/multi-carrier-quote`, {
             method: 'POST',
             headers: {
@@ -116,19 +123,25 @@ const Analysis = () => {
               'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
             },
             body: JSON.stringify({
-              carrierConfigs: activeConfigs.map(c => c.id),
+              carrierConfigs: selectedCarriers,
               shipFromZip: shipment.originZip,
               shipToZip: shipment.destZip || shipment.destinationZip,
               weight: parseFloat(shipment.weight),
               length: parseFloat(shipment.length) || 12,
               width: parseFloat(shipment.width) || 12, 
               height: parseFloat(shipment.height) || 6,
-              serviceTypes: [shipment.serviceCode || '03']
+              serviceTypes: [shipment.serviceCode || '03'],
+              isResidential: shipment.isResidential || false
             })
           });
 
           if (!response.ok) {
             console.error('❌ HTTP error for shipment:', shipment.trackingId, response.status, response.statusText);
+            setProcessingResults(prev => [...prev, {
+              shipmentId: shipment.trackingId,
+              status: 'error',
+              message: `HTTP ${response.status}: ${response.statusText}`
+            }]);
             continue;
           }
 
@@ -193,8 +206,19 @@ const Analysis = () => {
 
           processedShipments.push(processedShipment);
 
+          setProcessingResults(prev => [...prev, {
+            shipmentId: shipment.trackingId,
+            status: 'success',
+            message: `Found ${allRates.length} rates, best: $${bestRatePrice.toFixed(2)}`
+          }]);
+
         } catch (error: any) {
           console.error('❌ Error processing shipment:', error);
+          setProcessingResults(prev => [...prev, {
+            shipmentId: shipment.trackingId,
+            status: 'error',
+            message: error.message
+          }]);
           // Continue processing other shipments
         }
       }
@@ -227,7 +251,7 @@ const Analysis = () => {
           status: 'completed',
           original_data: shipmentData,
           processed_shipments: processedShipments,
-          carrier_configs_used: activeConfigs.map(c => c.id),
+          carrier_configs_used: selectedCarriers,
           processing_metadata: {
             processedCount: processedShipments.length,
             totalCount: shipmentData.length,
@@ -262,6 +286,7 @@ const Analysis = () => {
     } catch (error: any) {
       console.error('❌ Analysis error:', error);
       toast.error(`Analysis failed: ${error.message}`);
+    } finally {
       setIsProcessing(false);
     }
   };
@@ -310,9 +335,9 @@ const Analysis = () => {
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <TrendingUp className="h-8 w-8 mx-auto mb-2 text-green-500" />
                 <div className="text-2xl font-bold">
-                  {carrierConfigs.length}
+                  {selectedCarriers.length}
                 </div>
-                <div className="text-sm text-muted-foreground">Active Carriers</div>
+                <div className="text-sm text-muted-foreground">Selected Carriers</div>
               </div>
 
               <div className="text-center p-4 bg-purple-50 rounded-lg">
@@ -326,10 +351,21 @@ const Analysis = () => {
           </CardContent>
         </Card>
 
-        {/* Carrier Configurations */}
+        {/* Carrier Selection */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Available Carrier Accounts</CardTitle>
+            <CardTitle className="flex items-center justify-between">
+              <span>Select Carrier Accounts</span>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => navigate('/settings')}
+                className="flex items-center gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                Manage Accounts
+              </Button>
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {carrierConfigs.length === 0 ? (
@@ -346,17 +382,22 @@ const Analysis = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {carrierConfigs.map((config) => (
-                  <div key={config.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <div className="font-medium">{config.account_name}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {config.carrier_type.toUpperCase()} • {config.account_group || 'Default Group'}
-                      </div>
+                  <div key={config.id} className="flex items-center space-x-3 p-4 border rounded-lg">
+                    <Checkbox
+                      id={config.id}
+                      checked={selectedCarriers.includes(config.id)}
+                      onCheckedChange={(checked) => handleCarrierSelection(config.id, checked as boolean)}
+                    />
+                    <div className="flex-1">
+                      <label htmlFor={config.id} className="cursor-pointer">
+                        <div className="font-medium">{config.account_name}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {config.carrier_type.toUpperCase()} • {config.account_group || 'Default Group'}
+                          {config.is_sandbox && ' • Sandbox'}
+                        </div>
+                      </label>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                      <span className="text-sm text-green-600">Active</span>
-                    </div>
+                    <CheckCircle className="h-4 w-4 text-green-500" />
                   </div>
                 ))}
               </div>
@@ -376,6 +417,18 @@ const Analysis = () => {
                     {Math.round(progress)}% Complete
                   </div>
                 </div>
+                
+                {processingResults.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {processingResults.slice(-5).map((result, index) => (
+                      <div key={index} className={`text-xs p-2 rounded ${
+                        result.status === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                      }`}>
+                        {result.shipmentId}: {result.message}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -387,7 +440,7 @@ const Analysis = () => {
             <Button 
               onClick={processMultiCarrierAnalysis}
               className="flex items-center gap-2"
-              disabled={carrierConfigs.length === 0}
+              disabled={carrierConfigs.length === 0 || selectedCarriers.length === 0}
             >
               <Play className="h-4 w-4" />
               Start Multi-Carrier Analysis

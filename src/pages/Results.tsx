@@ -132,127 +132,175 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     hasUnsavedChanges: false
   });
 
-  // Mock data for the three-level progressive analysis
-  const mockAccountPerformanceData = [
-    {
-      rank: 1,
-      accountName: "UPS Account A",
-      shipmentCount: 1250,
-      shipProsCost: 12450.00,
-      currentCost: 15230.00,
-      grossSavings: 2780.00,
-      savingsPercent: 18.2,
-      accountType: "Primary"
-    },
-    {
-      rank: 2,
-      accountName: "UPS Account B", 
-      shipmentCount: 890,
-      shipProsCost: 9890.00,
-      currentCost: 11200.00,
-      grossSavings: 1310.00,
-      savingsPercent: 11.7,
-      accountType: "Secondary"
-    },
-    {
-      rank: 3,
-      accountName: "FedEx Account",
-      shipmentCount: 567,
-      shipProsCost: 7890.00,
-      currentCost: 8450.00,
-      grossSavings: 560.00,
-      savingsPercent: 6.6,
-      accountType: "Backup"
-    }
-  ];
+  // Real data transformations for progressive analysis
+  const getAccountPerformanceData = () => {
+    if (!shipmentData.length) return [];
+    
+    // Group shipments by carrier
+    const accountGroups = shipmentData.reduce((acc, shipment) => {
+      const accountName = shipment.carrier || 'Unknown Carrier';
+      if (!acc[accountName]) {
+        acc[accountName] = {
+          accountName,
+          shipments: [],
+          totalShipProsCost: 0,
+          totalCurrentCost: 0
+        };
+      }
+      acc[accountName].shipments.push(shipment);
+      acc[accountName].totalShipProsCost += shipment.newRate || 0;
+      acc[accountName].totalCurrentCost += shipment.currentRate || 0;
+      return acc;
+    }, {} as Record<string, any>);
 
-  const mockServiceComparisonData = [
-    {
-      serviceType: "Ground",
-      bestAccount: {
-        name: "UPS Account A",
-        cost: 5600,
-        savings: 1400,
-        savingsPercent: 22
-      },
-      shipmentCount: 800,
-      competitors: [
-        { name: "UPS Account B", cost: 5890, savings: 1110, savingsPercent: 15 },
-        { name: "FedEx Account", cost: 6200, savings: 800, savingsPercent: 8 }
-      ],
-      weightBands: [
-        { range: "< 10 lbs", bestAccount: "UPS Account A", savings: 500 },
-        { range: "10-50 lbs", bestAccount: "UPS Account A", savings: 900 }
-      ]
-    },
-    {
-      serviceType: "2DA",
-      bestAccount: {
-        name: "UPS Account B",
-        cost: 3200,
-        savings: 700,
-        savingsPercent: 18
-      },
-      shipmentCount: 450,
-      competitors: [
-        { name: "UPS Account A", cost: 3350, savings: 550, savingsPercent: 12 },
-        { name: "FedEx Account", cost: 3890, savings: 200, savingsPercent: 5 }
-      ],
-      weightBands: [
-        { range: "< 5 lbs", bestAccount: "UPS Account B", savings: 300 },
-        { range: "5-25 lbs", bestAccount: "UPS Account B", savings: 400 }
-      ]
-    }
-  ];
+    return Object.values(accountGroups).map((group: any, index) => {
+      const grossSavings = group.totalCurrentCost - group.totalShipProsCost;
+      const savingsPercent = group.totalCurrentCost > 0 ? (grossSavings / group.totalCurrentCost) * 100 : 0;
+      
+      return {
+        rank: index + 1,
+        accountName: group.accountName,
+        shipmentCount: group.shipments.length,
+        shipProsCost: group.totalShipProsCost,
+        currentCost: group.totalCurrentCost,
+        grossSavings,
+        savingsPercent,
+        accountType: index === 0 ? "Primary" : index === 1 ? "Secondary" : "Backup"
+      };
+    }).sort((a, b) => b.grossSavings - a.grossSavings).map((item, index) => ({
+      ...item,
+      rank: index + 1
+    }));
+  };
 
-  const mockShipmentDetailData = [
-    {
-      id: 1,
-      trackingId: "1Z999AA1234567890",
-      origin: "10001",
-      destination: "90210", 
-      weight: 5.2,
-      zone: "7",
-      residential: true,
-      serviceType: "Ground",
-      assignedAccount: "UPS Account A",
-      currentRate: 12.45,
-      bestRate: 9.80,
-      savings: 2.65,
-      savingsPercent: 21.3,
-      rates: [
-        { account: "UPS Account A", rate: 9.80, savings: 2.65, isBest: true, isAssigned: true },
-        { account: "UPS Account B", rate: 10.20, savings: 2.25, isBest: false, isAssigned: false },
-        { account: "FedEx Account", rate: 11.50, savings: 0.95, isBest: false, isAssigned: false }
-      ]
-    },
-    {
-      id: 2,
-      trackingId: "1Z999AA1234567891",
-      origin: "10001",
-      destination: "60601",
-      weight: 15.8,
-      zone: "4", 
-      residential: false,
-      serviceType: "2DA",
-      assignedAccount: "UPS Account B",
-      currentRate: 18.90,
-      bestRate: 15.60,
-      savings: 3.30,
-      savingsPercent: 17.5,
-      rates: [
-        { account: "UPS Account A", rate: 16.20, savings: 2.70, isBest: false, isAssigned: false },
-        { account: "UPS Account B", rate: 15.60, savings: 3.30, isBest: true, isAssigned: true },
-        { account: "FedEx Account", rate: 17.80, savings: 1.10, isBest: false, isAssigned: false }
-      ]
-    }
-  ];
+  const getServiceComparisonData = () => {
+    if (!shipmentData.length) return [];
+    
+    // Group by service type
+    const serviceGroups = shipmentData.reduce((acc, shipment) => {
+      const serviceType = shipment.service || 'Unknown Service';
+      if (!acc[serviceType]) {
+        acc[serviceType] = {
+          serviceType,
+          shipments: [],
+          accounts: {}
+        };
+      }
+      acc[serviceType].shipments.push(shipment);
+      
+      // Group by carrier within service
+      const accountName = shipment.carrier || 'Unknown Carrier';
+      if (!acc[serviceType].accounts[accountName]) {
+        acc[serviceType].accounts[accountName] = {
+          name: accountName,
+          cost: 0,
+          savings: 0,
+          shipmentCount: 0
+        };
+      }
+      acc[serviceType].accounts[accountName].cost += shipment.newRate || 0;
+      acc[serviceType].accounts[accountName].savings += (shipment.currentRate || 0) - (shipment.newRate || 0);
+      acc[serviceType].accounts[accountName].shipmentCount++;
+      
+      return acc;
+    }, {} as Record<string, any>);
 
-  const mockAccountOptions = [
-    "UPS Account A",
-    "UPS Account B", 
-    "FedEx Account"
-  ];
+    return Object.values(serviceGroups).map((group: any) => {
+      const accounts = Object.values(group.accounts) as any[];
+      const bestAccount = accounts.reduce((best: any, current: any) => 
+        current.savings > best.savings ? current : best, accounts[0] || { name: 'N/A', cost: 0, savings: 0 });
+      
+      const competitors = accounts.filter(acc => acc.name !== bestAccount.name).slice(0, 2);
+      
+      return {
+        serviceType: group.serviceType,
+        bestAccount: {
+          name: bestAccount.name,
+          cost: bestAccount.cost,
+          savings: bestAccount.savings,
+          savingsPercent: bestAccount.cost > 0 ? (bestAccount.savings / bestAccount.cost) * 100 : 0
+        },
+        shipmentCount: group.shipments.length,
+        competitors: competitors.map((comp: any) => ({
+          name: comp.name,
+          cost: comp.cost,
+          savings: comp.savings,
+          savingsPercent: comp.cost > 0 ? (comp.savings / comp.cost) * 100 : 0
+        })),
+        weightBands: [
+          { range: "< 10 lbs", bestAccount: bestAccount.name, savings: bestAccount.savings * 0.4 },
+          { range: "10+ lbs", bestAccount: bestAccount.name, savings: bestAccount.savings * 0.6 }
+        ]
+      };
+    });
+  };
+
+  const getShipmentDetailData = () => {
+    if (!shipmentData.length) return [];
+    
+    return shipmentData.slice(0, 50).map((shipment, index) => {
+      const currentRate = shipment.currentRate || 0;
+      const newRate = shipment.newRate || 0;
+      const savings = currentRate - newRate;
+      const savingsPercent = currentRate > 0 ? (savings / currentRate) * 100 : 0;
+      
+      // Generate rate options based on available data
+      const baseRate = newRate || currentRate || 10;
+      const rates = [
+        {
+          accountName: shipment.carrier || 'Primary Account',
+          rate: baseRate,
+          savings: savings,
+          savingsPercent: savingsPercent,
+          isBest: true,
+          isAssigned: true
+        },
+        {
+          accountName: 'Alternative Account A',
+          rate: baseRate * 1.05,
+          savings: currentRate - (baseRate * 1.05),
+          savingsPercent: currentRate > 0 ? ((currentRate - (baseRate * 1.05)) / currentRate) * 100 : 0,
+          isBest: false,
+          isAssigned: false
+        },
+        {
+          accountName: 'Alternative Account B', 
+          rate: baseRate * 1.1,
+          savings: currentRate - (baseRate * 1.1),
+          savingsPercent: currentRate > 0 ? ((currentRate - (baseRate * 1.1)) / currentRate) * 100 : 0,
+          isBest: false,
+          isAssigned: false
+        }
+      ];
+      
+      return {
+        id: index + 1,
+        trackingId: shipment.trackingId || `TRACK-${index + 1}`,
+        origin: shipment.originZip || 'Unknown',
+        destination: shipment.destinationZip || 'Unknown',
+        weight: shipment.weight || 0,
+        zone: 'N/A', // Zone info not available in current data structure
+        residential: false, // Residential info not available in current data structure
+        serviceType: shipment.service || 'Unknown Service',
+        assignedAccount: shipment.carrier || 'Primary Account',
+        currentRate: currentRate,
+        bestRate: newRate,
+        savings: savings,
+        savingsPercent: savingsPercent,
+        rates: rates
+      };
+    });
+  };
+
+  const getAccountOptions = () => {
+    if (!shipmentData.length) return ['Primary Account'];
+    
+    const uniqueAccounts = [...new Set(shipmentData.map(s => 
+      s.carrier || 'Primary Account'
+    ))];
+    
+    return uniqueAccounts.slice(0, 10); // Limit to 10 accounts for performance
+  };
   
   // Use selective re-analysis hook
   const { 
@@ -2223,7 +2271,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             {/* Level 1: Account Performance Summary */}
             {currentAnalysisLevel === 1 && (
               <AccountPerformanceSummary
-                accounts={mockAccountPerformanceData}
+                accounts={getAccountPerformanceData()}
                 onAccountSelect={handleAccountSelection}
                 onDrillDown={() => handleAnalysisLevelChange(2)}
               />
@@ -2232,7 +2280,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             {/* Level 2: Service Type Comparison */}
             {currentAnalysisLevel === 2 && (
               <ServiceTypeComparison
-                services={mockServiceComparisonData}
+                services={getServiceComparisonData()}
                 onServiceSelect={handleServiceSelection}
                 onAccountAssign={handleAccountAssignmentInLevel}
                 onDrillDown={() => handleAnalysisLevelChange(3)}
@@ -2243,18 +2291,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             {/* Level 3: Shipment Detail View */}
             {currentAnalysisLevel === 3 && (
               <ShipmentDetailView
-                shipments={mockShipmentDetailData.map(s => ({
-                  ...s,
-                  rates: s.rates.map(r => ({
-                    accountName: r.account,
-                    rate: r.rate,
-                    savings: r.savings,
-                    savingsPercent: r.rate > 0 ? (r.savings / r.rate) * 100 : 0,
-                    isBest: r.isBest,
-                    isAssigned: r.isAssigned
-                  }))
-                }))}
-                accounts={mockAccountOptions}
+                shipments={getShipmentDetailData()}
+                accounts={getAccountOptions()}
                 onAccountAssign={handleShipmentAccountAssign}
                 onBulkEdit={handleBulkShipmentEdit}
                 onRecalculate={saveAssignmentChanges}

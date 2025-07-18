@@ -487,48 +487,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     setHasUnsavedChanges(true);
   };
 
-  // Generate service type assignments for account comparison
-  const generateServiceAssignments = () => {
-    if (!analysisData || !shipmentData.length) return [];
-
-    const serviceTypes = [...new Set(shipmentData.map(s => s.service).filter(Boolean))];
-    
-    return serviceTypes.map(serviceType => {
-      const serviceShipments = shipmentData.filter(s => s.service === serviceType);
-      const totalShipProsCost = serviceShipments.reduce((sum, s) => sum + (s.newRate || 0), 0);
-      const totalCurrentCost = serviceShipments.reduce((sum, s) => sum + (s.currentRate || 0), 0);
-      const estimatedSavings = totalCurrentCost - totalShipProsCost;
-      const savingsPercent = totalCurrentCost > 0 ? (estimatedSavings / totalCurrentCost) * 100 : 0;
-      
-      // Mock best alternative cost - in real implementation this would come from multi-account analysis
-      const bestAltCost = totalShipProsCost * 0.95; // Assume 5% better alternative exists
-      
-      return {
-        serviceType,
-        assignedAccount: serviceAssignments[serviceType] || 'Ship Pros Account',
-        shipProsCost: totalShipProsCost,
-        bestAltCost,
-        estimatedSavings,
-        savingsPercent,
-        shipmentCount: serviceShipments.length,
-        accounts: [
-          {
-            accountName: 'Ship Pros Account',
-            totalCost: totalShipProsCost,
-            avgRate: totalShipProsCost / serviceShipments.length,
-            coverage: 100
-          },
-          {
-            accountName: 'UPS Account A',
-            totalCost: bestAltCost,
-            avgRate: bestAltCost / serviceShipments.length,
-            coverage: 95
-          }
-        ]
-      };
-    });
-  };
-
   // Handle account assignment changes
   const handleAccountAssignment = (serviceType: string, newAccount: string) => {
     setServiceAssignments(prev => ({
@@ -672,133 +630,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     // Trigger recalculation based on current assignments
     // This would normally call the UPS API with new assignments
     toast.success('Totals recalculated based on current assignments');
-  };
-
-  // Generate mock data for the three levels
-  const generateAccountPerformanceData = () => {
-    if (!shipmentData.length) return [];
-
-    const accounts = [
-      'Ship Pros Account',
-      'UPS Account A', 
-      'UPS Account B',
-      'FedEx Account',
-      'DHL Account'
-    ];
-
-    return accounts.map((accountName, index) => {
-      const shipmentCount = Math.floor(shipmentData.length * (0.8 - index * 0.15));
-      const shipProsCost = shipmentData.reduce((sum, s) => sum + (s.newRate || 0), 0) * (0.9 + index * 0.05);
-      const currentCost = shipmentData.reduce((sum, s) => sum + s.currentRate, 0);
-      const grossSavings = currentCost - shipProsCost;
-      const savingsPercent = currentCost > 0 ? (grossSavings / currentCost) * 100 : 0;
-
-      return {
-        rank: index + 1,
-        accountName,
-        shipmentCount,
-        shipProsCost,
-        currentCost,
-        grossSavings,
-        savingsPercent,
-        accountType: accountName.includes('UPS') ? 'UPS' : accountName.includes('FedEx') ? 'FedEx' : accountName.includes('DHL') ? 'DHL' : 'Ship Pros'
-      };
-    });
-  };
-
-  const generateServiceComparisonData = () => {
-    const services = [...new Set(shipmentData.map(s => s.service).filter(Boolean))];
-    
-    return services.map(serviceType => {
-      const serviceShipments = shipmentData.filter(s => s.service === serviceType);
-      const totalShipProsCost = serviceShipments.reduce((sum, s) => sum + (s.newRate || 0), 0);
-      const totalCurrentCost = serviceShipments.reduce((sum, s) => sum + s.currentRate, 0);
-      const savings = totalCurrentCost - totalShipProsCost;
-      const savingsPercent = totalCurrentCost > 0 ? (savings / totalCurrentCost) * 100 : 0;
-
-      return {
-        serviceType,
-        bestAccount: {
-          name: 'Ship Pros Account',
-          cost: totalShipProsCost,
-          savings,
-          savingsPercent
-        },
-        shipmentCount: serviceShipments.length,
-        competitors: [
-          {
-            name: 'UPS Account A',
-            cost: totalShipProsCost * 1.05,
-            savings: savings * 0.8,
-            savingsPercent: savingsPercent * 0.8
-          },
-          {
-            name: 'UPS Account B', 
-            cost: totalShipProsCost * 1.1,
-            savings: savings * 0.6,
-            savingsPercent: savingsPercent * 0.6
-          }
-        ],
-        weightBands: [
-          {
-            range: 'Under 10 lbs',
-            bestAccount: 'Ship Pros Account',
-            savings: savings * 0.4
-          },
-          {
-            range: '10-50 lbs',
-            bestAccount: 'UPS Account A',
-            savings: savings * 0.3
-          },
-          {
-            range: 'Over 50 lbs',
-            bestAccount: 'Ship Pros Account',
-            savings: savings * 0.3
-          }
-        ]
-      };
-    });
-  };
-
-  const generateShipmentDetailData = () => {
-    return shipmentData.map(shipment => ({
-      id: shipment.id,
-      trackingId: shipment.trackingId,
-      origin: shipment.originZip,
-      destination: shipment.destinationZip,
-      weight: shipment.weight,
-      zone: '3', // Mock zone
-      residential: (shipment as any).isResidential === 'true' || (shipment as any).isResidential === true,
-      serviceType: shipment.service,
-      assignedAccount: 'Ship Pros Account',
-      currentRate: shipment.currentRate,
-      rates: [
-        {
-          accountName: 'Ship Pros Account',
-          rate: shipment.newRate || 0,
-          savings: shipment.currentRate - (shipment.newRate || 0),
-          savingsPercent: shipment.currentRate > 0 ? ((shipment.currentRate - (shipment.newRate || 0)) / shipment.currentRate) * 100 : 0,
-          isBest: true,
-          isAssigned: true
-        },
-        {
-          accountName: 'UPS Account A',
-          rate: (shipment.newRate || 0) * 1.05,
-          savings: shipment.currentRate - ((shipment.newRate || 0) * 1.05),
-          savingsPercent: shipment.currentRate > 0 ? ((shipment.currentRate - ((shipment.newRate || 0) * 1.05)) / shipment.currentRate) * 100 : 0,
-          isBest: false,
-          isAssigned: false
-        },
-        {
-          accountName: 'UPS Account B',
-          rate: (shipment.newRate || 0) * 0.95,
-          savings: shipment.currentRate - ((shipment.newRate || 0) * 0.95),
-          savingsPercent: shipment.currentRate > 0 ? ((shipment.currentRate - ((shipment.newRate || 0) * 0.95)) / shipment.currentRate) * 100 : 0,
-          isBest: false,
-          isAssigned: false
-        }
-      ]
-    }));
   };
 
   // Save or update service note
@@ -2366,8 +2197,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
             {/* Account Comparison Panel */}
             <AccountComparisonPanel
-              serviceAssignments={generateServiceAssignments()}
-              availableAccounts={['Ship Pros Account', 'UPS Account A', 'UPS Account B']}
+              serviceAssignments={[]}
+              availableAccounts={getAccountOptions()}
               onAssignmentChange={handleAccountAssignment}
               onViewDetails={handleViewServiceDetails}
             />

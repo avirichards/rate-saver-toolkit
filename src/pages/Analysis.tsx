@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
-import { ProgressIndicator } from '@/components/ui-lov/ProgressIndicator';
+import { Progress } from '@/components/ui/progress';
 import { Play, Clock, CheckCircle, AlertCircle } from 'lucide-react';
 
 const Analysis = () => {
@@ -324,11 +324,10 @@ const Analysis = () => {
             {/* Processing Section */}
             {isProcessing && (
               <div className="space-y-4">
-                <ProgressIndicator 
-                  progress={progress} 
-                  message={processingStep}
-                  isProcessing={isProcessing}
-                />
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">{processingStep}</div>
+                  <Progress value={progress} className="w-full" />
+                </div>
               </div>
             )}
 

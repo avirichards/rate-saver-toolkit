@@ -530,6 +530,7 @@ export type Database = {
       }
       shipping_analyses: {
         Row: {
+          account_assignments: Json | null
           analysis_date: string
           base_data: Json | null
           carrier_configs_used: Json | null
@@ -539,6 +540,7 @@ export type Database = {
           csv_upload_id: string | null
           deleted_at: string | null
           file_name: string
+          global_assignment: Json | null
           id: string
           is_deleted: boolean | null
           markup_data: Json | null
@@ -552,6 +554,7 @@ export type Database = {
           report_status: string | null
           sales_rep_id: string | null
           savings_analysis: Json | null
+          service_assignments: Json | null
           status: string
           total_savings: number | null
           total_shipments: number
@@ -560,6 +563,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_assignments?: Json | null
           analysis_date?: string
           base_data?: Json | null
           carrier_configs_used?: Json | null
@@ -569,6 +573,7 @@ export type Database = {
           csv_upload_id?: string | null
           deleted_at?: string | null
           file_name: string
+          global_assignment?: Json | null
           id?: string
           is_deleted?: boolean | null
           markup_data?: Json | null
@@ -582,6 +587,7 @@ export type Database = {
           report_status?: string | null
           sales_rep_id?: string | null
           savings_analysis?: Json | null
+          service_assignments?: Json | null
           status?: string
           total_savings?: number | null
           total_shipments?: number
@@ -590,6 +596,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_assignments?: Json | null
           analysis_date?: string
           base_data?: Json | null
           carrier_configs_used?: Json | null
@@ -599,6 +606,7 @@ export type Database = {
           csv_upload_id?: string | null
           deleted_at?: string | null
           file_name?: string
+          global_assignment?: Json | null
           id?: string
           is_deleted?: boolean | null
           markup_data?: Json | null
@@ -612,6 +620,7 @@ export type Database = {
           report_status?: string | null
           sales_rep_id?: string | null
           savings_analysis?: Json | null
+          service_assignments?: Json | null
           status?: string
           total_savings?: number | null
           total_shipments?: number

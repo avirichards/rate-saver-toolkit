@@ -243,6 +243,78 @@ export const handleDataProcessingError = (error: any, context: string): void => 
   }
 };
 
+// Extract account data from analysis results
+export const extractAccountData = (analysisData: any) => {
+  const processedShipments = analysisData.processed_shipments || [];
+  const accountMap = new Map<string, any>();
+  
+  processedShipments.forEach((shipment: any) => {
+    // Try to extract account information from various possible structures
+    const accounts = shipment.accounts || shipment.rates || shipment.carrierRates || [];
+    
+    accounts.forEach((account: any) => {
+      const accountKey = `${account.carrier || account.carrierType}-${account.accountName || account.name}`;
+      
+      if (!accountMap.has(accountKey)) {
+        accountMap.set(accountKey, {
+          carrierId: account.carrierId || account.id || accountKey,
+          accountName: account.accountName || account.name || 'Unknown',
+          carrierType: account.carrier || account.carrierType || 'Unknown',
+          displayName: `${account.carrier || account.carrierType} – ${account.accountName || account.name}`
+        });
+      }
+    });
+  });
+  
+  return Array.from(accountMap.values());
+};
+
+// Calculate account performance metrics
+export const calculateAccountPerformance = (shipmentData: any[], markupFunction?: (shipment: any) => any) => {
+  const performanceMap = new Map<string, any>();
+  
+  shipmentData.forEach(shipment => {
+    const accounts = shipment.accounts || shipment.rates || [];
+    
+    accounts.forEach((account: any) => {
+      const accountKey = `${account.carrier}-${account.accountName}`;
+      const rate = account.rate || account.cost || 0;
+      const markedUpRate = markupFunction ? markupFunction({ ...shipment, newRate: rate }).markedUpPrice : rate;
+      const savings = shipment.currentRate - markedUpRate;
+      
+      if (!performanceMap.has(accountKey)) {
+        performanceMap.set(accountKey, {
+          account: {
+            carrierId: account.carrierId || account.id,
+            accountName: account.accountName || account.name,
+            carrierType: account.carrier || account.carrierType,
+            displayName: `${account.carrier || account.carrierType} – ${account.accountName || account.name}`
+          },
+          shipmentCount: 0,
+          totalSavings: 0,
+          totalCost: 0,
+          rates: []
+        });
+      }
+      
+      const performance = performanceMap.get(accountKey)!;
+      performance.shipmentCount++;
+      performance.totalSavings += savings;
+      performance.totalCost += markedUpRate;
+      performance.rates.push({ shipmentId: shipment.id, rate: markedUpRate, savings });
+    });
+  });
+  
+  return Array.from(performanceMap.values())
+    .map((perf, index) => ({
+      ...perf,
+      rank: index + 1,
+      savingsPercentage: perf.totalCost > 0 ? (perf.totalSavings / (perf.totalCost + perf.totalSavings)) * 100 : 0
+    }))
+    .sort((a, b) => b.totalSavings - a.totalSavings)
+    .map((perf, index) => ({ ...perf, rank: index + 1 }));
+};
+
 // Generate CSV export data with markup
 export const generateExportData = (filteredData: any[], getShipmentMarkup: (shipment: any) => any) => {
   return filteredData.map(item => {

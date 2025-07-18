@@ -4,6 +4,7 @@ import { useLocation, useParams, useSearchParams, Link } from 'react-router-dom'
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ClientLayout } from '@/components/layout/ClientLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AccountReviewTab } from '@/components/ui-lov/AccountReviewTab';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
@@ -1716,8 +1717,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         )}
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue="account-review" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="account-review" className="flex items-center gap-2">
+              <TruckIcon className="h-4 w-4" />
+              Account Review
+            </TabsTrigger>
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart className="h-4 w-4" />
               Overview
@@ -1731,6 +1736,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               Orphaned Data ({orphanedData.length})
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="account-review" className="space-y-6">
+            <AccountReviewTab 
+              shipmentData={shipmentData}
+              markupFunction={getShipmentMarkup}
+            />
+          </TabsContent>
 
           <TabsContent value="overview" className="space-y-6">
 

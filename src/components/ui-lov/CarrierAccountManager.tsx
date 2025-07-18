@@ -20,7 +20,7 @@ interface CarrierConfig {
   enabled_services: string[];
   is_active: boolean;
   is_sandbox: boolean;
-  connection_status?: 'connected' | 'error' | 'unknown';
+  connection_status?: string;
   last_test_at?: string;
   ups_client_id?: string;
   ups_client_secret?: string;
@@ -210,6 +210,7 @@ export const CarrierAccountManager = () => {
         account_group: newAccount.account_group || null,
         enabled_services: newAccount.enabled_services,
         is_sandbox: newAccount.is_sandbox,
+        connection_status: 'unknown',
         ups_client_id: newAccount.carrier_type === 'ups' ? newAccount.ups_client_id : null,
         ups_client_secret: newAccount.carrier_type === 'ups' ? newAccount.ups_client_secret : null,
         ups_account_number: newAccount.carrier_type === 'ups' ? newAccount.ups_account_number : null,
@@ -244,7 +245,7 @@ export const CarrierAccountManager = () => {
     }
   };
 
-  const updateAccount = async (account: CarrierConfig) => {
+const updateAccount = async (account: CarrierConfig) => {
     try {
       const { error } = await supabase
         .from('carrier_configs')
@@ -265,7 +266,9 @@ export const CarrierAccountManager = () => {
           dhl_site_id: account.dhl_site_id,
           dhl_password: account.dhl_password,
           usps_user_id: account.usps_user_id,
-          usps_password: account.usps_password
+          usps_password: account.usps_password,
+          connection_status: account.connection_status,
+          last_test_at: account.last_test_at
         })
         .eq('id', account.id);
 
@@ -303,22 +306,35 @@ export const CarrierAccountManager = () => {
     setTestingAccount(config.id);
     try {
       if (config.carrier_type === 'ups') {
-        // Test UPS connection using existing edge function
+        // Test UPS connection using the specific config ID
         const { data, error } = await supabase.functions.invoke('ups-auth', {
-          body: { action: 'get_token' }
+          body: { action: 'get_token', config_id: config.id }
         });
 
         if (error || !data.access_token) {
-          throw new Error('Failed to authenticate with UPS');
+          // Update config to mark as error
+          await supabase
+            .from('carrier_configs')
+            .update({ 
+              connection_status: 'error',
+              last_test_at: new Date().toISOString() 
+            })
+            .eq('id', config.id);
+            
+          loadCarrierConfigs();
+          throw new Error(error?.message || 'Failed to authenticate with UPS');
         }
-        toast.success(`${config.account_name} connection successful!`);
         
-        // Update config to mark as working
+        // Update config to mark as connected
         await supabase
           .from('carrier_configs')
-          .update({ updated_at: new Date().toISOString() })
+          .update({ 
+            connection_status: 'connected',
+            last_test_at: new Date().toISOString() 
+          })
           .eq('id', config.id);
           
+        toast.success(`${config.account_name} connection successful!`);
         loadCarrierConfigs();
       } else {
         // For other carriers, we'll implement testing later
@@ -327,6 +343,16 @@ export const CarrierAccountManager = () => {
     } catch (error: any) {
       console.error('Error testing connection:', error);
       toast.error(`${config.account_name} connection failed: ${error.message}`);
+      
+      // Update config to mark as error if not already done
+      await supabase
+        .from('carrier_configs')
+        .update({ 
+          connection_status: 'error',
+          last_test_at: new Date().toISOString() 
+        })
+        .eq('id', config.id);
+        
       loadCarrierConfigs();
     } finally {
       setTestingAccount(null);

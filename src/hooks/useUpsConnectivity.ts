@@ -10,7 +10,7 @@ export interface UpsTestResult {
 export function useUpsConnectivity() {
   const [testing, setTesting] = useState(false);
 
-  const testUpsConnection = useCallback(async (): Promise<UpsTestResult> => {
+  const testUpsConnection = useCallback(async (configId?: string): Promise<UpsTestResult> => {
     setTesting(true);
     
     try {
@@ -22,25 +22,43 @@ export function useUpsConnectivity() {
         return { success: false, message: 'User not authenticated' };
       }
 
-      const { data: config, error: configError } = await supabase
+      // Build query to get UPS configuration
+      let query = supabase
         .from('carrier_configs')
         .select('*')
         .eq('user_id', user.id)
         .eq('carrier_type', 'ups')
-        .eq('is_active', true)
-        .single();
+        .eq('is_active', true);
 
-      if (configError || !config) {
+      // If configId is provided, use specific config
+      if (configId) {
+        query = query.eq('id', configId);
+      }
+      
+      const { data: config, error: configError } = await query.maybeSingle();
+
+      if (configError) {
+        console.error('Error fetching UPS config:', configError);
         return { 
           success: false, 
-          message: 'UPS configuration not found. Please set up UPS carrier account in Settings.',
+          message: 'Error fetching UPS configuration',
           details: configError 
+        };
+      }
+
+      if (!config) {
+        return { 
+          success: false, 
+          message: configId 
+            ? `UPS configuration not found for ID: ${configId}` 
+            : 'UPS configuration not found. Please set up UPS carrier account in Settings.',
+          details: { configId }
         };
       }
 
       // Test 2: Check UPS authentication
       const { data: authData, error: authError } = await supabase.functions.invoke('ups-auth', {
-        body: { action: 'get_token' }
+        body: { action: 'get_token', config_id: configId || config.id }
       });
 
       if (authError || !authData?.access_token) {
@@ -81,7 +99,10 @@ export function useUpsConnectivity() {
       };
 
       const { data: rateData, error: rateError } = await supabase.functions.invoke('ups-rate-quote', {
-        body: { shipment: testShipment }
+        body: { 
+          shipment: testShipment,
+          configId: configId || config.id
+        }
       });
 
       if (rateError) {

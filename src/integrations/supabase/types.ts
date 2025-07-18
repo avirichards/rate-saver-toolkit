@@ -19,6 +19,7 @@ export type Database = {
           account_group: string | null
           account_name: string
           carrier_type: string
+          connection_status: string | null
           created_at: string
           dhl_account_number: string | null
           dhl_password: string | null
@@ -31,6 +32,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_sandbox: boolean
+          last_test_at: string | null
           updated_at: string
           ups_account_number: string | null
           ups_client_id: string | null
@@ -43,6 +45,7 @@ export type Database = {
           account_group?: string | null
           account_name: string
           carrier_type: string
+          connection_status?: string | null
           created_at?: string
           dhl_account_number?: string | null
           dhl_password?: string | null
@@ -55,6 +58,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_sandbox?: boolean
+          last_test_at?: string | null
           updated_at?: string
           ups_account_number?: string | null
           ups_client_id?: string | null
@@ -67,6 +71,7 @@ export type Database = {
           account_group?: string | null
           account_name?: string
           carrier_type?: string
+          connection_status?: string | null
           created_at?: string
           dhl_account_number?: string | null
           dhl_password?: string | null
@@ -79,6 +84,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_sandbox?: boolean
+          last_test_at?: string | null
           updated_at?: string
           ups_account_number?: string | null
           ups_client_id?: string | null

@@ -1,77 +1,22 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
 import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { 
-  Play, 
-  Pause, 
-  Square, 
-  RotateCcw, 
-  Package, 
-  DollarSign, 
-  TrendingUp, 
-  CheckCircle, 
-  XCircle, 
-  AlertTriangle,
-  Eye,
-  Clock
-} from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { formatCurrency } from '@/lib/utils';
-
-interface ProcessingStats {
-  totalShipments: number;
-  validShipments: number;
-  analyzedShipments: number;
-  invalidShipments: number;
-  withWarnings: number;
-  currentCost: number;
-  potentialSavings: number;
-}
-
-interface LiveResult {
-  id: string;
-  trackingId: string;
-  service: string;
-  weight: number;
-  dimensions: string;
-  currentRate: number;
-  newRate: number;
-  savings: number;
-  status: 'processing' | 'completed' | 'error';
-  carrierResults?: any[];
-}
+import { Play, Clock, CheckCircle, AlertCircle, Package, TrendingUp, DollarSign } from 'lucide-react';
 
 const Analysis = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const [analysisData, setAnalysisData] = useState<any>(null);
-  const [availableCarriers, setAvailableCarriers] = useState<any[]>([]);
-  const [selectedCarrierConfigs, setSelectedCarrierConfigs] = useState<string[]>([]);
+  const [analysis, setAnalysis] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [currentShipmentIndex, setCurrentShipmentIndex] = useState(0);
-  const [processingStats, setProcessingStats] = useState<ProcessingStats>({
-    totalShipments: 0,
-    validShipments: 0,
-    analyzedShipments: 0,
-    invalidShipments: 0,
-    withWarnings: 0,
-    currentCost: 0,
-    potentialSavings: 0
-  });
-  const [liveResults, setLiveResults] = useState<LiveResult[]>([]);
-  const [validationResults, setValidationResults] = useState<any[]>([]);
-  const processingRef = useRef<boolean>(false);
-
-  useEffect(() => {
-    loadCarrierConfigs();
-  }, []);
+  const [processingStep, setProcessingStep] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [processedShipments, setProcessedShipments] = useState<any[]>([]);
+  const [carrierConfigs, setCarrierConfigs] = useState<any[]>([]);
 
   useEffect(() => {
     // Check if we have fresh data from navigation state first
@@ -79,73 +24,24 @@ const Analysis = () => {
     if (state && state.readyForAnalysis) {
       console.log('📊 Analysis page - Received fresh data from service mapping:', state);
       
-      // Process and validate the shipment data
-      const shipmentData = state.csvData || [];
-      const validationResults = validateShipmentData(shipmentData);
-      
-      setAnalysisData({
+      setAnalysis({
         id: 'new-analysis',
-        status: 'ready',
+        status: 'processing',
         csvUploadId: state.csvUploadId,
         fileName: state.fileName,
         mappings: state.mappings,
         serviceMappings: state.serviceMappings,
-        csvData: shipmentData,
+        csvData: state.csvData,
         rowCount: state.rowCount,
         originZipOverride: state.originZipOverride,
         uploadTimestamp: state.uploadTimestamp
       });
-
-      setValidationResults(validationResults);
-      
-      // Calculate initial stats
-      const validShipments = validationResults.filter(r => r.isValid);
-      const invalidShipments = validationResults.filter(r => !r.isValid);
-      const withWarnings = validationResults.filter(r => r.warnings?.length > 0);
-      const currentCost = validShipments.reduce((sum, ship) => sum + (parseFloat(ship.currentRate) || 0), 0);
-      
-      setProcessingStats({
-        totalShipments: shipmentData.length,
-        validShipments: validShipments.length,
-        analyzedShipments: 0,
-        invalidShipments: invalidShipments.length,
-        withWarnings: withWarnings.length,
-        currentCost: currentCost,
-        potentialSavings: 0
-      });
-      
     } else if (id) {
-      // Fallback to loading existing analysis from database
       loadAnalysis();
     }
+    
+    loadCarrierConfigs();
   }, [id, location.state]);
-
-  const validateShipmentData = (shipmentData: any[]) => {
-    return shipmentData.map((shipment, index) => {
-      const warnings = [];
-      const errors = [];
-      
-      // Required field validation
-      if (!shipment.trackingId) errors.push('Missing tracking ID');
-      if (!shipment.originZip) errors.push('Missing origin ZIP');
-      if (!shipment.destZip) errors.push('Missing destination ZIP');
-      if (!shipment.weight || parseFloat(shipment.weight) <= 0) errors.push('Invalid weight');
-      if (!shipment.service) errors.push('Missing service type');
-      
-      // Warnings for potential issues
-      if (parseFloat(shipment.weight) > 150) warnings.push('Heavy package - verify weight');
-      if (!shipment.currentRate) warnings.push('Missing current rate');
-      
-      return {
-        id: index + 1,
-        trackingId: shipment.trackingId || `SHIP-${String(index + 1).padStart(4, '0')}`,
-        isValid: errors.length === 0,
-        errors,
-        warnings,
-        ...shipment
-      };
-    });
-  };
 
   const loadCarrierConfigs = async () => {
     try {
@@ -155,9 +51,12 @@ const Analysis = () => {
         .eq('is_active', true);
 
       if (error) throw error;
-      setAvailableCarriers(data || []);
-    } catch (error) {
+      
+      console.log('🚚 Loaded carrier configs:', data);
+      setCarrierConfigs(data || []);
+    } catch (error: any) {
       console.error('Error loading carrier configs:', error);
+      toast.error('Failed to load carrier configurations');
     }
   };
 
@@ -170,167 +69,197 @@ const Analysis = () => {
         .single();
 
       if (error) throw error;
-      setAnalysisData(data);
+      setAnalysis(data);
     } catch (error: any) {
       console.error('Error loading analysis:', error);
       toast.error('Failed to load analysis');
     }
   };
 
-  const startAnalysis = async () => {
-    if (!analysisData || selectedCarrierConfigs.length === 0) {
-      toast.error('Please select at least one carrier configuration');
-      return;
-    }
+  const processMultiCarrierAnalysis = async () => {
+    if (!analysis) return;
 
     setIsProcessing(true);
-    setIsPaused(false);
-    processingRef.current = true;
-    
-    const validShipments = validationResults.filter(r => r.isValid);
-    
+    setProgress(0);
+    setProcessingStep('Initializing multi-carrier analysis...');
+
     try {
-      // Process shipments one by one
-      for (let i = 0; i < validShipments.length; i++) {
-        if (!processingRef.current || isPaused) break;
+      // Get user's carrier configurations
+      const activeConfigs = carrierConfigs.filter(config => config.is_active);
+      
+      if (activeConfigs.length === 0) {
+        toast.error('No active carrier configurations found. Please configure at least one carrier account.');
+        setIsProcessing(false);
+        return;
+      }
+
+      console.log('🚛 Starting multi-carrier analysis with configs:', activeConfigs.map(c => c.id));
+
+      const shipmentData = analysis.csvData || [];
+      const processedShipments = [];
+
+      setProcessingStep('Processing shipments...');
+
+      // Process each shipment
+      for (let i = 0; i < shipmentData.length; i++) {
+        const shipment = shipmentData[i];
         
-        setCurrentShipmentIndex(i + 1);
-        
-        const shipment = validShipments[i];
-        
-        // Add to live results as processing
-        const liveResult: LiveResult = {
-          id: shipment.id,
-          trackingId: shipment.trackingId,
-          service: shipment.service,
-          weight: parseFloat(shipment.weight),
-          dimensions: `${shipment.length || 0}" x ${shipment.width || 0}" x ${shipment.height || 0}"`,
-          currentRate: parseFloat(shipment.currentRate) || 0,
-          newRate: 0,
-          savings: 0,
-          status: 'processing'
-        };
-        
-        setLiveResults(prev => [liveResult, ...prev]);
-        
+        setProgress(((i + 1) / shipmentData.length) * 100);
+        setProcessingStep(`Processing shipment ${i + 1} of ${shipmentData.length}: ${shipment.trackingId || 'Unknown'}`);
+
         try {
-          // Call multi-carrier quote API
-          const response = await fetch(`https://olehfhquezzfkdgilkut.supabase.co/functions/v1/multi-carrier-quote`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
-            },
-            body: JSON.stringify({
-              carrierConfigs: selectedCarrierConfigs,
+          // Call the multi-carrier quote function
+          const { data: multiCarrierResult, error: quoteError } = await supabase.functions.invoke('multi-carrier-quote', {
+            body: {
+              carrierConfigs: activeConfigs.map(c => c.id),
               shipFromZip: shipment.originZip,
-              shipToZip: shipment.destZip,
+              shipToZip: shipment.destZip || shipment.destinationZip,
               weight: parseFloat(shipment.weight),
               length: parseFloat(shipment.length) || 12,
-              width: parseFloat(shipment.width) || 12,
+              width: parseFloat(shipment.width) || 12, 
               height: parseFloat(shipment.height) || 6,
               serviceTypes: [shipment.serviceCode || '03']
-            })
+            }
           });
 
-          const result = await response.json();
-          
-          if (result.success && result.bestRates?.length > 0) {
-            const bestRate = result.bestRates[0];
-            const newRate = parseFloat(bestRate.rate || bestRate.cost || 0);
-            const savings = liveResult.currentRate - newRate;
-            
-            // Update live result
-            setLiveResults(prev => prev.map(lr => 
-              lr.id === liveResult.id 
-                ? { ...lr, newRate, savings, status: 'completed', carrierResults: result.carrierResults }
-                : lr
-            ));
-            
-            // Update stats
-            setProcessingStats(prev => ({
-              ...prev,
-              analyzedShipments: prev.analyzedShipments + 1,
-              potentialSavings: prev.potentialSavings + Math.max(0, savings)
-            }));
-            
-          } else {
-            // Mark as error
-            setLiveResults(prev => prev.map(lr => 
-              lr.id === liveResult.id 
-                ? { ...lr, status: 'error' }
-                : lr
-            ));
+          if (quoteError) {
+            console.error('❌ Quote error for shipment:', shipment.trackingId, quoteError);
+            continue;
           }
-          
-        } catch (error) {
-          console.error('Error processing shipment:', error);
-          setLiveResults(prev => prev.map(lr => 
-            lr.id === liveResult.id 
-              ? { ...lr, status: 'error' }
-              : lr
-          ));
+
+          console.log('✅ Multi-carrier result:', {
+            totalRates: multiCarrierResult?.allRates?.length || 0,
+            bestRatesCount: multiCarrierResult?.bestRates?.length || 0,
+            carrierResults: multiCarrierResult?.carrierResults?.length || 0
+          });
+
+          // Find the best rate (lowest cost)
+          const allRates = multiCarrierResult?.allRates || [];
+          let bestRate = null;
+          let currentRate = parseFloat(shipment.currentCost || shipment.current_rate || '0');
+
+          if (allRates.length > 0) {
+            bestRate = allRates.reduce((best, rate) => {
+              const ratePrice = parseFloat(rate.rate || rate.cost || rate.totalCharges || '0');
+              const bestPrice = parseFloat(best.rate || best.cost || best.totalCharges || '0');
+              return ratePrice < bestPrice ? rate : best;
+            });
+          }
+
+          const bestRatePrice = bestRate ? parseFloat(bestRate.rate || bestRate.cost || bestRate.totalCharges || '0') : currentRate;
+          const savings = currentRate - bestRatePrice;
+
+          // Create processed shipment with multi-carrier data
+          const processedShipment = {
+            id: i + 1,
+            trackingId: shipment.trackingId || shipment.tracking_id || `SHIP-${String(i + 1).padStart(4, '0')}`,
+            originZip: shipment.originZip,
+            destinationZip: shipment.destZip || shipment.destinationZip,
+            weight: parseFloat(shipment.weight),
+            length: parseFloat(shipment.length) || undefined,
+            width: parseFloat(shipment.width) || undefined,
+            height: parseFloat(shipment.height) || undefined,
+            carrier: shipment.carrier || 'Unknown',
+            service: shipment.service || 'Standard',
+            originalService: shipment.originalService || shipment.service || 'Unknown',
+            currentRate: currentRate,
+            newRate: bestRatePrice,
+            savings: savings,
+            savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
+            
+            // Enhanced multi-carrier data for Account Review tab
+            accounts: allRates.map(rate => ({
+              carrierId: rate.carrierId || 'default',
+              carrierType: rate.carrierType || 'Unknown',
+              accountName: rate.accountName || 'Default',
+              displayName: rate.displayName || `${rate.carrierType || 'Unknown'} – ${rate.accountName || 'Default'}`,
+              rate: parseFloat(rate.rate || rate.cost || rate.totalCharges || '0'),
+              service: rate.serviceName || rate.serviceCode || 'Standard'
+            })),
+            
+            allRates: allRates,
+            carrierResults: multiCarrierResult?.carrierResults || [],
+            
+            // Store complete multi-carrier response for analysis
+            multi_carrier_results: multiCarrierResult
+          };
+
+          processedShipments.push(processedShipment);
+
+        } catch (error: any) {
+          console.error('❌ Error processing shipment:', error);
+          // Continue processing other shipments
         }
-        
-        // Small delay to show progress
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
-      
-      if (processingRef.current && !isPaused) {
-        toast.success('Analysis completed successfully!');
-        setIsProcessing(false);
+
+      console.log('✅ Processed shipments:', processedShipments.length);
+
+      // Calculate summary stats
+      const totalCurrentCost = processedShipments.reduce((sum, s) => sum + s.currentRate, 0);
+      const totalNewCost = processedShipments.reduce((sum, s) => sum + s.newRate, 0);
+      const totalSavings = totalCurrentCost - totalNewCost;
+      const savingsPercentage = totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0;
+
+      console.log('💰 Analysis summary:', {
+        processedShipments: processedShipments.length,
+        totalCurrentCost,
+        totalSavings,
+        savingsPercentage
+      });
+
+      setProcessingStep('Saving analysis results...');
+
+      // Save to database
+      const { data: savedAnalysis, error: saveError } = await supabase
+        .from('shipping_analyses')
+        .insert({
+          user_id: (await supabase.auth.getUser()).data.user?.id,
+          file_name: analysis.fileName,
+          total_shipments: shipmentData.length,
+          total_savings: totalSavings,
+          status: 'completed',
+          original_data: shipmentData,
+          processed_shipments: processedShipments,
+          carrier_configs_used: activeConfigs.map(c => c.id),
+          processing_metadata: {
+            processedCount: processedShipments.length,
+            totalCount: shipmentData.length,
+            savingsPercentage
+          }
+        })
+        .select()
+        .single();
+
+      if (saveError) {
+        console.error('❌ Error saving analysis:', saveError);
+        toast.error('Failed to save analysis results');
+      } else {
+        console.log('✅ Analysis saved with ID:', savedAnalysis.id);
       }
-      
-    } catch (error) {
-      console.error('Analysis error:', error);
-      toast.error('Analysis failed');
+
+      toast.success('Multi-carrier analysis completed!');
+
+      // Navigate to results
+      navigate('/results', {
+        state: {
+          analysisComplete: true,
+          analysisData: {
+            recommendations: processedShipments,
+            totalShipments: shipmentData.length,
+            totalPotentialSavings: totalSavings,
+            orphanedShipments: []
+          }
+        }
+      });
+
+    } catch (error: any) {
+      console.error('❌ Analysis error:', error);
+      toast.error(`Analysis failed: ${error.message}`);
       setIsProcessing(false);
     }
   };
 
-  const pauseAnalysis = () => {
-    setIsPaused(true);
-    processingRef.current = false;
-  };
-
-  const resumeAnalysis = () => {
-    setIsPaused(false);
-    startAnalysis();
-  };
-
-  const stopAnalysis = () => {
-    setIsProcessing(false);
-    setIsPaused(false);
-    processingRef.current = false;
-    
-    // Navigate to results with current data
-    navigate('/results', {
-      state: {
-        analysisComplete: true,
-        analysisData: {
-          recommendations: liveResults,
-          totalShipments: processingStats.totalShipments,
-          totalPotentialSavings: processingStats.potentialSavings,
-          orphanedShipments: []
-        }
-      }
-    });
-  };
-
-  const startOver = () => {
-    setIsProcessing(false);
-    setIsPaused(false);
-    processingRef.current = false;
-    setCurrentShipmentIndex(0);
-    setLiveResults([]);
-    setProcessingStats(prev => ({
-      ...prev,
-      analyzedShipments: 0,
-      potentialSavings: 0
-    }));
-  };
-
-  if (!analysisData) {
+  if (!analysis) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -341,248 +270,124 @@ const Analysis = () => {
     );
   }
 
-  const progressPercentage = processingStats.totalShipments > 0 
-    ? (currentShipmentIndex / processingStats.totalShipments) * 100 
-    : 0;
+  const canProcess = analysis.status === 'processing' || analysis.status === 'draft' || analysis.csvData;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-7xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-center mb-2">Real-Time Shipping Analysis</h1>
-        <p className="text-center text-muted-foreground">
-          Processing {processingStats.totalShipments} shipments and comparing current rates with UPS optimization.
-        </p>
-      </div>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold mb-2">Multi-Carrier Analysis</h1>
+          <p className="text-muted-foreground">
+            Analyze your shipments against multiple carrier accounts to find the best rates
+          </p>
+        </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Package className="h-6 w-6 mx-auto mb-2 text-blue-500" />
-            <div className="text-2xl font-bold">{processingStats.totalShipments}</div>
-            <div className="text-sm text-muted-foreground">Total Shipments</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <CheckCircle className="h-6 w-6 mx-auto mb-2 text-green-500" />
-            <div className="text-2xl font-bold">{processingStats.validShipments}</div>
-            <div className="text-sm text-muted-foreground">Valid Shipments</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <Eye className="h-6 w-6 mx-auto mb-2 text-purple-500" />
-            <div className="text-2xl font-bold">{processingStats.analyzedShipments}</div>
-            <div className="text-sm text-muted-foreground">Analyzed</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <DollarSign className="h-6 w-6 mx-auto mb-2 text-orange-500" />
-            <div className="text-2xl font-bold">{formatCurrency(processingStats.currentCost)}</div>
-            <div className="text-sm text-muted-foreground">Current Cost</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <TrendingUp className="h-6 w-6 mx-auto mb-2 text-green-600" />
-            <div className="text-2xl font-bold">{formatCurrency(processingStats.potentialSavings)}</div>
-            <div className="text-sm text-muted-foreground">Potential Savings</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Validation Summary */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Validation Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-              <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-500" />
-              <div className="text-2xl font-bold text-green-700">{processingStats.validShipments}</div>
-              <div className="text-sm text-green-600">Valid Shipments</div>
-              <div className="text-xs text-green-500">Ready for analysis</div>
-            </div>
-            
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-              <XCircle className="h-8 w-8 mx-auto mb-2 text-red-500" />
-              <div className="text-2xl font-bold text-red-700">{processingStats.invalidShipments}</div>
-              <div className="text-sm text-red-600">Invalid Shipments</div>
-              <div className="text-xs text-red-500">Will be skipped</div>
-            </div>
-            
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
-              <AlertTriangle className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
-              <div className="text-2xl font-bold text-yellow-700">{processingStats.withWarnings}</div>
-              <div className="text-sm text-yellow-600">With Warnings</div>
-              <div className="text-xs text-yellow-500">May have issues</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Carrier Account Selection */}
-      {!isProcessing && (
+        {/* Analysis Details */}
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Select Carrier Accounts</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Analysis Details
+            </CardTitle>
           </CardHeader>
           <CardContent>
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Available Carrier Accounts</h3>
-            {availableCarriers.length === 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <Package className="h-8 w-8 mx-auto mb-2 text-blue-500" />
+                <div className="text-2xl font-bold">
+                  {analysis.rowCount || analysis.csvData?.length || 0}
+                </div>
+                <div className="text-sm text-muted-foreground">Total Shipments</div>
+              </div>
+
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <TrendingUp className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                <div className="text-2xl font-bold">
+                  {carrierConfigs.length}
+                </div>
+                <div className="text-sm text-muted-foreground">Active Carriers</div>
+              </div>
+
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <DollarSign className="h-8 w-8 mx-auto mb-2 text-purple-500" />
+                <div className="text-2xl font-bold">
+                  ${(analysis.total_savings || 0).toFixed(2)}
+                </div>
+                <div className="text-sm text-muted-foreground">Potential Savings</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Carrier Configurations */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Available Carrier Accounts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {carrierConfigs.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">No carrier accounts configured.</p>
-                <Button variant="outline" onClick={() => navigate('/settings')}>
+                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No Carrier Accounts Configured</h3>
+                <p className="text-muted-foreground mb-4">
+                  You need to configure at least one carrier account before running analysis.
+                </p>
+                <Button onClick={() => navigate('/settings')}>
                   Configure Carrier Accounts
                 </Button>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {availableCarriers.map((carrier) => (
-                  <div key={carrier.id} className="flex items-center space-x-2 p-4 border rounded-lg">
-                    <Checkbox
-                      id={carrier.id}
-                      checked={selectedCarrierConfigs.includes(carrier.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedCarrierConfigs(prev => [...prev, carrier.id]);
-                        } else {
-                          setSelectedCarrierConfigs(prev => prev.filter(id => id !== carrier.id));
-                        }
-                      }}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium">{carrier.account_name}</div>
+                {carrierConfigs.map((config) => (
+                  <div key={config.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div>
+                      <div className="font-medium">{config.account_name}</div>
                       <div className="text-sm text-muted-foreground">
-                        {carrier.carrier_type.toUpperCase()} • {carrier.account_group || 'Default Group'}
+                        {config.carrier_type.toUpperCase()} • {config.account_group || 'Default Group'}
                       </div>
                     </div>
-                    <Badge variant={carrier.connection_status === 'connected' ? 'default' : 'secondary'}>
-                      {carrier.connection_status || 'Unknown'}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <span className="text-sm text-green-600">Active</span>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Processing Progress */}
-      {isProcessing && (
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-lg font-medium">
-                Processing shipment {currentShipmentIndex} of {processingStats.totalShipments}...
-              </div>
-              <div className="text-lg font-bold">{Math.round(progressPercentage)}%</div>
-            </div>
-            <Progress value={progressPercentage} className="mb-4" />
-            
-            <div className="flex gap-2">
-              {isPaused ? (
-                <Button onClick={resumeAnalysis} className="flex items-center gap-2">
-                  <Play className="h-4 w-4" />
-                  Resume
-                </Button>
-              ) : (
-                <Button onClick={pauseAnalysis} variant="outline" className="flex items-center gap-2">
-                  <Pause className="h-4 w-4" />
-                  Pause
-                </Button>
-              )}
-              
-              <Button onClick={stopAnalysis} className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
-                <Square className="h-4 w-4" />
-                Stop & View Results
-              </Button>
-              
-              <Button onClick={startOver} variant="outline" className="flex items-center gap-2">
-                <RotateCcw className="h-4 w-4" />
-                Start Over
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Start Analysis Button */}
-      {!isProcessing && (
-        <Card className="mb-8">
-          <CardContent className="p-6 text-center">
-            <Button 
-              onClick={startAnalysis} 
-              size="lg" 
-              className="flex items-center gap-2"
-              disabled={selectedCarrierConfigs.length === 0}
-            >
-              <Play className="h-5 w-5" />
-              Start Multi-Carrier Analysis
-            </Button>
-            {selectedCarrierConfigs.length === 0 && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Please select at least one carrier configuration above
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Live Analysis Results */}
-      {liveResults.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Live Analysis Results</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {liveResults.map((result) => (
-                <div key={result.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-2 h-2 rounded-full ${
-                      result.status === 'completed' ? 'bg-green-500' :
-                      result.status === 'error' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'
-                    }`} />
-                    <div>
-                      <div className="font-medium">{result.trackingId}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {result.service} • {result.weight} lbs • {result.dimensions}
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="text-right">
-                    {result.status === 'completed' ? (
-                      <>
-                        <div className="text-lg font-bold">
-                          {formatCurrency(result.currentRate)} → {formatCurrency(result.newRate)}
-                        </div>
-                        <Badge variant={result.savings > 0 ? "default" : "secondary"}>
-                          {result.savings > 0 ? `Save ${formatCurrency(result.savings)}` : 'No savings'}
-                        </Badge>
-                      </>
-                    ) : result.status === 'error' ? (
-                      <Badge variant="destructive">Error</Badge>
-                    ) : (
-                      <Badge variant="outline">Processing...</Badge>
-                    )}
+        {/* Processing Section */}
+        {isProcessing && (
+          <Card className="mb-8">
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="text-center">
+                  <div className="text-lg font-medium mb-2">{processingStep}</div>
+                  <Progress value={progress} className="w-full" />
+                  <div className="text-sm text-muted-foreground mt-2">
+                    {Math.round(progress)}% Complete
                   </div>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-4">
+          {canProcess && !isProcessing && (
+            <Button 
+              onClick={processMultiCarrierAnalysis}
+              className="flex items-center gap-2"
+              disabled={carrierConfigs.length === 0}
+            >
+              <Play className="h-4 w-4" />
+              Start Multi-Carrier Analysis
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

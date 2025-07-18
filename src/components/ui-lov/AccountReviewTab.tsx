@@ -14,11 +14,13 @@ type ViewLevel = 'accounts' | 'services' | 'shipments';
 interface AccountReviewTabProps {
   shipmentData: any[];
   markupFunction?: (shipment: any) => any;
+  analysisId?: string;
 }
 
 export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
   shipmentData,
-  markupFunction
+  markupFunction,
+  analysisId
 }) => {
   const [currentLevel, setCurrentLevel] = useState<ViewLevel>('accounts');
   const [selectedAccount, setSelectedAccount] = useState<AccountInfo | null>(null);
@@ -37,7 +39,7 @@ export const AccountReviewTab: React.FC<AccountReviewTabProps> = ({
     assignServiceAccount,
     assignShipmentAccount,
     getShipmentAssignment
-  } = useAccountAssignments(shipmentData, markupFunction);
+  } = useAccountAssignments(shipmentData, markupFunction, analysisId);
 
   // Sort account performance based on current sort config
   const sortedAccountPerformance = useMemo(() => {

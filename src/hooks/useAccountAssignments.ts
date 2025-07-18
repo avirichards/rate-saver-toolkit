@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface AccountInfo {
   carrierId: string;
@@ -33,15 +34,75 @@ export interface AccountPerformance {
   rank: number;
 }
 
+// Assignment state management interfaces
+interface GlobalAssignment {
+  account: AccountInfo;
+  assignedAt: Date;
+}
+
+interface ServiceAssignmentState {
+  account: AccountInfo;
+  assignedAt: Date;
+}
+
+interface IndividualAssignment {
+  account: AccountInfo;
+  assignedAt: Date;
+  isOverride: boolean;
+}
+
 export const useAccountAssignments = (
   shipmentData: any[], 
-  markupFunction?: (shipment: any) => any
+  markupFunction?: (shipment: any) => any,
+  currentAnalysisId?: string
 ) => {
-  const [assignments, setAssignments] = useState<Map<number, AccountAssignment>>(new Map());
-  const [globalAssignment, setGlobalAssignment] = useState<AccountInfo | null>(null);
-  const [serviceAssignments, setServiceAssignments] = useState<Map<string, AccountInfo>>(new Map());
+  // State for assignment tracking with database persistence
+  const [assignments, setAssignments] = useState<{
+    global: GlobalAssignment | null;
+    service: Record<string, ServiceAssignmentState>;
+    individual: Record<number, IndividualAssignment>;
+  }>({
+    global: null,
+    service: {},
+    individual: {}
+  });
 
-  // Extract available accounts from shipment data
+  // Load assignments from database on mount
+  useEffect(() => {
+    const loadAssignments = async () => {
+      if (!currentAnalysisId) return;
+      
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+          .from('shipping_analyses')
+          .select('account_assignments, service_assignments, global_assignment')
+          .eq('id', currentAnalysisId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (data) {
+          setAssignments({
+            global: data.global_assignment || null,
+            service: data.service_assignments || {},
+            individual: (data.account_assignments || []).reduce((acc: any, assignment: any) => {
+              acc[assignment.shipmentId] = assignment;
+              return acc;
+            }, {})
+          });
+          console.log('📥 Loaded assignments from database:', data);
+        }
+      } catch (error) {
+        console.error('❌ Failed to load assignments:', error);
+      }
+    };
+
+    loadAssignments();
+  }, [currentAnalysisId]);
+
+  // Extract available accounts from shipment data with enhanced extraction
   const availableAccounts = useMemo(() => {
     console.log('🔍 useAccountAssignments - Extracting accounts from shipment data:', {
       shipmentCount: shipmentData.length,
@@ -50,12 +111,6 @@ export const useAccountAssignments = (
         trackingId: shipmentData[0].trackingId,
         hasAccounts: !!shipmentData[0].accounts,
         accountsCount: shipmentData[0].accounts?.length || 0,
-        hasRates: !!shipmentData[0].rates,
-        ratesCount: shipmentData[0].rates?.length || 0,
-        hasAllRates: !!shipmentData[0].allRates,
-        allRatesCount: shipmentData[0].allRates?.length || 0,
-        hasCarrierResults: !!shipmentData[0].carrierResults,
-        carrierResultsCount: shipmentData[0].carrierResults?.length || 0,
         availableFields: Object.keys(shipmentData[0])
       } : null
     });
@@ -63,8 +118,8 @@ export const useAccountAssignments = (
     const accountMap = new Map<string, AccountInfo>();
     
     shipmentData.forEach((shipment, index) => {
-      // Extract account information from various data structures
-      const accounts = shipment.accounts || shipment.rates || [];
+      // Extract account information from enhanced data structure
+      const accounts = shipment.accounts || [];
       
       if (index < 3) {
         console.log(`🔍 Processing shipment ${shipment.id} for accounts:`, {
@@ -78,13 +133,14 @@ export const useAccountAssignments = (
       }
       
       accounts.forEach((account: any) => {
-        const accountKey = `${account.carrier || account.carrierType}-${account.accountName || account.name}`;
+        const accountKey = `${account.carrierType}-${account.accountName}`;
         if (!accountMap.has(accountKey)) {
           accountMap.set(accountKey, {
             carrierId: account.carrierId || account.id,
-            accountName: account.accountName || account.name,
-            carrierType: account.carrier || account.carrierType,
-            displayName: `${account.carrier || account.carrierType} – ${account.accountName || account.name}`
+            accountName: account.accountName || account.name || 'Default',
+            carrierType: account.carrierType || account.carrier || 'Unknown',
+            displayName: account.displayName || 
+              `${account.carrierType || account.carrier || 'Unknown'} – ${account.accountName || account.name || 'Default'}`
           });
         }
       });
@@ -104,10 +160,10 @@ export const useAccountAssignments = (
     const performanceMap = new Map<string, AccountPerformance>();
     
     shipmentData.forEach(shipment => {
-      const accounts = shipment.accounts || shipment.rates || [];
+      const accounts = shipment.accounts || [];
       
       accounts.forEach((account: any) => {
-        const accountKey = `${account.carrier}-${account.accountName}`;
+        const accountKey = `${account.carrierType}-${account.accountName}`;
         const rate = account.rate || account.cost || 0;
         const savings = shipment.currentRate - rate;
         
@@ -115,9 +171,10 @@ export const useAccountAssignments = (
           performanceMap.set(accountKey, {
             account: {
               carrierId: account.carrierId || account.id,
-              accountName: account.accountName || account.name,
-              carrierType: account.carrier || account.carrierType,
-              displayName: `${account.carrier || account.carrierType} – ${account.accountName || account.name}`
+              accountName: account.accountName || account.name || 'Default',
+              carrierType: account.carrierType || account.carrier || 'Unknown',
+              displayName: account.displayName || 
+                `${account.carrierType || account.carrier || 'Unknown'} – ${account.accountName || account.name || 'Default'}`
             },
             shipmentCount: 0,
             totalSavings: 0,
@@ -152,7 +209,7 @@ export const useAccountAssignments = (
     
     shipmentData.forEach(shipment => {
       const serviceType = shipment.service || shipment.originalService || 'Unknown';
-      const accounts = shipment.accounts || shipment.rates || [];
+      const accounts = shipment.accounts || [];
       
       if (!serviceMap.has(serviceType)) {
         serviceMap.set(serviceType, {
@@ -184,9 +241,10 @@ export const useAccountAssignments = (
           bestSavings = savings;
           bestAccount = {
             carrierId: account.carrierId || account.id,
-            accountName: account.accountName || account.name,
-            carrierType: account.carrier || account.carrierType,
-            displayName: `${account.carrier || account.carrierType} – ${account.accountName || account.name}`
+            accountName: account.accountName || account.name || 'Default',
+            carrierType: account.carrierType || account.carrier || 'Unknown',
+            displayName: account.displayName || 
+              `${account.carrierType || account.carrier || 'Unknown'} – ${account.accountName || account.name || 'Default'}`
           };
         }
       });
@@ -200,91 +258,98 @@ export const useAccountAssignments = (
     return Array.from(serviceMap.values());
   }, [shipmentData, availableAccounts]);
 
+  // Database persistence for assignments
+  const saveAssignments = async (newAssignments: typeof assignments) => {
+    if (!currentAnalysisId) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      await supabase
+        .from('shipping_analyses')
+        .update({
+          account_assignments: Object.entries(newAssignments.individual).map(([shipmentId, assignment]) => ({
+            shipmentId: Number(shipmentId),
+            ...assignment
+          })),
+          service_assignments: newAssignments.service,
+          global_assignment: newAssignments.global,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentAnalysisId)
+        .eq('user_id', user.id);
+        
+      console.log('✅ Account assignments saved to database');
+    } catch (error) {
+      console.error('❌ Failed to save assignments:', error);
+    }
+  };
+
   // Assign account to all shipments
   const assignGlobalAccount = useCallback((account: AccountInfo) => {
-    setGlobalAssignment(account);
-    
-    const newAssignments = new Map<number, AccountAssignment>();
-    shipmentData.forEach(shipment => {
-      const accountData = (shipment.accounts || shipment.rates || []).find((acc: any) => 
-        acc.carrierId === account.carrierId || 
-        (acc.accountName === account.accountName && acc.carrier === account.carrierType)
-      );
-      
-      if (accountData) {
-        const rate = markupFunction ? markupFunction(shipment).markedUpPrice : (accountData.rate || accountData.cost || 0);
-        newAssignments.set(shipment.id, {
-          shipmentId: shipment.id,
-          assignedAccount: account,
-          rate,
-          savings: shipment.currentRate - rate,
-          isOverride: true
-        });
+    console.log('🌍 Assigning global account:', account);
+    const newAssignments = {
+      ...assignments,
+      global: {
+        account,
+        assignedAt: new Date()
       }
-    });
-    
+    };
     setAssignments(newAssignments);
+    saveAssignments(newAssignments);
     toast.success(`Assigned ${account.displayName} to all shipments`);
-  }, [shipmentData, markupFunction]);
+  }, [assignments]);
 
   // Assign account to specific service type
   const assignServiceAccount = useCallback((serviceType: string, account: AccountInfo) => {
-    setServiceAssignments(prev => new Map(prev).set(serviceType, account));
-    
-    setAssignments(prev => {
-      const newAssignments = new Map(prev);
-      
-      shipmentData
-        .filter(shipment => (shipment.service || shipment.originalService) === serviceType)
-        .forEach(shipment => {
-          const accountData = (shipment.accounts || shipment.rates || []).find((acc: any) => 
-            acc.carrierId === account.carrierId || 
-            (acc.accountName === account.accountName && acc.carrier === account.carrierType)
-          );
-          
-          if (accountData) {
-            const rate = markupFunction ? markupFunction(shipment).markedUpPrice : (accountData.rate || accountData.cost || 0);
-            newAssignments.set(shipment.id, {
-              shipmentId: shipment.id,
-              assignedAccount: account,
-              rate,
-              savings: shipment.currentRate - rate,
-              isOverride: true
-            });
-          }
-        });
-      
-      return newAssignments;
-    });
-    
+    console.log('🔧 Assigning service account:', { serviceType, account });
+    const newAssignments = {
+      ...assignments,
+      service: {
+        ...assignments.service,
+        [serviceType]: {
+          account,
+          assignedAt: new Date()
+        }
+      }
+    };
+    setAssignments(newAssignments);
+    saveAssignments(newAssignments);
     toast.success(`Assigned ${account.displayName} to ${serviceType} shipments`);
-  }, [shipmentData, markupFunction]);
+  }, [assignments]);
 
   // Assign account to individual shipment
   const assignShipmentAccount = useCallback((shipmentId: number, account: AccountInfo) => {
-    const shipment = shipmentData.find(s => s.id === shipmentId);
-    if (!shipment) return;
-    
-    const accountData = (shipment.accounts || shipment.rates || []).find((acc: any) => 
-      acc.carrierId === account.carrierId || 
-      (acc.accountName === account.accountName && acc.carrier === account.carrierType)
-    );
-    
-    if (accountData) {
-      const rate = markupFunction ? markupFunction(shipment).markedUpPrice : (accountData.rate || accountData.cost || 0);
-      setAssignments(prev => new Map(prev).set(shipmentId, {
-        shipmentId,
-        assignedAccount: account,
-        rate,
-        savings: shipment.currentRate - rate,
-        isOverride: true
-      }));
-    }
-  }, [shipmentData, markupFunction]);
+    console.log('📦 Assigning shipment account:', { shipmentId, account });
+    const newAssignments = {
+      ...assignments,
+      individual: {
+        ...assignments.individual,
+        [shipmentId]: {
+          account,
+          assignedAt: new Date(),
+          isOverride: true
+        }
+      }
+    };
+    setAssignments(newAssignments);
+    saveAssignments(newAssignments);
+  }, [assignments]);
 
   // Get assignment for specific shipment
   const getShipmentAssignment = useCallback((shipmentId: number): AccountAssignment | null => {
-    return assignments.get(shipmentId) || null;
+    const individual = assignments.individual[shipmentId];
+    if (individual) {
+      return {
+        shipmentId,
+        assignedAccount: individual.account,
+        rate: 0, // Calculate from shipment data
+        savings: 0, // Calculate from shipment data
+        isOverride: individual.isOverride
+      };
+    }
+    return null;
   }, [assignments]);
 
   // Calculate total metrics with current assignments
@@ -293,11 +358,12 @@ export const useAccountAssignments = (
     let totalCost = 0;
     let assignedShipments = 0;
     
+    // Calculate metrics based on current assignments
     shipmentData.forEach(shipment => {
-      const assignment = assignments.get(shipment.id);
-      if (assignment) {
-        totalSavings += assignment.savings;
-        totalCost += assignment.rate;
+      const assignment = getShipmentAssignment(shipment.id);
+      if (assignment || assignments.global) {
+        totalSavings += shipment.savings || 0;
+        totalCost += shipment.newRate || 0;
         assignedShipments++;
       }
     });
@@ -309,15 +375,13 @@ export const useAccountAssignments = (
       totalShipments: shipmentData.length,
       averageSavingsPercent: totalCost > 0 ? (totalSavings / (totalCost + totalSavings)) * 100 : 0
     };
-  }, [shipmentData, assignments]);
+  }, [shipmentData, assignments, getShipmentAssignment]);
 
   return {
     availableAccounts,
     accountPerformance,
     serviceRecommendations,
     assignments,
-    globalAssignment,
-    serviceAssignments,
     totalMetrics,
     assignGlobalAccount,
     assignServiceAccount,

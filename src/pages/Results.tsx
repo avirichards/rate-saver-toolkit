@@ -4,7 +4,6 @@ import { useLocation, useParams, useSearchParams, Link } from 'react-router-dom'
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ClientLayout } from '@/components/layout/ClientLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AccountReviewTab } from '@/components/ui-lov/AccountReviewTab';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home } from 'lucide-react';
@@ -795,56 +794,23 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setMarkupData(data.markup_data as MarkupData);
       }
 
-      // Check if we have modern processed_shipments data structure
-      if (data.processed_shipments && Array.isArray(data.processed_shipments) && data.processed_shipments.length > 0) {
-        console.log('✅ Using modern processed_shipments data structure');
-        
-        // Use processed_shipments directly - it already has the correct structure
-        const processedShipments = data.processed_shipments;
-        const orphanedShipments = data.orphaned_shipments || [];
-        
-        // Calculate totals for the interface
-        const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
-        const totalNewCost = processedShipments.reduce((sum: number, item: any) => sum + (item.newRate || 0), 0);
-        const calculatedSavings = totalCurrentCost - totalNewCost;
-        const savingsPercentage = totalCurrentCost > 0 ? (calculatedSavings / totalCurrentCost) * 100 : 0;
-        
-        // Create the analysis data structure
-        const processedData: ProcessedAnalysisData = {
-          totalShipments: data.total_shipments || processedShipments.length,
-          totalCurrentCost: totalCurrentCost,
-          totalPotentialSavings: data.total_savings || calculatedSavings,
-          savingsPercentage: savingsPercentage,
-          analyzedShipments: processedShipments.length,
-          recommendations: processedShipments,
-          orphanedShipments: orphanedShipments
-        };
-        
-        setAnalysisData(processedData);
-        setShipmentData(processedShipments);
-        setOrphanedData(orphanedShipments);
-      } else {
-        console.log('⚠️ Using legacy data processing for older analysis');
-        // Use the unified processing function with markup calculations for legacy data
-        const processedData = processAnalysisData(data, getShipmentMarkup);
-        
-        setAnalysisData(processedData);
-        setShipmentData(processedData.recommendations || []);
-        setOrphanedData(processedData.orphanedShipments || []);
-      }
+      // Use the unified processing function with markup calculations
+      const processedData = processAnalysisData(data, getShipmentMarkup);
       
-      // Initialize services from the processed data  
-      const currentShipmentData = data.processed_shipments || [];
-      const services = [...new Set(currentShipmentData.map((item: any) => item.service).filter(Boolean))] as string[];
+      setAnalysisData(processedData);
+      setShipmentData(processedData.recommendations || []);
+      setOrphanedData(processedData.orphanedShipments || []);
+      
+      // Initialize services from the processed data
+      const services = [...new Set((processedData.recommendations || []).map((item: any) => item.service).filter(Boolean))] as string[];
       setAvailableServices(services);
       setSelectedServicesOverview([]);
       
-      console.log('✅ Data processing complete:', {
-        processed: currentShipmentData.length,
-        orphaned: (data.orphaned_shipments || []).length,
-        total: data.total_shipments || currentShipmentData.length,
-        services: services.length,
-        hasAccountData: currentShipmentData.some((s: any) => s.accounts && s.accounts.length > 0)
+      console.log('✅ Unified data processing complete:', {
+        processed: processedData.recommendations?.length || 0,
+        orphaned: processedData.orphanedShipments?.length || 0,
+        total: processedData.totalShipments,
+        services: services.length
       });
       
       setLoading(false);
@@ -1750,12 +1716,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         )}
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="account-review" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="account-review" className="flex items-center gap-2">
-              <TruckIcon className="h-4 w-4" />
-              Account Review
-            </TabsTrigger>
+        <Tabs defaultValue="overview" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart className="h-4 w-4" />
               Overview
@@ -1769,14 +1731,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               Orphaned Data ({orphanedData.length})
             </TabsTrigger>
           </TabsList>
-
-          <TabsContent value="account-review" className="space-y-6">
-            <AccountReviewTab 
-              shipmentData={shipmentData}
-              markupFunction={getShipmentMarkup}
-              analysisId={currentAnalysisId}
-            />
-          </TabsContent>
 
           <TabsContent value="overview" className="space-y-6">
 

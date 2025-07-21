@@ -1,4 +1,3 @@
-
 import { toast } from 'sonner';
 
 // Standardized interfaces for data processing
@@ -37,11 +36,6 @@ export interface ProcessedShipmentData {
   newRate: number;
   savings: number;
   savingsPercent: number;
-  // Account data for Account Review tab
-  accounts?: any[];
-  rates?: any[];
-  allRates?: any[];
-  carrierResults?: any[];
 }
 
 export interface ValidationResult {
@@ -82,15 +76,7 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
     processedShipmentsCount: processedShipments.length,
     orphanedShipmentsCount: orphanedShipments.length,
     hasMarkupData: !!markupData,
-    totalShipments: analysis.total_shipments,
-    sampleProcessedShipment: processedShipments[0] ? {
-      hasAccounts: !!processedShipments[0].accounts,
-      accountsCount: processedShipments[0].accounts?.length || 0,
-      hasAllRates: !!processedShipments[0].allRates,
-      allRatesCount: processedShipments[0].allRates?.length || 0,
-      hasCarrierResults: !!processedShipments[0].carrierResults,
-      carrierResultsCount: processedShipments[0].carrierResults?.length || 0
-    } : null
+    totalShipments: analysis.total_shipments
   });
   
   // Calculate totals from processed shipments - with markup applied if available
@@ -107,68 +93,54 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
     });
     console.log('✅ Applied markup calculations to totals');
   } else {
-    // Calculate without markup
-    processedShipments.forEach((item: any) => {
-      totalCurrentCost += item.currentRate || 0;
-      totalPotentialSavings += item.savings || 0;
-    });
-    console.log('✅ Calculated totals without markup');
+    // Fallback to raw values
+    totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
+    totalPotentialSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
+    console.log('⚠️ Using raw savings (no markup applied)');
   }
   
-  const result = {
+  return {
     totalCurrentCost,
-    totalPotentialSavings: Math.max(0, totalPotentialSavings),
+    totalPotentialSavings,
     recommendations: processedShipments,
     savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
-    totalShipments: analysis.total_shipments || processedShipments.length,
+    totalShipments: analysis.total_shipments || (processedShipments.length + orphanedShipments.length),
     analyzedShipments: processedShipments.length,
-    orphanedShipments: orphanedShipments,
+    orphanedShipments,
     completedShipments: processedShipments.length,
     errorShipments: orphanedShipments.length,
-    averageSavingsPercent: processedShipments.length > 0 ? 
-      processedShipments.reduce((sum: number, item: any) => sum + (item.savingsPercent || 0), 0) / processedShipments.length : 0,
     file_name: analysis.file_name,
     report_name: analysis.report_name,
     client_id: analysis.client_id
   };
-  
-  console.log('📈 Final processed data:', {
-    totalCurrentCost,
-    totalPotentialSavings,
-    savingsPercentage: result.savingsPercentage,
-    totalShipments: result.totalShipments,
-    analyzedShipments: result.analyzedShipments,
-    orphanedShipmentsCount: orphanedShipments.length,
-    hasAccountData: processedShipments.some((ship: any) => ship.accounts && ship.accounts.length > 0)
-  });
-  
-  return result;
 };
 
-// Calculate savings percentage with proper validation
-const calculateSavingsPercent = (currentRate: number, newRate: number): number => {
-  if (currentRate <= 0) return 0;
-  return ((currentRate - newRate) / currentRate) * 100;
-};
-
-// Legacy migration handler
-export const processLegacyRecommendationsData = (recommendations: any[]): ProcessedAnalysisData => {
-  console.log('🔄 Processing legacy recommendations data...');
+// Legacy function for backward compatibility - redirects to unified function
+export const processNormalViewData = (recommendations: any[]): ProcessedAnalysisData => {
+  console.warn('⚠️ Using legacy processNormalViewData - consider migrating to processAnalysisData');
+  
   const validShipments: any[] = [];
   const orphanedShipments: any[] = [];
   
-  recommendations.forEach((rec: any) => {
-    const validation = validateShipmentData(rec);
+  recommendations.forEach((rec: any, index: number) => {
+    const shipmentData = rec.shipment || rec;
+    const validation = validateShipmentData(shipmentData);
     
     const formattedShipment = {
-      id: rec.id || validShipments.length + 1,
-      trackingId: rec.trackingId || rec.tracking_id || `SHIP-${String(validShipments.length + 1).padStart(4, '0')}`,
-      originZip: rec.originZip || rec.origin_zip || 'N/A',
-      destinationZip: rec.destZip || rec.destination_zip || 'N/A',
-      weight: parseFloat(rec.weight || '0') || 0,
-      carrier: rec.carrier || 'Unknown',
-      service: rec.service || 'Standard',
-      originalService: rec.originalService || rec.current_service || 'Unknown',
+      id: index + 1,
+      trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
+      originZip: shipmentData.originZip || '',
+      destinationZip: shipmentData.destZip || shipmentData.destinationZip || '',
+      weight: parseFloat(shipmentData.weight || '0'),
+      length: parseFloat(shipmentData.length || rec.length || '12'),
+      width: parseFloat(shipmentData.width || rec.width || '12'),
+      height: parseFloat(shipmentData.height || rec.height || '6'),
+      dimensions: shipmentData.dimensions || rec.dimensions,
+      carrier: shipmentData.carrier || rec.carrier || 'Unknown',
+      service: rec.originalService || shipmentData.service || '',
+      originalService: rec.originalService || shipmentData.service || '',
+      bestService: rec.bestService || rec.recommendedService || 'UPS Ground',
+      newService: rec.recommendedService || rec.bestService || 'UPS Ground',
       currentRate: rec.currentCost || 0,
       newRate: rec.recommendedCost || 0,
       savings: rec.savings || 0,
@@ -209,121 +181,86 @@ export const processClientViewData = (analysis: any): ProcessedAnalysisData => {
   return processAnalysisData(analysis);
 };
 
-// Enhanced formatShipmentData to work with the new processed_shipments structure
-export const formatShipmentData = (recommendations: any[], markup?: any, includeMarkup = false): ProcessedShipmentData[] => {
+// Convert recommendations to formatted shipment data
+export const formatShipmentData = (recommendations: any[]): ProcessedShipmentData[] => {
   console.log('🔍 formatShipmentData - Processing recommendations:', recommendations?.length || 0, 'items');
+  if (recommendations?.length > 0) {
+    console.log('🔍 Sample recommendation data structure:', {
+      keys: Object.keys(recommendations[0]),
+      sampleData: recommendations[0]
+    });
+  }
   
-  // The recommendations parameter now comes directly from processed_shipments
-  // which already has the enhanced multi-carrier data structure
-  return recommendations.map((shipment: any, index: number) => {
-    // Data is already processed and standardized in the new pipeline
-    const currentRate = shipment.currentRate || 0;
-    let newRate = shipment.newRate || 0;
-    
-    // Calculate markup if provided
-    if (includeMarkup && markup && newRate > 0) {
-      if (markup.markupType === 'global') {
-        newRate = newRate * (1 + markup.globalMarkup / 100);
-      } else {
-        const serviceMarkup = markup.perServiceMarkup?.[shipment.service] || 0;
-        newRate = newRate * (1 + serviceMarkup / 100);
-      }
-    }
-    
+  return recommendations.map((rec: any, index: number) => {
+    // More flexible rate extraction - try multiple possible field names
+    const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
+                       rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
+    const newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
+                   rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
     const calculatedSavings = currentRate - newRate;
     
-    console.log(`🏢 Shipment ${shipment.trackingId} account data:`, {
-      hasAccounts: !!shipment.accounts,
-      accountsCount: shipment.accounts?.length || 0,
-      hasAllRates: !!shipment.allRates,
-      allRatesCount: shipment.allRates?.length || 0,
-      hasCarrierResults: !!shipment.carrierResults,
-      carrierResultsCount: shipment.carrierResults?.length || 0
-    });
+    if (index < 3) { // Debug first 3 items
+      console.log(`🔍 Processing shipment ${index + 1}:`, {
+        trackingId: rec.shipment?.trackingId || rec.trackingId,
+        currentRate,
+        newRate,
+        calculatedSavings,
+        availableFields: Object.keys(rec)
+      });
+    }
     
     return {
-      id: shipment.id || index + 1,
-      trackingId: shipment.trackingId || `SHIP-${String(index + 1).padStart(4, '0')}`,
-      originZip: shipment.originZip || 'N/A',
-      destinationZip: shipment.destinationZip || 'N/A',
-      weight: shipment.weight || 0,
-      length: shipment.length,
-      width: shipment.width,
-      height: shipment.height,
-      dimensions: shipment.dimensions,
-      carrier: shipment.carrier || 'Unknown',
-      service: shipment.service || 'Standard',
-      originalService: shipment.originalService || 'Unknown',
-      bestService: shipment.bestService || shipment.service,
-      newService: shipment.newService || shipment.service,
-      currentRate: currentRate,
-      newRate: newRate,
-      savings: calculatedSavings,
-      savingsPercent: calculateSavingsPercent(currentRate, newRate),
-      
-      // Multi-carrier account data (already processed in Analysis.tsx)
-      accounts: shipment.accounts || [],
-      allRates: shipment.allRates || [],
-      carrierResults: shipment.carrierResults || [],
-      rates: shipment.allRates || [] // Legacy compatibility
+      id: index + 1,
+      trackingId: rec.shipment?.trackingId || rec.trackingId || `Shipment-${index + 1}`,
+      originZip: rec.shipment?.originZip || rec.originZip || '',
+      destinationZip: rec.shipment?.destZip || rec.destinationZip || '',
+      weight: parseFloat(rec.shipment?.weight || rec.weight || '0'),
+      length: parseFloat(rec.shipment?.length || rec.length || '12'),
+      width: parseFloat(rec.shipment?.width || rec.width || '12'),
+      height: parseFloat(rec.shipment?.height || rec.height || '6'),
+      dimensions: rec.shipment?.dimensions || rec.dimensions,
+      carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
+      service: rec.originalService || rec.service || 'Unknown',
+      originalService: rec.originalService || rec.service || 'Unknown',
+      bestService: rec.bestService || rec.recommendedService || 'UPS Ground',
+      newService: rec.recommendedService || rec.bestService || 'UPS Ground',
+      currentRate,
+      newRate,
+      savings: rec.savings || calculatedSavings || 0,
+      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0
     };
   });
 };
 
-// Export utility functions
-export const generateExportData = (shipmentData: ProcessedShipmentData[], includeSummary = true) => {
-  const exportData = shipmentData.map(item => ({
-    'Tracking ID': item.trackingId,
-    'Origin Zip': item.originZip,
-    'Destination Zip': item.destinationZip,
-    'Weight (lbs)': item.weight,
-    'Current Carrier': item.carrier,
-    'Current Service': item.originalService,
-    'Recommended Service': item.service,
-    'Current Rate': item.currentRate.toFixed(2),
-    'Recommended Rate': item.newRate.toFixed(2),
-    'Savings': item.savings.toFixed(2),
-    'Savings %': item.savingsPercent.toFixed(1) + '%'
-  }));
-
-  if (includeSummary) {
-    const totalCurrentCost = shipmentData.reduce((sum, item) => sum + item.currentRate, 0);
-    const totalNewCost = shipmentData.reduce((sum, item) => sum + item.newRate, 0);
-    const totalSavings = totalCurrentCost - totalNewCost;
-    const savingsPercent = totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0;
-
-    exportData.unshift({
-      'Tracking ID': 'SUMMARY',
-      'Origin Zip': '',
-      'Destination Zip': '',
-      'Weight (lbs)': shipmentData.length,
-      'Current Carrier': '',
-      'Current Service': '',
-      'Recommended Service': '',
-      'Current Rate': totalCurrentCost.toFixed(2),
-      'Recommended Rate': totalNewCost.toFixed(2),
-      'Savings': totalSavings.toFixed(2),
-      'Savings %': savingsPercent.toFixed(1) + '%'
-    });
+// Error handling utility
+export const handleDataProcessingError = (error: any, context: string): void => {
+  console.error(`❌ Error in ${context}:`, error);
+  
+  if (context.includes('client')) {
+    toast.error('Failed to load shared report. The link may be invalid or expired.');
+  } else {
+    toast.error('Failed to load analysis results');
   }
-
-  return exportData;
 };
 
-export const handleDataProcessingError = (error: any, context: string) => {
-  console.error(`❌ Data processing error in ${context}:`, error);
-  toast.error(`Error processing data: ${error.message}`);
-  
-  // Return a safe fallback state
-  return {
-    totalCurrentCost: 0,
-    totalPotentialSavings: 0,
-    recommendations: [],
-    savingsPercentage: 0,
-    totalShipments: 0,
-    analyzedShipments: 0,
-    orphanedShipments: [],
-    completedShipments: 0,
-    errorShipments: 0
-  };
+// Generate CSV export data with markup
+export const generateExportData = (filteredData: any[], getShipmentMarkup: (shipment: any) => any) => {
+  return filteredData.map(item => {
+    const markupInfo = getShipmentMarkup(item);
+    const savings = item.currentRate - markupInfo.markedUpPrice;
+    const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
+    return {
+      'Tracking ID': item.trackingId,
+      'Origin ZIP': item.originZip,
+      'Destination ZIP': item.destinationZip,
+      'Weight': item.weight,
+      'Dimensions': item.dimensions || `${item.length || 0}x${item.width || 0}x${item.height || 0}`,
+      'Current Service': item.originalService || item.currentService || '',
+      'Ship Pros Service': item.service,
+      'Current Rate': `$${item.currentRate.toFixed(2)}`,
+      'Ship Pros Cost': `$${markupInfo.markedUpPrice.toFixed(2)}`,
+      'Savings': `$${savings.toFixed(2)}`,
+      'Savings Percentage': `${savingsPercent.toFixed(1)}%`
+    };
+  });
 };

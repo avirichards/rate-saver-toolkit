@@ -47,15 +47,22 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
 
   useEffect(() => {
     if (analysisId) {
+      console.log('🔍 AccountComparisonView: Loading data for analysis ID:', analysisId);
       loadShipmentRates();
+    } else {
+      console.warn('⚠️ AccountComparisonView: No analysis ID provided');
     }
   }, [analysisId]);
 
   const loadShipmentRates = async () => {
-    if (!analysisId) return;
+    if (!analysisId) {
+      console.warn('⚠️ AccountComparisonView: Cannot load rates - no analysis ID');
+      return;
+    }
 
     try {
       setLoading(true);
+      console.log('📊 AccountComparisonView: Fetching rates for analysis:', analysisId);
       
       const { data, error } = await supabase
         .from('shipment_rates')
@@ -65,12 +72,18 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
         .order('rate_amount', { ascending: true });
 
       if (error) {
-        console.error('Error loading shipment rates:', error);
+        console.error('❌ AccountComparisonView: Error loading shipment rates:', error);
         return;
       }
 
+      console.log('📊 AccountComparisonView: Raw data received:', {
+        analysisId,
+        recordCount: data?.length || 0,
+        sampleData: data?.slice(0, 3)
+      });
+
       if (!data || data.length === 0) {
-        console.log('No shipment rates found for analysis:', analysisId);
+        console.log('📊 AccountComparisonView: No shipment rates found for analysis:', analysisId);
         setShipmentRates([]);
         return;
       }
@@ -113,8 +126,15 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
       setAvailableAccounts(Array.from(accounts).sort());
       setAvailableServices(Array.from(services).sort());
 
+      console.log('✅ AccountComparisonView: Data processed successfully:', {
+        shipmentsCount: processedRates.length,
+        accountsCount: accounts.size,
+        servicesCount: services.size,
+        totalRates: data.length
+      });
+
     } catch (error) {
-      console.error('Error loading shipment rates:', error);
+      console.error('❌ AccountComparisonView: Error in loadShipmentRates:', error);
     } finally {
       setLoading(false);
     }
@@ -169,7 +189,20 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
           <div className="text-center text-muted-foreground">
             <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <h3 className="text-lg font-medium mb-2">No Account Comparison Data Available</h3>
-            <p>This feature requires running a new analysis to collect rates from all carrier accounts.</p>
+            <p className="mb-2">
+              {!analysisId 
+                ? "No analysis ID provided for this view."
+                : "This analysis doesn't have individual rate data from multiple accounts."
+              }
+            </p>
+            <p className="text-sm">
+              To see account comparison data, run a new analysis after the recent updates.
+            </p>
+            {analysisId && (
+              <p className="text-xs mt-2 text-muted-foreground">
+                Analysis ID: {analysisId}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -1588,12 +1588,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     );
   }
 
-  // Check if we have any analysis data or shipment data
-  // For newer analyses, data might be in shipment_rates table instead of processed_shipments
-  const hasShipmentData = shipmentData.length > 0 || 
-    (analysisData && analysisData.totalShipments > 0);
-
-  if (!analysisData || !hasShipmentData) {
+  if (!analysisData || shipmentData.length === 0) {
     return (
       <DashboardLayout>
         <div className="max-w-7xl mx-auto p-6">

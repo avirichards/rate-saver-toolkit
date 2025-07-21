@@ -37,7 +37,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { SummaryStats } from '@/components/ui-lov/SummaryStats';
 import { DataTable } from '@/components/ui-lov/DataTable';
-import { MarkupConfiguration } from '@/components/ui-lov/MarkupConfiguration';
+import { MarkupConfiguration, MarkupData } from '@/components/ui-lov/MarkupConfiguration';
 import { exportToExcel } from '@/utils/exportUtils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -82,6 +82,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [markupData, setMarkupData] = useState<MarkupData | null>(null);
 
   // Get analysis ID from location state or URL parameter
   const analysisId = location.state?.analysisId || new URLSearchParams(location.search).get('id');
@@ -287,6 +288,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
   const handleBackToReports = () => {
     navigate('/reports');
+  };
+
+  const handleMarkupChange = (updatedMarkupData: MarkupData) => {
+    setMarkupData(updatedMarkupData);
+    // Update the analysis with new total savings that includes markup
+    if (analysis && updatedMarkupData.savingsAmount !== undefined) {
+      setAnalysis(prev => prev ? { 
+        ...prev, 
+        total_savings: updatedMarkupData.savingsAmount,
+        markup_data: updatedMarkupData
+      } : null);
+    }
   };
 
   if (loading) {
@@ -551,7 +564,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           {!isClientView && (
             <TabsContent value="markup">
               <MarkupConfiguration 
+                shipmentData={processedShipments}
                 analysisId={analysis.id}
+                onMarkupChange={handleMarkupChange}
+                initialMarkupData={analysis.markup_data}
               />
             </TabsContent>
           )}

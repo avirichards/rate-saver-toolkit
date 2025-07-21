@@ -58,7 +58,11 @@ interface ReportsTableProps {
   onReportUpdate?: () => void;
 }
 
-export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: ReportsTableProps) {
+export const ReportsTable: React.FC<ReportsTableProps> = ({ 
+  reports, 
+  getMarkupStatus, 
+  onReportUpdate 
+}) => {
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [sharingReports, setSharingReports] = useState<Set<string>>(new Set());
   const [downloadingReports, setDownloadingReports] = useState<Set<string>>(new Set());
@@ -237,6 +241,12 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
 
   const isAllSelected = selectedReports.size === localReports.length && localReports.length > 0;
   const isSomeSelected = selectedReports.size > 0 && selectedReports.size < localReports.length;
+
+  const handleViewReport = (report: ShippingAnalysis) => {
+    navigate('/results', {
+      state: { analysisId: report.id }
+    });
+  };
 
   return (
     <div className="space-y-4">

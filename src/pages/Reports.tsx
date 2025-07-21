@@ -51,8 +51,6 @@ const ReportsPage = () => {
     }
   }, [user]);
 
-  // Remove aggressive window focus refresh - it causes the random page refreshes
-
   const loadReports = async () => {
     try {
       setLoading(true);
@@ -80,7 +78,6 @@ const ReportsPage = () => {
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
         .eq('status', 'completed')  // Only show completed analyses
-        .not('file_name', 'like', '%.csv')  // Exclude original CSV files (duplicates)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -109,8 +106,17 @@ const ReportsPage = () => {
         }
       }
 
+      // Filter out analyses that don't have any shipment data (these are likely duplicates)
+      const validAnalyses = reportsWithClients.filter(report => {
+        const hasProcessedShipments = report.processed_shipments && report.processed_shipments.length > 0;
+        const hasOrphanedShipments = report.orphaned_shipments && report.orphaned_shipments.length > 0;
+        const hasTotalShipments = report.total_shipments && report.total_shipments > 0;
+        
+        return hasProcessedShipments || hasOrphanedShipments || hasTotalShipments;
+      });
+
       // Auto-detect and migrate legacy analyses in the background
-      const legacyAnalyses = reportsWithClients.filter(report => 
+      const legacyAnalyses = validAnalyses.filter(report => 
         !report.processed_shipments && !report.orphaned_shipments
       );
       
@@ -132,8 +138,8 @@ const ReportsPage = () => {
         }, 1000);
       }
       
-      console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
-      setReports(reportsWithClients as any);
+      console.log('Loaded reports:', validAnalyses?.length || 0, 'reports');
+      setReports(validAnalyses as any);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {

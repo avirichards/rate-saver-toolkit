@@ -421,6 +421,12 @@ const Analysis = () => {
       // Validate carrier configuration first
       await validateCarrierConfiguration();
       
+      // Create analysis record first to get ID for saving individual rates
+      const analysisId = await createAnalysisRecord(shipmentsToAnalyze);
+      if (!analysisId) {
+        throw new Error('Failed to create analysis record');
+      }
+      
       // Process shipments sequentially (one at a time) to prevent race conditions
       for (let i = 0; i < shipmentsToAnalyze.length; i++) {
         // Check if paused before processing each shipment
@@ -436,7 +442,7 @@ const Analysis = () => {
         });
         
         setCurrentShipmentIndex(i);
-        await processShipment(i, shipmentsToAnalyze[i]);
+        await processShipment(i, shipmentsToAnalyze[i], 0, analysisId);
         
         // Small delay to show progress and allow for pause to take effect
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -444,9 +450,9 @@ const Analysis = () => {
       
       // Only mark complete if we processed all shipments and weren't paused
       if (!isPaused) {
-        console.log('✅ Analysis complete, saving to database');
+        console.log('✅ Analysis complete, updating database');
         setIsComplete(true);
-        await saveAnalysisToDatabase();
+        await updateAnalysisRecord(analysisId);
       }
       
     } catch (error: any) {
@@ -484,8 +490,83 @@ const Analysis = () => {
       carriers: configs.map(c => ({ type: c.carrier_type, name: c.account_name }))
     });
   };
+
+  const createAnalysisRecord = async (shipmentsToAnalyze: ProcessedShipment[]) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error('Please log in to run analysis');
+    }
+
+    const state = location.state as any;
+    const baseName = state?.fileName || 'Real-time Analysis';
+
+    console.log('💾 Creating initial analysis record for rate saving');
+    
+    const analysisRecord = {
+      user_id: user.id,
+      file_name: baseName,
+      total_shipments: shipmentsToAnalyze.length,
+      total_savings: 0,
+      status: 'processing',
+      original_data: {} as any, // Required field, will be updated when complete
+      carrier_configs_used: selectedCarriers as any,
+      processing_metadata: {
+        startedAt: new Date().toISOString(),
+        dataSource: 'fresh_analysis'
+      } as any
+    };
+
+    const { data, error } = await supabase
+      .from('shipping_analyses')
+      .insert(analysisRecord)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Error creating analysis record:', error);
+      throw new Error('Failed to create analysis record');
+    }
+
+    console.log('✅ Analysis record created successfully:', data.id);
+    return data.id;
+  };
+
+  const updateAnalysisRecord = async (analysisId: string) => {
+    const completedResults = analysisResults.filter(r => r.status === 'completed');
+    const errorResults = analysisResults.filter(r => r.status === 'error');
+    
+    // Calculate totals
+    const totalSavingsCalc = completedResults.reduce((sum, result) => sum + (result.savings || 0), 0);
+    const totalCurrentCostCalc = completedResults.reduce((sum, result) => sum + (result.currentCost || 0), 0);
+
+    console.log('💾 Updating analysis record with final results');
+    
+    const updateData = {
+      status: 'completed',
+      total_savings: totalSavingsCalc,
+      processing_metadata: {
+        completedAt: new Date().toISOString(),
+        totalCurrentCost: totalCurrentCostCalc,
+        totalShipments: shipments.length,
+        completedShipments: completedResults.length,
+        errorShipments: errorResults.length,
+        dataSource: 'fresh_analysis'
+      } as any
+    };
+
+    const { error } = await supabase
+      .from('shipping_analyses')
+      .update(updateData)
+      .eq('id', analysisId);
+
+    if (error) {
+      console.error('❌ Error updating analysis record:', error);
+    } else {
+      console.log('✅ Analysis record updated successfully');
+    }
+  };
   
-  const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0) => {
+  const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
     const maxRetries = 2;
     
     console.log(`🔍 Processing shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
@@ -750,7 +831,9 @@ const Analysis = () => {
         body: { 
           shipment: {
             ...shipmentRequest,
-            carrierConfigIds: selectedCarriers
+            carrierConfigIds: selectedCarriers,
+            analysisId: analysisId, // Pass analysis ID for saving individual rates
+            shipmentIndex: index // Pass shipment index for tracking
           }
         }
       });

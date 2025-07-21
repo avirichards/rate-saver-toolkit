@@ -36,6 +36,8 @@ interface ShipmentRequest {
   carrierConfigIds: string[];
   serviceTypes?: string[];
   isResidential?: boolean;
+  analysisId?: string; // For saving individual rates
+  shipmentIndex?: number; // For saving individual rates
 }
 
 interface CarrierConfig {
@@ -50,6 +52,7 @@ interface CarrierConfig {
   fedex_meter_number?: string;
   fedex_key?: string;
   fedex_password?: string;
+  enabled_services?: string[]; // For service filtering
 }
 
 serve(async (req) => {
@@ -123,16 +126,43 @@ serve(async (req) => {
       try {
         console.log(`📦 Processing carrier: ${config.carrier_type} (${config.account_name})`);
         
+        // Filter service types based on enabled services in carrier config
+        let servicesToRequest = shipment.serviceTypes || [];
+        if (config.enabled_services && config.enabled_services.length > 0) {
+          servicesToRequest = servicesToRequest.filter(service => 
+            config.enabled_services!.includes(service)
+          );
+          console.log(`🔧 Filtered services for ${config.account_name}:`, {
+            original: shipment.serviceTypes,
+            filtered: servicesToRequest,
+            enabledServices: config.enabled_services
+          });
+        }
+
+        // Skip if no services are enabled for this carrier
+        if (servicesToRequest.length === 0) {
+          console.log(`⏭️ Skipping ${config.account_name}: No enabled services`);
+          carrierResults.push({
+            carrierId: config.id,
+            carrierName: config.account_name,
+            carrierType: config.carrier_type,
+            success: false,
+            error: 'No enabled services for this carrier',
+            rates: []
+          });
+          continue;
+        }
+        
         let rates: any[] = [];
         
         if (config.carrier_type === 'ups') {
-          rates = await getUpsRates(supabase, shipment, config);
+          rates = await getUpsRates(supabase, shipment, config, servicesToRequest);
         } else if (config.carrier_type === 'fedex') {
-          rates = await getFedexRates(supabase, shipment, config);
+          rates = await getFedexRates(supabase, shipment, config, servicesToRequest);
         } else if (config.carrier_type === 'dhl') {
-          rates = await getDhlRates(supabase, shipment, config);
+          rates = await getDhlRates(supabase, shipment, config, servicesToRequest);
         } else if (config.carrier_type === 'usps') {
-          rates = await getUspsRates(supabase, shipment, config);
+          rates = await getUspsRates(supabase, shipment, config, servicesToRequest);
         }
 
         if (rates.length > 0) {
@@ -144,6 +174,11 @@ serve(async (req) => {
             carrierType: config.carrier_type,
             isSandbox: config.is_sandbox
           }));
+
+          // Save individual rates to database if analysisId and shipmentIndex provided
+          if (shipment.analysisId && shipment.shipmentIndex !== undefined) {
+            await saveShipmentRates(supabase, shipment, config, carrierRates);
+          }
 
           allRates.push(...carrierRates);
           carrierResults.push({
@@ -215,7 +250,7 @@ serve(async (req) => {
   }
 });
 
-async function getUpsRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig) {
+async function getUpsRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, serviceTypes?: string[]) {
   console.log('📦 Getting UPS rates...');
   
   // Call existing UPS rate quote function
@@ -223,7 +258,7 @@ async function getUpsRates(supabase: any, shipment: ShipmentRequest, config: Car
     body: { 
       shipment: {
         ...shipment,
-        serviceTypes: shipment.serviceTypes
+        serviceTypes: serviceTypes || shipment.serviceTypes
       },
       configId: config.id // Pass specific config ID for this carrier
     }
@@ -237,7 +272,7 @@ async function getUpsRates(supabase: any, shipment: ShipmentRequest, config: Car
   return data?.rates || [];
 }
 
-async function getFedexRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig) {
+async function getFedexRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, serviceTypes?: string[]) {
   console.log('🚚 Getting FedEx rates... (placeholder)');
   
   // TODO: Implement FedEx API integration
@@ -245,7 +280,7 @@ async function getFedexRates(supabase: any, shipment: ShipmentRequest, config: C
   return [];
 }
 
-async function getDhlRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig) {
+async function getDhlRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, serviceTypes?: string[]) {
   console.log('✈️ Getting DHL rates... (placeholder)');
   
   // TODO: Implement DHL API integration
@@ -253,12 +288,52 @@ async function getDhlRates(supabase: any, shipment: ShipmentRequest, config: Car
   return [];
 }
 
-async function getUspsRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig) {
+async function getUspsRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, serviceTypes?: string[]) {
   console.log('📮 Getting USPS rates... (placeholder)');
   
   // TODO: Implement USPS API integration
   // For now, return empty array
   return [];
+}
+
+async function saveShipmentRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, rates: any[]) {
+  try {
+    console.log(`💾 Saving ${rates.length} rates for shipment ${shipment.shipmentIndex} from ${config.account_name}`);
+    
+    const rateRecords = rates.map(rate => ({
+      analysis_id: shipment.analysisId,
+      shipment_index: shipment.shipmentIndex,
+      carrier_config_id: config.id,
+      account_name: config.account_name,
+      carrier_type: config.carrier_type,
+      service_code: rate.serviceCode || rate.service_code || 'UNKNOWN',
+      service_name: rate.serviceName || rate.service_name || rate.description || null,
+      rate_amount: parseFloat(rate.totalCharges || rate.rate_amount || rate.cost || 0),
+      currency: rate.currency || 'USD',
+      transit_days: rate.transitDays || rate.transit_days || null,
+      is_negotiated: rate.negotiatedRate ? true : false,
+      published_rate: rate.publishedRate ? parseFloat(rate.publishedRate) : null,
+      shipment_data: {
+        shipFrom: shipment.shipFrom,
+        shipTo: shipment.shipTo,
+        package: shipment.package,
+        isResidential: shipment.isResidential
+      },
+      rate_response: rate
+    }));
+
+    const { error } = await supabase
+      .from('shipment_rates')
+      .insert(rateRecords);
+
+    if (error) {
+      console.error('Error saving shipment rates:', error);
+    } else {
+      console.log(`✅ Successfully saved ${rateRecords.length} rates for shipment ${shipment.shipmentIndex}`);
+    }
+  } catch (error) {
+    console.error('Error in saveShipmentRates:', error);
+  }
 }
 
 function findBestRatesByService(allRates: any[]) {

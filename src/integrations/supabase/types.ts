@@ -528,8 +528,84 @@ export type Database = {
         }
         Relationships: []
       }
+      shipment_rates: {
+        Row: {
+          account_name: string
+          analysis_id: string
+          carrier_config_id: string
+          carrier_type: string
+          created_at: string
+          currency: string
+          id: string
+          is_negotiated: boolean | null
+          published_rate: number | null
+          rate_amount: number
+          rate_response: Json | null
+          service_code: string
+          service_name: string | null
+          shipment_data: Json
+          shipment_index: number
+          transit_days: number | null
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          analysis_id: string
+          carrier_config_id: string
+          carrier_type: string
+          created_at?: string
+          currency?: string
+          id?: string
+          is_negotiated?: boolean | null
+          published_rate?: number | null
+          rate_amount: number
+          rate_response?: Json | null
+          service_code: string
+          service_name?: string | null
+          shipment_data: Json
+          shipment_index: number
+          transit_days?: number | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          analysis_id?: string
+          carrier_config_id?: string
+          carrier_type?: string
+          created_at?: string
+          currency?: string
+          id?: string
+          is_negotiated?: boolean | null
+          published_rate?: number | null
+          rate_amount?: number
+          rate_response?: Json | null
+          service_code?: string
+          service_name?: string | null
+          shipment_data?: Json
+          shipment_index?: number
+          transit_days?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipment_rates_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_analyses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipment_rates_carrier_config_id_fkey"
+            columns: ["carrier_config_id"]
+            isOneToOne: false
+            referencedRelation: "carrier_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       shipping_analyses: {
         Row: {
+          account_assignments: Json | null
           analysis_date: string
           base_data: Json | null
           carrier_configs_used: Json | null
@@ -539,6 +615,7 @@ export type Database = {
           csv_upload_id: string | null
           deleted_at: string | null
           file_name: string
+          global_assignment: Json | null
           id: string
           is_deleted: boolean | null
           markup_data: Json | null
@@ -552,6 +629,7 @@ export type Database = {
           report_status: string | null
           sales_rep_id: string | null
           savings_analysis: Json | null
+          service_assignments: Json | null
           status: string
           total_savings: number | null
           total_shipments: number
@@ -560,6 +638,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          account_assignments?: Json | null
           analysis_date?: string
           base_data?: Json | null
           carrier_configs_used?: Json | null
@@ -569,6 +648,7 @@ export type Database = {
           csv_upload_id?: string | null
           deleted_at?: string | null
           file_name: string
+          global_assignment?: Json | null
           id?: string
           is_deleted?: boolean | null
           markup_data?: Json | null
@@ -582,6 +662,7 @@ export type Database = {
           report_status?: string | null
           sales_rep_id?: string | null
           savings_analysis?: Json | null
+          service_assignments?: Json | null
           status?: string
           total_savings?: number | null
           total_shipments?: number
@@ -590,6 +671,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          account_assignments?: Json | null
           analysis_date?: string
           base_data?: Json | null
           carrier_configs_used?: Json | null
@@ -599,6 +681,7 @@ export type Database = {
           csv_upload_id?: string | null
           deleted_at?: string | null
           file_name?: string
+          global_assignment?: Json | null
           id?: string
           is_deleted?: boolean | null
           markup_data?: Json | null
@@ -612,6 +695,7 @@ export type Database = {
           report_status?: string | null
           sales_rep_id?: string | null
           savings_analysis?: Json | null
+          service_assignments?: Json | null
           status?: string
           total_savings?: number | null
           total_shipments?: number

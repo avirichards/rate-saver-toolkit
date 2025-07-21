@@ -646,6 +646,39 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           console.log('🔄 Auto-saving analysis data...');
+          
+          // Check if this analysis already exists based on recommendations data
+          if (analysisData.recommendations && analysisData.recommendations.length > 0) {
+            // Try to find existing analysis with matching data
+            const sampleRecommendation = analysisData.recommendations[0];
+            const { data: existingAnalyses, error } = await supabase
+              .from('shipping_analyses')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('status', 'completed')
+              .gte('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()) // Within last 10 minutes
+              .order('created_at', { ascending: false })
+              .limit(3);
+              
+            if (!error && existingAnalyses && existingAnalyses.length > 0) {
+              // Check if any recent analysis has shipment rates (indicating it was created during processing)
+              for (const analysis of existingAnalyses) {
+                const { data: ratesCheck } = await supabase
+                  .from('shipment_rates')
+                  .select('id')
+                  .eq('analysis_id', analysis.id)
+                  .limit(1);
+                  
+                if (ratesCheck && ratesCheck.length > 0) {
+                  console.log('📋 Found existing analysis with rates, using ID:', analysis.id);
+                  setCurrentAnalysisId(analysis.id);
+                  loadServiceNotes(analysis.id);
+                  return analysis.id;
+                }
+              }
+            }
+          }
+          
           const savedId = await autoSaveAnalysis(false);
           if (savedId) {
             console.log('✅ Analysis auto-saved with ID:', savedId);

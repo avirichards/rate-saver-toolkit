@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
@@ -12,8 +13,6 @@ import { FileBarChart, Upload, RefreshCw, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { calculateSavings } from '@/utils/analysisUtils';
-import { AnalysisSummary } from '@/components/ui-lov/AnalysisSummary';
-import { DataTable } from '@/components/ui-lov/DataTable';
 
 interface AnalysisResult {
   processedShipments: any[];
@@ -219,27 +218,31 @@ const AnalysisPage = () => {
 
         {analysisResults && (
           <div className="mt-8">
-            <AnalysisSummary 
-              summary={analysisResults.summary} 
-              processedShipments={analysisResults.processedShipments}
-              orphanedShipments={analysisResults.orphanedShipments}
-            />
-
-            <Card className="mt-4">
+            <Card>
               <CardHeader>
-                <CardTitle>Processed Shipments</CardTitle>
+                <CardTitle>Analysis Summary</CardTitle>
               </CardHeader>
               <CardContent>
-                <DataTable data={analysisResults.processedShipments} />
-              </CardContent>
-            </Card>
-
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle>Orphaned Shipments</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <DataTable data={analysisResults.orphanedShipments} />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-600">
+                      ${analysisResults.summary.totalSavings.toFixed(2)}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Savings</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold">
+                      {analysisResults.processedShipments.length}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Processed Shipments</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {analysisResults.orphanedShipments.length}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Orphaned Shipments</div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

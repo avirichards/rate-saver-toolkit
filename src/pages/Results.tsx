@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -140,7 +139,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }
 
       console.log('✅ Loaded shared analysis:', analysisData);
-      setAnalysis(analysisData);
+      
+      // Cast Json types to proper arrays
+      const processedAnalysis: ShippingAnalysis = {
+        ...analysisData,
+        processed_shipments: Array.isArray(analysisData.processed_shipments) ? analysisData.processed_shipments : [],
+        orphaned_shipments: Array.isArray(analysisData.orphaned_shipments) ? analysisData.orphaned_shipments : []
+      };
+      
+      setAnalysis(processedAnalysis);
       setSelectedClient(analysisData.client_id);
       setTempName(analysisData.report_name || analysisData.file_name);
 
@@ -183,7 +190,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }
 
       console.log('✅ Loaded analysis:', data);
-      setAnalysis(data);
+      
+      // Cast Json types to proper arrays
+      const processedAnalysis: ShippingAnalysis = {
+        ...data,
+        processed_shipments: Array.isArray(data.processed_shipments) ? data.processed_shipments : [],
+        orphaned_shipments: Array.isArray(data.orphaned_shipments) ? data.orphaned_shipments : []
+      };
+      
+      setAnalysis(processedAnalysis);
       setSelectedClient(data.client_id);
       setTempName(data.report_name || data.file_name);
     } catch (error: any) {
@@ -441,7 +456,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 <Label htmlFor="client-select">Assign to Client:</Label>
                 <ClientCombobox
                   value={selectedClient}
-                  onChange={handleClientChange}
+                  onValueChange={handleClientChange}
                   placeholder="Select a client (optional)"
                 />
               </div>
@@ -450,12 +465,33 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         )}
 
         {/* Summary Stats */}
-        <SummaryStats 
-          processedShipments={processedShipments}
-          orphanedShipments={orphanedShipments}
-          markupData={analysis.markup_data}
-          isClientView={isClientView}
-        />
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Analysis Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  ${(analysis.total_savings || 0).toFixed(2)}
+                </div>
+                <div className="text-sm text-muted-foreground">Total Savings</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">
+                  {processedShipments.length}
+                </div>
+                <div className="text-sm text-muted-foreground">Processed Shipments</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-orange-600">
+                  {orphanedShipments.length}
+                </div>
+                <div className="text-sm text-muted-foreground">Orphaned Shipments</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="results" className="mt-6">
@@ -467,17 +503,22 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           </TabsList>
 
           <TabsContent value="results">
-            <DataTable 
-              data={processedShipments}
-              isClientView={isClientView}
-              analysisId={analysis.id}
-            />
+            <Card>
+              <CardHeader>
+                <CardTitle>Processed Shipments ({processedShipments.length})</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <DataTable 
+                  data={processedShipments}
+                  columns={[]}
+                />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="accounts">
             <AccountComparisonView 
               analysisId={analysis.id}
-              isClientView={isClientView}
             />
           </TabsContent>
 
@@ -500,8 +541,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 ) : (
                   <DataTable 
                     data={orphanedShipments}
-                    isClientView={isClientView}
-                    analysisId={analysis.id}
+                    columns={[]}
                   />
                 )}
               </CardContent>
@@ -512,9 +552,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             <TabsContent value="markup">
               <MarkupConfiguration 
                 analysisId={analysis.id}
-                onMarkupUpdate={(markupData) => {
-                  setAnalysis(prev => prev ? { ...prev, markup_data: markupData } : null);
-                }}
               />
             </TabsContent>
           )}

@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ShareData {
@@ -79,6 +80,21 @@ export const getOrCreateReportShare = async (analysisId: string, clientId?: stri
   }
 };
 
+// Create shareable link - this is the missing export
+export const createShareableLink = async (analysisId: string, clientId?: string): Promise<string> => {
+  try {
+    const shareData = await getOrCreateReportShare(analysisId, clientId);
+    if (!shareData) {
+      throw new Error('Failed to create share');
+    }
+    
+    return `${window.location.origin}/share/${shareData.shareToken}`;
+  } catch (error) {
+    console.error('Error creating shareable link:', error);
+    throw error;
+  }
+};
+
 // Get shared report data using share token
 export const getSharedReport = async (shareToken: string) => {
   try {
@@ -100,7 +116,6 @@ export const getSharedReport = async (shareToken: string) => {
       throw new Error('Share has expired');
     }
 
-    // Now get the analysis data - fetch client separately since no FK relationship exists
     const { data: analysis, error: analysisError } = await supabase
       .from('shipping_analyses')
       .select('*')
@@ -117,7 +132,6 @@ export const getSharedReport = async (shareToken: string) => {
       throw new Error('Analysis not found or has been deleted');
     }
 
-    // Fetch client data separately if client_id exists
     let clientData = null;
     if (analysis.client_id) {
       const { data: client } = await supabase

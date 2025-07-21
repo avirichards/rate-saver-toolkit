@@ -144,6 +144,40 @@ export const generateReportExcelFromProcessedData = (
   return workbook;
 };
 
+// Simple Excel export function for basic data
+export const exportToExcel = (processedData: any[], orphanedData: any[], fileName: string) => {
+  const workbook = XLSX.utils.book_new();
+  
+  // Create processed shipments sheet
+  if (processedData && processedData.length > 0) {
+    const processedSheet = XLSX.utils.json_to_sheet(processedData);
+    XLSX.utils.book_append_sheet(workbook, processedSheet, 'Processed Shipments');
+  }
+  
+  // Create orphaned shipments sheet
+  if (orphanedData && orphanedData.length > 0) {
+    const orphanedSheet = XLSX.utils.json_to_sheet(orphanedData);
+    XLSX.utils.book_append_sheet(workbook, orphanedSheet, 'Orphaned Shipments');
+  }
+  
+  // Write and download
+  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([excelBuffer], { 
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' 
+  });
+  
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${fileName}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 // Generate Excel workbook from report data with markup applied (legacy function for compatibility)
 
 // Download report as Excel

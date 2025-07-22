@@ -59,7 +59,7 @@ export const AccountPerformanceSummary: React.FC<AccountPerformanceSummaryProps>
 
           {/* Top Account Highlight */}
           {topAccount && (
-            <div className="bg-gradient-to-r from-yellow-50 to-green-50 p-4 rounded-lg border border-yellow-200">
+            <div className="p-4 rounded-lg border-2 border-yellow-600">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-semibold text-lg flex items-center gap-2">
@@ -81,7 +81,7 @@ export const AccountPerformanceSummary: React.FC<AccountPerformanceSummaryProps>
       {/* Account Performance Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sortedAccounts.map((account, index) => (
-          <Card key={account.accountName} className={index === 0 ? 'border-yellow-200 bg-yellow-50/50' : ''}>
+          <Card key={account.accountName} className={index === 0 ? 'border-yellow-600 border-2' : ''}>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">{account.accountName}</CardTitle>

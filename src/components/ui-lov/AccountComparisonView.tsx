@@ -24,6 +24,13 @@ interface ShipmentRate {
   shipment_data: any;
 }
 
+interface AccountData {
+  accountName: string;
+  rates: ShipmentRate[];
+  totalSavings: number;
+  wins: number;
+}
+
 interface AccountComparisonViewProps {
   analysisId: string | null;
 }
@@ -184,26 +191,26 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
     return Array.from(serviceMap.values()).map(service => ({
       serviceName: service.serviceName,
       serviceCode: service.serviceCode,
-      accounts: Array.from(service.accounts.values()).map(account => {
+      accounts: Array.from(service.accounts.values()).map((account: AccountData) => {
         const rates = account.rates;
-        const avgRate = rates.reduce((sum, r) => sum + r.rate_amount, 0) / rates.length;
-        const avgTransit = rates.filter(r => r.transit_days).reduce((sum, r) => sum + r.transit_days!, 0) / rates.filter(r => r.transit_days).length || 0;
+        const avgRate = rates.reduce((sum: number, r: ShipmentRate) => sum + r.rate_amount, 0) / rates.length;
+        const avgTransit = rates.filter((r: ShipmentRate) => r.transit_days).reduce((sum: number, r: ShipmentRate) => sum + r.transit_days!, 0) / rates.filter((r: ShipmentRate) => r.transit_days).length || 0;
         
         // Calculate wins for this account in this service
-        const shipmentGroups = new Map();
-        rates.forEach(rate => {
+        const shipmentGroups = new Map<number, ShipmentRate[]>();
+        rates.forEach((rate: ShipmentRate) => {
           if (!shipmentGroups.has(rate.shipment_index)) {
             shipmentGroups.set(rate.shipment_index, []);
           }
-          shipmentGroups.get(rate.shipment_index).push(rate);
+          shipmentGroups.get(rate.shipment_index)!.push(rate);
         });
         
         let wins = 0;
         let totalSavings = 0;
-        shipmentGroups.forEach(shipmentRates => {
-          const bestRate = Math.min(...shipmentRates.map(r => r.rate_amount));
-          const worstRate = Math.max(...shipmentRates.map(r => r.rate_amount));
-          const accountRate = shipmentRates.find(r => r.account_name === account.accountName);
+        shipmentGroups.forEach((shipmentRates: ShipmentRate[]) => {
+          const bestRate = Math.min(...shipmentRates.map((r: ShipmentRate) => r.rate_amount));
+          const worstRate = Math.max(...shipmentRates.map((r: ShipmentRate) => r.rate_amount));
+          const accountRate = shipmentRates.find((r: ShipmentRate) => r.account_name === account.accountName);
           
           if (accountRate && accountRate.rate_amount === bestRate) {
             wins++;

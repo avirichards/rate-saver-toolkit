@@ -136,7 +136,7 @@ export const ServiceLevelComparison: React.FC<ServiceLevelComparisonProps> = ({
                   {sortAccounts(service.accounts).map((account, index) => {
                     const isBest = index === 0 && sortBy === 'winRate';
                     return (
-                      <TableRow key={account.accountName} className={isBest ? 'bg-green-50' : ''}>
+                      <TableRow key={account.accountName} className={isBest ? 'border-green-600 border-2' : ''}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             {account.accountName}

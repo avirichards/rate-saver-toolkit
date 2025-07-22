@@ -100,14 +100,27 @@ export const ShipmentLevelDrillDown: React.FC<ShipmentLevelDrillDownProps> = ({
                       <Package className="h-5 w-5 text-blue-600" />
                       <div>
                         <h4 className="font-medium">Shipment #{shipment.shipmentIndex + 1}</h4>
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
                             <MapPin className="h-3 w-3" />
-                            {shipment.shipmentData?.shipFrom?.zipCode} → {shipment.shipmentData?.shipTo?.zipCode}
+                            <span>{shipment.shipmentData?.shipFrom?.zipCode} → {shipment.shipmentData?.shipTo?.zipCode}</span>
                           </div>
                           {shipment.shipmentData?.package?.weight && (
-                            <span>{shipment.shipmentData.package.weight} lbs</span>
+                            <div className="flex items-center gap-1">
+                              <Package className="h-3 w-3" />
+                              <span>{shipment.shipmentData.package.weight} lbs</span>
+                            </div>
                           )}
+                          {shipment.shipmentData?.package?.dimensions && (
+                            <div className="flex items-center gap-1">
+                              <span>📏</span>
+                              <span>{shipment.shipmentData.package.dimensions.length}×{shipment.shipmentData.package.dimensions.width}×{shipment.shipmentData.package.dimensions.height}"</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <span>🎯</span>
+                            <span>{shipment.rates.length} rates compared</span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -144,8 +157,8 @@ export const ShipmentLevelDrillDown: React.FC<ShipmentLevelDrillDownProps> = ({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {shipment.rates.map((rate, index) => (
-                          <TableRow key={index} className={rate.isBest ? 'bg-green-50' : ''}>
+                       {shipment.rates.map((rate, index) => (
+                          <TableRow key={index} className={rate.isBest ? 'border-green-600 border-2' : ''}>
                             <TableCell className="font-medium">{rate.accountName}</TableCell>
                             <TableCell>{rate.serviceName || rate.serviceCode}</TableCell>
                             <TableCell className={rate.isBest ? 'text-green-600 font-semibold' : ''}>

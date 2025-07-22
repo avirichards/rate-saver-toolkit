@@ -7,6 +7,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { BackgroundAnalysisProgress } from '@/components/ui-lov/BackgroundAnalysisProgress';
+import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { toast } from 'sonner';
 import { ArrowLeft, Play } from 'lucide-react';
 import { startBackgroundAnalysis } from '@/utils/backgroundAnalysis';
@@ -17,6 +18,7 @@ const Analysis = () => {
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [isStartingAnalysis, setIsStartingAnalysis] = useState(false);
   const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const { validationState, validateShipments } = useShipmentValidation();
 
   // Get data from navigation state
   const { 
@@ -26,13 +28,16 @@ const Analysis = () => {
     reportName 
   } = location.state || {};
 
-  // Redirect if no data
+  // Redirect if no data and validate shipments
   useEffect(() => {
     if (!shipmentData || !fileName) {
       toast.error('No shipment data found. Please upload a file first.');
       navigate('/upload');
+    } else {
+      // Validate shipments when component mounts
+      validateShipments(shipmentData);
     }
-  }, [shipmentData, fileName, navigate]);
+  }, [shipmentData, fileName, navigate, validateShipments]);
 
   const handleStartAnalysis = async () => {
     if (selectedCarriers.length === 0) {
@@ -117,8 +122,8 @@ const Analysis = () => {
 
         {/* Validation Summary */}
         <ValidationSummary 
-          shipmentData={shipmentData}
-          fileName={fileName}
+          validationState={validationState}
+          shipments={shipmentData}
         />
 
         {/* Analysis Status */}

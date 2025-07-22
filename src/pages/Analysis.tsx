@@ -57,14 +57,14 @@ interface AnalysisResult {
   attemptCount?: number;
   // Add validation fields for debugging
   expectedServiceCode?: string;
-      mappingValidation?: {
-        isValid: boolean;
-        expectedService: string;
-        actualService: string;
-        expectedServiceCode?: string;
-        actualServiceCode?: string;
-        message?: string;
-      };
+  mappingValidation?: {
+    isValid: boolean;
+    expectedService: string;
+    actualService: string;
+    expectedServiceCode?: string;
+    actualServiceCode?: string;
+    message?: string;
+  };
 }
 
 const Analysis = () => {
@@ -504,7 +504,7 @@ const Analysis = () => {
     const state = location.state as any;
     const baseName = state?.fileName || 'Real-time Analysis';
 
-    console.log('💾 Creating initial analysis record for rate saving');
+    console.log('💾 Creating single analysis record for unified results');
     
     const analysisRecord = {
       user_id: user.id,
@@ -514,6 +514,8 @@ const Analysis = () => {
       status: 'processing',
       original_data: {} as any, // Required field, will be updated when complete
       carrier_configs_used: selectedCarriers as any,
+      processed_shipments: [] as any,
+      orphaned_shipments: [] as any,
       processing_metadata: {
         startedAt: new Date().toISOString(),
         dataSource: 'fresh_analysis'
@@ -531,7 +533,7 @@ const Analysis = () => {
       throw new Error('Failed to create analysis record');
     }
 
-    console.log('✅ Analysis record created successfully:', data.id);
+    console.log('✅ Single analysis record created successfully:', data.id);
     return data.id;
   };
 
@@ -543,11 +545,33 @@ const Analysis = () => {
     const totalSavingsCalc = completedResults.reduce((sum, result) => sum + (result.savings || 0), 0);
     const totalCurrentCostCalc = completedResults.reduce((sum, result) => sum + (result.currentCost || 0), 0);
 
-    console.log('💾 Updating analysis record with final results');
+    console.log('💾 Updating single analysis record with final results');
+    
+    // Store processed shipments data for Results page
+    const processedShipmentsData = completedResults.map(result => ({
+      shipment: result.shipment,
+      currentCost: result.currentCost || 0,
+      recommendedCost: result.bestRate?.totalCharges || 0,
+      savings: result.savings || 0,
+      originalService: result.originalService || result.shipment.service,
+      recommendedService: result.bestRate?.serviceName || 'Unknown',
+      carrier: result.bestRate?.carrierType || 'UPS',
+      bestRate: result.bestRate,
+      allRates: result.allRates || []
+    }));
+
+    const orphanedShipmentsData = errorResults.map(result => ({
+      shipment: result.shipment,
+      error: result.error,
+      errorType: result.errorType || 'unknown_error',
+      originalService: result.originalService || result.shipment.service
+    }));
     
     const updateData = {
       status: 'completed',
       total_savings: totalSavingsCalc,
+      processed_shipments: processedShipmentsData as any,
+      orphaned_shipments: orphanedShipmentsData as any,
       processing_metadata: {
         completedAt: new Date().toISOString(),
         totalCurrentCost: totalCurrentCostCalc,
@@ -566,7 +590,7 @@ const Analysis = () => {
     if (error) {
       console.error('❌ Error updating analysis record:', error);
     } else {
-      console.log('✅ Analysis record updated successfully');
+      console.log('✅ Single analysis record updated successfully with all data');
     }
   };
   
@@ -1201,109 +1225,34 @@ const Analysis = () => {
       return;
     }
 
-    console.log('Preparing results data:', {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      orphanShipments: errorResults.length
-    });
-
-    // Format data for Results component - completed shipments
-    const recommendations = completedResults.map((result, index) => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost || 0,
-      recommendedCost: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      originalService: result.originalService || result.shipment.service,
-      recommendedService: result.bestRate?.serviceName || 'Unknown',
-      carrier: 'UPS',
-      status: 'completed'
-    }));
-
-    // Format orphaned shipments (errors)
-    const orphanedShipments = errorResults.map((result, index) => ({
-      shipment: result.shipment,
-      error: result.error,
-      errorType: result.errorType || 'unknown_error',
-      originalService: result.originalService || result.shipment.service,
-      status: 'error'
-    }));
-
-    const analysisData = {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      recommendations,
-      orphanedShipments
-    };
+    console.log('🔗 Navigating to Results with single analysis ID:', currentAnalysisId);
 
     navigate('/results', { 
       state: { 
-        analysisComplete: true, 
-        analysisData,
-        analysisId: currentAnalysisId // Pass the analysis ID so Results doesn't create a duplicate
+        analysisComplete: true,
+        analysisId: currentAnalysisId // Pass the single analysis ID
       } 
     });
   };
 
   const handleStopAndContinue = () => {
     const completedResults = analysisResults.filter(r => r.status === 'completed');
-    const errorResults = analysisResults.filter(r => r.status === 'error');
     
     if (completedResults.length === 0) {
       toast.error('No completed shipments to analyze');
       return;
     }
 
-    console.log('Stopping analysis and continuing with partial results:', {
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      orphanShipments: errorResults.length
-    });
-
-    // Format data for Results component - completed shipments
-    const recommendations = completedResults.map((result, index) => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost || 0,
-      recommendedCost: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      originalService: result.originalService || result.shipment.service,
-      recommendedService: result.bestRate?.serviceName || 'Unknown',
-      carrier: 'UPS',
-      status: 'completed'
-    }));
-
-    // Format orphaned shipments (errors)
-    const orphanedShipments = errorResults.map((result, index) => ({
-      shipment: result.shipment,
-      error: result.error,
-      errorType: result.errorType || 'unknown_error',
-      originalService: result.originalService || result.shipment.service,
-      status: 'error'
-    }));
-
-    const analysisData = {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      recommendations,
-      orphanedShipments
-    };
+    console.log('🔗 Stopping analysis and navigating to Results with single analysis ID:', currentAnalysisId);
 
     navigate('/results', { 
       state: { 
-        analysisComplete: true, 
-        analysisData,
-        analysisId: currentAnalysisId // Pass the analysis ID so Results doesn't create a duplicate
+        analysisComplete: true,
+        analysisId: currentAnalysisId // Pass the single analysis ID
       } 
     });
   };
+  
   const progress = shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
   const completedCount = analysisResults.filter(r => r.status === 'completed').length;
   const errorCount = analysisResults.filter(r => r.status === 'error').length;

@@ -593,12 +593,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           sessionStorage.removeItem('currentAnalysisId');
           await loadFromDatabase(analysisIdFromQuery);
         } else if (state?.analysisComplete && state.analysisData) {
+          console.log('Setting analysis data from navigation state:', state.analysisData);
           setAnalysisData(state.analysisData);
           
-          // Auto-save the analysis after a short delay
+          // Auto-save the analysis after a longer delay to ensure all state is set
           setTimeout(() => {
+            console.log('Triggering auto-save with analysis data:', state.analysisData);
             autoSaveAnalysis(false);
-          }, 1000);
+          }, 2000);
           
           // Process the recommendations using the utility function
           const processedShipmentData = formatShipmentData(state.analysisData.recommendations);

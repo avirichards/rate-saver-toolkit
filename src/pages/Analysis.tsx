@@ -1380,6 +1380,7 @@ const Analysis = () => {
       status: 'error'
     }));
 
+    const state = location.state as any;
     const analysisData = {
       totalShipments: analysisResults.length,
       completedShipments: completedResults.length,
@@ -1387,6 +1388,7 @@ const Analysis = () => {
       totalCurrentCost,
       totalPotentialSavings: totalSavings,
       averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+      file_name: state?.fileName || 'Analysis Report', // Add the file name for auto-save
       recommendations,
       orphanedShipments
     };

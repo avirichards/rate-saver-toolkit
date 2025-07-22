@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
@@ -50,6 +51,8 @@ const ReportsPage = () => {
     }
   }, [user]);
 
+  // Remove aggressive window focus refresh - it causes the random page refreshes
+
   const loadReports = async () => {
     try {
       setLoading(true);
@@ -80,38 +83,12 @@ const ReportsPage = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('❌ REPORTS: Database error:', error);
+        console.error('Database error:', error);
         throw error;
       }
 
-      console.log('📄 REPORTS: Raw data from database:', data?.length || 0, 'records');
-
-      // Check for duplicate reports (same CSV upload)
-      const uniqueReports = new Map();
-      const duplicates: any[] = [];
-
-      data?.forEach(report => {
-        const key = `${report.file_name}_${new Date(report.created_at).toDateString()}`;
-        if (uniqueReports.has(key)) {
-          duplicates.push(report);
-          console.warn('⚠️ REPORTS: Found duplicate report:', {
-            id: report.id,
-            fileName: report.file_name,
-            reportName: report.report_name,
-            createdAt: report.created_at
-          });
-        } else {
-          uniqueReports.set(key, report);
-        }
-      });
-
-      if (duplicates.length > 0) {
-        console.log('🔄 REPORTS: Found', duplicates.length, 'duplicate reports, cleaning up...');
-        // Optionally clean up duplicates here, but for now just log them
-      }
-
       // Manually fetch client data for reports that have a client_id
-      let reportsWithClients = Array.from(uniqueReports.values());
+      let reportsWithClients = data || [];
       if (reportsWithClients.length > 0) {
         const clientIds = [...new Set(reportsWithClients.map(r => r.client_id).filter(Boolean))];
         
@@ -154,11 +131,10 @@ const ReportsPage = () => {
         }, 1000);
       }
       
-      console.log('✅ REPORTS: Loaded', reportsWithClients?.length || 0, 'unique reports');
+      console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
       setReports(reportsWithClients as any);
     } catch (error) {
-      console.error('❌ REPORTS: Error loading reports:', error);
-      toast.error('Failed to load reports');
+      console.error('Error loading reports:', error);
     } finally {
       setLoading(false);
     }

@@ -212,6 +212,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         dataSource: 'new_analysis'
       };
 
+      // Format the recommendations data to match the expected database structure
+      const formattedShipmentData = formatShipmentData(analysisData.recommendations);
+      
       const analysisRecord = {
         user_id: user.id,
         file_name: uniqueFileName,
@@ -220,9 +223,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         status: 'completed',
         original_data: analysisData.recommendations as any,
         recommendations: analysisData.recommendations as any,
-        processed_shipments: analysisData.recommendations as any, // Use analysis data, not state
-        orphaned_shipments: analysisData.orphanedShipments as any, // Use analysis data, not state
-        processing_metadata: processingMetadata as any, // Centralized metadata
+        processed_shipments: formattedShipmentData as any, // Use formatted data
+        orphaned_shipments: analysisData.orphanedShipments as any,
+        processing_metadata: processingMetadata as any,
         markup_data: markupData as any,
         savings_analysis: savingsAnalysisData as any
       };

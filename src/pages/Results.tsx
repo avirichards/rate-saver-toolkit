@@ -161,16 +161,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       console.log('⚠️ Auto-save skipped: Client view mode');
       return null;
     }
-    
-    // Check if we already have an analysis ID from the analysis process
-    const existingAnalysisId = sessionStorage.getItem('currentAnalysisId');
-    if (existingAnalysisId && !currentAnalysisId) {
-      console.log('✅ Using existing analysis ID from session storage:', existingAnalysisId);
-      setCurrentAnalysisId(existingAnalysisId);
-      loadServiceNotes(existingAnalysisId);
-      return existingAnalysisId;
-    }
-    
     // Prevent multiple saves of the same analysis
     if (!analysisData || currentAnalysisId) {
       console.log('⚠️ Auto-save skipped:', { 
@@ -212,9 +202,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         dataSource: 'new_analysis'
       };
 
-      // Format the recommendations data to match the expected database structure
-      const formattedShipmentData = formatShipmentData(analysisData.recommendations);
-      
       const analysisRecord = {
         user_id: user.id,
         file_name: uniqueFileName,
@@ -223,9 +210,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         status: 'completed',
         original_data: analysisData.recommendations as any,
         recommendations: analysisData.recommendations as any,
-        processed_shipments: formattedShipmentData as any, // Use formatted data
-        orphaned_shipments: analysisData.orphanedShipments as any,
-        processing_metadata: processingMetadata as any,
+        processed_shipments: shipmentData as any, // Centralized data
+        orphaned_shipments: orphanedData as any, // Centralized data
+        processing_metadata: processingMetadata as any, // Centralized metadata
         markup_data: markupData as any,
         savings_analysis: savingsAnalysisData as any
       };
@@ -240,9 +227,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       console.log('✅ Analysis auto-saved successfully:', data.id);
       setCurrentAnalysisId(data.id);
-      
-      // Store the analysis ID in session storage
-      sessionStorage.setItem('currentAnalysisId', data.id);
       
       // Load service notes for the newly saved analysis
       loadServiceNotes(data.id);
@@ -590,20 +574,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         const analysisIdFromQuery = searchParams.get('analysisId');
         
         if (analysisIdFromQuery) {
-          // Loading from Reports tab - prioritize the specific analysis ID from URL
-          console.log('Loading specific analysis from Reports tab:', analysisIdFromQuery);
-          // Clear any stale session storage to ensure we load the correct analysis
-          sessionStorage.removeItem('currentAnalysisId');
+          // Loading from Reports tab
           await loadFromDatabase(analysisIdFromQuery);
         } else if (state?.analysisComplete && state.analysisData) {
-          console.log('Setting analysis data from navigation state:', state.analysisData);
           setAnalysisData(state.analysisData);
           
-          // Auto-save the analysis after a longer delay to ensure all state is set
+          // Auto-save the analysis after a short delay
           setTimeout(() => {
-            console.log('Triggering auto-save with analysis data:', state.analysisData);
             autoSaveAnalysis(false);
-          }, 2000);
+          }, 1000);
           
           // Process the recommendations using the utility function
           const processedShipmentData = formatShipmentData(state.analysisData.recommendations);

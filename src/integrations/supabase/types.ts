@@ -611,6 +611,7 @@ export type Database = {
           carrier_configs_used: Json | null
           client_facing_data: Json | null
           client_id: string | null
+          column_mappings: Json | null
           created_at: string
           csv_upload_id: string | null
           deleted_at: string | null
@@ -630,6 +631,7 @@ export type Database = {
           sales_rep_id: string | null
           savings_analysis: Json | null
           service_assignments: Json | null
+          service_mappings: Json | null
           status: string
           total_savings: number | null
           total_shipments: number
@@ -644,6 +646,7 @@ export type Database = {
           carrier_configs_used?: Json | null
           client_facing_data?: Json | null
           client_id?: string | null
+          column_mappings?: Json | null
           created_at?: string
           csv_upload_id?: string | null
           deleted_at?: string | null
@@ -663,6 +666,7 @@ export type Database = {
           sales_rep_id?: string | null
           savings_analysis?: Json | null
           service_assignments?: Json | null
+          service_mappings?: Json | null
           status?: string
           total_savings?: number | null
           total_shipments?: number
@@ -677,6 +681,7 @@ export type Database = {
           carrier_configs_used?: Json | null
           client_facing_data?: Json | null
           client_id?: string | null
+          column_mappings?: Json | null
           created_at?: string
           csv_upload_id?: string | null
           deleted_at?: string | null
@@ -696,6 +701,7 @@ export type Database = {
           sales_rep_id?: string | null
           savings_analysis?: Json | null
           service_assignments?: Json | null
+          service_mappings?: Json | null
           status?: string
           total_savings?: number | null
           total_shipments?: number

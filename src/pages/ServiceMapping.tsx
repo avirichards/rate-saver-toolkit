@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -6,6 +7,9 @@ import { ServiceMappingReview } from '@/components/ui-lov/ServiceMappingReview';
 import { toast } from 'sonner';
 import { ArrowLeft } from 'lucide-react';
 import { detectServiceTypes } from '@/utils/csvParser';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { calculateSavings } from '@/utils/analysisUtils';
 import type { ServiceMapping } from '@/utils/csvParser';
 
 interface LocationState {
@@ -23,6 +27,7 @@ interface LocationState {
 const ServiceMapping = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   
   const [csvData, setCsvData] = useState<any[]>([]);
   const [fileName, setFileName] = useState<string>('');
@@ -72,7 +77,7 @@ const ServiceMapping = () => {
     
   }, [location, navigate]);
   
-  const handleServiceMappingsConfirmed = (confirmedMappings: ServiceMapping[]) => {
+  const handleServiceMappingsConfirmed = async (confirmedMappings: ServiceMapping[]) => {
     console.log('🏠 ServiceMapping page - Service mappings confirmed:', confirmedMappings);
     console.log('🏠 ServiceMapping page - Residential data in confirmed mappings:', 
       confirmedMappings.map(m => ({
@@ -88,22 +93,81 @@ const ServiceMapping = () => {
     const manualResidentialMappings = confirmedMappings.filter(m => m.residentialSource === 'manual');
     console.log('🏠 ServiceMapping page - Manual residential mappings being passed to Analysis:', manualResidentialMappings);
     
-    toast.success('Service mappings confirmed!');
+    toast.success('Service mappings confirmed! Processing analysis...');
     
-    // Navigate to analysis with all the data including confirmed service mappings
-    navigate('/analysis', { 
-      state: { 
-        csvUploadId,
-        fileName,
-        mappings,
-        serviceMappings: confirmedMappings,
-        rowCount,
-        csvData,
-        originZipOverride,
-        readyForAnalysis: true,
-        uploadTimestamp // Pass through the upload timestamp for data freshness tracking
-      } 
-    });
+    try {
+      // Process ALL CSV data using mappings to create structured shipment records
+      const processedShipments = csvData.map((row, index) => {
+        const shipment: any = { id: index + 1 };
+        
+        Object.entries(mappings).forEach(([fieldName, csvHeader]) => {
+          if (csvHeader && csvHeader !== "__NONE__" && row[csvHeader] !== undefined) {
+            // Clean and validate the data as we process it
+            let value = row[csvHeader];
+            if (typeof value === 'string') {
+              value = value.trim();
+            }
+            shipment[fieldName] = value;
+          }
+        });
+        
+        // Apply origin ZIP override if provided
+        if (originZipOverride && originZipOverride.trim()) {
+          shipment.originZip = originZipOverride.trim();
+        }
+        
+        return shipment;
+      });
+
+      console.log(`Processing ${processedShipments.length} total shipments (sample):`, processedShipments.slice(0, 2));
+
+      // Run the analysis using the same logic as the old Analysis page
+      const { processedShipments: analyzedShipments, orphanedShipments, summary } = calculateSavings(processedShipments);
+
+      // Create the analysis record with all data
+      const analysisData = {
+        user_id: user?.id,
+        file_name: fileName,
+        report_name: fileName,
+        analysis_date: new Date().toISOString(),
+        total_shipments: analyzedShipments.length + (orphanedShipments?.length || 0),
+        total_savings: summary?.totalSavings || 0,
+        status: 'completed',
+        processed_shipments: analyzedShipments,
+        orphaned_shipments: orphanedShipments || [],
+        processing_metadata: {
+          processedAt: new Date().toISOString(),
+          totalProcessed: analyzedShipments.length,
+          totalOrphaned: orphanedShipments?.length || 0,
+          averageSavings: summary?.averageSavings || 0,
+          totalCost: summary?.totalCost || 0
+        },
+        original_data: csvData,
+        savings_analysis: summary || {},
+        service_mappings: confirmedMappings,
+        column_mappings: mappings,
+        client_id: null
+      };
+
+      const { data: analysis, error } = await supabase
+        .from('shipping_analyses')
+        .insert([analysisData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      console.log('✅ Analysis created successfully:', analysis.id);
+
+      // Navigate directly to Results with the analysis ID (restoring original workflow)
+      navigate('/results', {
+        state: { analysisId: analysis.id }
+      });
+
+    } catch (error) {
+      console.error('❌ Error creating analysis:', error);
+      toast.error('Failed to process analysis');
+    }
   };
   
   if (!csvData.length || !serviceColumn) {

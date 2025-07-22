@@ -42,6 +42,7 @@ serve(async (req) => {
       .single();
 
     if (csvError || !csvUpload) throw new Error('CSV upload not found');
+    if (!csvUpload.csv_content) throw new Error('CSV content is empty or null');
 
     const lines = csvUpload.csv_content.split('\n').filter(l => l.trim());
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,''));

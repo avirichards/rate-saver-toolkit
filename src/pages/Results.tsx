@@ -161,14 +161,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       console.log('⚠️ Auto-save skipped: Client view mode');
       return null;
     }
-    // Prevent multiple saves of the same analysis
-    if (!analysisData || currentAnalysisId) {
-      console.log('⚠️ Auto-save skipped:', { 
-        hasAnalysisData: !!analysisData, 
-        currentAnalysisId,
-        reason: !analysisData ? 'No analysis data' : 'Already saved'
-      });
+    
+    // If we already have an analysis ID, update the existing record instead of creating a new one
+    if (currentAnalysisId) {
+      console.log('⚠️ Auto-save skipped: Analysis already has ID, use manual update instead:', currentAnalysisId);
       return currentAnalysisId;
+    }
+    
+    // Only create new analysis if we don't have data and no analysis ID
+    if (!analysisData) {
+      console.log('⚠️ Auto-save skipped: No analysis data available');
+      return null;
     }
     
     const { data: { user } } = await supabase.auth.getUser();
@@ -570,7 +573,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           return;
         }
         
-        const state = location.state as { analysisComplete?: boolean; analysisData?: AnalysisData } | null;
+        const state = location.state as { analysisComplete?: boolean; analysisData?: AnalysisData; analysisId?: string } | null;
         const analysisIdFromQuery = searchParams.get('analysisId');
         
         if (analysisIdFromQuery) {
@@ -579,10 +582,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         } else if (state?.analysisComplete && state.analysisData) {
           setAnalysisData(state.analysisData);
           
-          // Auto-save the analysis after a short delay
-          setTimeout(() => {
-            autoSaveAnalysis(false);
-          }, 1000);
+          // If we have an analysis ID from Analysis.tsx, use it instead of creating a new record
+          if (state.analysisId) {
+            console.log('📋 Using existing analysis ID from Analysis page:', state.analysisId);
+            setCurrentAnalysisId(state.analysisId);
+          } else {
+            // Only auto-save if we don't have an existing analysis ID
+            setTimeout(() => {
+              autoSaveAnalysis(false);
+            }, 1000);
+          }
           
           // Process the recommendations using the utility function
           const processedShipmentData = formatShipmentData(state.analysisData.recommendations);

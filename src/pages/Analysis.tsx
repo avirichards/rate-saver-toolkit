@@ -86,6 +86,7 @@ const Analysis = () => {
   const [readyToAnalyze, setReadyToAnalyze] = useState(false);
   const [analysisSaved, setAnalysisSaved] = useState(false); // Track if analysis has been saved
   const [isAnalysisStarted, setIsAnalysisStarted] = useState(false); // Track if analysis has been started
+  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null); // Track current analysis ID
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
@@ -426,6 +427,9 @@ const Analysis = () => {
       if (!analysisId) {
         throw new Error('Failed to create analysis record');
       }
+      
+      // Store the analysis ID in state for passing to Results
+      setCurrentAnalysisId(analysisId);
       
       // Process shipments sequentially (one at a time) to prevent race conditions
       for (let i = 0; i < shipmentsToAnalyze.length; i++) {
@@ -1180,160 +1184,8 @@ const Analysis = () => {
     }
   };
   
-  const saveAnalysisToDatabase = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    
-    // Prevent duplicate saves
-    if (analysisSaved) {
-      console.log('⚠️ Skipping duplicate save - analysis already saved to database');
-      return;
-    }
-    
-    console.log('🗄️ DATA INTEGRITY: Saving analysis to database:', {
-      totalAnalysisResults: analysisResults.length,
-      completedResults: analysisResults.filter(r => r.status === 'completed').length,
-      errorResults: analysisResults.filter(r => r.status === 'error').length,
-      originalShipmentCount: shipments.length,
-      analysisSaved
-    });
-    
-    const state = location.state as any;
-    const completedResults = analysisResults.filter(r => r.status === 'completed');
-    const errorResults = analysisResults.filter(r => r.status === 'error');
-    
-    // Check for existing analysis with same characteristics to prevent duplicates
-    const uploadTimestamp = state?.uploadTimestamp || Date.now();
-    const fileName = state?.fileName || 'Real-time Analysis';
-    
-    // Check if a similar analysis already exists (within last 5 minutes)
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { data: existingAnalyses } = await supabase
-      .from('shipping_analyses')
-      .select('id, file_name, created_at, total_shipments')
-      .eq('user_id', user.id)
-      .eq('file_name', fileName)
-      .eq('total_shipments', shipments.length)
-      .gte('created_at', fiveMinutesAgo)
-      .order('created_at', { ascending: false });
-    
-    if (existingAnalyses && existingAnalyses.length > 0) {
-      console.log('⚠️ Duplicate analysis detected - skipping save:', {
-        fileName,
-        totalShipments: shipments.length,
-        existingCount: existingAnalyses.length,
-        latestAnalysis: existingAnalyses[0]
-      });
-      setAnalysisSaved(true); // Mark as saved to prevent future attempts
-      toast.info('Analysis already exists in database');
-      return;
-    }
-    
-    // Store ALL analysis results (completed + errors) for complete data integrity
-    const allResults = [...completedResults, ...errorResults];
-    
-    // Include ALL completed results, not just ones with positive savings
-    const recommendations = completedResults.map(r => ({
-      shipment: r.shipment,
-      originalService: r.originalService,
-      currentCost: r.currentCost,
-      recommendedCost: r.bestRate?.totalCharges,
-      savings: r.savings,
-      recommendedService: r.bestRate?.serviceName,
-      status: r.status,
-      error: r.error
-    }));
-    
-    // Also store error shipments for complete tracking
-    const orphanedShipments = errorResults.map(r => ({
-      shipment: r.shipment,
-      error: r.error,
-      errorType: r.errorType,
-      errorCategory: r.errorCategory,
-      status: r.status
-    }));
-    
-    // Prepare centralized shipment data
-    const processedShipments = completedResults.map((result, index) => ({
-      id: index + 1,
-      trackingId: result.shipment.trackingId || `Shipment-${index + 1}`,
-      originZip: result.shipment.originZip || '',
-      destinationZip: result.shipment.destZip || '',
-      weight: parseFloat(result.shipment.weight || '0'),
-      carrier: 'UPS',
-      service: result.originalService || result.shipment.service || 'Unknown',
-      currentRate: result.currentCost || 0,
-      newRate: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      savingsPercent: result.currentCost && result.currentCost > 0 ? ((result.savings || 0) / result.currentCost) * 100 : 0
-    }));
-
-    const orphanedShipmentsFormatted = errorResults.map((result, index) => ({
-      id: completedResults.length + index + 1,
-      trackingId: result.shipment.trackingId || `Orphan-${index + 1}`,
-      originZip: result.shipment.originZip || '',
-      destinationZip: result.shipment.destZip || '',
-      weight: parseFloat(result.shipment.weight || '0'),
-      service: result.originalService || result.shipment.service || 'Unknown',
-      error: result.error || 'Processing failed',
-      errorType: result.errorType || 'Unknown',
-      errorCategory: result.errorCategory || 'Processing Error'
-    }));
-
-    const processingMetadata = {
-      savedAt: new Date().toISOString(),
-      totalSavings: totalSavings,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalShipments: shipments.length,
-      dataSource: 'fresh_analysis'
-    };
-
-    const analysisRecord = {
-      user_id: user.id,
-      file_name: state?.fileName || 'Real-time Analysis',
-      original_data: allResults as any, // Store ALL analysis results (completed + errors)
-      carrier_configs_used: selectedCarriers as any,
-      ups_quotes: completedResults.map(r => r.allRates || r.upsRates || []) as any,
-      savings_analysis: {
-        totalCurrentCost,
-        totalPotentialSavings: totalSavings,
-        savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-        totalShipments: shipments.length,
-        completedShipments: completedResults.length,
-        errorShipments: errorResults.length,
-        orphanedShipments: orphanedShipments // Include orphan data
-      } as any,
-      recommendations: recommendations as any,
-      processed_shipments: processedShipments as any, // CENTRALIZED DATA
-      orphaned_shipments: orphanedShipmentsFormatted as any, // CENTRALIZED DATA
-      processing_metadata: processingMetadata as any, // CENTRALIZED METADATA
-      total_shipments: shipments.length,
-      total_savings: totalSavings,
-      status: 'completed'
-    };
-    
-    console.log('🗄️ DATA INTEGRITY: Database record being saved:', {
-      totalShipments: analysisRecord.total_shipments,
-      originalDataCount: allResults.length,
-      recommendationsCount: recommendations.length,
-      orphanedCount: orphanedShipments.length,
-      hasAllData: allResults.length === shipments.length
-    });
-
-    const { error } = await supabase
-      .from('shipping_analyses')
-      .insert(analysisRecord);
-
-    if (error) {
-      console.error('❌ Error saving analysis:', error);
-      toast.error('Failed to save analysis to database');
-    } else {
-      console.log('✅ DATA INTEGRITY: Analysis saved successfully');
-      setAnalysisSaved(true); // Mark as saved to prevent duplicate saves
-      toast.success('Analysis saved to database');
-    }
-  };
+  // Removed saveAnalysisToDatabase function - it was creating duplicate records
+  // Analysis creation/updates are now handled by createAnalysisRecord() and updateAnalysisRecord()
   
   const handleViewResults = () => {
     if (analysisResults.length === 0) {
@@ -1391,7 +1243,8 @@ const Analysis = () => {
     navigate('/results', { 
       state: { 
         analysisComplete: true, 
-        analysisData 
+        analysisData,
+        analysisId: currentAnalysisId // Pass the analysis ID so Results doesn't create a duplicate
       } 
     });
   };
@@ -1446,7 +1299,8 @@ const Analysis = () => {
     navigate('/results', { 
       state: { 
         analysisComplete: true, 
-        analysisData 
+        analysisData,
+        analysisId: currentAnalysisId // Pass the analysis ID so Results doesn't create a duplicate
       } 
     });
   };

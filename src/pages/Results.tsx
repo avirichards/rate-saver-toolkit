@@ -161,6 +161,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       console.log('⚠️ Auto-save skipped: Client view mode');
       return null;
     }
+    
+    // Check if we already have an analysis ID from the analysis process
+    const existingAnalysisId = sessionStorage.getItem('currentAnalysisId');
+    if (existingAnalysisId && !currentAnalysisId) {
+      console.log('✅ Using existing analysis ID from session storage:', existingAnalysisId);
+      setCurrentAnalysisId(existingAnalysisId);
+      loadServiceNotes(existingAnalysisId);
+      return existingAnalysisId;
+    }
+    
     // Prevent multiple saves of the same analysis
     if (!analysisData || currentAnalysisId) {
       console.log('⚠️ Auto-save skipped:', { 
@@ -227,6 +237,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       console.log('✅ Analysis auto-saved successfully:', data.id);
       setCurrentAnalysisId(data.id);
+      
+      // Store the analysis ID in session storage
+      sessionStorage.setItem('currentAnalysisId', data.id);
       
       // Load service notes for the newly saved analysis
       loadServiceNotes(data.id);

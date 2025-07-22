@@ -427,6 +427,9 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
       
+      // Store the analysis ID in session storage for Results page
+      sessionStorage.setItem('currentAnalysisId', analysisId);
+      
       // Process shipments sequentially (one at a time) to prevent race conditions
       for (let i = 0; i < shipmentsToAnalyze.length; i++) {
         // Check if paused before processing each shipment

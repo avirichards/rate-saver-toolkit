@@ -65,7 +65,13 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
 
 // Unified data processing function - works from standardized database fields
 export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment: any) => any): ProcessedAnalysisData => {
-  console.log('🔄 Processing analysis data from standardized fields:', analysis);
+  console.log('🔄 Processing analysis data from standardized fields:', {
+    id: analysis.id,
+    fileName: analysis.file_name,
+    reportName: analysis.report_name,
+    status: analysis.status,
+    totalShipments: analysis.total_shipments
+  });
   
   // Use the centralized data structure: processed_shipments and orphaned_shipments
   const processedShipments = analysis.processed_shipments || [];
@@ -76,8 +82,16 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
     processedShipmentsCount: processedShipments.length,
     orphanedShipmentsCount: orphanedShipments.length,
     hasMarkupData: !!markupData,
-    totalShipments: analysis.total_shipments
+    totalShipments: analysis.total_shipments,
+    legacyRecommendationsCount: analysis.recommendations?.length || 0
   });
+  
+  // Fallback to legacy recommendations if no processed_shipments
+  let validShipments = processedShipments;
+  if (!validShipments || validShipments.length === 0) {
+    console.log('⚠️ No processed_shipments found, falling back to legacy recommendations');
+    validShipments = analysis.recommendations || [];
+  }
   
   // Calculate totals from processed shipments - with markup applied if available
   let totalCurrentCost = 0;
@@ -85,7 +99,7 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
   
   if (markupData && getShipmentMarkup) {
     // Calculate with markup applied
-    processedShipments.forEach((item: any) => {
+    validShipments.forEach((item: any) => {
       const markupInfo = getShipmentMarkup(item);
       const savings = item.currentRate - markupInfo.markedUpPrice;
       totalCurrentCost += item.currentRate || 0;
@@ -93,22 +107,36 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
     });
     console.log('✅ Applied markup calculations to totals');
   } else {
-    // Fallback to raw values
-    totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
-    totalPotentialSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
-    console.log('⚠️ Using raw savings (no markup applied)');
+    // Use raw values from database
+    totalCurrentCost = validShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
+    totalPotentialSavings = validShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
+    
+    // If no savings calculated, try to calculate from rates
+    if (totalPotentialSavings === 0) {
+      totalPotentialSavings = validShipments.reduce((sum: number, item: any) => {
+        const currentRate = item.currentRate || 0;
+        const newRate = item.newRate || 0;
+        return sum + Math.max(0, currentRate - newRate);
+      }, 0);
+    }
+    
+    console.log('⚠️ Using raw savings calculations:', {
+      totalCurrentCost,
+      totalPotentialSavings,
+      validShipmentsCount: validShipments.length
+    });
   }
   
   return {
     totalCurrentCost,
     totalPotentialSavings,
-    recommendations: processedShipments,
+    recommendations: validShipments,
     savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
-    totalShipments: analysis.total_shipments || (processedShipments.length + orphanedShipments.length),
-    analyzedShipments: processedShipments.length,
-    orphanedShipments,
-    completedShipments: processedShipments.length,
-    errorShipments: orphanedShipments.length,
+    totalShipments: analysis.total_shipments || (validShipments.length + (orphanedShipments?.length || 0)),
+    analyzedShipments: validShipments.length,
+    orphanedShipments: orphanedShipments || [],
+    completedShipments: validShipments.length,
+    errorShipments: orphanedShipments?.length || 0,
     file_name: analysis.file_name,
     report_name: analysis.report_name,
     client_id: analysis.client_id

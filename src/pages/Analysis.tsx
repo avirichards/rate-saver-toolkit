@@ -57,14 +57,14 @@ interface AnalysisResult {
   attemptCount?: number;
   // Add validation fields for debugging
   expectedServiceCode?: string;
-  mappingValidation?: {
-    isValid: boolean;
-    expectedService: string;
-    actualService: string;
-    expectedServiceCode?: string;
-    actualServiceCode?: string;
-    message?: string;
-  };
+      mappingValidation?: {
+        isValid: boolean;
+        expectedService: string;
+        actualService: string;
+        expectedServiceCode?: string;
+        actualServiceCode?: string;
+        message?: string;
+      };
 }
 
 const Analysis = () => {
@@ -543,62 +543,11 @@ const Analysis = () => {
     const totalSavingsCalc = completedResults.reduce((sum, result) => sum + (result.savings || 0), 0);
     const totalCurrentCostCalc = completedResults.reduce((sum, result) => sum + (result.currentCost || 0), 0);
 
-    // Format processed shipments data for database storage
-    const processedShipments = completedResults.map((result, index) => ({
-      id: result.shipment.id,
-      trackingId: result.shipment.trackingId || `Shipment-${index + 1}`,
-      originZip: result.shipment.originZip || '',
-      destinationZip: result.shipment.destZip || '',
-      weight: parseFloat(result.shipment.weight || '0'),
-      length: parseFloat(result.shipment.length || '12'),
-      width: parseFloat(result.shipment.width || '12'),
-      height: parseFloat(result.shipment.height || '6'),
-      dimensions: result.shipment.dimensions || `${result.shipment.length || 12}x${result.shipment.width || 12}x${result.shipment.height || 6}`,
-      carrier: result.shipment.carrier || 'Unknown',
-      service: result.originalService || result.shipment.service || '',
-      originalService: result.originalService || result.shipment.service || '',
-      bestService: result.bestRate?.serviceName || 'Unknown',
-      newService: result.bestRate?.serviceName || 'Unknown',
-      currentRate: result.currentCost || 0,
-      newRate: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      savingsPercent: result.currentCost && result.currentCost > 0 ? ((result.savings || 0) / result.currentCost) * 100 : 0,
-      // Store additional rate data for reference
-      allRates: result.allRates || [],
-      carrierResults: result.carrierResults || [],
-      bestOverallRate: result.bestOverallRate || null
-    }));
-
-    // Format orphaned shipments (errors)
-    const orphanedShipments = errorResults.map((result, index) => ({
-      id: result.shipment.id,
-      trackingId: result.shipment.trackingId || `Error-${index + 1}`,
-      originZip: result.shipment.originZip || '',
-      destinationZip: result.shipment.destZip || '',
-      weight: parseFloat(result.shipment.weight || '0'),
-      dimensions: result.shipment.dimensions || `${result.shipment.length || 0}x${result.shipment.width || 0}x${result.shipment.height || 0}`,
-      carrier: result.shipment.carrier || 'Unknown',
-      service: result.shipment.service || '',
-      error: result.error || 'Unknown error',
-      errorType: result.errorType || 'processing_error',
-      errorCategory: result.errorCategory || 'Unknown'
-    }));
-
-    console.log('💾 Updating analysis record with complete shipment data:', {
-      analysisId,
-      processedShipmentsCount: processedShipments.length,
-      orphanedShipmentsCount: orphanedShipments.length,
-      totalSavings: totalSavingsCalc,
-      totalCurrentCost: totalCurrentCostCalc
-    });
+    console.log('💾 Updating analysis record with final results');
     
     const updateData = {
       status: 'completed',
       total_savings: totalSavingsCalc,
-      processed_shipments: processedShipments,
-      orphaned_shipments: orphanedShipments,
-      // Keep legacy format for backward compatibility
-      recommendations: processedShipments,
       processing_metadata: {
         completedAt: new Date().toISOString(),
         totalCurrentCost: totalCurrentCostCalc,
@@ -617,7 +566,7 @@ const Analysis = () => {
     if (error) {
       console.error('❌ Error updating analysis record:', error);
     } else {
-      console.log('✅ Analysis record updated successfully with complete data');
+      console.log('✅ Analysis record updated successfully');
     }
   };
   

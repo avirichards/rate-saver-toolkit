@@ -12,12 +12,6 @@ export interface SummaryStatsProps {
   icon?: React.ReactNode;
   color?: string;
   className?: string;
-  totalShipments?: number;
-  totalSavings?: number;
-  totalCurrentCost?: number;
-  completedShipments?: number;
-  errorShipments?: number;
-  savingsPercentage?: number;
 }
 
 export const SummaryStats: React.FC<SummaryStatsProps> = ({

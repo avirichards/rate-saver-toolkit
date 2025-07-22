@@ -6,32 +6,38 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Ca
 import { Button } from '@/components/ui-lov/Button';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
+import { BackgroundAnalysisProgress } from '@/components/ui-lov/BackgroundAnalysisProgress';
+import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { toast } from 'sonner';
 import { ArrowLeft, Play } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { startBackgroundAnalysis } from '@/utils/backgroundAnalysis';
 
 const Analysis = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [isStartingAnalysis, setIsStartingAnalysis] = useState(false);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
+  const { validationState, validateShipments } = useShipmentValidation();
 
   // Get data from navigation state
   const { 
-    csvUploadId,
-    mappings,
+    shipmentData, 
+    fileName, 
     serviceMappings,
-    fileName,
-    csvData
+    reportName 
   } = location.state || {};
 
-  // Redirect if no data
+  // Redirect if no data and validate shipments
   useEffect(() => {
-    if (!csvUploadId || !csvData || !fileName) {
+    if (!shipmentData || !fileName) {
       toast.error('No shipment data found. Please upload a file first.');
       navigate('/upload');
+    } else {
+      // Validate shipments when component mounts
+      validateShipments(shipmentData);
     }
-  }, [csvUploadId, csvData, fileName, navigate]);
+  }, [shipmentData, fileName, navigate, validateShipments]);
 
   const handleStartAnalysis = async () => {
     if (selectedCarriers.length === 0) {
@@ -42,42 +48,25 @@ const Analysis = () => {
     try {
       setIsStartingAnalysis(true);
       
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-
       const analysisParams = {
-        csvUploadId,
-        userId: user.id,
-        mappings: mappings || {},
+        fileName,
+        originalData: shipmentData,
+        carrierConfigIds: selectedCarriers,
         serviceMappings: serviceMappings || [],
-        carrierConfigs: selectedCarriers
+        reportName
       };
 
       console.log('Starting background analysis with params:', {
-        csvUploadId,
-        userId: user.id,
+        fileName,
+        shipmentCount: shipmentData.length,
         carrierConfigs: selectedCarriers.length,
-        serviceMappings: serviceMappings?.length || 0
+        reportName
       });
 
-      const { data, error } = await supabase.functions.invoke('start-background-analysis', {
-        body: analysisParams
-      });
-
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (!data?.success || !data?.analysisId) {
-        throw new Error('Failed to start background analysis');
-      }
-
-      toast.success('Analysis started! Redirecting to results page...');
-      navigate(`/results?analysisId=${data.analysisId}`);
+      const newAnalysisId = await startBackgroundAnalysis(analysisParams);
+      setAnalysisId(newAnalysisId);
       
+      toast.success('Analysis started! You can safely navigate away - the analysis will continue in the background.');
     } catch (error) {
       console.error('Error starting background analysis:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to start analysis');
@@ -86,9 +75,26 @@ const Analysis = () => {
     }
   };
 
-  const canStartAnalysis = selectedCarriers.length > 0 && !isStartingAnalysis;
+  const handleAnalysisComplete = (completedAnalysisId: string) => {
+    console.log('Analysis completed:', completedAnalysisId);
+    toast.success('Analysis completed successfully!');
+    navigate('/results', { 
+      state: { 
+        analysisId: completedAnalysisId,
+        fromBackground: true 
+      } 
+    });
+  };
 
-  if (!csvUploadId || !csvData || !fileName) {
+  const handleAnalysisError = (error: string) => {
+    console.error('Analysis error:', error);
+    toast.error(`Analysis failed: ${error}`);
+    setAnalysisId(null);
+  };
+
+  const canStartAnalysis = selectedCarriers.length > 0 && !isStartingAnalysis && !analysisId;
+
+  if (!shipmentData || !fileName) {
     return null; // Will redirect via useEffect
   }
 
@@ -116,48 +122,59 @@ const Analysis = () => {
 
         {/* Validation Summary */}
         <ValidationSummary 
-          fileName={fileName}
-          csvData={csvData}
+          validationState={validationState}
+          shipments={shipmentData}
         />
 
-        {/* Carrier Selection */}
-        <CarrierSelector
-          selectedCarriers={selectedCarriers}
-          onCarrierChange={setSelectedCarriers}
-        />
+        {/* Analysis Status */}
+        {analysisId ? (
+          <BackgroundAnalysisProgress
+            analysisId={analysisId}
+            onComplete={handleAnalysisComplete}
+            onError={handleAnalysisError}
+          />
+        ) : (
+          <>
+            {/* Carrier Selection */}
+            <CarrierSelector
+              selectedCarriers={selectedCarriers}
+              onCarrierChange={setSelectedCarriers}
+            />
 
-        {/* Start Analysis */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Play className="h-5 w-5" />
-              Start Analysis
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h3 className="font-medium text-blue-900 mb-2">Ready to Analyze</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• {csvData?.length || 0} shipments ready for processing</li>
-                <li>• {selectedCarriers.length} carrier account{selectedCarriers.length !== 1 ? 's' : ''} selected</li>
-                <li>• Analysis will run in the background - you can safely navigate away</li>
-                <li>• You'll be redirected to the results page to monitor progress</li>
-              </ul>
-            </div>
+            {/* Start Analysis */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Play className="h-5 w-5" />
+                  Start Analysis
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="font-medium text-blue-900 mb-2">Ready to Analyze</h3>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• {shipmentData.length} shipments ready for processing</li>
+                    <li>• {selectedCarriers.length} carrier account{selectedCarriers.length !== 1 ? 's' : ''} selected</li>
+                    <li>• Analysis will run in the background - you can safely navigate away</li>
+                    <li>• You'll be notified when analysis is complete</li>
+                  </ul>
+                </div>
 
-            <div className="flex justify-end">
-              <Button
-                variant="primary"
-                iconLeft={<Play className="h-4 w-4" />}
-                onClick={handleStartAnalysis}
-                disabled={!canStartAnalysis}
-                loading={isStartingAnalysis}
-              >
-                {isStartingAnalysis ? 'Starting Analysis...' : 'Start Background Analysis'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex justify-end">
+                  <Button
+                    variant="primary"
+                    iconLeft={<Play className="h-4 w-4" />}
+                    onClick={handleStartAnalysis}
+                    disabled={!canStartAnalysis}
+                    loading={isStartingAnalysis}
+                  >
+                    {isStartingAnalysis ? 'Starting Analysis...' : 'Start Background Analysis'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

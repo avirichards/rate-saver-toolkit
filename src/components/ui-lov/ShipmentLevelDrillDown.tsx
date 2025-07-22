@@ -100,27 +100,48 @@ export const ShipmentLevelDrillDown: React.FC<ShipmentLevelDrillDownProps> = ({
                       <Package className="h-5 w-5 text-blue-600" />
                       <div>
                         <h4 className="font-medium">Shipment #{shipment.shipmentIndex + 1}</h4>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-muted-foreground">
-                          <div className="flex items-center gap-1">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                          <div className="flex items-center gap-1 text-muted-foreground">
                             <MapPin className="h-3 w-3" />
-                            <span>{shipment.shipmentData?.shipFrom?.zipCode} → {shipment.shipmentData?.shipTo?.zipCode}</span>
+                            <span className="font-medium">Route:</span>
+                            <span>{shipment.shipmentData?.shipFrom?.zipCode || 'N/A'} → {shipment.shipmentData?.shipTo?.zipCode || 'N/A'}</span>
                           </div>
-                          {shipment.shipmentData?.package?.weight && (
-                            <div className="flex items-center gap-1">
-                              <Package className="h-3 w-3" />
-                              <span>{shipment.shipmentData.package.weight} lbs</span>
-                            </div>
-                          )}
+                          
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <Package className="h-3 w-3" />
+                            <span className="font-medium">Weight:</span>
+                            <span>{shipment.shipmentData?.package?.weight || 'N/A'} lbs</span>
+                          </div>
+                          
                           {shipment.shipmentData?.package?.dimensions && (
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 text-muted-foreground">
                               <span>📏</span>
+                              <span className="font-medium">Dims:</span>
                               <span>{shipment.shipmentData.package.dimensions.length}×{shipment.shipmentData.package.dimensions.width}×{shipment.shipmentData.package.dimensions.height}"</span>
                             </div>
                           )}
-                          <div className="flex items-center gap-1">
+                          
+                          <div className="flex items-center gap-1 text-muted-foreground">
                             <span>🎯</span>
+                            <span className="font-medium">Quotes:</span>
                             <span>{shipment.rates.length} rates compared</span>
                           </div>
+                          
+                          {shipment.shipmentData?.service && (
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <span>🚚</span>
+                              <span className="font-medium">Service:</span>
+                              <span>{shipment.shipmentData.service}</span>
+                            </div>
+                          )}
+                          
+                          {shipment.shipmentData?.reference && (
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <span>📋</span>
+                              <span className="font-medium">Ref:</span>
+                              <span>{shipment.shipmentData.reference}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -134,7 +155,13 @@ export const ShipmentLevelDrillDown: React.FC<ShipmentLevelDrillDownProps> = ({
                 </div>
 
                 {expandedShipment === shipment.shipmentIndex && (
-                  <div className="border-t p-4">
+                  <div className="border-t bg-muted/20 p-4">
+                    <div className="mb-4">
+                      <h5 className="font-semibold mb-2">Rate Comparison for Shipment #{shipment.shipmentIndex + 1}</h5>
+                      <div className="text-sm text-muted-foreground mb-3">
+                        Best rate saves <span className="font-semibold text-green-600">{formatCurrency(shipment.potentialSavings)}</span> compared to worst option
+                      </div>
+                    </div>
                     <Table>
                       <TableHeader>
                         <TableRow>

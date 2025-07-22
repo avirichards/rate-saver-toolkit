@@ -381,12 +381,12 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
       {viewMode === 'overview' && (
         <div className="space-y-6">
           <AccountPerformanceSummary accountPerformances={applyFilters(accountPerformances)} />
-          <div className="flex justify-center">
+          <div className="flex justify-center space-x-4">
             <button
               onClick={() => setViewMode('service')}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
             >
-              Drill Down to Services
+              🔍 Drill Down to Services
             </button>
           </div>
         </div>
@@ -394,13 +394,16 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
 
       {viewMode === 'service' && (
         <div className="space-y-6">
-          <div className="flex justify-center">
+          <div className="flex justify-between items-center">
             <button
               onClick={handleBackToOverview}
-              className="px-4 py-2 border border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors"
+              className="px-4 py-2 border-2 border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors flex items-center gap-2"
             >
-              Back to Overview
+              ← Back to Account Overview
             </button>
+            <div className="text-sm text-muted-foreground">
+              Service Performance Analysis • Click "View Shipments" to see individual shipments
+            </div>
           </div>
           <ServiceLevelComparison 
             servicePerformances={applyFilters(servicePerformances)}
@@ -410,11 +413,27 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
       )}
 
       {viewMode === 'shipment' && (
-        <ShipmentLevelDrillDown 
-          shipments={applyFilters(shipmentDetails)}
-          selectedService={selectedService}
-          onBack={handleBackToServices}
-        />
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <button
+              onClick={handleBackToServices}
+              className="px-4 py-2 border-2 border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors flex items-center gap-2"
+            >
+              ← Back to Services
+            </button>
+            <button
+              onClick={handleBackToOverview}
+              className="px-4 py-2 text-muted-foreground hover:text-primary transition-colors"
+            >
+              🏠 Return to Overview
+            </button>
+          </div>
+          <ShipmentLevelDrillDown 
+            shipments={applyFilters(shipmentDetails)}
+            selectedService={selectedService}
+            onBack={handleBackToServices}
+          />
+        </div>
       )}
     </div>
   );

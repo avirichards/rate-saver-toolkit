@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
@@ -49,6 +50,8 @@ const ReportsPage = () => {
       loadReports();
     }
   }, [user]);
+
+  // Remove aggressive window focus refresh - it causes the random page refreshes
 
   const loadReports = async () => {
     try {
@@ -105,21 +108,10 @@ const ReportsPage = () => {
         }
       }
 
-      // Filter out analyses that don't have any shipment data (these are likely duplicates)
-      const validAnalyses = reportsWithClients.filter(report => {
-        const processedShipments = Array.isArray(report.processed_shipments) ? report.processed_shipments : [];
-        const orphanedShipments = Array.isArray(report.orphaned_shipments) ? report.orphaned_shipments : [];
-        const hasTotalShipments = report.total_shipments && report.total_shipments > 0;
-        
-        return processedShipments.length > 0 || orphanedShipments.length > 0 || hasTotalShipments;
-      });
-
       // Auto-detect and migrate legacy analyses in the background
-      const legacyAnalyses = validAnalyses.filter(report => {
-        const processedShipments = Array.isArray(report.processed_shipments) ? report.processed_shipments : [];
-        const orphanedShipments = Array.isArray(report.orphaned_shipments) ? report.orphaned_shipments : [];
-        return processedShipments.length === 0 && orphanedShipments.length === 0;
-      });
+      const legacyAnalyses = reportsWithClients.filter(report => 
+        !report.processed_shipments && !report.orphaned_shipments
+      );
       
       if (legacyAnalyses.length > 0) {
         console.log(`🔄 REPORTS: Found ${legacyAnalyses.length} legacy analyses, starting background migration`);
@@ -139,8 +131,8 @@ const ReportsPage = () => {
         }, 1000);
       }
       
-      console.log('Loaded reports:', validAnalyses?.length || 0, 'reports');
-      setReports(validAnalyses as any);
+      console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
+      setReports(reportsWithClients as any);
     } catch (error) {
       console.error('Error loading reports:', error);
     } finally {

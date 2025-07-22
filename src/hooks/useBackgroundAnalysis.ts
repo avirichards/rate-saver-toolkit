@@ -4,15 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface AnalysisStatus {
   id: string;
-  status: 'processing' | 'completed' | 'failed';
-  processing_metadata?: {
-    currentShipment?: number;
-    completedShipments?: number;
-    errorShipments?: number;
-    progressPercentage?: number;
-    error?: string;
-    status?: string;
-  };
+  status: string;
+  processing_metadata?: any;
   total_shipments: number;
   total_savings?: number;
 }

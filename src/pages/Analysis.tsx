@@ -57,14 +57,14 @@ interface AnalysisResult {
   attemptCount?: number;
   // Add validation fields for debugging
   expectedServiceCode?: string;
-      mappingValidation?: {
-        isValid: boolean;
-        expectedService: string;
-        actualService: string;
-        expectedServiceCode?: string;
-        actualServiceCode?: string;
-        message?: string;
-      };
+  mappingValidation?: {
+    isValid: boolean;
+    expectedService: string;
+    actualService: string;
+    expectedServiceCode?: string;
+    actualServiceCode?: string;
+    message?: string;
+  };
 }
 
 const Analysis = () => {
@@ -1180,162 +1180,29 @@ const Analysis = () => {
     }
   };
   
-  const saveAnalysisToDatabase = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    
-    // Prevent duplicate saves
-    if (analysisSaved) {
-      console.log('⚠️ Skipping duplicate save - analysis already saved to database');
-      return;
-    }
-    
-    console.log('🗄️ DATA INTEGRITY: Saving analysis to database:', {
-      totalAnalysisResults: analysisResults.length,
-      completedResults: analysisResults.filter(r => r.status === 'completed').length,
-      errorResults: analysisResults.filter(r => r.status === 'error').length,
-      originalShipmentCount: shipments.length,
-      analysisSaved
-    });
-    
-    const state = location.state as any;
-    const completedResults = analysisResults.filter(r => r.status === 'completed');
-    const errorResults = analysisResults.filter(r => r.status === 'error');
-    
-    // Check for existing analysis with same characteristics to prevent duplicates
-    const uploadTimestamp = state?.uploadTimestamp || Date.now();
-    const fileName = state?.fileName || 'Real-time Analysis';
-    
-    // Check if a similar analysis already exists (within last 5 minutes)
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { data: existingAnalyses } = await supabase
-      .from('shipping_analyses')
-      .select('id, file_name, created_at, total_shipments')
-      .eq('user_id', user.id)
-      .eq('file_name', fileName)
-      .eq('total_shipments', shipments.length)
-      .gte('created_at', fiveMinutesAgo)
-      .order('created_at', { ascending: false });
-    
-    if (existingAnalyses && existingAnalyses.length > 0) {
-      console.log('⚠️ Duplicate analysis detected - skipping save:', {
-        fileName,
-        totalShipments: shipments.length,
-        existingCount: existingAnalyses.length,
-        latestAnalysis: existingAnalyses[0]
+  const finalizeAnalysis = async (analysisData: any) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('finalize-analysis', {
+        body: analysisData
       });
-      setAnalysisSaved(true); // Mark as saved to prevent future attempts
-      toast.info('Analysis already exists in database');
-      return;
-    }
-    
-    // Store ALL analysis results (completed + errors) for complete data integrity
-    const allResults = [...completedResults, ...errorResults];
-    
-    // Include ALL completed results, not just ones with positive savings
-    const recommendations = completedResults.map(r => ({
-      shipment: r.shipment,
-      originalService: r.originalService,
-      currentCost: r.currentCost,
-      recommendedCost: r.bestRate?.totalCharges,
-      savings: r.savings,
-      recommendedService: r.bestRate?.serviceName,
-      status: r.status,
-      error: r.error
-    }));
-    
-    // Also store error shipments for complete tracking
-    const orphanedShipments = errorResults.map(r => ({
-      shipment: r.shipment,
-      error: r.error,
-      errorType: r.errorType,
-      errorCategory: r.errorCategory,
-      status: r.status
-    }));
-    
-    // Prepare centralized shipment data
-    const processedShipments = completedResults.map((result, index) => ({
-      id: index + 1,
-      trackingId: result.shipment.trackingId || `Shipment-${index + 1}`,
-      originZip: result.shipment.originZip || '',
-      destinationZip: result.shipment.destZip || '',
-      weight: parseFloat(result.shipment.weight || '0'),
-      carrier: 'UPS',
-      service: result.originalService || result.shipment.service || 'Unknown',
-      currentRate: result.currentCost || 0,
-      newRate: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      savingsPercent: result.currentCost && result.currentCost > 0 ? ((result.savings || 0) / result.currentCost) * 100 : 0
-    }));
 
-    const orphanedShipmentsFormatted = errorResults.map((result, index) => ({
-      id: completedResults.length + index + 1,
-      trackingId: result.shipment.trackingId || `Orphan-${index + 1}`,
-      originZip: result.shipment.originZip || '',
-      destinationZip: result.shipment.destZip || '',
-      weight: parseFloat(result.shipment.weight || '0'),
-      service: result.originalService || result.shipment.service || 'Unknown',
-      error: result.error || 'Processing failed',
-      errorType: result.errorType || 'Unknown',
-      errorCategory: result.errorCategory || 'Processing Error'
-    }));
+      if (error) {
+        throw new Error(error.message || 'Failed to finalize analysis');
+      }
 
-    const processingMetadata = {
-      savedAt: new Date().toISOString(),
-      totalSavings: totalSavings,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalShipments: shipments.length,
-      dataSource: 'fresh_analysis'
-    };
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to finalize analysis');
+      }
 
-    const analysisRecord = {
-      user_id: user.id,
-      file_name: state?.fileName || 'Real-time Analysis',
-      original_data: allResults as any, // Store ALL analysis results (completed + errors)
-      carrier_configs_used: selectedCarriers as any,
-      ups_quotes: completedResults.map(r => r.allRates || r.upsRates || []) as any,
-      savings_analysis: {
-        totalCurrentCost,
-        totalPotentialSavings: totalSavings,
-        savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-        totalShipments: shipments.length,
-        completedShipments: completedResults.length,
-        errorShipments: errorResults.length,
-        orphanedShipments: orphanedShipments // Include orphan data
-      } as any,
-      recommendations: recommendations as any,
-      processed_shipments: processedShipments as any, // CENTRALIZED DATA
-      orphaned_shipments: orphanedShipmentsFormatted as any, // CENTRALIZED DATA
-      processing_metadata: processingMetadata as any, // CENTRALIZED METADATA
-      total_shipments: shipments.length,
-      total_savings: totalSavings,
-      status: 'completed'
-    };
-    
-    console.log('🗄️ DATA INTEGRITY: Database record being saved:', {
-      totalShipments: analysisRecord.total_shipments,
-      originalDataCount: allResults.length,
-      recommendationsCount: recommendations.length,
-      orphanedCount: orphanedShipments.length,
-      hasAllData: allResults.length === shipments.length
-    });
-
-    const { error } = await supabase
-      .from('shipping_analyses')
-      .insert(analysisRecord);
-
-    if (error) {
-      console.error('❌ Error saving analysis:', error);
-      toast.error('Failed to save analysis to database');
-    } else {
-      console.log('✅ DATA INTEGRITY: Analysis saved successfully');
-      setAnalysisSaved(true); // Mark as saved to prevent duplicate saves
-      toast.success('Analysis saved to database');
+      console.log('Analysis finalized successfully:', data.analysisId);
+      return data.analysisId;
+    } catch (error) {
+      console.error('Error finalizing analysis:', error);
+      throw error;
     }
   };
   
-  const handleViewResults = () => {
+  const handleViewResults = async () => {
     if (analysisResults.length === 0) {
       toast.error('No analysis results to view');
       return;
@@ -1349,54 +1216,64 @@ const Analysis = () => {
       return;
     }
 
-    console.log('Preparing results data:', {
+    console.log('Finalizing analysis with results:', {
       totalShipments: analysisResults.length,
       completedShipments: completedResults.length,
       errorShipments: errorResults.length,
       orphanShipments: errorResults.length
     });
 
-    // Format data for Results component - completed shipments
-    const recommendations = completedResults.map((result, index) => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost || 0,
-      recommendedCost: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      originalService: result.originalService || result.shipment.service,
-      recommendedService: result.bestRate?.serviceName || 'Unknown',
-      carrier: 'UPS',
-      status: 'completed'
-    }));
+    try {
+      // Format data for the finalize endpoint
+      const recommendations = completedResults.map((result, index) => ({
+        shipment: result.shipment,
+        currentCost: result.currentCost || 0,
+        recommendedCost: result.bestRate?.totalCharges || 0,
+        savings: result.savings || 0,
+        originalService: result.originalService || result.shipment.service,
+        recommendedService: result.bestRate?.serviceName || 'Unknown',
+        carrier: 'UPS',
+        status: 'completed',
+        allRates: result.allRates,
+        upsRates: result.upsRates
+      }));
 
-    // Format orphaned shipments (errors)
-    const orphanedShipments = errorResults.map((result, index) => ({
-      shipment: result.shipment,
-      error: result.error,
-      errorType: result.errorType || 'unknown_error',
-      originalService: result.originalService || result.shipment.service,
-      status: 'error'
-    }));
+      const orphanedShipments = errorResults.map((result, index) => ({
+        shipment: result.shipment,
+        error: result.error,
+        errorType: result.errorType || 'unknown_error',
+        originalService: result.originalService || result.shipment.service,
+        status: 'error'
+      }));
 
-    const analysisData = {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      recommendations,
-      orphanedShipments
-    };
+      const state = location.state as any;
+      const analysisPayload = {
+        fileName: state?.fileName || 'Real-time Analysis',
+        totalShipments: analysisResults.length,
+        completedShipments: completedResults.length,
+        errorShipments: errorResults.length,
+        totalCurrentCost,
+        totalPotentialSavings: totalSavings,
+        recommendations,
+        orphanedShipments,
+        originalData: analysisResults,
+        carrierConfigsUsed: selectedCarriers,
+        serviceMappings: serviceMappings
+      };
 
-    navigate('/results', { 
-      state: { 
-        analysisComplete: true, 
-        analysisData 
-      } 
-    });
+      // Finalize analysis in backend
+      const analysisId = await finalizeAnalysis(analysisPayload);
+
+      // Navigate to results with analysisId
+      navigate(`/results?analysisId=${analysisId}`);
+
+    } catch (error: any) {
+      console.error('Failed to finalize analysis:', error);
+      toast.error(`Failed to save analysis: ${error.message}`);
+    }
   };
 
-  const handleStopAndContinue = () => {
+  const handleStopAndContinue = async () => {
     const completedResults = analysisResults.filter(r => r.status === 'completed');
     const errorResults = analysisResults.filter(r => r.status === 'error');
     
@@ -1405,51 +1282,62 @@ const Analysis = () => {
       return;
     }
 
-    console.log('Stopping analysis and continuing with partial results:', {
+    console.log('Stopping analysis and finalizing partial results:', {
       completedShipments: completedResults.length,
       errorShipments: errorResults.length,
       orphanShipments: errorResults.length
     });
 
-    // Format data for Results component - completed shipments
-    const recommendations = completedResults.map((result, index) => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost || 0,
-      recommendedCost: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      originalService: result.originalService || result.shipment.service,
-      recommendedService: result.bestRate?.serviceName || 'Unknown',
-      carrier: 'UPS',
-      status: 'completed'
-    }));
+    try {
+      // Format data for the finalize endpoint (same as handleViewResults)
+      const recommendations = completedResults.map((result, index) => ({
+        shipment: result.shipment,
+        currentCost: result.currentCost || 0,
+        recommendedCost: result.bestRate?.totalCharges || 0,
+        savings: result.savings || 0,
+        originalService: result.originalService || result.shipment.service,
+        recommendedService: result.bestRate?.serviceName || 'Unknown',
+        carrier: 'UPS',
+        status: 'completed',
+        allRates: result.allRates,
+        upsRates: result.upsRates
+      }));
 
-    // Format orphaned shipments (errors)
-    const orphanedShipments = errorResults.map((result, index) => ({
-      shipment: result.shipment,
-      error: result.error,
-      errorType: result.errorType || 'unknown_error',
-      originalService: result.originalService || result.shipment.service,
-      status: 'error'
-    }));
+      const orphanedShipments = errorResults.map((result, index) => ({
+        shipment: result.shipment,
+        error: result.error,
+        errorType: result.errorType || 'unknown_error',
+        originalService: result.originalService || result.shipment.service,
+        status: 'error'
+      }));
 
-    const analysisData = {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      recommendations,
-      orphanedShipments
-    };
+      const state = location.state as any;
+      const analysisPayload = {
+        fileName: state?.fileName || 'Real-time Analysis',
+        totalShipments: analysisResults.length,
+        completedShipments: completedResults.length,
+        errorShipments: errorResults.length,
+        totalCurrentCost,
+        totalPotentialSavings: totalSavings,
+        recommendations,
+        orphanedShipments,
+        originalData: analysisResults,
+        carrierConfigsUsed: selectedCarriers,
+        serviceMappings: serviceMappings
+      };
 
-    navigate('/results', { 
-      state: { 
-        analysisComplete: true, 
-        analysisData 
-      } 
-    });
+      // Finalize analysis in backend
+      const analysisId = await finalizeAnalysis(analysisPayload);
+
+      // Navigate to results with analysisId
+      navigate(`/results?analysisId=${analysisId}`);
+
+    } catch (error: any) {
+      console.error('Failed to finalize partial analysis:', error);
+      toast.error(`Failed to save analysis: ${error.message}`);
+    }
   };
+  
   const progress = shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
   const completedCount = analysisResults.filter(r => r.status === 'completed').length;
   const errorCount = analysisResults.filter(r => r.status === 'error').length;

@@ -5,7 +5,7 @@ import Results from './Results';
 const ClientResults = () => {
   const { shareToken } = useParams<{ shareToken: string }>();
   
-  return <Results />;
+  return <Results isClientView={true} shareToken={shareToken} />;
 };
 
 export default ClientResults;

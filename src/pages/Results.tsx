@@ -11,7 +11,7 @@ import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { OrphanedShipmentRow } from '@/components/ui-lov/OrphanedShipmentRow';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { AlertTriangle, FileBarChart, Share2, Download, RefreshCw, Loader2, CheckCircle } from 'lucide-react';
+import { AlertTriangle, FileBarChart, Share2, Download, RefreshCw, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -59,8 +59,8 @@ const Results = () => {
       }
 
       // Validate that the analysis has actual data
-      const hasProcessedShipments = analysisData.processed_shipments && Array.isArray(analysisData.processed_shipments) && (analysisData.processed_shipments as any[]).length > 0;
-      const hasOriginalData = analysisData.original_data && Object.keys(analysisData.original_data as any || {}).length > 0;
+      const hasProcessedShipments = analysisData.processed_shipments && Array.isArray(analysisData.processed_shipments) && analysisData.processed_shipments.length > 0;
+      const hasOriginalData = analysisData.original_data && Object.keys(analysisData.original_data).length > 0;
 
       if (!hasProcessedShipments && !hasOriginalData) {
         setError('This analysis appears to be incomplete. No shipment data was found. Please try running the analysis again.');
@@ -71,8 +71,8 @@ const Results = () => {
       console.log('✅ Analysis loaded successfully:', {
         id: analysisData.id,
         status: analysisData.status,
-        processedShipments: (analysisData.processed_shipments as any[])?.length || 0,
-        orphanedShipments: (analysisData.orphaned_shipments as any[])?.length || 0,
+        processedShipments: analysisData.processed_shipments?.length || 0,
+        orphanedShipments: analysisData.orphaned_shipments?.length || 0,
         hasOriginalData
       });
 
@@ -229,35 +229,22 @@ const Results = () => {
         </div>
 
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <SummaryStats 
-              title="Total Shipments"
-              value={processedData.totalShipments}
-              icon={<FileBarChart className="h-5 w-5" />}
-              color="blue"
-            />
-            <SummaryStats 
-              title="Processed"
-              value={processedData.analyzedShipments}
-              icon={<CheckCircle className="h-5 w-5" />}
-              color="green"
-            />
-            <SummaryStats 
-              title="Issues"
-              value={processedData.orphanedShipments?.length || 0}
-              icon={<AlertTriangle className="h-5 w-5" />}
-              color="amber"
-            />
-          </div>
-
-          <MarkupConfiguration
-            shipmentData={processedData.recommendations}
-            analysisId={analysisId}
-            onMarkupChange={setMarkupData}
-            initialMarkupData={markupData}
+          <SummaryStats 
+            data={processedData}
+            getShipmentMarkup={getShipmentMarkup}
           />
 
-          {/* Validation Summary - needs proper validation state */}
+          <MarkupConfiguration
+            markupData={markupData}
+            onMarkupChange={setMarkupData}
+            recommendations={processedData.recommendations}
+          />
+
+          <ValidationSummary 
+            totalShipments={processedData.totalShipments}
+            processedShipments={processedData.analyzedShipments}
+            orphanedShipments={processedData.orphanedShipments?.length || 0}
+          />
 
           <Tabs defaultValue="recommendations" className="w-full">
             <TabsList>
@@ -281,18 +268,8 @@ const Results = () => {
                 </CardHeader>
                 <CardContent>
                   <DataTable 
-                    columns={[
-                      { header: 'Tracking ID', accessorKey: 'trackingNumber' },
-                      { header: 'Origin', accessorKey: 'origin' },
-                      { header: 'Destination', accessorKey: 'destination' },
-                      { header: 'Weight', accessorKey: 'weight' },
-                      { header: 'Service', accessorKey: 'service' },
-                      { header: 'Current Rate', accessorKey: 'currentRate' },
-                      { header: 'New Rate', accessorKey: 'newRate' },
-                      { header: 'Savings', accessorKey: 'savings' }
-                    ]}
                     data={formattedShipments}
-                    title="Rate Recommendations"
+                    getShipmentMarkup={getShipmentMarkup}
                   />
                 </CardContent>
               </Card>
@@ -320,8 +297,7 @@ const Results = () => {
                         <OrphanedShipmentRow 
                           key={index}
                           shipment={shipment}
-                          onFixAndAnalyze={() => {}}
-                          isFixing={false}
+                          onUpdate={() => {}}
                         />
                       ))}
                     </div>

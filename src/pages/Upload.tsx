@@ -50,6 +50,7 @@ const Upload = () => {
           user_id: user.id,
           file_name: file.name,
           file_size: file.size,
+          csv_content: fileContent,
           detected_headers: parseResult.headers,
           row_count: parseResult.rowCount,
           status: 'parsed'
@@ -115,6 +116,7 @@ const Upload = () => {
           user_id: user.id,
           file_name: `test-data-${scenario}.csv`,
           file_size: csvContent.length,
+          csv_content: csvContent,
           detected_headers: parseResult.headers,
           row_count: parseResult.rowCount,
           status: 'parsed'

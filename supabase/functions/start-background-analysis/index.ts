@@ -109,7 +109,8 @@ serve(async (req) => {
     console.log('Created analysis record with ID:', analysisId)
 
     // Start background processing
-    EdgeRuntime.waitUntil(processAnalysisInBackground(supabase, analysisId, shipmentData, payload, token))
+    processAnalysisInBackground(supabase, analysisId, shipmentData, payload, token)
+      .catch(err => console.error('Background processing error:', err))
 
     // Return immediately with analysis ID
     return new Response(

@@ -13,7 +13,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { ArrowLeft, RefreshCw, Clock, CheckCircle, XCircle } from 'lucide-react';
 
-const Results = () => {
+interface ResultsProps {
+  isClientView?: boolean;
+  shareToken?: string;
+}
+
+const Results: React.FC<ResultsProps> = ({ isClientView, shareToken }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [analysis, setAnalysis] = useState<any>(null);
@@ -277,7 +282,20 @@ const Results = () => {
                   <CardTitle>Processed Shipments</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <DataTable data={analysis.processed_shipments} />
+                  <DataTable 
+                    data={analysis.processed_shipments} 
+                    columns={[
+                      { accessorKey: 'trackingId', header: 'Tracking ID' },
+                      { accessorKey: 'originZip', header: 'Origin' },
+                      { accessorKey: 'destinationZip', header: 'Destination' },
+                      { accessorKey: 'weight', header: 'Weight' },
+                      { accessorKey: 'service', header: 'Service' },
+                      { accessorKey: 'currentRate', header: 'Current Rate' },
+                      { accessorKey: 'newRate', header: 'New Rate' },
+                      { accessorKey: 'savings', header: 'Savings' }
+                    ]}
+                    title="Processed Shipments"
+                  />
                 </CardContent>
               </Card>
             )}
@@ -291,7 +309,12 @@ const Results = () => {
                 <CardContent>
                   <div className="space-y-2">
                     {analysis.orphaned_shipments.map((orphan: any, index: number) => (
-                      <OrphanedShipmentRow key={index} orphan={orphan} />
+                  <OrphanedShipmentRow 
+                    key={index} 
+                    shipment={orphan} 
+                    onFixAndAnalyze={() => {}}
+                    isFixing={false}
+                  />
                     ))}
                   </div>
                 </CardContent>

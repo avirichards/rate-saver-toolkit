@@ -57,14 +57,14 @@ interface AnalysisResult {
   attemptCount?: number;
   // Add validation fields for debugging
   expectedServiceCode?: string;
-  mappingValidation?: {
-    isValid: boolean;
-    expectedService: string;
-    actualService: string;
-    expectedServiceCode?: string;
-    actualServiceCode?: string;
-    message?: string;
-  };
+      mappingValidation?: {
+        isValid: boolean;
+        expectedService: string;
+        actualService: string;
+        expectedServiceCode?: string;
+        actualServiceCode?: string;
+        message?: string;
+      };
 }
 
 const Analysis = () => {
@@ -86,7 +86,6 @@ const Analysis = () => {
   const [readyToAnalyze, setReadyToAnalyze] = useState(false);
   const [analysisSaved, setAnalysisSaved] = useState(false); // Track if analysis has been saved
   const [isAnalysisStarted, setIsAnalysisStarted] = useState(false); // Track if analysis has been started
-  const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null); // Track current analysis ID
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
@@ -428,9 +427,6 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
       
-      // Store the analysis ID in state for passing to Results
-      setCurrentAnalysisId(analysisId);
-      
       // Process shipments sequentially (one at a time) to prevent race conditions
       for (let i = 0; i < shipmentsToAnalyze.length; i++) {
         // Check if paused before processing each shipment
@@ -504,7 +500,7 @@ const Analysis = () => {
     const state = location.state as any;
     const baseName = state?.fileName || 'Real-time Analysis';
 
-    console.log('💾 Creating single analysis record for unified results');
+    console.log('💾 Creating initial analysis record for rate saving');
     
     const analysisRecord = {
       user_id: user.id,
@@ -514,8 +510,6 @@ const Analysis = () => {
       status: 'processing',
       original_data: {} as any, // Required field, will be updated when complete
       carrier_configs_used: selectedCarriers as any,
-      processed_shipments: [] as any,
-      orphaned_shipments: [] as any,
       processing_metadata: {
         startedAt: new Date().toISOString(),
         dataSource: 'fresh_analysis'
@@ -533,7 +527,7 @@ const Analysis = () => {
       throw new Error('Failed to create analysis record');
     }
 
-    console.log('✅ Single analysis record created successfully:', data.id);
+    console.log('✅ Analysis record created successfully:', data.id);
     return data.id;
   };
 
@@ -545,33 +539,11 @@ const Analysis = () => {
     const totalSavingsCalc = completedResults.reduce((sum, result) => sum + (result.savings || 0), 0);
     const totalCurrentCostCalc = completedResults.reduce((sum, result) => sum + (result.currentCost || 0), 0);
 
-    console.log('💾 Updating single analysis record with final results');
-    
-    // Store processed shipments data for Results page
-    const processedShipmentsData = completedResults.map(result => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost || 0,
-      recommendedCost: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      originalService: result.originalService || result.shipment.service,
-      recommendedService: result.bestRate?.serviceName || 'Unknown',
-      carrier: result.bestRate?.carrierType || 'UPS',
-      bestRate: result.bestRate,
-      allRates: result.allRates || []
-    }));
-
-    const orphanedShipmentsData = errorResults.map(result => ({
-      shipment: result.shipment,
-      error: result.error,
-      errorType: result.errorType || 'unknown_error',
-      originalService: result.originalService || result.shipment.service
-    }));
+    console.log('💾 Updating analysis record with final results');
     
     const updateData = {
       status: 'completed',
       total_savings: totalSavingsCalc,
-      processed_shipments: processedShipmentsData as any,
-      orphaned_shipments: orphanedShipmentsData as any,
       processing_metadata: {
         completedAt: new Date().toISOString(),
         totalCurrentCost: totalCurrentCostCalc,
@@ -590,7 +562,7 @@ const Analysis = () => {
     if (error) {
       console.error('❌ Error updating analysis record:', error);
     } else {
-      console.log('✅ Single analysis record updated successfully with all data');
+      console.log('✅ Analysis record updated successfully');
     }
   };
   
@@ -1208,8 +1180,160 @@ const Analysis = () => {
     }
   };
   
-  // Removed saveAnalysisToDatabase function - it was creating duplicate records
-  // Analysis creation/updates are now handled by createAnalysisRecord() and updateAnalysisRecord()
+  const saveAnalysisToDatabase = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    // Prevent duplicate saves
+    if (analysisSaved) {
+      console.log('⚠️ Skipping duplicate save - analysis already saved to database');
+      return;
+    }
+    
+    console.log('🗄️ DATA INTEGRITY: Saving analysis to database:', {
+      totalAnalysisResults: analysisResults.length,
+      completedResults: analysisResults.filter(r => r.status === 'completed').length,
+      errorResults: analysisResults.filter(r => r.status === 'error').length,
+      originalShipmentCount: shipments.length,
+      analysisSaved
+    });
+    
+    const state = location.state as any;
+    const completedResults = analysisResults.filter(r => r.status === 'completed');
+    const errorResults = analysisResults.filter(r => r.status === 'error');
+    
+    // Check for existing analysis with same characteristics to prevent duplicates
+    const uploadTimestamp = state?.uploadTimestamp || Date.now();
+    const fileName = state?.fileName || 'Real-time Analysis';
+    
+    // Check if a similar analysis already exists (within last 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: existingAnalyses } = await supabase
+      .from('shipping_analyses')
+      .select('id, file_name, created_at, total_shipments')
+      .eq('user_id', user.id)
+      .eq('file_name', fileName)
+      .eq('total_shipments', shipments.length)
+      .gte('created_at', fiveMinutesAgo)
+      .order('created_at', { ascending: false });
+    
+    if (existingAnalyses && existingAnalyses.length > 0) {
+      console.log('⚠️ Duplicate analysis detected - skipping save:', {
+        fileName,
+        totalShipments: shipments.length,
+        existingCount: existingAnalyses.length,
+        latestAnalysis: existingAnalyses[0]
+      });
+      setAnalysisSaved(true); // Mark as saved to prevent future attempts
+      toast.info('Analysis already exists in database');
+      return;
+    }
+    
+    // Store ALL analysis results (completed + errors) for complete data integrity
+    const allResults = [...completedResults, ...errorResults];
+    
+    // Include ALL completed results, not just ones with positive savings
+    const recommendations = completedResults.map(r => ({
+      shipment: r.shipment,
+      originalService: r.originalService,
+      currentCost: r.currentCost,
+      recommendedCost: r.bestRate?.totalCharges,
+      savings: r.savings,
+      recommendedService: r.bestRate?.serviceName,
+      status: r.status,
+      error: r.error
+    }));
+    
+    // Also store error shipments for complete tracking
+    const orphanedShipments = errorResults.map(r => ({
+      shipment: r.shipment,
+      error: r.error,
+      errorType: r.errorType,
+      errorCategory: r.errorCategory,
+      status: r.status
+    }));
+    
+    // Prepare centralized shipment data
+    const processedShipments = completedResults.map((result, index) => ({
+      id: index + 1,
+      trackingId: result.shipment.trackingId || `Shipment-${index + 1}`,
+      originZip: result.shipment.originZip || '',
+      destinationZip: result.shipment.destZip || '',
+      weight: parseFloat(result.shipment.weight || '0'),
+      carrier: 'UPS',
+      service: result.originalService || result.shipment.service || 'Unknown',
+      currentRate: result.currentCost || 0,
+      newRate: result.bestRate?.totalCharges || 0,
+      savings: result.savings || 0,
+      savingsPercent: result.currentCost && result.currentCost > 0 ? ((result.savings || 0) / result.currentCost) * 100 : 0
+    }));
+
+    const orphanedShipmentsFormatted = errorResults.map((result, index) => ({
+      id: completedResults.length + index + 1,
+      trackingId: result.shipment.trackingId || `Orphan-${index + 1}`,
+      originZip: result.shipment.originZip || '',
+      destinationZip: result.shipment.destZip || '',
+      weight: parseFloat(result.shipment.weight || '0'),
+      service: result.originalService || result.shipment.service || 'Unknown',
+      error: result.error || 'Processing failed',
+      errorType: result.errorType || 'Unknown',
+      errorCategory: result.errorCategory || 'Processing Error'
+    }));
+
+    const processingMetadata = {
+      savedAt: new Date().toISOString(),
+      totalSavings: totalSavings,
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      totalShipments: shipments.length,
+      dataSource: 'fresh_analysis'
+    };
+
+    const analysisRecord = {
+      user_id: user.id,
+      file_name: state?.fileName || 'Real-time Analysis',
+      original_data: allResults as any, // Store ALL analysis results (completed + errors)
+      carrier_configs_used: selectedCarriers as any,
+      ups_quotes: completedResults.map(r => r.allRates || r.upsRates || []) as any,
+      savings_analysis: {
+        totalCurrentCost,
+        totalPotentialSavings: totalSavings,
+        savingsPercentage: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+        totalShipments: shipments.length,
+        completedShipments: completedResults.length,
+        errorShipments: errorResults.length,
+        orphanedShipments: orphanedShipments // Include orphan data
+      } as any,
+      recommendations: recommendations as any,
+      processed_shipments: processedShipments as any, // CENTRALIZED DATA
+      orphaned_shipments: orphanedShipmentsFormatted as any, // CENTRALIZED DATA
+      processing_metadata: processingMetadata as any, // CENTRALIZED METADATA
+      total_shipments: shipments.length,
+      total_savings: totalSavings,
+      status: 'completed'
+    };
+    
+    console.log('🗄️ DATA INTEGRITY: Database record being saved:', {
+      totalShipments: analysisRecord.total_shipments,
+      originalDataCount: allResults.length,
+      recommendationsCount: recommendations.length,
+      orphanedCount: orphanedShipments.length,
+      hasAllData: allResults.length === shipments.length
+    });
+
+    const { error } = await supabase
+      .from('shipping_analyses')
+      .insert(analysisRecord);
+
+    if (error) {
+      console.error('❌ Error saving analysis:', error);
+      toast.error('Failed to save analysis to database');
+    } else {
+      console.log('✅ DATA INTEGRITY: Analysis saved successfully');
+      setAnalysisSaved(true); // Mark as saved to prevent duplicate saves
+      toast.success('Analysis saved to database');
+    }
+  };
   
   const handleViewResults = () => {
     if (analysisResults.length === 0) {
@@ -1225,34 +1349,107 @@ const Analysis = () => {
       return;
     }
 
-    console.log('🔗 Navigating to Results with single analysis ID:', currentAnalysisId);
+    console.log('Preparing results data:', {
+      totalShipments: analysisResults.length,
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      orphanShipments: errorResults.length
+    });
+
+    // Format data for Results component - completed shipments
+    const recommendations = completedResults.map((result, index) => ({
+      shipment: result.shipment,
+      currentCost: result.currentCost || 0,
+      recommendedCost: result.bestRate?.totalCharges || 0,
+      savings: result.savings || 0,
+      originalService: result.originalService || result.shipment.service,
+      recommendedService: result.bestRate?.serviceName || 'Unknown',
+      carrier: 'UPS',
+      status: 'completed'
+    }));
+
+    // Format orphaned shipments (errors)
+    const orphanedShipments = errorResults.map((result, index) => ({
+      shipment: result.shipment,
+      error: result.error,
+      errorType: result.errorType || 'unknown_error',
+      originalService: result.originalService || result.shipment.service,
+      status: 'error'
+    }));
+
+    const analysisData = {
+      totalShipments: analysisResults.length,
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      totalCurrentCost,
+      totalPotentialSavings: totalSavings,
+      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+      recommendations,
+      orphanedShipments
+    };
 
     navigate('/results', { 
       state: { 
-        analysisComplete: true,
-        analysisId: currentAnalysisId // Pass the single analysis ID
+        analysisComplete: true, 
+        analysisData 
       } 
     });
   };
 
   const handleStopAndContinue = () => {
     const completedResults = analysisResults.filter(r => r.status === 'completed');
+    const errorResults = analysisResults.filter(r => r.status === 'error');
     
     if (completedResults.length === 0) {
       toast.error('No completed shipments to analyze');
       return;
     }
 
-    console.log('🔗 Stopping analysis and navigating to Results with single analysis ID:', currentAnalysisId);
+    console.log('Stopping analysis and continuing with partial results:', {
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      orphanShipments: errorResults.length
+    });
+
+    // Format data for Results component - completed shipments
+    const recommendations = completedResults.map((result, index) => ({
+      shipment: result.shipment,
+      currentCost: result.currentCost || 0,
+      recommendedCost: result.bestRate?.totalCharges || 0,
+      savings: result.savings || 0,
+      originalService: result.originalService || result.shipment.service,
+      recommendedService: result.bestRate?.serviceName || 'Unknown',
+      carrier: 'UPS',
+      status: 'completed'
+    }));
+
+    // Format orphaned shipments (errors)
+    const orphanedShipments = errorResults.map((result, index) => ({
+      shipment: result.shipment,
+      error: result.error,
+      errorType: result.errorType || 'unknown_error',
+      originalService: result.originalService || result.shipment.service,
+      status: 'error'
+    }));
+
+    const analysisData = {
+      totalShipments: analysisResults.length,
+      completedShipments: completedResults.length,
+      errorShipments: errorResults.length,
+      totalCurrentCost,
+      totalPotentialSavings: totalSavings,
+      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+      recommendations,
+      orphanedShipments
+    };
 
     navigate('/results', { 
       state: { 
-        analysisComplete: true,
-        analysisId: currentAnalysisId // Pass the single analysis ID
+        analysisComplete: true, 
+        analysisData 
       } 
     });
   };
-  
   const progress = shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
   const completedCount = analysisResults.filter(r => r.status === 'completed').length;
   const errorCount = analysisResults.filter(r => r.status === 'error').length;

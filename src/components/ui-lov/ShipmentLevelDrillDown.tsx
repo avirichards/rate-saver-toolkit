@@ -99,46 +99,83 @@ export const ShipmentLevelDrillDown: React.FC<ShipmentLevelDrillDownProps> = ({
                     <div className="flex items-center gap-3">
                       <Package className="h-5 w-5 text-blue-600" />
                       <div>
-                        <h4 className="font-medium">Shipment #{shipment.shipmentIndex + 1}</h4>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                        <h4 className="font-medium">
+                          {shipment.shipmentData?.trackingNumber || `Shipment #${shipment.shipmentIndex + 1}`}
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 text-sm mt-2">
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <MapPin className="h-3 w-3" />
-                            <span className="font-medium">Route:</span>
-                            <span>{shipment.shipmentData?.shipFrom?.zipCode || 'N/A'} → {shipment.shipmentData?.shipTo?.zipCode || 'N/A'}</span>
+                            <span className="font-medium">Origin:</span>
+                            <span>{shipment.shipmentData?.shipFrom?.zipCode || shipment.shipmentData?.origin || 'N/A'}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-1 text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            <span className="font-medium">Destination:</span>
+                            <span>{shipment.shipmentData?.shipTo?.zipCode || shipment.shipmentData?.destination || 'N/A'}</span>
                           </div>
                           
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <Package className="h-3 w-3" />
                             <span className="font-medium">Weight:</span>
-                            <span>{shipment.shipmentData?.package?.weight || 'N/A'} lbs</span>
+                            <span>{shipment.shipmentData?.package?.weight || shipment.shipmentData?.weight || 'N/A'} lbs</span>
                           </div>
                           
-                          {shipment.shipmentData?.package?.dimensions && (
+                          {(shipment.shipmentData?.package?.dimensions || shipment.shipmentData?.dimensions) && (
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <span>📏</span>
-                              <span className="font-medium">Dims:</span>
-                              <span>{shipment.shipmentData.package.dimensions.length}×{shipment.shipmentData.package.dimensions.width}×{shipment.shipmentData.package.dimensions.height}"</span>
+                              <span className="font-medium">Dimensions:</span>
+                              <span>
+                                {shipment.shipmentData?.package?.dimensions ? 
+                                  `${shipment.shipmentData.package.dimensions.length}×${shipment.shipmentData.package.dimensions.width}×${shipment.shipmentData.package.dimensions.height}"` :
+                                  shipment.shipmentData?.dimensions || 'N/A'
+                                }
+                              </span>
                             </div>
                           )}
                           
                           <div className="flex items-center gap-1 text-muted-foreground">
-                            <span>🎯</span>
-                            <span className="font-medium">Quotes:</span>
-                            <span>{shipment.rates.length} rates compared</span>
+                            <span>🏠</span>
+                            <span className="font-medium">Residential:</span>
+                            <span>{shipment.shipmentData?.residential === true ? 'Yes' : shipment.shipmentData?.residential === false ? 'No' : 'N/A'}</span>
                           </div>
                           
-                          {shipment.shipmentData?.service && (
+                          {shipment.shipmentData?.currentService && (
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <span>🚚</span>
-                              <span className="font-medium">Service:</span>
-                              <span>{shipment.shipmentData.service}</span>
+                              <span className="font-medium">Current Service:</span>
+                              <span>{shipment.shipmentData.currentService}</span>
+                            </div>
+                          )}
+                          
+                          {shipment.shipmentData?.shipProsService && (
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <span>⭐</span>
+                              <span className="font-medium">Ship Pros Service:</span>
+                              <span>{shipment.shipmentData.shipProsService}</span>
+                            </div>
+                          )}
+                          
+                          {shipment.shipmentData?.currentRate && (
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <DollarSign className="h-3 w-3" />
+                              <span className="font-medium">Current Rate:</span>
+                              <span>{formatCurrency(shipment.shipmentData.currentRate)}</span>
+                            </div>
+                          )}
+                          
+                          {shipment.shipmentData?.shipProsCost && (
+                            <div className="flex items-center gap-1 text-green-600">
+                              <TrendingDown className="h-3 w-3" />
+                              <span className="font-medium">Ship Pros Cost:</span>
+                              <span>{formatCurrency(shipment.shipmentData.shipProsCost)}</span>
                             </div>
                           )}
                           
                           {shipment.shipmentData?.reference && (
                             <div className="flex items-center gap-1 text-muted-foreground">
                               <span>📋</span>
-                              <span className="font-medium">Ref:</span>
+                              <span className="font-medium">Reference:</span>
                               <span>{shipment.shipmentData.reference}</span>
                             </div>
                           )}
@@ -157,9 +194,11 @@ export const ShipmentLevelDrillDown: React.FC<ShipmentLevelDrillDownProps> = ({
                 {expandedShipment === shipment.shipmentIndex && (
                   <div className="border-t bg-muted/20 p-4">
                     <div className="mb-4">
-                      <h5 className="font-semibold mb-2">Rate Comparison for Shipment #{shipment.shipmentIndex + 1}</h5>
+                      <h5 className="font-semibold mb-2">
+                        Rate Comparison for {shipment.shipmentData?.trackingNumber || `Shipment #${shipment.shipmentIndex + 1}`}
+                      </h5>
                       <div className="text-sm text-muted-foreground mb-3">
-                        Best rate saves <span className="font-semibold text-green-600">{formatCurrency(shipment.potentialSavings)}</span> compared to worst option
+                        Best rate saves <span className="font-semibold text-green-600">{formatCurrency(shipment.potentialSavings)}</span> vs current cost
                       </div>
                     </div>
                     <Table>
@@ -173,12 +212,7 @@ export const ShipmentLevelDrillDown: React.FC<ShipmentLevelDrillDownProps> = ({
                               Rate
                             </div>
                           </TableHead>
-                          <TableHead>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-4 w-4" />
-                              Transit
-                            </div>
-                          </TableHead>
+                          <TableHead>Current vs New</TableHead>
                           <TableHead>Type</TableHead>
                           <TableHead>Performance</TableHead>
                         </TableRow>
@@ -191,7 +225,18 @@ export const ShipmentLevelDrillDown: React.FC<ShipmentLevelDrillDownProps> = ({
                             <TableCell className={rate.isBest ? 'text-green-600 font-semibold' : ''}>
                               {formatCurrency(rate.rateAmount)}
                             </TableCell>
-                            <TableCell>{rate.transitDays || 'N/A'} days</TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                {shipment.shipmentData?.currentRate && (
+                                  <div className="text-muted-foreground">
+                                    Was: {formatCurrency(shipment.shipmentData.currentRate)}
+                                  </div>
+                                )}
+                                <div className={rate.isBest ? 'text-green-600 font-semibold' : ''}>
+                                  Now: {formatCurrency(rate.rateAmount)}
+                                </div>
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <Badge variant={rate.isNegotiated ? 'default' : 'secondary'}>
                                 {rate.isNegotiated ? 'Negotiated' : 'Published'}

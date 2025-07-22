@@ -132,12 +132,19 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
         const accountRate = shipmentRates.find(r => r.account_name === accountName);
         if (accountRate) {
           const bestRate = Math.min(...shipmentRates.map(r => r.rate_amount));
-          const worstRate = Math.max(...shipmentRates.map(r => r.rate_amount));
+          const currentRate = accountRate.shipment_data?.currentRate;
           
           if (accountRate.rate_amount === bestRate) {
             wins++;
           }
-          totalSavings += worstRate - accountRate.rate_amount;
+          
+          // Calculate savings vs current rate if available, otherwise vs worst rate
+          if (currentRate && currentRate > accountRate.rate_amount) {
+            totalSavings += currentRate - accountRate.rate_amount;
+          } else {
+            const worstRate = Math.max(...shipmentRates.map(r => r.rate_amount));
+            totalSavings += worstRate - accountRate.rate_amount;
+          }
           
           if (accountRate.transit_days) {
             totalTransitDays += accountRate.transit_days;
@@ -209,24 +216,35 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
         let totalSavings = 0;
         shipmentGroups.forEach((shipmentRates: ShipmentRate[]) => {
           const bestRate = Math.min(...shipmentRates.map((r: ShipmentRate) => r.rate_amount));
-          const worstRate = Math.max(...shipmentRates.map((r: ShipmentRate) => r.rate_amount));
           const accountRate = shipmentRates.find((r: ShipmentRate) => r.account_name === account.accountName);
           
           if (accountRate && accountRate.rate_amount === bestRate) {
             wins++;
           }
           if (accountRate) {
-            totalSavings += worstRate - accountRate.rate_amount;
+            const currentRate = accountRate.shipment_data?.currentRate;
+            // Calculate savings vs current rate if available, otherwise vs worst rate
+            if (currentRate && currentRate > accountRate.rate_amount) {
+              totalSavings += currentRate - accountRate.rate_amount;
+            } else {
+              const worstRate = Math.max(...shipmentRates.map((r: ShipmentRate) => r.rate_amount));
+              totalSavings += worstRate - accountRate.rate_amount;
+            }
           }
         });
         
+        // Calculate average customer cost
+        const avgCustomerCost = rates.reduce((sum: number, r: ShipmentRate) => {
+          return sum + (r.shipment_data?.currentRate || 0);
+        }, 0) / rates.length;
+
         return {
           accountName: account.accountName,
           averageRate: avgRate,
           shipmentCount: rates.length,
           winRate: (wins / shipmentGroups.size) * 100,
-          averageTransitDays: avgTransit,
-          totalSavings
+          totalSavings,
+          averageCustomerCost: avgCustomerCost
         };
       })
     }));
@@ -252,6 +270,11 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
       const bestRate = sortedRates[0];
       const worstRate = sortedRates[sortedRates.length - 1];
       
+      const currentRate = shipment.shipmentData?.currentRate;
+      const savingsAmount = currentRate && currentRate > bestRate.rate_amount 
+        ? currentRate - bestRate.rate_amount 
+        : worstRate.rate_amount - bestRate.rate_amount;
+
       return {
         shipmentIndex: shipment.shipmentIndex,
         shipmentData: shipment.shipmentData,
@@ -265,7 +288,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
           isBest: rate.id === bestRate.id
         })),
         bestRate: bestRate.rate_amount,
-        potentialSavings: worstRate.rate_amount - bestRate.rate_amount
+        potentialSavings: savingsAmount
       };
     });
   };
@@ -379,17 +402,13 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
 
       {/* Dynamic Content Based on View Mode */}
       {viewMode === 'overview' && (
-        <div className="space-y-6">
-          <AccountPerformanceSummary accountPerformances={applyFilters(accountPerformances)} />
-          <div className="flex justify-center space-x-4">
-            <button
-              onClick={() => setViewMode('service')}
-              className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-semibold"
-            >
-              🔍 Drill Down to Services
-            </button>
-          </div>
-        </div>
+        <AccountPerformanceSummary 
+          accountPerformances={applyFilters(accountPerformances)} 
+          onAccountSelect={(accountName) => {
+            setSelectedAccount(accountName);
+            setViewMode('service');
+          }}
+        />
       )}
 
       {viewMode === 'service' && (

@@ -17,10 +17,12 @@ interface AccountPerformance {
 
 interface AccountPerformanceSummaryProps {
   accountPerformances: AccountPerformance[];
+  onAccountSelect: (accountName: string) => void;
 }
 
 export const AccountPerformanceSummary: React.FC<AccountPerformanceSummaryProps> = ({ 
-  accountPerformances 
+  accountPerformances,
+  onAccountSelect 
 }) => {
   const sortedAccounts = [...accountPerformances].sort((a, b) => b.winRate - a.winRate);
   const topAccount = sortedAccounts[0];
@@ -81,7 +83,11 @@ export const AccountPerformanceSummary: React.FC<AccountPerformanceSummaryProps>
       {/* Account Performance Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {sortedAccounts.map((account, index) => (
-          <Card key={account.accountName} className={index === 0 ? 'border-yellow-600 border-2' : ''}>
+          <Card 
+            key={account.accountName} 
+            className={`cursor-pointer hover:shadow-lg transition-all ${index === 0 ? 'border-yellow-600 border-2' : 'hover:border-primary'}`}
+            onClick={() => onAccountSelect(account.accountName)}
+          >
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">{account.accountName}</CardTitle>
@@ -98,9 +104,12 @@ export const AccountPerformanceSummary: React.FC<AccountPerformanceSummaryProps>
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <TrendingDown className="h-4 w-4 text-green-600" />
-                    <span className="text-sm">Win Rate</span>
+                    <span className="text-sm">Win Rate vs Current</span>
                   </div>
-                  <span className="font-semibold text-green-600">{account.winRate.toFixed(1)}%</span>
+                  <div className="text-right">
+                    <span className="font-semibold text-green-600">{account.winRate.toFixed(1)}%</span>
+                    <div className="text-xs text-green-600">{formatCurrency(account.totalSavings)}</div>
+                  </div>
                 </div>
                 
                 <div className="flex justify-between items-center">
@@ -119,12 +128,8 @@ export const AccountPerformanceSummary: React.FC<AccountPerformanceSummaryProps>
                   <span className="font-semibold">{account.totalShipments}</span>
                 </div>
                 
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-orange-600" />
-                    <span className="text-sm">Avg Transit</span>
-                  </div>
-                  <span className="font-semibold">{account.averageTransitDays.toFixed(1)} days</span>
+                <div className="mt-2 pt-2 border-t text-center">
+                  <span className="text-xs text-muted-foreground">Click to view services</span>
                 </div>
               </div>
             </CardContent>

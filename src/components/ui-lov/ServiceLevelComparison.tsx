@@ -16,8 +16,8 @@ interface ServicePerformance {
     averageRate: number;
     shipmentCount: number;
     winRate: number;
-    averageTransitDays: number;
     totalSavings: number;
+    averageCustomerCost: number;
   }[];
 }
 
@@ -125,8 +125,8 @@ export const ServiceLevelComparison: React.FC<ServiceLevelComparisonProps> = ({
                     </TableHead>
                     <TableHead>
                       <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        Transit
+                        <DollarSign className="h-4 w-4" />
+                        Customer Cost
                       </div>
                     </TableHead>
                     <TableHead>Savings</TableHead>
@@ -159,9 +159,17 @@ export const ServiceLevelComparison: React.FC<ServiceLevelComparisonProps> = ({
                           {formatCurrency(account.averageRate)}
                         </TableCell>
                         <TableCell>{account.shipmentCount}</TableCell>
-                        <TableCell>{account.averageTransitDays.toFixed(1)} days</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <div className="text-muted-foreground">Was: {formatCurrency(account.averageCustomerCost || 0)}</div>
+                            <div className="font-semibold">Now: {formatCurrency(account.averageRate)}</div>
+                          </div>
+                        </TableCell>
                         <TableCell className="text-green-600 font-semibold">
-                          {formatCurrency(account.totalSavings)}
+                          <div className="text-sm">
+                            <div>{account.winRate.toFixed(1)}%</div>
+                            <div>{formatCurrency(account.totalSavings)}</div>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );

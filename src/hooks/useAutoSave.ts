@@ -1,8 +1,6 @@
-
 import { useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { convertToDatabaseFormat, UnifiedAnalysisData } from '@/utils/dataProcessing';
 
 interface AutoSaveOptions {
   debounceMs?: number;
@@ -13,7 +11,7 @@ interface AutoSaveOptions {
 
 export function useAutoSave(
   analysisId: string | null,
-  unifiedData: UnifiedAnalysisData | null,
+  updateData: any,
   enabled: boolean = true,
   options: AutoSaveOptions = {}
 ) {
@@ -35,41 +33,31 @@ export function useAutoSave(
   }, []);
 
   const saveData = useCallback(async () => {
-    if (!analysisId || !enabled || !unifiedData || !isMountedRef.current) return;
+    if (!analysisId || !enabled || !isMountedRef.current) return;
 
     try {
-      console.log('💾 Auto-saving unified data for analysis:', analysisId);
-      
-      // Convert unified data to database format
-      const dbFormat = convertToDatabaseFormat(unifiedData);
-      
-      const updateData = {
-        ...dbFormat,
-        status: 'completed',
-        updated_at: new Date().toISOString()
-      };
-
       const { error } = await supabase
         .from('shipping_analyses')
-        .update(updateData)
+        .update({
+          ...updateData,
+          updated_at: new Date().toISOString()
+        })
         .eq('id', analysisId);
 
       if (error) throw error;
 
-      console.log('✅ Auto-save completed successfully');
-      
       if (showSuccessToast && isMountedRef.current) {
         toast.success('Auto-saved', { duration: 1500 });
       }
       
       onSuccess?.();
     } catch (error) {
-      console.error('❌ Auto-save failed:', error);
+      console.error('Auto-save failed:', error);
       if (isMountedRef.current) {
         onError?.(error as Error);
       }
     }
-  }, [analysisId, unifiedData, enabled, showSuccessToast, onError, onSuccess]);
+  }, [analysisId, updateData, enabled, showSuccessToast, onError, onSuccess]);
 
   const triggerSave = useCallback(() => {
     if (timeoutRef.current) {

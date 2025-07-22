@@ -12,6 +12,3 @@ verify_jwt = true
 
 [functions.finalize-analysis]
 verify_jwt = true
-
-[functions.start-background-analysis]
-verify_jwt = true

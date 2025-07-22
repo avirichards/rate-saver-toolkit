@@ -1,3 +1,4 @@
+
 import { toast } from 'sonner';
 
 // Standardized interfaces for data processing
@@ -113,72 +114,6 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
     report_name: analysis.report_name,
     client_id: analysis.client_id
   };
-};
-
-// Legacy function for backward compatibility - redirects to unified function
-export const processNormalViewData = (recommendations: any[]): ProcessedAnalysisData => {
-  console.warn('⚠️ Using legacy processNormalViewData - consider migrating to processAnalysisData');
-  
-  const validShipments: any[] = [];
-  const orphanedShipments: any[] = [];
-  
-  recommendations.forEach((rec: any, index: number) => {
-    const shipmentData = rec.shipment || rec;
-    const validation = validateShipmentData(shipmentData);
-    
-    const formattedShipment = {
-      id: index + 1,
-      trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
-      originZip: shipmentData.originZip || '',
-      destinationZip: shipmentData.destZip || shipmentData.destinationZip || '',
-      weight: parseFloat(shipmentData.weight || '0'),
-      length: parseFloat(shipmentData.length || rec.length || '12'),
-      width: parseFloat(shipmentData.width || rec.width || '12'),
-      height: parseFloat(shipmentData.height || rec.height || '6'),
-      dimensions: shipmentData.dimensions || rec.dimensions,
-      carrier: shipmentData.carrier || rec.carrier || 'Unknown',
-      service: rec.originalService || shipmentData.service || '',
-      originalService: rec.originalService || shipmentData.service || '',
-      bestService: rec.bestService || rec.recommendedService || 'UPS Ground',
-      newService: rec.recommendedService || rec.bestService || 'UPS Ground',
-      currentRate: rec.currentCost || 0,
-      newRate: rec.recommendedCost || 0,
-      savings: rec.savings || 0,
-      savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
-    };
-    
-    if (rec.status === 'error' || rec.error || !validation.isValid) {
-      orphanedShipments.push({
-        ...formattedShipment,
-        error: rec.error || `Missing required data: ${validation.missingFields.join(', ')}`,
-        errorType: rec.errorType || validation.errorType,
-        missingFields: validation.missingFields
-      });
-    } else {
-      validShipments.push(formattedShipment);
-    }
-  });
-  
-  const totalCurrentCost = validShipments.reduce((sum, item) => sum + (item.currentRate || 0), 0);
-  const totalPotentialSavings = validShipments.reduce((sum, item) => sum + (item.savings || 0), 0);
-  
-  return {
-    totalCurrentCost,
-    totalPotentialSavings,
-    recommendations: validShipments,
-    savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
-    totalShipments: recommendations.length,
-    analyzedShipments: validShipments.length,
-    orphanedShipments,
-    completedShipments: validShipments.length,
-    errorShipments: orphanedShipments.length
-  };
-};
-
-// Legacy function for backward compatibility - redirects to unified function
-export const processClientViewData = (analysis: any): ProcessedAnalysisData => {
-  console.warn('⚠️ Using legacy processClientViewData - consider migrating to processAnalysisData');
-  return processAnalysisData(analysis);
 };
 
 // Convert recommendations to formatted shipment data

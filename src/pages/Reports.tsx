@@ -6,7 +6,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { FileBarChart, Filter, Search, TrendingUp, TrendingDown, Percent, DollarSign, Users, ChevronDown, ChevronRight, Database } from 'lucide-react';
+import { FileBarChart, Filter, Search, TrendingUp, TrendingDown, Percent, DollarSign, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -14,8 +14,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ReportsTable } from '@/components/ui-lov/ReportsTable';
 import { GroupedReportsView } from '@/components/ui-lov/GroupedReportsView';
-import { migrateAllLegacyAnalyses } from '@/utils/migrateLegacyAnalyses';
-import { toast } from 'sonner';
 
 interface ShippingAnalysis {
   id: string;
@@ -30,6 +28,8 @@ interface ShippingAnalysis {
   updated_at: string;
   report_name: string | null;
   client_id: string | null;
+  processed_shipments: any[];
+  orphaned_shipments: any[];
   client?: {
     id: string;
     company_name: string;
@@ -42,7 +42,6 @@ const ReportsPage = () => {
   const [loading, setLoading] = useState(true);
   const [groupByClient, setGroupByClient] = useState(false);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
-  const [isMigrating, setIsMigrating] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -50,8 +49,6 @@ const ReportsPage = () => {
       loadReports();
     }
   }, [user]);
-
-  // Remove aggressive window focus refresh - it causes the random page refreshes
 
   const loadReports = async () => {
     try {
@@ -79,8 +76,7 @@ const ReportsPage = () => {
         `)
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
-        .eq('status', 'completed')  // Only show completed analyses
-        .not('file_name', 'like', '%.csv')  // Exclude original CSV files (duplicates)
+        .eq('status', 'completed')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -107,29 +103,6 @@ const ReportsPage = () => {
               : null
           }));
         }
-      }
-
-      // Auto-detect and migrate legacy analyses in the background
-      const legacyAnalyses = reportsWithClients.filter(report => 
-        !report.processed_shipments && !report.orphaned_shipments
-      );
-      
-      if (legacyAnalyses.length > 0) {
-        console.log(`🔄 REPORTS: Found ${legacyAnalyses.length} legacy analyses, starting background migration`);
-        
-        // Start background migration without blocking UI
-        setTimeout(async () => {
-          try {
-            const migrationResult = await migrateAllLegacyAnalyses();
-            if (migrationResult.success > 0) {
-              console.log(`✅ REPORTS: Background migration completed: ${migrationResult.success} analyses migrated`);
-              // Refresh reports to show updated data
-              await loadReports();
-            }
-          } catch (error) {
-            console.error('❌ REPORTS: Background migration failed:', error);
-          }
-        }, 1000);
       }
       
       console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
@@ -210,28 +183,6 @@ const ReportsPage = () => {
       newExpanded.add(clientName);
     }
     setExpandedClients(newExpanded);
-  };
-
-  const handleMigrateData = async () => {
-    setIsMigrating(true);
-    try {
-      const result = await migrateAllLegacyAnalyses();
-      
-      if (result.success > 0) {
-        toast.success(`Successfully migrated ${result.success} analyses to centralized format`);
-        // Reload reports to show updated data
-        await loadReports();
-      } else if (result.failed > 0) {
-        toast.error(`Failed to migrate ${result.failed} analyses. Check console for details.`);
-      } else {
-        toast.info('All analyses are already using the latest format');
-      }
-    } catch (error: any) {
-      console.error('Migration failed:', error);
-      toast.error(`Migration failed: ${error.message}`);
-    } finally {
-      setIsMigrating(false);
-    }
   };
 
   return (

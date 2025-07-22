@@ -272,11 +272,11 @@ const Analysis = () => {
     }
   }, [shipments, selectedCarriers]);
 
-  // Wait for both service mappings and carrier selection to complete
+  // Ready for analysis when all required data is available
   useEffect(() => {
     if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && 
         selectedCarriers.length > 0 && carrierSelectionComplete && !isAnalysisStarted) {
-      console.log('🚀 Starting analysis with service mappings and carriers:', {
+      console.log('🚀 Ready for analysis with service mappings and carriers:', {
         serviceMappingsCount: serviceMappings.length,
         shipmentsCount: shipments.length,
         selectedCarriersCount: selectedCarriers.length,
@@ -287,122 +287,35 @@ const Analysis = () => {
         }))
       });
       
-      setIsAnalysisStarted(true); // Prevent duplicate analysis starts
-      validateAndStartAnalysis(shipments);
-      setReadyToAnalyze(false); // Prevent multiple analysis starts
+      setIsAnalysisStarted(true);
+      setReadyToAnalyze(false);
     }
   }, [readyToAnalyze, serviceMappings, shipments, selectedCarriers, carrierSelectionComplete, isAnalysisStarted]);
   
-  const validateAndStartAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
-    setIsAnalyzing(true);
-    setError(null);
-    
+  const handleStartAnalysis = async () => {
     try {
-      // Enhanced validation with detailed tracking
-      console.log('🔍 DATA INTEGRITY: Starting validation of shipments:', {
-        totalShipments: shipmentsToAnalyze.length,
-        sampleShipments: shipmentsToAnalyze.slice(0, 3).map(s => ({
-          id: s.id,
-          trackingId: s.trackingId,
-          service: s.service,
-          originZip: s.originZip,
-          destZip: s.destZip,
-          weight: s.weight,
-          cost: s.cost
-        }))
-      });
+      const state = location.state as any;
+      const userRes = await supabase.auth.getUser();
+      const userId = userRes.data.user!.id;
       
-      const validationResults = await validateShipments(shipmentsToAnalyze);
-      
-      // Track both valid and invalid shipments with detailed reasons
-      const validShipments: ProcessedShipment[] = [];
-      const invalidShipments: { shipment: ProcessedShipment; reasons: string[] }[] = [];
-      
-      shipmentsToAnalyze.forEach((shipment, index) => {
-        const result = validationResults[index];
-        if (result && result.isValid) {
-          validShipments.push(shipment);
-        } else {
-          const reasons = result?.errors ? Object.values(result.errors).flat() : ['Validation failed'];
-          invalidShipments.push({ shipment, reasons });
-          
-          // Log each dropped shipment for tracking
-          console.warn('🚫 DATA INTEGRITY: Dropping invalid shipment during validation:', {
-            shipmentId: shipment.id,
-            trackingId: shipment.trackingId,
-            reasons,
-            rawData: {
-              service: shipment.service,
-              originZip: shipment.originZip,
-              destZip: shipment.destZip,
-              weight: shipment.weight,
-              cost: shipment.cost
-            }
-          });
+      const { data, error } = await supabase.functions.invoke(
+        'start-background-analysis',
+        {
+          body: {
+            csvUploadId: state.csvUploadId,
+            userId,
+            mappings: state.mappings,
+            serviceMappings: state.serviceMappings,
+            carrierConfigs: selectedCarriers
+          }
         }
-      });
+      );
       
-      const summary = {
-        total: shipmentsToAnalyze.length,
-        valid: validShipments.length,
-        invalid: invalidShipments.length
-      };
+      if (error) throw error;
       
-      setValidationSummary(summary);
-      
-      // Critical data integrity check
-      if (summary.total !== summary.valid + summary.invalid) {
-        console.error('🚨 DATA INTEGRITY ERROR: Shipment count mismatch!', {
-          original: summary.total,
-          valid: summary.valid,
-          invalid: summary.invalid,
-          sum: summary.valid + summary.invalid
-        });
-      }
-      
-      console.log('✅ DATA INTEGRITY: Validation complete:', {
-        summary,
-        validShipmentIds: validShipments.map(s => s.id),
-        invalidShipmentDetails: invalidShipments.map(i => ({
-          id: i.shipment.id,
-          trackingId: i.shipment.trackingId,
-          reasons: i.reasons
-        }))
-      });
-      
-      // Store invalid shipments in analysis results for tracking
-      const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
-        shipment,
-        status: 'error' as const,
-        error: `Validation failed: ${reasons.join(', ')}`,
-        errorType: 'validation_error',
-        errorCategory: 'Data Validation'
-      }));
-      
-      // Initialize results with both valid (pending) and invalid (error) shipments
-      const initialResults = [
-        ...validShipments.map(shipment => ({
-          shipment,
-          status: 'pending' as const
-        })),
-        ...invalidResults
-      ];
-      
-      setAnalysisResults(initialResults);
-      
-      if (validShipments.length === 0) {
-        throw new Error('No valid shipments found. Please check your data and field mappings.');
-      }
-      
-      // Note: Validation errors are already shown in the validation summary below
-      
-      // Process only valid shipments, but track ALL shipments in results
-      await startAnalysis(validShipments);
-      
-    } catch (error: any) {
-      console.error('Validation error:', error);
-      setError(error.message);
-      setIsAnalyzing(false);
+      navigate(`/results?analysisId=${data.analysisId}`);
+    } catch (err: any) {
+      toast.error('Failed to start analysis: ' + err.message);
     }
   };
 
@@ -1628,14 +1541,14 @@ const Analysis = () => {
               ))}
             </div>
             
-            {isComplete && (
+            {(carrierSelectionComplete && selectedCarriers.length > 0) && (
               <div className="flex justify-end mt-6">
                 <Button 
                   variant="primary" 
-                  onClick={handleViewResults}
+                  onClick={handleStartAnalysis}
                   iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
                 >
-                  View Detailed Results
+                  {isAnalysisStarted ? 'View Detailed Results' : 'Start Analysis'}
                 </Button>
               </div>
             )}

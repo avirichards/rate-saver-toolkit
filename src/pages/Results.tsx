@@ -524,113 +524,157 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   };
 
-  useEffect(() => {
-    const loadAnalysisData = async () => {
-      try {
-        if (isClientView && shareToken) {
-          // Load shared report for client view
-          const sharedData = await getSharedReport(shareToken);
-          await updateViewCount(shareToken);
+  const [analysis, setAnalysis] = useState(null);
 
-          const analysis = sharedData.shipping_analyses;
-          
-          // Set markup data first
-          if (analysis.markup_data) {
-            setMarkupData(analysis.markup_data as any as MarkupData);
-          }
-          
-          // Create a markup function that uses the markup data directly from the analysis
-          const getMarkupWithData = (shipment: any) => {
-            const markupDataFromAnalysis = analysis.markup_data as any;
-            if (!markupDataFromAnalysis) return { markedUpPrice: shipment.newRate, margin: 0, marginPercent: 0 };
-            
-            const shipProsCost = shipment.newRate || 0;
-            let markupPercent = 0;
-            
-            if (markupDataFromAnalysis.markupType === 'global') {
-              markupPercent = markupDataFromAnalysis.globalMarkup;
-            } else {
-              markupPercent = markupDataFromAnalysis.perServiceMarkup[shipment.service] || 0;
-            }
-            
-            const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
-            const margin = markedUpPrice - shipProsCost;
-            const marginPercent = shipProsCost > 0 ? (margin / shipProsCost) * 100 : 0;
-            
-            return { markedUpPrice, margin, marginPercent };
-          };
-          
-          const processedData = processAnalysisData(analysis, getMarkupWithData);
-          
-          setAnalysisData(processedData);
-          setShipmentData(processedData.recommendations || []);
-          setOrphanedData(processedData.orphanedShipments || []);
-          
-          setLoading(false);
-          return;
-        }
+  useEffect(() => {
+    const analysisIdFromQuery = searchParams.get('analysisId');
+    
+    if (analysisIdFromQuery) {
+      let interval: NodeJS.Timeout;
+      
+      const load = async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('shipping_analyses')
+          .select('*')
+          .eq('id', analysisIdFromQuery)
+          .single();
         
-        const state = location.state as { analysisComplete?: boolean; analysisData?: AnalysisData } | null;
-        const analysisIdFromQuery = searchParams.get('analysisId');
-        
-        if (analysisIdFromQuery) {
-          // Loading from Reports tab
-          await loadFromDatabase(analysisIdFromQuery);
-        } else if (state?.analysisComplete && state.analysisData) {
-          setAnalysisData(state.analysisData);
+        if (!error && data) {
+          setAnalysis(data);
           
-          // Auto-save the analysis after a short delay
-          setTimeout(() => {
-            autoSaveAnalysis(false);
-          }, 1000);
-          
-          // Process the recommendations using the utility function
-          const processedShipmentData = formatShipmentData(state.analysisData.recommendations);
-          setShipmentData(processedShipmentData);
-          
-          // Handle orphaned shipments from state
-          const orphanedFromState = state.analysisData.orphanedShipments || [];
-          setOrphanedData(orphanedFromState);
-          
-          // Also handle additional orphans from analysisData if available
-          if (state.analysisData.orphanedShipments && state.analysisData.orphanedShipments.length > 0) {
-            const additionalOrphans = state.analysisData.orphanedShipments.map((orphan: any, index: number) => ({
-              id: orphanedFromState.length + index + 1,
-              trackingId: orphan.shipment?.trackingId || `Orphan-${index + 1}`,
-              originZip: orphan.shipment?.originZip || '',
-              destinationZip: orphan.shipment?.destZip || '',
-              weight: parseFloat(orphan.shipment?.weight || '0'),
-              service: orphan.originalService || orphan.shipment?.service || '',
-              error: orphan.error || 'Processing failed',
-              errorType: orphan.errorType || 'Unknown'
+          // Process the data if analysis is completed
+          if (data.status === 'completed') {
+            const processedData = processAnalysisData(data, (shipment: any) => ({
+              markedUpPrice: shipment.newRate || 0,
+              margin: 0,
+              marginPercent: 0
             }));
             
-            setOrphanedData(prev => [...prev, ...additionalOrphans]);
+            setAnalysisData(processedData);
+            setShipmentData(processedData.recommendations || []);
+            setOrphanedData(processedData.orphanedShipments || []);
             
-            console.log('Loaded orphaned shipments:', {
-              fromOrphanedShipments: additionalOrphans.length,
-              total: orphanedFromState.length + additionalOrphans.length
-            });
+            // Initialize service data
+            const services = [...new Set((processedData.recommendations || []).map(item => item.service).filter(Boolean))] as string[];
+            setAvailableServices(services);
+            setSelectedServicesOverview([]);
+            
+            clearInterval(interval);
+          }
+        }
+        setLoading(false);
+      };
+
+      load();
+      interval = setInterval(load, 5000);
+      
+      return () => clearInterval(interval);
+    } else {
+      // Original loading logic for other cases
+      const loadAnalysisData = async () => {
+        try {
+          if (isClientView && shareToken) {
+            // Load shared report for client view
+            const sharedData = await getSharedReport(shareToken);
+            await updateViewCount(shareToken);
+
+            const analysis = sharedData.shipping_analyses;
+            
+            // Set markup data first
+            if (analysis.markup_data) {
+              setMarkupData(analysis.markup_data as any as MarkupData);
+            }
+            
+            // Create a markup function that uses the markup data directly from the analysis
+            const getMarkupWithData = (shipment: any) => {
+              const markupDataFromAnalysis = analysis.markup_data as any;
+              if (!markupDataFromAnalysis) return { markedUpPrice: shipment.newRate, margin: 0, marginPercent: 0 };
+              
+              const shipProsCost = shipment.newRate || 0;
+              let markupPercent = 0;
+              
+              if (markupDataFromAnalysis.markupType === 'global') {
+                markupPercent = markupDataFromAnalysis.globalMarkup;
+              } else {
+                markupPercent = markupDataFromAnalysis.perServiceMarkup[shipment.service] || 0;
+              }
+              
+              const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
+              const margin = markedUpPrice - shipProsCost;
+              const marginPercent = shipProsCost > 0 ? (margin / shipProsCost) * 100 : 0;
+              
+              return { markedUpPrice, margin, marginPercent };
+            };
+            
+            const processedData = processAnalysisData(analysis, getMarkupWithData);
+            
+            setAnalysisData(processedData);
+            setShipmentData(processedData.recommendations || []);
+            setOrphanedData(processedData.orphanedShipments || []);
+            
+            setLoading(false);
+            return;
           }
           
-          // Initialize service data
-          const services = [...new Set(processedShipmentData.map(item => item.service).filter(Boolean))] as string[];
-          setAvailableServices(services);
-          setSelectedServicesOverview([]); // Default to unchecked
+          const state = location.state as { analysisComplete?: boolean; analysisData?: AnalysisData } | null;
           
-          setLoading(false);
-        } else if (params.id) {
-          await loadFromDatabase(params.id);
-        } else {
-          await loadMostRecentAnalysis();
-        }
+          if (state?.analysisComplete && state.analysisData) {
+            setAnalysisData(state.analysisData);
+            
+            // Auto-save the analysis after a short delay
+            setTimeout(() => {
+              autoSaveAnalysis(false);
+            }, 1000);
+            
+            // Process the recommendations using the utility function
+            const processedShipmentData = formatShipmentData(state.analysisData.recommendations);
+            setShipmentData(processedShipmentData);
+            
+            // Handle orphaned shipments from state
+            const orphanedFromState = state.analysisData.orphanedShipments || [];
+            setOrphanedData(orphanedFromState);
+            
+            // Also handle additional orphans from analysisData if available
+            if (state.analysisData.orphanedShipments && state.analysisData.orphanedShipments.length > 0) {
+              const additionalOrphans = state.analysisData.orphanedShipments.map((orphan: any, index: number) => ({
+                id: orphanedFromState.length + index + 1,
+                trackingId: orphan.shipment?.trackingId || `Orphan-${index + 1}`,
+                originZip: orphan.shipment?.originZip || '',
+                destinationZip: orphan.shipment?.destZip || '',
+                weight: parseFloat(orphan.shipment?.weight || '0'),
+                service: orphan.originalService || orphan.shipment?.service || '',
+                error: orphan.error || 'Processing failed',
+                errorType: orphan.errorType || 'Unknown'
+              }));
+              
+              setOrphanedData(prev => [...prev, ...additionalOrphans]);
+              
+              console.log('Loaded orphaned shipments:', {
+                fromOrphanedShipments: additionalOrphans.length,
+                total: orphanedFromState.length + additionalOrphans.length
+              });
+            }
+            
+            // Initialize service data
+            const services = [...new Set(processedShipmentData.map(item => item.service).filter(Boolean))] as string[];
+            setAvailableServices(services);
+            setSelectedServicesOverview([]); // Default to unchecked
+            
+            setLoading(false);
+          } else if (params.id) {
+            await loadFromDatabase(params.id);
+          } else {
+            await loadMostRecentAnalysis();
+          }
         } catch (error) {
-        handleDataProcessingError(error, isClientView ? 'client view' : 'normal view');
-        setLoading(false);
-      }
-    };
+          handleDataProcessingError(error, isClientView ? 'client view' : 'normal view');
+          setLoading(false);
+        }
+      };
 
-    loadAnalysisData();
+      loadAnalysisData();
+    }
   }, [location, params.id, searchParams, isClientView, shareToken]);
 
   // Auto-save effect - triggers when analysis data is loaded and user is authenticated

@@ -57,14 +57,14 @@ interface AnalysisResult {
   attemptCount?: number;
   // Add validation fields for debugging
   expectedServiceCode?: string;
-      mappingValidation?: {
-        isValid: boolean;
-        expectedService: string;
-        actualService: string;
-        expectedServiceCode?: string;
-        actualServiceCode?: string;
-        message?: string;
-      };
+  mappingValidation?: {
+    isValid: boolean;
+    expectedService: string;
+    actualService: string;
+    expectedServiceCode?: string;
+    actualServiceCode?: string;
+    message?: string;
+  };
 }
 
 const Analysis = () => {
@@ -1324,12 +1324,12 @@ const Analysis = () => {
       hasAllData: allResults.length === shipments.length
     });
 
-    const { error } = await supabase
+    const { error: saveError } = await supabase
       .from('shipping_analyses')
       .insert(analysisRecord);
 
-    if (error) {
-      console.error('❌ Error saving analysis:', error);
+    if (saveError) {
+      console.error('❌ Error saving analysis:', saveError);
       toast.error('Failed to save analysis to database');
     } else {
       console.log('✅ DATA INTEGRITY: Analysis saved successfully');
@@ -1352,51 +1352,53 @@ const Analysis = () => {
       return;
     }
 
-    console.log('Preparing results data:', {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      orphanShipments: errorResults.length
-    });
+    // Get the current analysis ID from session storage (created during analysis)
+    const currentAnalysisId = sessionStorage.getItem('currentAnalysisId');
+    
+    if (currentAnalysisId) {
+      // Navigate using the analysis ID in URL parameter
+      navigate(`/results?analysisId=${currentAnalysisId}`);
+    } else {
+      // Fallback: create the analysis data and navigate with state (legacy path)
+      console.log('No analysis ID found, using legacy state navigation');
+      
+      const recommendations = completedResults.map((result, index) => ({
+        shipment: result.shipment,
+        currentCost: result.currentCost || 0,
+        recommendedCost: result.bestRate?.totalCharges || 0,
+        savings: result.savings || 0,
+        originalService: result.originalService || result.shipment.service,
+        recommendedService: result.bestRate?.serviceName || 'Unknown',
+        carrier: 'UPS',
+        status: 'completed'
+      }));
 
-    // Format data for Results component - completed shipments
-    const recommendations = completedResults.map((result, index) => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost || 0,
-      recommendedCost: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      originalService: result.originalService || result.shipment.service,
-      recommendedService: result.bestRate?.serviceName || 'Unknown',
-      carrier: 'UPS',
-      status: 'completed'
-    }));
+      const orphanedShipments = errorResults.map((result, index) => ({
+        shipment: result.shipment,
+        error: result.error,
+        errorType: result.errorType || 'unknown_error',
+        originalService: result.originalService || result.shipment.service,
+        status: 'error'
+      }));
 
-    // Format orphaned shipments (errors)
-    const orphanedShipments = errorResults.map((result, index) => ({
-      shipment: result.shipment,
-      error: result.error,
-      errorType: result.errorType || 'unknown_error',
-      originalService: result.originalService || result.shipment.service,
-      status: 'error'
-    }));
+      const analysisData = {
+        totalShipments: analysisResults.length,
+        completedShipments: completedResults.length,
+        errorShipments: errorResults.length,
+        totalCurrentCost,
+        totalPotentialSavings: totalSavings,
+        averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+        recommendations,
+        orphanedShipments
+      };
 
-    const analysisData = {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      recommendations,
-      orphanedShipments
-    };
-
-    navigate('/results', { 
-      state: { 
-        analysisComplete: true, 
-        analysisData 
-      } 
-    });
+      navigate('/results', { 
+        state: { 
+          analysisComplete: true, 
+          analysisData 
+        } 
+      });
+    }
   };
 
   const handleStopAndContinue = () => {
@@ -1408,50 +1410,53 @@ const Analysis = () => {
       return;
     }
 
-    console.log('Stopping analysis and continuing with partial results:', {
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      orphanShipments: errorResults.length
-    });
+    // Get the current analysis ID from session storage (created during analysis)
+    const currentAnalysisId = sessionStorage.getItem('currentAnalysisId');
+    
+    if (currentAnalysisId) {
+      // Navigate using the analysis ID in URL parameter
+      navigate(`/results?analysisId=${currentAnalysisId}`);
+    } else {
+      // Fallback: create the analysis data and navigate with state (legacy path)
+      console.log('No analysis ID found for stop and continue, using legacy state navigation');
 
-    // Format data for Results component - completed shipments
-    const recommendations = completedResults.map((result, index) => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost || 0,
-      recommendedCost: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      originalService: result.originalService || result.shipment.service,
-      recommendedService: result.bestRate?.serviceName || 'Unknown',
-      carrier: 'UPS',
-      status: 'completed'
-    }));
+      const recommendations = completedResults.map((result, index) => ({
+        shipment: result.shipment,
+        currentCost: result.currentCost || 0,
+        recommendedCost: result.bestRate?.totalCharges || 0,
+        savings: result.savings || 0,
+        originalService: result.originalService || result.shipment.service,
+        recommendedService: result.bestRate?.serviceName || 'Unknown',
+        carrier: 'UPS',
+        status: 'completed'
+      }));
 
-    // Format orphaned shipments (errors)
-    const orphanedShipments = errorResults.map((result, index) => ({
-      shipment: result.shipment,
-      error: result.error,
-      errorType: result.errorType || 'unknown_error',
-      originalService: result.originalService || result.shipment.service,
-      status: 'error'
-    }));
+      const orphanedShipments = errorResults.map((result, index) => ({
+        shipment: result.shipment,
+        error: result.error,
+        errorType: result.errorType || 'unknown_error',
+        originalService: result.originalService || result.shipment.service,
+        status: 'error'
+      }));
 
-    const analysisData = {
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
-      recommendations,
-      orphanedShipments
-    };
+      const analysisData = {
+        totalShipments: analysisResults.length,
+        completedShipments: completedResults.length,
+        errorShipments: errorResults.length,
+        totalCurrentCost,
+        totalPotentialSavings: totalSavings,
+        averageSavingsPercent: totalCurrentCost > 0 ? (totalSavings / totalCurrentCost) * 100 : 0,
+        recommendations,
+        orphanedShipments
+      };
 
-    navigate('/results', { 
-      state: { 
-        analysisComplete: true, 
-        analysisData 
-      } 
-    });
+      navigate('/results', { 
+        state: { 
+          analysisComplete: true, 
+          analysisData 
+        } 
+      });
+    }
   };
   const progress = shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
   const completedCount = analysisResults.filter(r => r.status === 'completed').length;

@@ -587,7 +587,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         const analysisIdFromQuery = searchParams.get('analysisId');
         
         if (analysisIdFromQuery) {
-          // Loading from Reports tab
+          // Loading from Reports tab - prioritize the specific analysis ID from URL
+          console.log('Loading specific analysis from Reports tab:', analysisIdFromQuery);
+          // Clear any stale session storage to ensure we load the correct analysis
+          sessionStorage.removeItem('currentAnalysisId');
           await loadFromDatabase(analysisIdFromQuery);
         } else if (state?.analysisComplete && state.analysisData) {
           setAnalysisData(state.analysisData);

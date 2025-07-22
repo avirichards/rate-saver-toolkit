@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
@@ -51,8 +50,6 @@ const ReportsPage = () => {
     }
   }, [user]);
 
-  // Remove aggressive window focus refresh - it causes the random page refreshes
-
   const loadReports = async () => {
     try {
       setLoading(true);
@@ -80,7 +77,6 @@ const ReportsPage = () => {
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
         .eq('status', 'completed')  // Only show completed analyses
-        .not('file_name', 'like', '%.csv')  // Exclude original CSV files (duplicates)
         .order('created_at', { ascending: false });
 
       if (error) {

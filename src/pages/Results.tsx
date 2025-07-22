@@ -220,8 +220,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         status: 'completed',
         original_data: analysisData.recommendations as any,
         recommendations: analysisData.recommendations as any,
-        processed_shipments: shipmentData as any, // Centralized data
-        orphaned_shipments: orphanedData as any, // Centralized data
+        processed_shipments: analysisData.recommendations as any, // Use analysis data, not state
+        orphaned_shipments: analysisData.orphanedShipments as any, // Use analysis data, not state
         processing_metadata: processingMetadata as any, // Centralized metadata
         markup_data: markupData as any,
         savings_analysis: savingsAnalysisData as any

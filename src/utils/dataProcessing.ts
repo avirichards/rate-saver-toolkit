@@ -1,42 +1,10 @@
+
 import { toast } from 'sonner';
+import { UnifiedAnalysisData, UnifiedShipmentData, UnifiedOrphanedShipment, DatabaseAnalysisFormat } from '@/types/analysisTypes';
 
 // Standardized interfaces for data processing
-export interface ProcessedAnalysisData {
-  totalCurrentCost: number;
-  totalPotentialSavings: number;
-  recommendations: any[];
-  savingsPercentage: number;
-  totalShipments: number;
-  analyzedShipments: number;
-  orphanedShipments?: any[];
-  completedShipments?: number;
-  errorShipments?: number;
-  averageSavingsPercent?: number;
-  file_name?: string;
-  report_name?: string;
-  client_id?: string;
-}
-
-export interface ProcessedShipmentData {
-  id: number;
-  trackingId: string;
-  originZip: string;
-  destinationZip: string;
-  weight: number;
-  length?: number;
-  width?: number;
-  height?: number;
-  dimensions?: string;
-  carrier: string;
-  service: string;
-  originalService?: string;
-  bestService?: string;
-  newService?: string;
-  currentRate: number;
-  newRate: number;
-  savings: number;
-  savingsPercent: number;
-}
+export interface ProcessedAnalysisData extends UnifiedAnalysisData {}
+export interface ProcessedShipmentData extends UnifiedShipmentData {}
 
 export interface ValidationResult {
   isValid: boolean;
@@ -63,100 +31,65 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
   };
 };
 
-// Unified data processing function - works from standardized database fields
-export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment: any) => any): ProcessedAnalysisData => {
-  console.log('🔄 Processing analysis data from standardized fields:', analysis);
+// Convert raw analysis data to unified format
+export const convertToUnifiedFormat = (rawData: any): UnifiedAnalysisData => {
+  console.log('🔄 Converting raw data to unified format:', rawData);
   
-  // Use the centralized data structure: processed_shipments and orphaned_shipments
-  const processedShipments = analysis.processed_shipments || [];
-  const orphanedShipments = analysis.orphaned_shipments || [];
-  const markupData = analysis.markup_data;
+  const validShipments: UnifiedShipmentData[] = [];
+  const orphanedShipments: UnifiedOrphanedShipment[] = [];
   
-  console.log('📊 Data sources:', {
-    processedShipmentsCount: processedShipments.length,
-    orphanedShipmentsCount: orphanedShipments.length,
-    hasMarkupData: !!markupData,
-    totalShipments: analysis.total_shipments
-  });
+  // Handle different input formats
+  const recommendations = rawData.recommendations || rawData.processed_shipments || [];
+  const orphaned = rawData.orphanedShipments || rawData.orphaned_shipments || [];
   
-  // Calculate totals from processed shipments - with markup applied if available
-  let totalCurrentCost = 0;
-  let totalPotentialSavings = 0;
-  
-  if (markupData && getShipmentMarkup) {
-    // Calculate with markup applied
-    processedShipments.forEach((item: any) => {
-      const markupInfo = getShipmentMarkup(item);
-      const savings = item.currentRate - markupInfo.markedUpPrice;
-      totalCurrentCost += item.currentRate || 0;
-      totalPotentialSavings += savings;
-    });
-    console.log('✅ Applied markup calculations to totals');
-  } else {
-    // Fallback to raw values
-    totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
-    totalPotentialSavings = processedShipments.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
-    console.log('⚠️ Using raw savings (no markup applied)');
-  }
-  
-  return {
-    totalCurrentCost,
-    totalPotentialSavings,
-    recommendations: processedShipments,
-    savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
-    totalShipments: analysis.total_shipments || (processedShipments.length + orphanedShipments.length),
-    analyzedShipments: processedShipments.length,
-    orphanedShipments,
-    completedShipments: processedShipments.length,
-    errorShipments: orphanedShipments.length,
-    file_name: analysis.file_name,
-    report_name: analysis.report_name,
-    client_id: analysis.client_id
-  };
-};
-
-// Legacy function for backward compatibility - redirects to unified function
-export const processNormalViewData = (recommendations: any[]): ProcessedAnalysisData => {
-  console.warn('⚠️ Using legacy processNormalViewData - consider migrating to processAnalysisData');
-  
-  const validShipments: any[] = [];
-  const orphanedShipments: any[] = [];
-  
+  // Process valid shipments
   recommendations.forEach((rec: any, index: number) => {
     const shipmentData = rec.shipment || rec;
     const validation = validateShipmentData(shipmentData);
     
-    const formattedShipment = {
-      id: index + 1,
-      trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
-      originZip: shipmentData.originZip || '',
-      destinationZip: shipmentData.destZip || shipmentData.destinationZip || '',
-      weight: parseFloat(shipmentData.weight || '0'),
-      length: parseFloat(shipmentData.length || rec.length || '12'),
-      width: parseFloat(shipmentData.width || rec.width || '12'),
-      height: parseFloat(shipmentData.height || rec.height || '6'),
-      dimensions: shipmentData.dimensions || rec.dimensions,
-      carrier: shipmentData.carrier || rec.carrier || 'Unknown',
-      service: rec.originalService || shipmentData.service || '',
-      originalService: rec.originalService || shipmentData.service || '',
-      bestService: rec.bestService || rec.recommendedService || 'UPS Ground',
-      newService: rec.recommendedService || rec.bestService || 'UPS Ground',
-      currentRate: rec.currentCost || 0,
-      newRate: rec.recommendedCost || 0,
-      savings: rec.savings || 0,
-      savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
-    };
-    
     if (rec.status === 'error' || rec.error || !validation.isValid) {
       orphanedShipments.push({
-        ...formattedShipment,
+        id: index + 1,
+        trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
         error: rec.error || `Missing required data: ${validation.missingFields.join(', ')}`,
         errorType: rec.errorType || validation.errorType,
-        missingFields: validation.missingFields
+        missingFields: validation.missingFields,
+        rawData: rec
       });
     } else {
-      validShipments.push(formattedShipment);
+      validShipments.push({
+        id: index + 1,
+        trackingId: shipmentData.trackingId || `Shipment-${index + 1}`,
+        originZip: shipmentData.originZip || '',
+        destinationZip: shipmentData.destZip || shipmentData.destinationZip || '',
+        weight: parseFloat(shipmentData.weight || '0'),
+        length: parseFloat(shipmentData.length || rec.length || '12'),
+        width: parseFloat(shipmentData.width || rec.width || '12'),
+        height: parseFloat(shipmentData.height || rec.height || '6'),
+        dimensions: shipmentData.dimensions || rec.dimensions,
+        carrier: shipmentData.carrier || rec.carrier || 'Unknown',
+        service: rec.originalService || shipmentData.service || '',
+        originalService: rec.originalService || shipmentData.service || '',
+        bestService: rec.bestService || rec.recommendedService || 'UPS Ground',
+        newService: rec.recommendedService || rec.bestService || 'UPS Ground',
+        currentRate: rec.currentCost || rec.currentRate || 0,
+        newRate: rec.recommendedCost || rec.newRate || 0,
+        savings: rec.savings || 0,
+        savingsPercent: rec.currentCost > 0 ? (rec.savings / rec.currentCost) * 100 : 0
+      });
     }
+  });
+  
+  // Add any existing orphaned shipments
+  orphaned.forEach((orphan: any, index: number) => {
+    orphanedShipments.push({
+      id: validShipments.length + index + 1,
+      trackingId: orphan.trackingId || `Orphan-${index + 1}`,
+      error: orphan.error || 'Processing error',
+      errorType: orphan.errorType || 'unknown',
+      missingFields: orphan.missingFields || [],
+      rawData: orphan
+    });
   });
   
   const totalCurrentCost = validShipments.reduce((sum, item) => sum + (item.currentRate || 0), 0);
@@ -166,70 +99,101 @@ export const processNormalViewData = (recommendations: any[]): ProcessedAnalysis
     totalCurrentCost,
     totalPotentialSavings,
     recommendations: validShipments,
-    savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
-    totalShipments: recommendations.length,
-    analyzedShipments: validShipments.length,
     orphanedShipments,
+    savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
+    totalShipments: rawData.totalShipments || (validShipments.length + orphanedShipments.length),
+    analyzedShipments: validShipments.length,
     completedShipments: validShipments.length,
-    errorShipments: orphanedShipments.length
+    errorShipments: orphanedShipments.length,
+    averageSavingsPercent: validShipments.length > 0 ? validShipments.reduce((sum, s) => sum + s.savingsPercent, 0) / validShipments.length : 0,
+    file_name: rawData.file_name,
+    report_name: rawData.report_name,
+    client_id: rawData.client_id
   };
 };
 
-// Legacy function for backward compatibility - redirects to unified function
+// Convert unified format to database format
+export const convertToDatabaseFormat = (unifiedData: UnifiedAnalysisData): DatabaseAnalysisFormat => {
+  console.log('💾 Converting unified data to database format');
+  
+  return {
+    processed_shipments: unifiedData.recommendations,
+    orphaned_shipments: unifiedData.orphanedShipments,
+    total_shipments: unifiedData.totalShipments,
+    total_savings: unifiedData.totalPotentialSavings,
+    savings_analysis: {
+      savingsPercentage: unifiedData.savingsPercentage,
+      completedShipments: unifiedData.completedShipments,
+      errorShipments: unifiedData.errorShipments,
+      averageSavingsPercent: unifiedData.averageSavingsPercent
+    },
+    file_name: unifiedData.file_name || '',
+    report_name: unifiedData.report_name,
+    client_id: unifiedData.client_id
+  };
+};
+
+// Convert database format back to unified format
+export const convertFromDatabaseFormat = (dbData: any): UnifiedAnalysisData => {
+  console.log('📖 Converting database data to unified format:', dbData);
+  
+  // Handle case where data is already in unified format
+  if (dbData.recommendations && Array.isArray(dbData.recommendations)) {
+    return dbData as UnifiedAnalysisData;
+  }
+  
+  const processedShipments = dbData.processed_shipments || [];
+  const orphanedShipments = dbData.orphaned_shipments || [];
+  const savingsAnalysis = dbData.savings_analysis || {};
+  
+  const totalCurrentCost = processedShipments.reduce((sum: number, item: any) => sum + (item.currentRate || 0), 0);
+  
+  return {
+    totalCurrentCost,
+    totalPotentialSavings: dbData.total_savings || 0,
+    recommendations: processedShipments,
+    orphanedShipments,
+    savingsPercentage: savingsAnalysis.savingsPercentage || 0,
+    totalShipments: dbData.total_shipments || 0,
+    analyzedShipments: processedShipments.length,
+    completedShipments: savingsAnalysis.completedShipments || processedShipments.length,
+    errorShipments: savingsAnalysis.errorShipments || orphanedShipments.length,
+    averageSavingsPercent: savingsAnalysis.averageSavingsPercent,
+    file_name: dbData.file_name,
+    report_name: dbData.report_name,
+    client_id: dbData.client_id
+  };
+};
+
+// Main processing function - now uses unified format
+export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment: any) => any): ProcessedAnalysisData => {
+  console.log('🔄 Processing analysis data with unified format:', analysis);
+  
+  // If data is from database, convert it first
+  if (analysis.processed_shipments || analysis.orphaned_shipments) {
+    return convertFromDatabaseFormat(analysis);
+  }
+  
+  // If data is from fresh analysis, convert it
+  return convertToUnifiedFormat(analysis);
+};
+
+// Legacy functions for backward compatibility
+export const processNormalViewData = (recommendations: any[]): ProcessedAnalysisData => {
+  console.warn('⚠️ Using legacy processNormalViewData - migrating to unified format');
+  return convertToUnifiedFormat({ recommendations });
+};
+
 export const processClientViewData = (analysis: any): ProcessedAnalysisData => {
-  console.warn('⚠️ Using legacy processClientViewData - consider migrating to processAnalysisData');
+  console.warn('⚠️ Using legacy processClientViewData - migrating to unified format');
   return processAnalysisData(analysis);
 };
 
-// Convert recommendations to formatted shipment data
+// Convert recommendations to formatted shipment data (legacy compatibility)
 export const formatShipmentData = (recommendations: any[]): ProcessedShipmentData[] => {
-  console.log('🔍 formatShipmentData - Processing recommendations:', recommendations?.length || 0, 'items');
-  if (recommendations?.length > 0) {
-    console.log('🔍 Sample recommendation data structure:', {
-      keys: Object.keys(recommendations[0]),
-      sampleData: recommendations[0]
-    });
-  }
-  
-  return recommendations.map((rec: any, index: number) => {
-    // More flexible rate extraction - try multiple possible field names
-    const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
-                       rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
-    const newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
-                   rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
-    const calculatedSavings = currentRate - newRate;
-    
-    if (index < 3) { // Debug first 3 items
-      console.log(`🔍 Processing shipment ${index + 1}:`, {
-        trackingId: rec.shipment?.trackingId || rec.trackingId,
-        currentRate,
-        newRate,
-        calculatedSavings,
-        availableFields: Object.keys(rec)
-      });
-    }
-    
-    return {
-      id: index + 1,
-      trackingId: rec.shipment?.trackingId || rec.trackingId || `Shipment-${index + 1}`,
-      originZip: rec.shipment?.originZip || rec.originZip || '',
-      destinationZip: rec.shipment?.destZip || rec.destinationZip || '',
-      weight: parseFloat(rec.shipment?.weight || rec.weight || '0'),
-      length: parseFloat(rec.shipment?.length || rec.length || '12'),
-      width: parseFloat(rec.shipment?.width || rec.width || '12'),
-      height: parseFloat(rec.shipment?.height || rec.height || '6'),
-      dimensions: rec.shipment?.dimensions || rec.dimensions,
-      carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-      service: rec.originalService || rec.service || 'Unknown',
-      originalService: rec.originalService || rec.service || 'Unknown',
-      bestService: rec.bestService || rec.recommendedService || 'UPS Ground',
-      newService: rec.recommendedService || rec.bestService || 'UPS Ground',
-      currentRate,
-      newRate,
-      savings: rec.savings || calculatedSavings || 0,
-      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0
-    };
-  });
+  console.log('🔍 formatShipmentData - Processing recommendations with unified format');
+  const unified = convertToUnifiedFormat({ recommendations });
+  return unified.recommendations;
 };
 
 // Error handling utility

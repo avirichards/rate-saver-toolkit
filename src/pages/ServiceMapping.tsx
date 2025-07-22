@@ -98,11 +98,10 @@ const ServiceMapping = () => {
         mappings,
         serviceMappings: confirmedMappings,
         rowCount,
-        shipmentData: csvData,
+        csvData,
         originZipOverride,
         readyForAnalysis: true,
-        uploadTimestamp,
-        reportName: fileName
+        uploadTimestamp // Pass through the upload timestamp for data freshness tracking
       } 
     });
   };

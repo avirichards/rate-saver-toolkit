@@ -55,11 +55,11 @@ Deno.serve(async (req) => {
       totalSavings: payload.totalPotentialSavings
     })
 
-    // Check for duplicate analysis (same file name and shipment count within 5 minutes)
+    // Check for existing analysis with smart duplicate detection
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()
     const { data: existingAnalyses } = await supabase
       .from('shipping_analyses')
-      .select('id, file_name, created_at, total_shipments')
+      .select('id, file_name, created_at, total_shipments, processed_shipments, recommendations, status')
       .eq('user_id', user.id)
       .eq('file_name', payload.fileName)
       .eq('total_shipments', payload.totalShipments)
@@ -67,17 +67,41 @@ Deno.serve(async (req) => {
       .order('created_at', { ascending: false })
 
     if (existingAnalyses && existingAnalyses.length > 0) {
-      console.log('Duplicate analysis detected, returning existing ID:', existingAnalyses[0].id)
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          analysisId: existingAnalyses[0].id,
-          message: 'Analysis already exists'
-        }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
+      const existingAnalysis = existingAnalyses[0]
+      console.log('Found existing analysis:', {
+        id: existingAnalysis.id,
+        status: existingAnalysis.status,
+        hasProcessedShipments: existingAnalysis.processed_shipments && Array.isArray(existingAnalysis.processed_shipments) && existingAnalysis.processed_shipments.length > 0,
+        hasRecommendations: existingAnalysis.recommendations && Array.isArray(existingAnalysis.recommendations) && existingAnalysis.recommendations.length > 0
+      })
+
+      // Check if existing analysis has complete data
+      const hasCompleteData = (
+        existingAnalysis.processed_shipments && 
+        Array.isArray(existingAnalysis.processed_shipments) && 
+        existingAnalysis.processed_shipments.length > 0
+      ) || (
+        existingAnalysis.recommendations && 
+        Array.isArray(existingAnalysis.recommendations) && 
+        existingAnalysis.recommendations.length > 0
       )
+
+      if (hasCompleteData) {
+        console.log('Existing analysis has complete data, returning existing ID:', existingAnalysis.id)
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            analysisId: existingAnalysis.id,
+            message: 'Analysis already exists with complete data'
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      } else {
+        console.log('Existing analysis is incomplete, will update with complete data')
+        // Continue to update the incomplete analysis with complete data
+      }
     }
 
     // Format processed shipments for centralized storage
@@ -150,15 +174,37 @@ Deno.serve(async (req) => {
       totalShipments: analysisRecord.total_shipments,
       originalDataCount: payload.originalData.length,
       recommendationsCount: payload.recommendations.length,
-      orphanedCount: payload.orphanedShipments.length
+      orphanedCount: payload.orphanedShipments.length,
+      processedShipmentsCount: processedShipments.length
     })
 
-    // Atomic insert into database
-    const { data, error } = await supabase
-      .from('shipping_analyses')
-      .insert(analysisRecord)
-      .select('id')
-      .single()
+    let data, error
+
+    // If we have an existing incomplete analysis, update it; otherwise insert new
+    if (existingAnalyses && existingAnalyses.length > 0) {
+      console.log('Updating existing incomplete analysis with ID:', existingAnalyses[0].id)
+      
+      const result = await supabase
+        .from('shipping_analyses')
+        .update(analysisRecord)
+        .eq('id', existingAnalyses[0].id)
+        .select('id')
+        .single()
+      
+      data = result.data
+      error = result.error
+    } else {
+      console.log('Creating new analysis record')
+      
+      const result = await supabase
+        .from('shipping_analyses')
+        .insert(analysisRecord)
+        .select('id')
+        .single()
+      
+      data = result.data
+      error = result.error
+    }
 
     if (error) {
       console.error('Database error:', error)

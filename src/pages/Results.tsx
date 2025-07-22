@@ -24,13 +24,18 @@ import { supabase } from '@/integrations/supabase/client';
 import { SummaryStats } from '@/components/ui-lov/SummaryStats';
 import { DataTable } from '@/components/ui-lov/DataTable';
 import { OrphanedShipmentRow } from '@/components/ui-lov/OrphanedShipmentRow';
-import { exportToExcel } from '@/utils/exportUtils';
-import { shareAnalysis } from '@/utils/shareUtils';
+import { downloadReportExcel } from '@/utils/exportUtils';
+import { getOrCreateReportShare, getShareUrl } from '@/utils/shareUtils';
 
-const Results = () => {
+interface ResultsProps {
+  isClientView?: boolean;
+  shareToken?: string;
+}
+
+const Results = ({ isClientView = false, shareToken }: ResultsProps) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const analysisId = searchParams.get('analysisId');
+  const analysisId = shareToken ? null : searchParams.get('analysisId');
   
   const [analysis, setAnalysis] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -108,7 +113,7 @@ const Results = () => {
 
   const handleExport = async () => {
     try {
-      await exportToExcel(analysis, processedShipments, orphanedShipments);
+      await downloadReportExcel(analysis.id);
       toast.success('Analysis exported successfully!');
     } catch (error) {
       toast.error('Failed to export analysis');
@@ -117,9 +122,12 @@ const Results = () => {
 
   const handleShare = async () => {
     try {
-      const shareUrl = await shareAnalysis(analysis.id);
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success('Share link copied to clipboard!');
+      const shareData = await getOrCreateReportShare(analysis.id);
+      if (shareData) {
+        const shareUrl = getShareUrl(shareData.shareToken);
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Share link copied to clipboard!');
+      }
     } catch (error) {
       toast.error('Failed to create share link');
     }
@@ -192,14 +200,32 @@ const Results = () => {
 
         {/* Summary Stats */}
         {(isCompleted || (isProcessing && processedShipments.length > 0)) && (
-          <SummaryStats
-            totalShipments={metadata.totalShipments || 0}
-            totalSavings={analysis.total_savings || 0}
-            totalCurrentCost={metadata.totalCurrentCost || 0}
-            completedShipments={metadata.completedShipments || 0}
-            errorShipments={metadata.errorShipments || 0}
-            savingsPercentage={metadata.savingsPercentage || 0}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+            <SummaryStats
+              title="Total Shipments"
+              value={metadata.totalShipments || 0}
+              icon={<Package className="h-5 w-5" />}
+              color="blue"
+            />
+            <SummaryStats
+              title="Total Savings"
+              value={`$${(analysis.total_savings || 0).toFixed(2)}`}
+              icon={<DollarSign className="h-5 w-5" />}
+              color="green"
+            />
+            <SummaryStats
+              title="Completed"
+              value={metadata.completedShipments || 0}
+              icon={<CheckCircle className="h-5 w-5" />}
+              color="green"
+            />
+            <SummaryStats
+              title="Errors"
+              value={metadata.errorShipments || 0}
+              icon={<AlertCircle className="h-5 w-5" />}
+              color="red"
+            />
+          </div>
         )}
 
         {/* Processed Shipments */}
@@ -233,11 +259,12 @@ const Results = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {orphanedShipments.map((orphan: any, index: number) => (
+                {orphanedShipments.map((shipment: any, index: number) => (
                   <OrphanedShipmentRow 
                     key={index} 
-                    orphan={orphan} 
-                    index={index}
+                    shipment={shipment} 
+                    onFixAndAnalyze={() => {}}
+                    isFixing={false}
                   />
                 ))}
               </div>

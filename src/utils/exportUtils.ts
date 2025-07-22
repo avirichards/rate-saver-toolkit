@@ -237,8 +237,9 @@ export const downloadReportExcel = async (reportId: string): Promise<void> => {
   }
 };
 
-// Legacy CSV function for backward compatibility
+// Legacy functions for backward compatibility
 export const downloadReportCSV = downloadReportExcel;
+export const exportToExcel = downloadReportExcel;
 
 // Generate summary PDF data (for future PDF export functionality)
 export const generateReportSummary = (report: ExportableReportData) => {

@@ -78,6 +78,8 @@ const ReportsPage = () => {
         .eq('is_deleted', false)
         .eq('status', 'completed')  // Only show completed analyses
         .order('created_at', { ascending: false });
+      
+      console.log('📊 REPORTS: Query result - data count:', data?.length, 'error:', error);
 
       if (error) {
         console.error('Database error:', error);

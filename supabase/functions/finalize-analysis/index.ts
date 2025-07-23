@@ -213,6 +213,51 @@ Deno.serve(async (req) => {
 
     console.log('Analysis successfully saved with ID:', data.id)
 
+    // Now populate the shipment_rates table for account comparison view
+    try {
+      const shipmentRatesToInsert = []
+      
+      // Extract rates from the original data for each shipment
+      payload.originalData.forEach((shipmentResult, index) => {
+        if (shipmentResult.status === 'completed' && shipmentResult.allRates) {
+          shipmentResult.allRates.forEach((rate: any) => {
+            shipmentRatesToInsert.push({
+              analysis_id: data.id,
+              shipment_index: index,
+              carrier_config_id: rate.carrierId || '',
+              account_name: rate.carrierName || rate.accountName || 'Unknown',
+              carrier_type: rate.carrierType || 'ups',
+              service_code: rate.serviceCode || '',
+              service_name: rate.serviceName || rate.description || '',
+              rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
+              currency: rate.currency || 'USD',
+              transit_days: rate.transitTime || null,
+              is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
+              published_rate: rate.publishedRate || null,
+              shipment_data: shipmentResult.shipment || {}
+            })
+          })
+        }
+      })
+
+      if (shipmentRatesToInsert.length > 0) {
+        console.log(`Inserting ${shipmentRatesToInsert.length} shipment rates`)
+        const { error: ratesError } = await supabase
+          .from('shipment_rates')
+          .insert(shipmentRatesToInsert)
+
+        if (ratesError) {
+          console.error('Error inserting shipment rates:', ratesError)
+          // Don't fail the entire operation for this, but log it
+        } else {
+          console.log('Successfully inserted shipment rates for account comparison')
+        }
+      }
+    } catch (ratesInsertError) {
+      console.error('Error during shipment rates insertion:', ratesInsertError)
+      // Don't fail the entire operation, just log the error
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 

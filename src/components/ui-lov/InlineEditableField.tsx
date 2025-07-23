@@ -135,7 +135,7 @@ export function InlineEditableField({
       onClick={() => !disabled && setIsEditing(true)}
       style={{ minWidth }}
     >
-      <span className="flex-1">{displayValue}</span>
+      <span className="truncate">{displayValue}</span>
       {!disabled && (
         <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
       )}

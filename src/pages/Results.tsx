@@ -25,6 +25,7 @@ import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { SelectiveReanalysisModal } from '@/components/ui-lov/SelectiveReanalysisModal';
 import { EditableShipmentRow } from '@/components/ui-lov/EditableShipmentRow';
 import { OrphanedShipmentRow } from '@/components/ui-lov/OrphanedShipmentRow';
+import { AccountComparisonView } from '@/components/ui-lov/AccountComparisonView';
 
 import { useSelectiveReanalysis } from '@/hooks/useSelectiveReanalysis';
 import { 
@@ -1751,10 +1752,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart className="h-4 w-4" />
               Overview
+            </TabsTrigger>
+            <TabsTrigger value="account-comparison" className="flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Account Comparison
             </TabsTrigger>
             <TabsTrigger value="shipment-data" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
@@ -2260,6 +2265,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="account-comparison" className="space-y-6">
+            <AccountComparisonView 
+              shipmentRates={[]}
+              shipmentData={shipmentData}
+            />
           </TabsContent>
 
           <TabsContent value="shipment-data" className="space-y-6">

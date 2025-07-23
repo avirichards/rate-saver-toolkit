@@ -79,12 +79,6 @@ export const AccountSelector: React.FC<AccountSelectorProps> = ({
               <span className="truncate text-xs">
                 {selectedAccount.account_name}
               </span>
-              <Badge 
-                variant={selectedAccount.connection_status === 'connected' ? 'default' : 'secondary'} 
-                className="text-xs scale-75"
-              >
-                {selectedAccount.is_sandbox ? 'Test' : 'Live'}
-              </Badge>
             </div>
           )}
         </SelectValue>
@@ -107,10 +101,10 @@ export const AccountSelector: React.FC<AccountSelectorProps> = ({
                       {config.account_name}
                     </span>
                     <Badge 
-                      variant={config.connection_status === 'connected' ? 'default' : 'secondary'} 
+                      variant={config.is_active ? 'default' : 'secondary'} 
                       className="text-xs scale-75"
                     >
-                      {config.is_sandbox ? 'Test' : 'Live'}
+                      {config.is_active ? 'Active' : 'Inactive'}
                     </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground">

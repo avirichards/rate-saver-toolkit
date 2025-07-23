@@ -2436,18 +2436,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-foreground w-20">Destination</TableHead>
                            <TableHead className="text-foreground w-16">Weight (lbs)</TableHead>
                            <TableHead className="text-foreground w-28">Dimensions (L×W×H)</TableHead>
-                           {!editMode && <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>}
-                           {!editMode && <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>}
-                           {!editMode && <TableHead className="text-right text-foreground w-24">Savings</TableHead>}
                            <TableHead className="text-foreground w-20">Residential</TableHead>
-                          <TableHead className="text-foreground w-28">Current Service</TableHead>
-                           <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
-                           {editMode && <TableHead className="text-foreground w-20">Account Selection</TableHead>}
-                           {editMode && <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>}
-                           {editMode && <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>}
-                           {editMode && <TableHead className="text-right text-foreground w-24">Savings</TableHead>}
-                           {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
-                           {!editMode && <TableHead className="text-foreground w-20">Account</TableHead>}
+                           <TableHead className="text-foreground w-28">Current Service</TableHead>
+                          <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
+                          <TableHead className="text-foreground w-20">Account</TableHead>
+                          {editMode && <TableHead className="text-foreground w-20">Account Selection</TableHead>}
+                          <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
+                          <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
+                          <TableHead className="text-right text-foreground w-24">Savings ($ / %)</TableHead>
+                          {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
                      <TableBody className="bg-background">
@@ -2488,87 +2485,87 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableCell className="text-foreground">
                              {item.destinationZip}
                            </TableCell>
-                             <TableCell className="text-foreground">
-                               {parseFloat(item.weight || 0).toFixed(1)}
-                             </TableCell>
-                             <TableCell className="text-foreground text-xs">
-                               {item.length && item.width && item.height 
-                                 ? `${item.length}×${item.width}×${item.height}` 
-                                 : item.dimensions || '12×12×6'}
-                             </TableCell>
-                            <TableCell className="text-right font-medium text-foreground">
-                              {formatCurrency(item.currentRate)}
+                            <TableCell className="text-foreground">
+                              {parseFloat(item.weight || 0).toFixed(1)}
                             </TableCell>
-                            <TableCell className="text-right font-medium text-primary">
-                              {(() => {
-                                const markupInfo = getShipmentMarkup(item);
-                                return formatCurrency(markupInfo.markedUpPrice);
-                              })()}
+                            <TableCell className="text-foreground text-xs">
+                              {item.length && item.width && item.height 
+                                ? `${item.length}×${item.width}×${item.height}` 
+                                : item.dimensions || '12×12×6'}
                             </TableCell>
-                            <TableCell className="text-right">
-                              <div className={cn(
-                                "flex flex-col items-end gap-1 font-medium",
-                                getSavingsColor(item.currentRate - (() => {
-                                  const markupInfo = getShipmentMarkup(item);
-                                  return markupInfo.markedUpPrice;
-                                })())
-                              )}>
-                                <div className="flex items-center gap-1">
-                                  {(() => {
-                                    const markupInfo = getShipmentMarkup(item);
-                                    const savings = item.currentRate - markupInfo.markedUpPrice;
-                                    return savings > 0 ? (
-                                      <CheckCircle2 className="h-3 w-3" />
-                                    ) : savings < 0 ? (
-                                      <XCircle className="h-3 w-3" />
-                                    ) : null;
-                                  })()}
-                                  {(() => {
-                                    const markupInfo = getShipmentMarkup(item);
-                                    const savings = item.currentRate - markupInfo.markedUpPrice;
-                                    return formatCurrency(savings);
-                                  })()}
-                                </div>
-                                <span className="text-xs">
-                                  {(() => {
-                                    const markupInfo = getShipmentMarkup(item);
-                                    const savings = item.currentRate - markupInfo.markedUpPrice;
-                                    const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
-                                    return formatPercentage(savingsPercent);
-                                  })()}
-                                </span>
-                              </div>
-                            </TableCell>
-                              <TableCell>
-                                {(() => {
-                                  // Check for updated residential status first, then fallback to original
-                                  const updates = shipmentUpdates[item.id] || {};
-                                  const isResidential = updates.isResidential !== undefined 
-                                    ? updates.isResidential === 'true' || updates.isResidential === true
-                                    : item.isResidential === 'true' || item.isResidential === true;
-                                  
-                                  return (
-                                    <Badge variant={isResidential ? "default" : "outline"} className="text-xs">
-                                      {isResidential ? 'Residential' : 'Commercial'}
-                                    </Badge>
-                                  );
-                                })()}
-                              </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs">
-                                {item.originalService || item.service}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs text-primary">
-                                {item.bestService || item.newService || 'UPS Ground'}
-                              </Badge>
-                             </TableCell>
                              <TableCell>
-                               <Badge variant="secondary" className="text-xs">
-                                 {item.analyzedWithAccount?.name || item.accountName || analysisData?.bestAccount || 'Default Account'}
-                               </Badge>
+                               {(() => {
+                                 // Check for updated residential status first, then fallback to original
+                                 const updates = shipmentUpdates[item.id] || {};
+                                 const isResidential = updates.isResidential !== undefined 
+                                   ? updates.isResidential === 'true' || updates.isResidential === true
+                                   : item.isResidential === 'true' || item.isResidential === true;
+                                 
+                                 return (
+                                   <Badge variant={isResidential ? "default" : "outline"} className="text-xs">
+                                     {isResidential ? 'Residential' : 'Commercial'}
+                                   </Badge>
+                                 );
+                               })()}
                              </TableCell>
+                           <TableCell>
+                             <Badge variant="outline" className="text-xs">
+                               {item.originalService || item.service}
+                             </Badge>
+                           </TableCell>
+                           <TableCell>
+                             <Badge variant="outline" className="text-xs text-primary">
+                               {item.bestService || item.newService || 'UPS Ground'}
+                             </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-xs">
+                                {item.analyzedWithAccount?.name || item.accountName || analysisData?.bestAccount || 'Default Account'}
+                              </Badge>
+                            </TableCell>
+                           <TableCell className="text-right font-medium text-foreground">
+                             {formatCurrency(item.currentRate)}
+                           </TableCell>
+                           <TableCell className="text-right font-medium text-primary">
+                             {(() => {
+                               const markupInfo = getShipmentMarkup(item);
+                               return formatCurrency(markupInfo.markedUpPrice);
+                             })()}
+                           </TableCell>
+                           <TableCell className="text-right">
+                             <div className={cn(
+                               "flex flex-col items-end gap-1 font-medium",
+                               getSavingsColor(item.currentRate - (() => {
+                                 const markupInfo = getShipmentMarkup(item);
+                                 return markupInfo.markedUpPrice;
+                               })())
+                             )}>
+                               <div className="flex items-center gap-1">
+                                 {(() => {
+                                   const markupInfo = getShipmentMarkup(item);
+                                   const savings = item.currentRate - markupInfo.markedUpPrice;
+                                   return savings > 0 ? (
+                                     <CheckCircle2 className="h-3 w-3" />
+                                   ) : savings < 0 ? (
+                                     <XCircle className="h-3 w-3" />
+                                   ) : null;
+                                 })()}
+                                 {(() => {
+                                   const markupInfo = getShipmentMarkup(item);
+                                   const savings = item.currentRate - markupInfo.markedUpPrice;
+                                   return formatCurrency(savings);
+                                 })()}
+                               </div>
+                               <span className="text-xs">
+                                 {(() => {
+                                   const markupInfo = getShipmentMarkup(item);
+                                   const savings = item.currentRate - markupInfo.markedUpPrice;
+                                   const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
+                                   return formatPercentage(savingsPercent);
+                                 })()}
+                               </span>
+                             </div>
+                           </TableCell>
                            </TableRow>
                          )
                        )}

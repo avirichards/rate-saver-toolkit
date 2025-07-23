@@ -203,33 +203,6 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
-      <TableCell className="text-right">
-        {formatCurrency(shipment.currentRate)}
-      </TableCell>
-      
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-muted-foreground italic">Pending</span>
-        ) : (
-          formatCurrency(estimatedSavings.newRate)
-        )}
-      </TableCell>
-      
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
-        ) : (
-          <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
-            <div className="font-medium">
-              {formatCurrency(estimatedSavings.savings)}
-            </div>
-            <div className="text-xs">
-              {estimatedSavings.savingsPercent?.toFixed(1)}%
-            </div>
-          </div>
-        )}
-      </TableCell>
-      
       {/* Residential Column */}
       <TableCell>
         {editMode ? (
@@ -267,42 +240,17 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
-      {/* Account Selection - only in edit mode */}
-      {editMode && (
-        <TableCell>
+      {/* Account Selection */}
+      <TableCell>
+        {editMode ? (
           <AccountSelector
             value={getDisplayValue('accountId') || ''}
             onValueChange={(value) => handleFieldSave('accountId', value)}
             placeholder="Select Account"
             className="w-36 text-xs"
           />
-        </TableCell>
-      )}
-      
-      {/* Actions - only in edit mode */}
-      {editMode && (
-        <TableCell>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => onReanalyze(shipment.id)}
-            disabled={isReanalyzing}
-            className="h-8 text-xs"
-          >
-            {isReanalyzing ? (
-              <RotateCw className="h-3 w-3 animate-spin mr-1" />
-            ) : (
-              <RotateCw className="h-3 w-3 mr-1" />
-            )}
-            Re-analyze
-          </Button>
-        </TableCell>
-      )}
-      
-      {/* Account - only in non-edit mode */}
-      {!editMode && (
-        <TableCell>
-          <Badge variant="secondary" className="text-xs truncate">
+        ) : (
+          <Badge variant="outline" className="text-xs truncate">
             {(() => {
               // Priority order: analyzedWithAccount.name > accountNames lookup > accountName > fallback
               const accountName = shipment.analyzedWithAccount?.name || 
@@ -321,8 +269,52 @@ export function EditableShipmentRow({
               return accountName;
             })()}
           </Badge>
-        </TableCell>
-      )}
+        )}
+      </TableCell>
+      
+      <TableCell className="text-right">
+        {formatCurrency(shipment.currentRate)}
+      </TableCell>
+      
+      <TableCell className="text-right">
+        {estimatedSavings.isPending ? (
+          <span className="text-xs text-muted-foreground italic">Pending</span>
+        ) : (
+          formatCurrency(estimatedSavings.newRate)
+        )}
+      </TableCell>
+      
+      <TableCell className="text-right">
+        {estimatedSavings.isPending ? (
+          <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
+        ) : (
+          <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
+            <div className="font-medium">
+              {formatCurrency(estimatedSavings.savings)}
+            </div>
+            <div className="text-xs">
+              {estimatedSavings.savingsPercent?.toFixed(1)}%
+            </div>
+          </div>
+        )}
+      </TableCell>
+      
+      <TableCell>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onReanalyze(shipment.id)}
+          disabled={isReanalyzing}
+          className="h-8 text-xs"
+        >
+          {isReanalyzing ? (
+            <RotateCw className="h-3 w-3 animate-spin mr-1" />
+          ) : (
+            <RotateCw className="h-3 w-3 mr-1" />
+          )}
+          Re-analyze
+        </Button>
+      </TableCell>
     </TableRow>
   );
 }

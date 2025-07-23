@@ -416,10 +416,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     try {
       const result = await reanalyzeShipments(shipmentsToReanalyze, currentAnalysisId);
       
+      console.log('🔄 Re-analysis result:', result);
+      
       // Update local state with re-analyzed data WITHOUT exiting edit mode
       setShipmentData(prev => prev.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
-        return reanalyzed ? { ...item, ...reanalyzed } : item;
+        if (reanalyzed) {
+          console.log('📦 Updating shipment:', item.id, 'with account:', reanalyzed.analyzedWithAccount);
+          return { ...item, ...reanalyzed };
+        }
+        return item;
       }));
 
       // Clear shipment updates for re-analyzed items but keep them selected

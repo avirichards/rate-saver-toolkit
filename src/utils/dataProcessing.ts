@@ -16,6 +16,7 @@ export interface ProcessedAnalysisData {
   file_name?: string;
   report_name?: string;
   client_id?: string;
+  bestAccount?: string;
 }
 
 export interface ProcessedShipmentData {
@@ -64,8 +65,51 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
   };
 };
 
+// Helper function to determine best overall account
+const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
+  if (!shipmentRates || shipmentRates.length === 0) return null;
+  
+  // Group rates by account and calculate total metrics
+  const accountMetrics = shipmentRates.reduce((acc: any, rate: any) => {
+    const accountName = rate.account_name;
+    if (!acc[accountName]) {
+      acc[accountName] = {
+        totalCost: 0,
+        totalSavings: 0,
+        shipmentCount: 0,
+        rates: []
+      };
+    }
+    
+    acc[accountName].totalCost += rate.rate_amount || 0;
+    acc[accountName].shipmentCount += 1;
+    acc[accountName].rates.push(rate);
+    
+    return acc;
+  }, {});
+  
+  // Find best account based on total savings potential
+  let bestAccount = null;
+  let bestSavings = -Infinity;
+  
+  Object.entries(accountMetrics).forEach(([accountName, metrics]: [string, any]) => {
+    // Calculate potential savings - this would need original costs to be accurate
+    // For now, use account with lowest total cost as proxy for best savings
+    const averageCost = metrics.totalCost / metrics.shipmentCount;
+    const savingsScore = -averageCost; // Lower cost = higher score
+    
+    if (savingsScore > bestSavings) {
+      bestSavings = savingsScore;
+      bestAccount = accountName;
+    }
+  });
+  
+  console.log('🏆 Best overall account determined:', bestAccount);
+  return bestAccount;
+};
+
 // Unified data processing function - works from standardized database fields
-export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment: any) => any): ProcessedAnalysisData => {
+export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment: any) => any, shipmentRates?: any[]): ProcessedAnalysisData => {
   console.log('🔄 Processing analysis data from standardized fields:', analysis);
   
   // Use the centralized data structure: processed_shipments and orphaned_shipments
@@ -73,11 +117,15 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
   const orphanedShipments = analysis.orphaned_shipments || [];
   const markupData = analysis.markup_data;
   
+  // Determine best overall account if shipment rates are provided
+  const bestAccount = shipmentRates ? determineBestOverallAccount(shipmentRates) : null;
+  
   console.log('📊 Data sources:', {
     processedShipmentsCount: processedShipments.length,
     orphanedShipmentsCount: orphanedShipments.length,
     hasMarkupData: !!markupData,
-    totalShipments: analysis.total_shipments
+    totalShipments: analysis.total_shipments,
+    bestAccount
   });
   
   // Calculate totals from processed shipments - with markup applied if available
@@ -112,13 +160,16 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
     errorShipments: orphanedShipments.length,
     file_name: analysis.file_name,
     report_name: analysis.report_name,
-    client_id: analysis.client_id
+    client_id: analysis.client_id,
+    bestAccount
   };
 };
 
-// Convert recommendations to formatted shipment data
-export const formatShipmentData = (recommendations: any[]): ProcessedShipmentData[] => {
+// Convert recommendations to formatted shipment data - using best overall account
+export const formatShipmentData = (recommendations: any[], shipmentRates?: any[], bestAccount?: string): ProcessedShipmentData[] => {
   console.log('🔍 formatShipmentData - Processing recommendations:', recommendations?.length || 0, 'items');
+  console.log('🔍 Using best account for all shipments:', bestAccount);
+  
   if (recommendations?.length > 0) {
     console.log('🔍 Sample recommendation data structure:', {
       keys: Object.keys(recommendations[0]),
@@ -127,11 +178,30 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
   }
   
   return recommendations.map((rec: any, index: number) => {
-    // More flexible rate extraction - try multiple possible field names
+    // Get current rate from original data
     const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
                        rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
-    const newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
-                   rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
+    
+    // Find the rate for this shipment from the best overall account
+    let newRate = 0;
+    let bestService = 'No Quote Available';
+    
+    if (bestAccount && shipmentRates) {
+      const bestAccountRate = shipmentRates.find(rate => 
+        rate.account_name === bestAccount && rate.shipment_index === index
+      );
+      
+      if (bestAccountRate) {
+        newRate = bestAccountRate.rate_amount || 0;
+        bestService = bestAccountRate.service_name || bestAccountRate.service_code || 'UPS Ground';
+      }
+    } else {
+      // Fallback to original logic if no best account determined
+      newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
+                rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
+      bestService = rec.bestService || rec.recommendedService || 'UPS Ground';
+    }
+    
     const calculatedSavings = currentRate - newRate;
     
     if (index < 3) { // Debug first 3 items
@@ -140,6 +210,8 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
         currentRate,
         newRate,
         calculatedSavings,
+        bestAccount,
+        bestService,
         availableFields: Object.keys(rec)
       });
     }
@@ -157,11 +229,11 @@ export const formatShipmentData = (recommendations: any[]): ProcessedShipmentDat
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
       service: rec.originalService || rec.service || 'Unknown',
       originalService: rec.originalService || rec.service || 'Unknown',
-      bestService: rec.bestService || rec.recommendedService || 'UPS Ground',
-      newService: rec.recommendedService || rec.bestService || 'UPS Ground',
+      bestService: bestService,
+      newService: bestService,
       currentRate,
       newRate,
-      savings: rec.savings || calculatedSavings || 0,
+      savings: calculatedSavings || 0,
       savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0
     };
   });

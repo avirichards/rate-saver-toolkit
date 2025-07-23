@@ -293,7 +293,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
     if (data) {
       setShipmentRates(data);
+      console.log('📊 Loaded shipment rates for best account calculation:', data.length);
     }
+    return data;
   };
 
   // Save or update service note
@@ -847,11 +849,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setMarkupData(data.markup_data as MarkupData);
       }
 
-      // Use the unified processing function with markup calculations
-      const processedData = processAnalysisData(data, getShipmentMarkup);
+      // Load shipment rates first to determine best account
+      const loadedRates = await loadShipmentRates(data.id);
+      
+      // Use the unified processing function with markup calculations and shipment rates
+      const processedData = processAnalysisData(data, getShipmentMarkup, loadedRates || shipmentRates);
       
       setAnalysisData(processedData);
-      setShipmentData(processedData.recommendations || []);
+      
+      // Use best account for shipment data formatting
+      const formattedShipmentData = formatShipmentData(
+        processedData.recommendations || [], 
+        loadedRates || shipmentRates, 
+        processedData.bestAccount
+      );
+      setShipmentData(formattedShipmentData);
       setOrphanedData(processedData.orphanedShipments || []);
       
       // Initialize services from the processed data
@@ -863,7 +875,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         processed: processedData.recommendations?.length || 0,
         orphaned: processedData.orphanedShipments?.length || 0,
         total: processedData.totalShipments,
-        services: services.length
+        services: services.length,
+        bestAccount: processedData.bestAccount
       });
       
       setLoading(false);

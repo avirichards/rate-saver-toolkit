@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { SummaryStats } from './SummaryStats';
-import { DollarSign, Package, Target, TruckIcon } from 'lucide-react';
+import { DollarSign, Package, Target, TruckIcon, Calculator } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 
 interface ShipmentRate {
@@ -51,6 +51,9 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     // Calculate total savings from shipment data
     const totalSavings = shipmentData.reduce((sum, shipment) => sum + (shipment.savings || 0), 0);
 
+    // Calculate current cost (total of current rates)
+    const currentCost = shipmentData.reduce((sum, shipment) => sum + (shipment.currentRate || 0), 0);
+
     // Find top performing account by calculating savings per account from rates
     const accountSavings: Record<string, number> = {};
     
@@ -87,6 +90,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       accountsCompared,
       totalShipments,
       totalSavings,
+      currentCost,
       topPerformer: topPerformer.account
     };
   }, [shipmentRates, shipmentData]);
@@ -94,7 +98,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   return (
     <div className="space-y-6">
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <SummaryStats
           title="Accounts Compared"
           value={kpiMetrics.accountsCompared}
@@ -106,6 +110,12 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           value={kpiMetrics.totalShipments.toLocaleString()}
           icon={<Package />}
           color="green"
+        />
+        <SummaryStats
+          title="Current Cost"
+          value={formatCurrency(kpiMetrics.currentCost)}
+          icon={<Calculator />}
+          color="blue"
         />
         <SummaryStats
           title="Total Savings"

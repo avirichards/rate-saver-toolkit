@@ -223,7 +223,15 @@ export function EditableShipmentRow({
           />
         ) : (
           <Badge variant="outline" className="text-xs truncate">
-            {shipment.analyzedWithAccount?.name || shipment.accountName || 'Default Account'}
+            {(() => {
+              console.log('🏷️ Account badge - shipment data:', {
+                id: shipment.id,
+                analyzedWithAccount: shipment.analyzedWithAccount,
+                accountName: shipment.accountName,
+                accountId: shipment.accountId
+              });
+              return shipment.analyzedWithAccount?.name || shipment.accountName || 'Default Account';
+            })()}
           </Badge>
         )}
       </TableCell>

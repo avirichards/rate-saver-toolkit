@@ -2435,7 +2435,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-foreground w-16">Origin</TableHead>
                           <TableHead className="text-foreground w-16">Destination</TableHead>
                            <TableHead className="text-foreground w-14">Weight (lbs)</TableHead>
-                           <TableHead className="text-foreground w-28">Dimensions (L×W×H)</TableHead>
+                           <TableHead className="text-foreground w-20">Dimensions (L×W×H)</TableHead>
                            <TableHead className="text-foreground w-16">Residential</TableHead>
                           <TableHead className="text-foreground w-20">Current Service</TableHead>
                            <TableHead className="text-foreground w-24">Ship Pros Service</TableHead>

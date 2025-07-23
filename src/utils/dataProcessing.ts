@@ -188,7 +188,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     
     if (bestAccount && shipmentRates) {
       const bestAccountRate = shipmentRates.find(rate => 
-        rate.account_name === bestAccount && rate.shipment_index === index
+        rate.account_name === bestAccount && rate.shipment_data?.trackingId === rec.trackingId
       );
       
       if (bestAccountRate) {

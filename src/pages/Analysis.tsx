@@ -1338,7 +1338,7 @@ const Analysis = () => {
     }
   };
   
-  const progress = shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
+  const progress = isComplete ? 100 : shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
   const completedCount = analysisResults.filter(r => r.status === 'completed').length;
   const errorCount = analysisResults.filter(r => r.status === 'error').length;
   

@@ -179,29 +179,29 @@ export function EditableShipmentRow({
       
       <TableCell>
         {editMode ? (
-          <div className="flex items-center gap-0.5 text-xs w-24">
+          <div className="flex items-center gap-0.5 text-xs w-28">
             <InlineEditableField
               value={getDisplayValue('length') || '12'}
               onSave={(value) => handleFieldSave('length', value)}
               placeholder="L"
-              className="w-8 text-xs p-1 h-6"
-              minWidth="32px"
+              className="w-9 text-xs p-1 h-6"
+              minWidth="36px"
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
               value={getDisplayValue('width') || '12'}
               onSave={(value) => handleFieldSave('width', value)}
               placeholder="W"
-              className="w-8 text-xs p-1 h-6"
-              minWidth="32px"
+              className="w-9 text-xs p-1 h-6"
+              minWidth="36px"
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
               value={getDisplayValue('height') || '6'}
               onSave={(value) => handleFieldSave('height', value)}
               placeholder="H"
-              className="w-8 text-xs p-1 h-6"
-              minWidth="32px"
+              className="w-9 text-xs p-1 h-6"
+              minWidth="36px"
             />
           </div>
         ) : (
@@ -253,7 +253,7 @@ export function EditableShipmentRow({
             value={getDisplayValue('accountId') || ''}
             onValueChange={(value) => handleFieldSave('accountId', value)}
             placeholder="Select Account"
-            className="w-28 text-xs"
+            className="w-32 text-xs"
           />
         </TableCell>
       )}

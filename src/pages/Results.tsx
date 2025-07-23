@@ -2436,15 +2436,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-foreground w-20">Destination</TableHead>
                            <TableHead className="text-foreground w-16">Weight (lbs)</TableHead>
                            <TableHead className="text-foreground w-28">Dimensions (L×W×H)</TableHead>
+                           {!editMode && <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>}
+                           {!editMode && <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>}
+                           {!editMode && <TableHead className="text-right text-foreground w-24">Savings</TableHead>}
                            <TableHead className="text-foreground w-20">Residential</TableHead>
                           <TableHead className="text-foreground w-28">Current Service</TableHead>
                            <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
                            {editMode && <TableHead className="text-foreground w-20">Account Selection</TableHead>}
-                           <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
-                           <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
-                           <TableHead className="text-right text-foreground w-24">Savings</TableHead>
+                           {editMode && <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>}
+                           {editMode && <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>}
+                           {editMode && <TableHead className="text-right text-foreground w-24">Savings</TableHead>}
                            {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
-                           <TableHead className="text-foreground w-20">Account</TableHead>
+                           {!editMode && <TableHead className="text-foreground w-20">Account</TableHead>}
                         </TableRow>
                       </TableHeader>
                      <TableBody className="bg-background">
@@ -2485,38 +2488,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableCell className="text-foreground">
                              {item.destinationZip}
                            </TableCell>
-                            <TableCell className="text-foreground">
-                              {parseFloat(item.weight || 0).toFixed(1)}
-                            </TableCell>
-                            <TableCell className="text-foreground text-xs">
-                              {item.length && item.width && item.height 
-                                ? `${item.length}×${item.width}×${item.height}` 
-                                : item.dimensions || '12×12×6'}
-                            </TableCell>
-                             <TableCell>
-                               {(() => {
-                                 // Check for updated residential status first, then fallback to original
-                                 const updates = shipmentUpdates[item.id] || {};
-                                 const isResidential = updates.isResidential !== undefined 
-                                   ? updates.isResidential === 'true' || updates.isResidential === true
-                                   : item.isResidential === 'true' || item.isResidential === true;
-                                 
-                                 return (
-                                   <Badge variant={isResidential ? "default" : "outline"} className="text-xs">
-                                     {isResidential ? 'Residential' : 'Commercial'}
-                                   </Badge>
-                                 );
-                               })()}
+                             <TableCell className="text-foreground">
+                               {parseFloat(item.weight || 0).toFixed(1)}
                              </TableCell>
-                           <TableCell>
-                             <Badge variant="outline" className="text-xs">
-                               {item.originalService || item.service}
-                             </Badge>
-                           </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="text-xs text-primary">
-                                {item.bestService || item.newService || 'UPS Ground'}
-                              </Badge>
+                             <TableCell className="text-foreground text-xs">
+                               {item.length && item.width && item.height 
+                                 ? `${item.length}×${item.width}×${item.height}` 
+                                 : item.dimensions || '12×12×6'}
                              </TableCell>
                             <TableCell className="text-right font-medium text-foreground">
                               {formatCurrency(item.currentRate)}
@@ -2561,6 +2539,31 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                 </span>
                               </div>
                             </TableCell>
+                              <TableCell>
+                                {(() => {
+                                  // Check for updated residential status first, then fallback to original
+                                  const updates = shipmentUpdates[item.id] || {};
+                                  const isResidential = updates.isResidential !== undefined 
+                                    ? updates.isResidential === 'true' || updates.isResidential === true
+                                    : item.isResidential === 'true' || item.isResidential === true;
+                                  
+                                  return (
+                                    <Badge variant={isResidential ? "default" : "outline"} className="text-xs">
+                                      {isResidential ? 'Residential' : 'Commercial'}
+                                    </Badge>
+                                  );
+                                })()}
+                              </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs">
+                                {item.originalService || item.service}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="text-xs text-primary">
+                                {item.bestService || item.newService || 'UPS Ground'}
+                              </Badge>
+                             </TableCell>
                              <TableCell>
                                <Badge variant="secondary" className="text-xs">
                                  {item.analyzedWithAccount?.name || item.accountName || analysisData?.bestAccount || 'Default Account'}

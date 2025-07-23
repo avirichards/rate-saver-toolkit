@@ -203,6 +203,33 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
+      <TableCell className="text-right">
+        {formatCurrency(shipment.currentRate)}
+      </TableCell>
+      
+      <TableCell className="text-right">
+        {estimatedSavings.isPending ? (
+          <span className="text-xs text-muted-foreground italic">Pending</span>
+        ) : (
+          formatCurrency(estimatedSavings.newRate)
+        )}
+      </TableCell>
+      
+      <TableCell className="text-right">
+        {estimatedSavings.isPending ? (
+          <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
+        ) : (
+          <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
+            <div className="font-medium">
+              {formatCurrency(estimatedSavings.savings)}
+            </div>
+            <div className="text-xs">
+              {estimatedSavings.savingsPercent?.toFixed(1)}%
+            </div>
+          </div>
+        )}
+      </TableCell>
+      
       {/* Residential Column */}
       <TableCell>
         {editMode ? (
@@ -240,7 +267,7 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
-      {/* Account Selection */}
+      {/* Account Selection - only in edit mode */}
       {editMode && (
         <TableCell>
           <AccountSelector
@@ -252,33 +279,7 @@ export function EditableShipmentRow({
         </TableCell>
       )}
       
-      <TableCell className="text-right">
-        {formatCurrency(shipment.currentRate)}
-      </TableCell>
-      
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-muted-foreground italic">Pending</span>
-        ) : (
-          formatCurrency(estimatedSavings.newRate)
-        )}
-      </TableCell>
-      
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
-        ) : (
-          <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
-            <div className="font-medium">
-              {formatCurrency(estimatedSavings.savings)}
-            </div>
-            <div className="text-xs">
-              {estimatedSavings.savingsPercent?.toFixed(1)}%
-            </div>
-          </div>
-        )}
-      </TableCell>
-      
+      {/* Actions - only in edit mode */}
       {editMode && (
         <TableCell>
           <Button
@@ -298,27 +299,30 @@ export function EditableShipmentRow({
         </TableCell>
       )}
       
-      <TableCell>
-        <Badge variant="secondary" className="text-xs truncate">
-          {(() => {
-            // Priority order: analyzedWithAccount.name > accountNames lookup > accountName > fallback
-            const accountName = shipment.analyzedWithAccount?.name || 
-                                (shipment.accountId ? accountNames[shipment.accountId] : null) ||
-                                shipment.accountName || 
-                                'Default Account';
-            
-            console.log('🏷️ Account badge display:', {
-              shipmentId: shipment.id,
-              analyzedWithAccount: shipment.analyzedWithAccount,
-              accountId: shipment.accountId,
-              accountNames: accountNames,
-              finalAccountName: accountName
-            });
-            
-            return accountName;
-          })()}
-        </Badge>
-      </TableCell>
+      {/* Account - only in non-edit mode */}
+      {!editMode && (
+        <TableCell>
+          <Badge variant="secondary" className="text-xs truncate">
+            {(() => {
+              // Priority order: analyzedWithAccount.name > accountNames lookup > accountName > fallback
+              const accountName = shipment.analyzedWithAccount?.name || 
+                                  (shipment.accountId ? accountNames[shipment.accountId] : null) ||
+                                  shipment.accountName || 
+                                  'Default Account';
+              
+              console.log('🏷️ Account badge display:', {
+                shipmentId: shipment.id,
+                analyzedWithAccount: shipment.analyzedWithAccount,
+                accountId: shipment.accountId,
+                accountNames: accountNames,
+                finalAccountName: accountName
+              });
+              
+              return accountName;
+            })()}
+          </Badge>
+        </TableCell>
+      )}
     </TableRow>
   );
 }

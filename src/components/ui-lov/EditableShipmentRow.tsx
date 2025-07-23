@@ -128,6 +128,7 @@ export function EditableShipmentRow({
             onSave={(value) => handleFieldSave('originZip', value)}
             placeholder="Origin ZIP"
             className="w-16 text-xs"
+            minWidth="64px"
           />
         ) : (
           <div className="w-16">
@@ -148,6 +149,7 @@ export function EditableShipmentRow({
             onSave={(value) => handleFieldSave('destinationZip', value)}
             placeholder="Dest ZIP"
             className="w-16 text-xs"
+            minWidth="64px"
           />
         ) : (
           <div className="w-16">
@@ -168,6 +170,7 @@ export function EditableShipmentRow({
             onSave={(value) => handleFieldSave('weight', value)}
             placeholder="Weight"
             className="w-12 text-xs"
+            minWidth="48px"
           />
         ) : (
           `${getDisplayValue('weight')} lbs`
@@ -176,12 +179,13 @@ export function EditableShipmentRow({
       
       <TableCell>
         {editMode ? (
-          <div className="flex items-center gap-0.5 text-xs min-w-[80px]">
+          <div className="flex items-center gap-0.5 text-xs w-20">
             <InlineEditableField
               value={getDisplayValue('length') || '12'}
               onSave={(value) => handleFieldSave('length', value)}
               placeholder="L"
               className="w-6 text-xs p-1 h-6"
+              minWidth="24px"
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
@@ -189,6 +193,7 @@ export function EditableShipmentRow({
               onSave={(value) => handleFieldSave('width', value)}
               placeholder="W"
               className="w-6 text-xs p-1 h-6"
+              minWidth="24px"
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
@@ -196,6 +201,7 @@ export function EditableShipmentRow({
               onSave={(value) => handleFieldSave('height', value)}
               placeholder="H"
               className="w-6 text-xs p-1 h-6"
+              minWidth="24px"
             />
           </div>
         ) : (

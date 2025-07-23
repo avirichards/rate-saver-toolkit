@@ -21,6 +21,11 @@ interface ServiceMappingCorrection {
     operator: 'under' | 'over' | 'equal';
     value: number;
   };
+  dimFilter?: {
+    enabled: boolean;
+    operator: 'under' | 'over' | 'equal';
+    value: number;
+  };
 }
 
 interface SelectiveReanalysisModalProps {
@@ -44,6 +49,9 @@ export function SelectiveReanalysisModal({
   const [weightFilterEnabled, setWeightFilterEnabled] = useState(false);
   const [weightOperator, setWeightOperator] = useState<'under' | 'over' | 'equal'>('under');
   const [weightValue, setWeightValue] = useState(10);
+  const [dimFilterEnabled, setDimFilterEnabled] = useState(false);
+  const [dimOperator, setDimOperator] = useState<'under' | 'over' | 'equal'>('under');
+  const [dimValue, setDimValue] = useState(650);
   const [corrections, setCorrections] = useState<ServiceMappingCorrection[]>([]);
 
   // Get unique current service types from all shipments
@@ -61,9 +69,14 @@ export function SelectiveReanalysisModal({
     return allShipments.filter(s => {
       const currentService = s.service || s.originalService || s.currentService || '';
       const weight = parseFloat(s.weight) || 0;
+      const length = parseFloat(s.length) || 12;
+      const width = parseFloat(s.width) || 12;
+      const height = parseFloat(s.height) || 6;
+      const dim = length * width * height;
       
       let serviceMatch = !findValue || currentService === findValue;
       let weightMatch = true;
+      let dimMatch = true;
       
       if (weightFilterEnabled && weightValue > 0) {
         switch (weightOperator) {
@@ -79,9 +92,23 @@ export function SelectiveReanalysisModal({
         }
       }
       
-      return serviceMatch && weightMatch;
+      if (dimFilterEnabled && dimValue > 0) {
+        switch (dimOperator) {
+          case 'under':
+            dimMatch = dim < dimValue;
+            break;
+          case 'over':
+            dimMatch = dim > dimValue;
+            break;
+          case 'equal':
+            dimMatch = dim === dimValue;
+            break;
+        }
+      }
+      
+      return serviceMatch && weightMatch && dimMatch;
     });
-  }, [allShipments, findValue, weightFilterEnabled, weightOperator, weightValue]);
+  }, [allShipments, findValue, weightFilterEnabled, weightOperator, weightValue, dimFilterEnabled, dimOperator, dimValue]);
 
   const handleAddCorrection = () => {
     if (!findValue.trim() || !replaceValue.trim()) {
@@ -105,6 +132,11 @@ export function SelectiveReanalysisModal({
         enabled: true,
         operator: weightOperator,
         value: weightValue
+      } : undefined,
+      dimFilter: dimFilterEnabled ? {
+        enabled: true,
+        operator: dimOperator,
+        value: dimValue
       } : undefined
     };
 
@@ -114,6 +146,8 @@ export function SelectiveReanalysisModal({
     setAccountValue('');
     setWeightFilterEnabled(false);
     setWeightValue(10);
+    setDimFilterEnabled(false);
+    setDimValue(650);
   };
 
   const handleRemoveCorrection = (index: number) => {
@@ -193,6 +227,47 @@ export function SelectiveReanalysisModal({
                   step="0.1"
                 />
                 <span className="text-sm text-muted-foreground">lbs</span>
+              </div>
+            )}
+          </div>
+
+          {/* DIM Filter */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="dim-filter"
+                checked={dimFilterEnabled}
+                onChange={(e) => setDimFilterEnabled(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="dim-filter" className="text-sm font-medium">
+                Apply DIM Filter (L×W×H)
+              </Label>
+            </div>
+            
+            {dimFilterEnabled && (
+              <div className="flex items-center gap-2 ml-6">
+                <Label className="text-sm">DIM</Label>
+                <Select value={dimOperator} onValueChange={(value: 'under' | 'over' | 'equal') => setDimOperator(value)}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="under">Under</SelectItem>
+                    <SelectItem value="over">Over</SelectItem>
+                    <SelectItem value="equal">Equal to</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  value={dimValue}
+                  onChange={(e) => setDimValue(parseFloat(e.target.value) || 0)}
+                  className="w-24"
+                  min="0"
+                  step="1"
+                />
+                <span className="text-sm text-muted-foreground">cubic inches</span>
               </div>
             )}
           </div>
@@ -314,6 +389,16 @@ export function SelectiveReanalysisModal({
                            <Label className="text-xs text-muted-foreground">Weight Filter:</Label>
                            <Badge variant="outline" className="text-xs">
                              {correction.weightFilter.operator} {correction.weightFilter.value}lbs
+                           </Badge>
+                         </div>
+                       )}
+                       
+                       {/* DIM filter info */}
+                       {correction.dimFilter && (
+                         <div className="flex items-center gap-2">
+                           <Label className="text-xs text-muted-foreground">DIM Filter:</Label>
+                           <Badge variant="outline" className="text-xs">
+                             {correction.dimFilter.operator} {correction.dimFilter.value} cubic inches
                            </Badge>
                          </div>
                        )}

@@ -445,6 +445,53 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   };
 
+  const handleReanalyzeSingle = async (shipmentId: number) => {
+    if (!currentAnalysisId) {
+      toast.error('Analysis ID not found');
+      return;
+    }
+
+    const shipmentToReanalyze = filteredData.find(item => item.id === shipmentId);
+    if (!shipmentToReanalyze) {
+      toast.error('Shipment not found');
+      return;
+    }
+
+    const shipmentWithUpdates = {
+      ...shipmentToReanalyze,
+      ...shipmentUpdates[shipmentId] // Apply any field updates
+    };
+
+    try {
+      const result = await reanalyzeShipments([shipmentWithUpdates], currentAnalysisId);
+      
+      console.log('🔄 Single re-analysis result:', result);
+      
+      // Update local state with re-analyzed data
+      setShipmentData(prev => prev.map(item => {
+        const reanalyzed = result.success.find((r: any) => r.id === item.id);
+        if (reanalyzed) {
+          console.log('📦 Updating shipment:', item.id, 'with account:', reanalyzed.analyzedWithAccount);
+          return { ...item, ...reanalyzed };
+        }
+        return item;
+      }));
+
+      // Clear shipment updates for this shipment
+      setShipmentUpdates(prev => {
+        const updated = { ...prev };
+        delete updated[shipmentId];
+        return updated;
+      });
+
+      toast.success(`Successfully re-analyzed shipment`);
+
+    } catch (error) {
+      console.error('Single re-analysis failed:', error);
+      toast.error('Re-analysis failed. Please try again.');
+    }
+  };
+
   const handleServiceCorrections = async (corrections: any[]) => {
     if (!currentAnalysisId) {
       toast.error('Analysis ID not found');
@@ -2456,14 +2503,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                               isSelected={selectedShipments.has(item.id)}
                               onSelect={(selected) => handleSelectShipment(item.id, selected)}
                               onFieldUpdate={handleFieldUpdate}
-                               onReanalyze={() => {
-                                 // Auto-select this shipment and trigger re-analysis
-                                 if (!selectedShipments.has(item.id)) {
-                                   setSelectedShipments(prev => new Set([...prev, item.id]));
-                                 }
-                                 // Use setTimeout to ensure the selection state updates first
-                                 setTimeout(() => handleReanalyzeSelected(), 100);
-                               }}
+                                onReanalyze={() => handleReanalyzeSingle(item.id)}
                               isReanalyzing={reanalyzingShipments.has(item.id)}
                               editMode={editMode}
                               getShipmentMarkup={getShipmentMarkup}

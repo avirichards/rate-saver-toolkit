@@ -58,15 +58,18 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     const accountSavings: Record<string, number> = {};
     
     // Group rates by shipment and find best rate for each shipment
-    const shipmentBestRates: Record<number, { account: string; rate: number; currentRate: number }> = {};
+    const shipmentBestRates: Record<string, { account: string; rate: number; currentRate: number }> = {};
     
     shipmentRates.forEach(rate => {
-      const shipmentIndex = rate.shipment_index;
-      const currentShipment = shipmentData.find(s => s.id === shipmentIndex + 1);
+      // Get tracking ID from the shipment data in the rate
+      const trackingId = rate.shipment_data?.trackingId;
+      if (!trackingId) return;
+      
+      const currentShipment = shipmentData.find(s => s.trackingId === trackingId);
       
       if (currentShipment) {
-        if (!shipmentBestRates[shipmentIndex] || rate.rate_amount < shipmentBestRates[shipmentIndex].rate) {
-          shipmentBestRates[shipmentIndex] = {
+        if (!shipmentBestRates[trackingId] || rate.rate_amount < shipmentBestRates[trackingId].rate) {
+          shipmentBestRates[trackingId] = {
             account: rate.account_name,
             rate: rate.rate_amount,
             currentRate: currentShipment.currentRate
@@ -112,7 +115,11 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
     // Group rates by account and calculate metrics
     shipmentRates.forEach(rate => {
-      const shipment = shipmentData.find(s => s.id === rate.shipment_index + 1);
+      // Get tracking ID from the shipment data in the rate
+      const trackingId = rate.shipment_data?.trackingId;
+      if (!trackingId) return;
+      
+      const shipment = shipmentData.find(s => s.trackingId === trackingId);
       if (!shipment) return;
 
       if (!accounts[rate.account_name]) {

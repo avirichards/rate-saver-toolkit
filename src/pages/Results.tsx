@@ -1964,7 +1964,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                         <TableHead className="text-right text-foreground">Avg Weight</TableHead>
                         <TableHead className="text-right text-foreground">Avg Savings ($)</TableHead>
                         <TableHead className="text-right text-foreground">Avg Savings (%)</TableHead>
-                        <TableHead className="text-foreground">Notes</TableHead>
+                        <TableHead className="text-foreground">Account</TableHead>
                       </TableRow>
                     </TableHeader>
                      <TableBody className="bg-background">
@@ -2054,13 +2054,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                    </span>
                                  </TableCell>
                                  <TableCell>
-                                   <InlineEditableField
-                                     value={serviceNotes[service] || ''}
-                                     onSave={(notes) => saveServiceNote(service, notes)}
-                                     placeholder="Add notes..."
-                                     className="text-xs"
-                                     minWidth="150px"
-                                   />
+                                   <Badge variant="secondary" className="text-xs">
+                                     {analysisData?.bestAccount || 'Best Overall'}
+                                   </Badge>
                                  </TableCell>
                               </TableRow>
                             );
@@ -2439,8 +2435,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
                           <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
                           <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
-                          <TableHead className="text-right text-foreground w-20">Savings</TableHead>
-                          <TableHead className="text-right text-foreground w-16">Savings %</TableHead>
+                          <TableHead className="text-right text-foreground w-24">Savings ($ / %)</TableHead>
+                          <TableHead className="text-foreground w-20">Account</TableHead>
                           {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
@@ -2526,41 +2522,42 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            </TableCell>
                            <TableCell className="text-right">
                              <div className={cn(
-                               "flex items-center justify-end gap-1 font-medium",
+                               "flex flex-col items-end gap-1 font-medium",
                                getSavingsColor(item.currentRate - (() => {
                                  const markupInfo = getShipmentMarkup(item);
                                  return markupInfo.markedUpPrice;
                                })())
                              )}>
-                               {(() => {
-                                 const markupInfo = getShipmentMarkup(item);
-                                 const savings = item.currentRate - markupInfo.markedUpPrice;
-                                 return savings > 0 ? (
-                                   <CheckCircle2 className="h-4 w-4" />
-                                 ) : savings < 0 ? (
-                                   <XCircle className="h-4 w-4" />
-                                 ) : null;
-                               })()}
-                               {(() => {
-                                 const markupInfo = getShipmentMarkup(item);
-                                 const savings = item.currentRate - markupInfo.markedUpPrice;
-                                 return formatCurrency(savings);
-                               })()}
+                               <div className="flex items-center gap-1">
+                                 {(() => {
+                                   const markupInfo = getShipmentMarkup(item);
+                                   const savings = item.currentRate - markupInfo.markedUpPrice;
+                                   return savings > 0 ? (
+                                     <CheckCircle2 className="h-3 w-3" />
+                                   ) : savings < 0 ? (
+                                     <XCircle className="h-3 w-3" />
+                                   ) : null;
+                                 })()}
+                                 {(() => {
+                                   const markupInfo = getShipmentMarkup(item);
+                                   const savings = item.currentRate - markupInfo.markedUpPrice;
+                                   return formatCurrency(savings);
+                                 })()}
+                               </div>
+                               <span className="text-xs">
+                                 {(() => {
+                                   const markupInfo = getShipmentMarkup(item);
+                                   const savings = item.currentRate - markupInfo.markedUpPrice;
+                                   const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
+                                   return formatPercentage(savingsPercent);
+                                 })()}
+                               </span>
                              </div>
                            </TableCell>
-                           <TableCell className="text-right">
-                             <span className={cn("font-medium", getSavingsColor((() => {
-                               const markupInfo = getShipmentMarkup(item);
-                               const savings = item.currentRate - markupInfo.markedUpPrice;
-                               return savings;
-                             })()))}>
-                               {(() => {
-                                 const markupInfo = getShipmentMarkup(item);
-                                 const savings = item.currentRate - markupInfo.markedUpPrice;
-                                 const savingsPercent = item.currentRate > 0 ? (savings / item.currentRate) * 100 : 0;
-                                 return formatPercentage(savingsPercent);
-                               })()}
-                             </span>
+                           <TableCell>
+                             <Badge variant="secondary" className="text-xs">
+                               {analysisData?.bestAccount || 'Best Overall'}
+                             </Badge>
                            </TableCell>
                            </TableRow>
                          )

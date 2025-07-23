@@ -373,13 +373,73 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     // Auto-select the shipment when any field is edited
     setSelectedShipments(prev => new Set([...prev, shipmentId]));
     
-    setShipmentUpdates(prev => ({
-      ...prev,
-      [shipmentId]: {
-        ...prev[shipmentId],
-        [field]: value
+    setShipmentUpdates(prev => {
+      const newUpdates = {
+        ...prev,
+        [shipmentId]: {
+          ...prev[shipmentId],
+          [field]: value
+        }
+      };
+      
+      // Auto-save to database if we have an analysis ID
+      if (currentAnalysisId) {
+        const timeoutId = setTimeout(async () => {
+          try {
+            // Get current analysis data
+            const { data: currentAnalysis, error: fetchError } = await supabase
+              .from('shipping_analyses')
+              .select('processed_shipments')
+              .eq('id', currentAnalysisId)
+              .single();
+            
+            if (fetchError) {
+              console.error('Failed to fetch current analysis:', fetchError);
+              return;
+            }
+            
+            // Update the processed_shipments with the new field value
+            const processedShipments = Array.isArray(currentAnalysis.processed_shipments) 
+              ? currentAnalysis.processed_shipments 
+              : [];
+            
+            const updatedShipments = processedShipments.map((shipment: any) => {
+              if (shipment.id === shipmentId) {
+                return {
+                  ...shipment,
+                  [field]: value
+                };
+              }
+              return shipment;
+            });
+            
+            // Save back to database
+            const { error: updateError } = await supabase
+              .from('shipping_analyses')
+              .update({
+                processed_shipments: updatedShipments,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', currentAnalysisId);
+              
+            if (updateError) {
+              console.error('Failed to auto-save shipment update:', updateError);
+              toast.error('Failed to auto-save changes');
+            } else {
+              console.log('✅ Shipment field auto-saved:', { shipmentId, field, value });
+              // Show a subtle success indicator (only for first few saves to avoid spam)
+              if (Math.random() < 0.3) { // Show success toast 30% of the time to avoid spam
+                toast.success('Changes auto-saved', { duration: 1000 });
+              }
+            }
+          } catch (error) {
+            console.error('Auto-save error:', error);
+          }
+        }, 1500); // Debounce for 1.5 seconds
       }
-    }));
+      
+      return newUpdates;
+    });
   };
 
   const handleBatchResidentialUpdate = (isResidential: boolean) => {

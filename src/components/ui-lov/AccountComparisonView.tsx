@@ -86,11 +86,15 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       return savings > top.savings ? { account, savings } : top;
     }, { account: 'N/A', savings: 0 });
 
+    // Calculate savings percentage
+    const savingsPercentage = currentCost > 0 ? (totalSavings / currentCost) * 100 : 0;
+
     return {
       accountsCompared,
       totalShipments,
       totalSavings,
       currentCost,
+      savingsPercentage,
       topPerformer: topPerformer.account
     };
   }, [shipmentRates, shipmentData]);
@@ -119,7 +123,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         />
         <SummaryStats
           title="Total Savings"
-          value={formatCurrency(kpiMetrics.totalSavings)}
+          value={`${formatCurrency(kpiMetrics.totalSavings)} / ${kpiMetrics.savingsPercentage.toFixed(1)}%`}
           icon={<DollarSign />}
           color={kpiMetrics.totalSavings >= 0 ? "green" : "red"}
         />

@@ -136,7 +136,12 @@ export function useSelectiveReanalysis() {
       newRate: bestRate.totalCharges,
       savings: 0, // Will be calculated when we know the original rate
       recommendedService: bestRate.serviceName,
-      upsRates: data.rates
+      upsRates: data.rates,
+      accountUsed: {
+        id: config.id,
+        name: config.account_name,
+        carrierType: config.carrier_type
+      }
     };
   }, []);
 
@@ -165,7 +170,10 @@ export function useSelectiveReanalysis() {
             upsRates: result.upsRates,
             isResidential: shipment.isResidential, // Preserve residential status
             reanalyzed: true,
-            reanalyzedAt: new Date().toISOString()
+            reanalyzedAt: new Date().toISOString(),
+            // Store the account used for analysis
+            accountId: shipment.accountId,
+            analyzedWithAccount: result.accountUsed
           });
 
           onProgress?.(i + 1, shipments.length);

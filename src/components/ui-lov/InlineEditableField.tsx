@@ -11,6 +11,7 @@ interface InlineEditableFieldProps {
   disabled?: boolean;
   required?: boolean;
   minWidth?: string;
+  showIcon?: boolean;
 }
 
 export function InlineEditableField({
@@ -20,7 +21,8 @@ export function InlineEditableField({
   className,
   disabled = false,
   required = false,
-  minWidth = '200px'
+  minWidth = '200px',
+  showIcon = true
 }: InlineEditableFieldProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(value);
@@ -115,7 +117,7 @@ export function InlineEditableField({
       style={{ minWidth }}
     >
       <span className="truncate">{displayValue}</span>
-      {!disabled && (
+      {!disabled && showIcon && (
         <Edit2 className="h-3 w-3 opacity-0 group-hover:opacity-50 transition-opacity" />
       )}
     </div>

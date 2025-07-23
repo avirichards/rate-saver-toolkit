@@ -123,7 +123,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         />
         <SummaryStats
           title="Savings"
-          value={`${formatCurrency(kpiMetrics.totalSavings)} (${kpiMetrics.savingsPercentage.toFixed(1)}%)`}
+          value={`${formatCurrency(kpiMetrics.totalSavings)} (${Math.round(kpiMetrics.savingsPercentage)}%)`}
           icon={<DollarSign />}
           color={kpiMetrics.totalSavings >= 0 ? "green" : "red"}
         />

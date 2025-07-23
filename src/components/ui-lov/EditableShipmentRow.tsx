@@ -116,7 +116,7 @@ export function EditableShipmentRow({
       </TableCell>
       
       <TableCell className="font-medium">
-        <div className="truncate w-32">
+        <div className="truncate w-24">
           {shipment.trackingId || `Shipment-${shipment.id}`}
         </div>
       </TableCell>
@@ -176,26 +176,26 @@ export function EditableShipmentRow({
       
       <TableCell>
         {editMode ? (
-          <div className="flex items-center gap-0.5 text-xs min-w-[90px]">
+          <div className="flex items-center gap-0.5 text-xs min-w-[80px]">
             <InlineEditableField
               value={getDisplayValue('length') || '12'}
               onSave={(value) => handleFieldSave('length', value)}
               placeholder="L"
-              className="w-7 text-xs p-1 h-6"
+              className="w-6 text-xs p-1 h-6"
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
               value={getDisplayValue('width') || '12'}
               onSave={(value) => handleFieldSave('width', value)}
               placeholder="W"
-              className="w-7 text-xs p-1 h-6"
+              className="w-6 text-xs p-1 h-6"
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
               value={getDisplayValue('height') || '6'}
               onSave={(value) => handleFieldSave('height', value)}
               placeholder="H"
-              className="w-7 text-xs p-1 h-6"
+              className="w-6 text-xs p-1 h-6"
             />
           </div>
         ) : (
@@ -231,7 +231,7 @@ export function EditableShipmentRow({
             value={getDisplayValue('newService') || shipment.newService || shipment.bestService || 'UPS Ground'}
             onValueChange={(value) => handleFieldSave('newService', value)}
             placeholder="Select Service"
-            className="w-32 text-xs"
+            className="w-24 text-xs"
           />
         ) : (
           <Badge variant="outline" className="text-xs text-primary truncate">
@@ -247,7 +247,7 @@ export function EditableShipmentRow({
             value={getDisplayValue('accountId') || ''}
             onValueChange={(value) => handleFieldSave('accountId', value)}
             placeholder="Select Account"
-            className="w-36 text-xs"
+            className="w-28 text-xs"
           />
         </TableCell>
       )}

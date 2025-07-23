@@ -14,6 +14,7 @@ interface ReanalysisShipment {
   carrier?: string;
   trackingId?: string;
   isResidential?: string | boolean;
+  accountId?: string;
 }
 
 interface ServiceMappingCorrection {
@@ -21,6 +22,7 @@ interface ServiceMappingCorrection {
   to: string;
   affectedCount: number;
   isResidential?: boolean;
+  accountId?: string;
 }
 
 export function useSelectiveReanalysis() {
@@ -28,25 +30,37 @@ export function useSelectiveReanalysis() {
   const [reanalyzingShipments, setReanalyzingShipments] = useState<Set<number>>(new Set());
 
   // Process a single shipment (similar to Analysis.tsx processShipment function)
-  const processShipment = useCallback(async (shipment: ReanalysisShipment & { newService?: string; bestService?: string }) => {
-    console.log('🔄 Re-analyzing shipment:', shipment.id, 'with residential status:', shipment.isResidential);
+  const processShipment = useCallback(async (shipment: ReanalysisShipment & { newService?: string; bestService?: string; accountId?: string }) => {
+    console.log('🔄 Re-analyzing shipment:', shipment.id, 'with residential status:', shipment.isResidential, 'account:', shipment.accountId);
 
-    // Validate UPS configuration
+    // Validate carrier configuration
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       throw new Error('Please log in to run analysis');
     }
 
-    const { data: config } = await supabase
-      .from('ups_configs')
+    // Get carrier configs for this user - prefer specified account, fallback to any active UPS config
+    let query = supabase
+      .from('carrier_configs')
       .select('*')
       .eq('user_id', user.id)
-      .eq('is_active', true)
-      .single();
+      .eq('carrier_type', 'ups')
+      .eq('is_active', true);
 
-    if (!config) {
-      throw new Error('UPS configuration not found. Please configure UPS API in Settings.');
+    // If accountId is specified, use that specific config
+    if (shipment.accountId) {
+      query = query.eq('id', shipment.accountId);
     }
+
+    const { data: configs } = await query;
+
+    if (!configs || configs.length === 0) {
+      throw new Error('UPS configuration not found. Please configure UPS accounts in Settings.');
+    }
+
+    // Use the first config (either the specified one or any available)
+    const config = configs[0];
+    console.log('Using carrier config:', config.account_name, 'for re-analysis');
 
     // Prepare shipment data for UPS API - match the expected interface
     // Use the corrected service if available, check both newService and bestService fields
@@ -83,12 +97,13 @@ export function useSelectiveReanalysis() {
       isResidential: shipment.isResidential === 'true' || shipment.isResidential === true
     };
 
-    console.log('Sending shipment data to UPS API:', shipmentData);
+    console.log('Sending shipment data to UPS API:', shipmentData, 'with configId:', config.id);
 
-    // Call UPS rate quote API
+    // Call UPS rate quote API with specific carrier config
     const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
       body: { 
-        shipment: shipmentData 
+        shipment: shipmentData,
+        configId: config.id
       }
     });
 
@@ -220,6 +235,11 @@ export function useSelectiveReanalysis() {
           // Apply residential status if specified in the correction
           if (correction.isResidential !== undefined) {
             updatedShipment.isResidential = correction.isResidential;
+          }
+          
+          // Apply account selection if specified in the correction
+          if (correction.accountId) {
+            updatedShipment.accountId = correction.accountId;
           }
           
           // Keep the original service unchanged - this represents what the customer actually used

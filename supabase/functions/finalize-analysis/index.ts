@@ -105,7 +105,15 @@ Deno.serve(async (req) => {
     }
 
     // Format processed shipments for centralized storage
-    const processedShipments = payload.recommendations.map((rec, index) => ({
+    // Filter out shipments that should be orphaned (missing service type or no rates)
+    const validRecommendations = payload.recommendations.filter(rec => {
+      const service = rec.originalService || rec.shipment.service || '';
+      const hasValidService = service && service.trim() !== '' && service !== 'Unknown';
+      const hasRates = rec.allRates && rec.allRates.length > 0;
+      return hasValidService && hasRates;
+    });
+
+    const processedShipments = validRecommendations.map((rec, index) => ({
       id: index + 1,
       trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
       originZip: rec.shipment.originZip || '',

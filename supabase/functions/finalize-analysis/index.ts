@@ -213,47 +213,6 @@ Deno.serve(async (req) => {
 
     console.log('Analysis successfully saved with ID:', data.id)
 
-    // Now store individual shipment rates in the shipment_rates table for account comparison
-    const shipmentRates = []
-    
-    payload.recommendations.forEach((rec, shipmentIndex) => {
-      if (rec.allRates && Array.isArray(rec.allRates)) {
-        rec.allRates.forEach(rate => {
-          shipmentRates.push({
-            analysis_id: data.id,
-            shipment_index: shipmentIndex,
-            carrier_config_id: rate.carrierId,
-            account_name: rate.carrierName,
-            carrier_type: rate.carrierType,
-            service_code: rate.serviceCode,
-            service_name: rate.serviceName,
-            rate_amount: rate.totalCharges || rate.negotiatedRate,
-            currency: rate.currency || 'USD',
-            transit_days: rate.transitTime ? parseInt(rate.transitTime) : null,
-            is_negotiated: rate.rateType === 'negotiated',
-            published_rate: rate.publishedRate,
-            shipment_data: rec.shipment,
-            rate_response: rate
-          })
-        })
-      }
-    })
-
-    // Insert shipment rates if we have any
-    if (shipmentRates.length > 0) {
-      console.log(`Storing ${shipmentRates.length} shipment rates for account comparison`)
-      const { error: ratesError } = await supabase
-        .from('shipment_rates')
-        .insert(shipmentRates)
-      
-      if (ratesError) {
-        console.error('Error storing shipment rates:', ratesError)
-        // Don't fail the entire operation, just log the error
-      } else {
-        console.log('Successfully stored shipment rates for account comparison')
-      }
-    }
-
     return new Response(
       JSON.stringify({ 
         success: true, 

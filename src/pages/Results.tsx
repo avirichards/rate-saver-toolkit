@@ -829,10 +829,26 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setMarkupData(data.markup_data as MarkupData);
       }
 
+      // Fetch shipment rates for account comparison
+      const { data: shipmentRates, error: ratesError } = await supabase
+        .from('shipment_rates')
+        .select('*')
+        .eq('analysis_id', data.id);
+
+      if (ratesError) {
+        console.warn('Failed to fetch shipment rates:', ratesError);
+      }
+
       // Use the unified processing function with markup calculations
       const processedData = processAnalysisData(data, getShipmentMarkup);
       
-      setAnalysisData(processedData);
+      // Add shipment_rates to the processed data
+      const analysisDataWithRates = {
+        ...processedData,
+        shipment_rates: shipmentRates || []
+      };
+      
+      setAnalysisData(analysisDataWithRates);
       setShipmentData(processedData.recommendations || []);
       setOrphanedData(processedData.orphanedShipments || []);
       
@@ -2537,11 +2553,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           <TabsContent value="account-comparison" className="space-y-6">
             <AccountComparisonView 
               analysisId={currentAnalysisId} 
-              analysisData={{
-                processed_shipments: shipmentData,
-                shipment_rates: [],
-                ...analysisData
-              }}
+              analysisData={analysisData}
             />
           </TabsContent>
 

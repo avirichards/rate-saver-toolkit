@@ -212,6 +212,16 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
+      {/* Account Selection */}
+      <TableCell>
+        <AccountSelector
+          value={getDisplayValue('accountId') || ''}
+          onValueChange={(value) => handleFieldSave('accountId', value)}
+          placeholder="Select Account"
+          className="w-36 text-xs"
+        />
+      </TableCell>
+      
       <TableCell className="text-right">
         {formatCurrency(shipment.currentRate)}
       </TableCell>
@@ -237,16 +247,6 @@ export function EditableShipmentRow({
             </div>
           </div>
         )}
-      </TableCell>
-      
-      {/* Account Selection */}
-      <TableCell>
-        <AccountSelector
-          value={getDisplayValue('accountId') || ''}
-          onValueChange={(value) => handleFieldSave('accountId', value)}
-          placeholder="Select Account"
-          className="w-36 text-xs"
-        />
       </TableCell>
       
       <TableCell>

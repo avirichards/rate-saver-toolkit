@@ -2433,11 +2433,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableHead className="text-foreground w-20">Residential</TableHead>
                            <TableHead className="text-foreground w-28">Current Service</TableHead>
                           <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
+                          <TableHead className="text-foreground w-20">Account</TableHead>
+                          {editMode && <TableHead className="text-foreground w-20">Account Selection</TableHead>}
                           <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
                           <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
                           <TableHead className="text-right text-foreground w-24">Savings ($ / %)</TableHead>
-                          <TableHead className="text-foreground w-20">Account</TableHead>
-                          {editMode && <TableHead className="text-foreground w-20">Account Selection</TableHead>}
                           {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
@@ -2511,6 +2511,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              <Badge variant="outline" className="text-xs text-primary">
                                {item.bestService || item.newService || 'UPS Ground'}
                              </Badge>
+                            </TableCell>
+                           <TableCell>
+                             <Badge variant="secondary" className="text-xs">
+                               {analysisData?.bestAccount || 'Best Overall'}
+                             </Badge>
                            </TableCell>
                            <TableCell className="text-right font-medium text-foreground">
                              {formatCurrency(item.currentRate)}
@@ -2554,11 +2559,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                  })()}
                                </span>
                              </div>
-                           </TableCell>
-                           <TableCell>
-                             <Badge variant="secondary" className="text-xs">
-                               {analysisData?.bestAccount || 'Best Overall'}
-                             </Badge>
                            </TableCell>
                            </TableRow>
                          )

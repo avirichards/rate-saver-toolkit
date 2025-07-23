@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
+import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { Search, Replace, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -14,6 +15,7 @@ interface ServiceMappingCorrection {
   to: string;
   affectedCount: number;
   isResidential?: boolean;
+  accountId?: string;
 }
 
 interface SelectiveReanalysisModalProps {
@@ -33,6 +35,7 @@ export function SelectiveReanalysisModal({
 }: SelectiveReanalysisModalProps) {
   const [findValue, setFindValue] = useState('');
   const [replaceValue, setReplaceValue] = useState('');
+  const [accountValue, setAccountValue] = useState('');
   const [corrections, setCorrections] = useState<ServiceMappingCorrection[]>([]);
 
   // Get unique current service types from all shipments
@@ -65,12 +68,14 @@ export function SelectiveReanalysisModal({
     const newCorrection: ServiceMappingCorrection = {
       from: findValue.trim(),
       to: replaceValue.trim(),
-      affectedCount
+      affectedCount,
+      accountId: accountValue || undefined
     };
 
     setCorrections([...corrections, newCorrection]);
     setFindValue('');
     setReplaceValue('');
+    setAccountValue('');
   };
 
   const handleRemoveCorrection = (index: number) => {
@@ -112,7 +117,7 @@ export function SelectiveReanalysisModal({
           </div>
 
           {/* Find & Replace Interface */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="find-service">Find Current Service</Label>
               <Select value={findValue} onValueChange={setFindValue}>
@@ -145,11 +150,20 @@ export function SelectiveReanalysisModal({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="replace-service">Replace With</Label>
+              <Label htmlFor="replace-service">Replace With Service</Label>
               <UpsServiceSelector
                 value={replaceValue}
                 onValueChange={setReplaceValue}
                 placeholder="Select UPS Service"
+                className="w-full"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="account-select">Use Account (Optional)</Label>
+              <AccountSelector
+                value={accountValue}
+                onValueChange={setAccountValue}
+                placeholder="Select Account"
                 className="w-full"
               />
             </div>
@@ -212,49 +226,59 @@ export function SelectiveReanalysisModal({
                          ×
                        </Button>
                      </div>
-                     
-                     {/* Residential/Commercial options for this correction */}
-                     <div className="flex items-center gap-2">
-                       <Label className="text-xs text-muted-foreground">Mark as:</Label>
-                       <div className="flex gap-1">
-                         <Button
-                           size="sm"
-                           variant={correction.isResidential === true ? "default" : "outline"}
-                           onClick={() => {
-                             const updated = [...corrections];
-                             updated[index] = { ...correction, isResidential: true };
-                             setCorrections(updated);
-                           }}
-                           className="h-6 px-2 text-xs"
-                         >
-                           Residential
-                         </Button>
-                         <Button
-                           size="sm"
-                           variant={correction.isResidential === false ? "default" : "outline"}
-                           onClick={() => {
-                             const updated = [...corrections];
-                             updated[index] = { ...correction, isResidential: false };
-                             setCorrections(updated);
-                           }}
-                           className="h-6 px-2 text-xs"
-                         >
-                           Commercial
-                         </Button>
-                         <Button
-                           size="sm"
-                           variant={correction.isResidential === undefined ? "default" : "outline"}
-                           onClick={() => {
-                             const updated = [...corrections];
-                             updated[index] = { ...correction, isResidential: undefined };
-                             setCorrections(updated);
-                           }}
-                           className="h-6 px-2 text-xs"
-                         >
-                           No Change
-                         </Button>
-                       </div>
-                     </div>
+                      
+                      {/* Account info */}
+                      {correction.accountId && (
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs text-muted-foreground">Account:</Label>
+                          <Badge variant="outline" className="text-xs">
+                            Account Selected
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {/* Residential/Commercial options for this correction */}
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground">Mark as:</Label>
+                        <div className="flex gap-1">
+                          <Button
+                            size="sm"
+                            variant={correction.isResidential === true ? "default" : "outline"}
+                            onClick={() => {
+                              const updated = [...corrections];
+                              updated[index] = { ...correction, isResidential: true };
+                              setCorrections(updated);
+                            }}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Residential
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={correction.isResidential === false ? "default" : "outline"}
+                            onClick={() => {
+                              const updated = [...corrections];
+                              updated[index] = { ...correction, isResidential: false };
+                              setCorrections(updated);
+                            }}
+                            className="h-6 px-2 text-xs"
+                          >
+                            Commercial
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={correction.isResidential === undefined ? "default" : "outline"}
+                            onClick={() => {
+                              const updated = [...corrections];
+                              updated[index] = { ...correction, isResidential: undefined };
+                              setCorrections(updated);
+                            }}
+                            className="h-6 px-2 text-xs"
+                          >
+                            No Change
+                          </Button>
+                        </div>
+                      </div>
                    </div>
                  ))}
               </div>

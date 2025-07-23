@@ -9,6 +9,7 @@ import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { RotateCw, AlertCircle } from 'lucide-react';
 import { formatCurrency, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
+import { supabase } from '@/integrations/supabase/client';
 
 interface EditableShipmentRowProps {
   shipment: any;
@@ -32,11 +33,38 @@ export function EditableShipmentRow({
   getShipmentMarkup
 }: EditableShipmentRowProps) {
   const [localChanges, setLocalChanges] = useState<Record<string, string>>({});
+  const [accountNames, setAccountNames] = useState<Record<string, string>>({});
 
   // Clear local changes when shipment data is updated (after re-analysis)
   useEffect(() => {
     setLocalChanges({});
   }, [shipment.savings, shipment.newRate, shipment.savingsPercent]);
+
+  // Load account names when accountId changes
+  useEffect(() => {
+    const loadAccountName = async () => {
+      if (shipment.accountId && !accountNames[shipment.accountId]) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+          .from('carrier_configs')
+          .select('id, account_name')
+          .eq('user_id', user.id)
+          .eq('id', shipment.accountId)
+          .single();
+
+        if (data) {
+          setAccountNames(prev => ({
+            ...prev,
+            [data.id]: data.account_name
+          }));
+        }
+      }
+    };
+
+    loadAccountName();
+  }, [shipment.accountId, accountNames]);
 
   const handleFieldSave = async (field: string, value: string) => {
     setLocalChanges(prev => ({ ...prev, [field]: value }));
@@ -224,13 +252,21 @@ export function EditableShipmentRow({
         ) : (
           <Badge variant="outline" className="text-xs truncate">
             {(() => {
-              console.log('🏷️ Account badge - shipment data:', {
-                id: shipment.id,
+              // Priority order: analyzedWithAccount.name > accountNames lookup > accountName > fallback
+              const accountName = shipment.analyzedWithAccount?.name || 
+                                  (shipment.accountId ? accountNames[shipment.accountId] : null) ||
+                                  shipment.accountName || 
+                                  'Default Account';
+              
+              console.log('🏷️ Account badge display:', {
+                shipmentId: shipment.id,
                 analyzedWithAccount: shipment.analyzedWithAccount,
-                accountName: shipment.accountName,
-                accountId: shipment.accountId
+                accountId: shipment.accountId,
+                accountNames: accountNames,
+                finalAccountName: accountName
               });
-              return shipment.analyzedWithAccount?.name || shipment.accountName || 'Default Account';
+              
+              return accountName;
             })()}
           </Badge>
         )}

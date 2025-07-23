@@ -190,138 +190,147 @@ export function SelectiveReanalysisModal({
             </div>
           </div>
 
-          {/* Weight Filter */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="weight-filter"
-                checked={weightFilterEnabled}
-                onChange={(e) => setWeightFilterEnabled(e.target.checked)}
-                className="rounded border-gray-300"
-              />
-              <Label htmlFor="weight-filter" className="text-sm font-medium">
-                Apply Weight Filter
-              </Label>
-            </div>
-            
-            {weightFilterEnabled && (
-              <div className="flex items-center gap-2 ml-6">
-                <Label className="text-sm">Weight</Label>
-                <Select value={weightOperator} onValueChange={(value: 'under' | 'over' | 'equal') => setWeightOperator(value)}>
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
+          {/* Service Mapping Section */}
+          <div className="border rounded-lg p-4 space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Service Mapping</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="find-service">Find Current Service</Label>
+                <Select value={findValue} onValueChange={setFindValue}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select current service to replace" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="under">Under</SelectItem>
-                    <SelectItem value="over">Over</SelectItem>
-                    <SelectItem value="equal">Equal to</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  value={weightValue}
-                  onChange={(e) => setWeightValue(parseFloat(e.target.value) || 0)}
-                  className="w-20"
-                  min="0"
-                  step="0.1"
-                />
-                <span className="text-sm text-muted-foreground">lbs</span>
-              </div>
-            )}
-          </div>
-
-          {/* DIM Filter */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="dim-filter"
-                checked={dimFilterEnabled}
-                onChange={(e) => setDimFilterEnabled(e.target.checked)}
-                className="rounded border-gray-300"
-              />
-              <Label htmlFor="dim-filter" className="text-sm font-medium">
-                Apply DIM Filter (L×W×H)
-              </Label>
-            </div>
-            
-            {dimFilterEnabled && (
-              <div className="flex items-center gap-2 ml-6">
-                <Label className="text-sm">DIM</Label>
-                <Select value={dimOperator} onValueChange={(value: 'under' | 'over' | 'equal') => setDimOperator(value)}>
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="under">Under</SelectItem>
-                    <SelectItem value="over">Over</SelectItem>
-                    <SelectItem value="equal">Equal to</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Input
-                  type="number"
-                  value={dimValue}
-                  onChange={(e) => setDimValue(parseFloat(e.target.value) || 0)}
-                  className="w-24"
-                  min="0"
-                  step="1"
-                />
-                <span className="text-sm text-muted-foreground">cubic inches</span>
-              </div>
-            )}
-          </div>
-
-          {/* Find & Replace Interface */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="find-service">Find Current Service</Label>
-              <Select value={findValue} onValueChange={setFindValue}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select current service to replace" />
-                </SelectTrigger>
-                <SelectContent className="bg-popover border border-border max-h-60 overflow-y-auto z-50">
-                  {currentServices.map((service) => {
-                    // Count from all shipments, not just selected ones
-                    const serviceCount = allShipments.filter(s => 
-                      (s.service || s.originalService || s.currentService) === service
-                    ).length;
-                    
-                    return (
-                      <SelectItem 
-                        key={service} 
-                        value={service}
-                        className="hover:bg-accent"
-                      >
-                        <div className="flex items-center justify-between w-full">
-                          <span>{service}</span>
-                          <div className="text-xs text-muted-foreground ml-4">
-                            {serviceCount} shipments
+                  <SelectContent className="bg-popover border border-border max-h-60 overflow-y-auto z-50">
+                    {currentServices.map((service) => {
+                      const serviceCount = allShipments.filter(s => 
+                        (s.service || s.originalService || s.currentService) === service
+                      ).length;
+                      
+                      return (
+                        <SelectItem 
+                          key={service} 
+                          value={service}
+                          className="hover:bg-accent"
+                        >
+                          <div className="flex items-center justify-between w-full">
+                            <span>{service}</span>
+                            <div className="text-xs text-muted-foreground ml-4">
+                              {serviceCount} shipments
+                            </div>
                           </div>
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="replace-service">Replace With Service</Label>
+                <UpsServiceSelector
+                  value={replaceValue}
+                  onValueChange={setReplaceValue}
+                  placeholder="Select UPS Service"
+                  className="w-full"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="account-select">Use Account (Optional)</Label>
+                <AccountSelector
+                  value={accountValue}
+                  onValueChange={setAccountValue}
+                  placeholder="Select Account"
+                  className="w-full"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="replace-service">Replace With Service</Label>
-              <UpsServiceSelector
-                value={replaceValue}
-                onValueChange={setReplaceValue}
-                placeholder="Select UPS Service"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="account-select">Use Account (Optional)</Label>
-              <AccountSelector
-                value={accountValue}
-                onValueChange={setAccountValue}
-                placeholder="Select Account"
-                className="w-full"
-              />
+          </div>
+
+          {/* Filters Section */}
+          <div className="border rounded-lg p-4 space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">Filters (Optional)</h3>
+            <div className="grid grid-cols-2 gap-6">
+              
+              {/* Weight Filter */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="weight-filter"
+                    checked={weightFilterEnabled}
+                    onChange={(e) => setWeightFilterEnabled(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="weight-filter" className="text-sm font-medium">
+                    Weight Filter
+                  </Label>
+                </div>
+                
+                {weightFilterEnabled && (
+                  <div className="flex items-center gap-2 pl-6 space-x-2">
+                    <Label className="text-sm whitespace-nowrap">Weight</Label>
+                    <Select value={weightOperator} onValueChange={(value: 'under' | 'over' | 'equal') => setWeightOperator(value)}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border border-border z-50">
+                        <SelectItem value="under">Under</SelectItem>
+                        <SelectItem value="over">Over</SelectItem>
+                        <SelectItem value="equal">Equal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      value={weightValue}
+                      onChange={(e) => setWeightValue(parseFloat(e.target.value) || 0)}
+                      className="w-16"
+                      min="0"
+                      step="0.1"
+                    />
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">lbs</span>
+                  </div>
+                )}
+              </div>
+
+              {/* DIM Filter */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="dim-filter"
+                    checked={dimFilterEnabled}
+                    onChange={(e) => setDimFilterEnabled(e.target.checked)}
+                    className="rounded border-gray-300"
+                  />
+                  <Label htmlFor="dim-filter" className="text-sm font-medium">
+                    DIM Filter (L×W×H)
+                  </Label>
+                </div>
+                
+                {dimFilterEnabled && (
+                  <div className="flex items-center gap-2 pl-6 space-x-2">
+                    <Label className="text-sm whitespace-nowrap">DIM</Label>
+                    <Select value={dimOperator} onValueChange={(value: 'under' | 'over' | 'equal') => setDimOperator(value)}>
+                      <SelectTrigger className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover border border-border z-50">
+                        <SelectItem value="under">Under</SelectItem>
+                        <SelectItem value="over">Over</SelectItem>
+                        <SelectItem value="equal">Equal</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      value={dimValue}
+                      onChange={(e) => setDimValue(parseFloat(e.target.value) || 0)}
+                      className="w-20"
+                      min="0"
+                      step="1"
+                    />
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">in³</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

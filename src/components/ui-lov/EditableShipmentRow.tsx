@@ -127,8 +127,8 @@ export function EditableShipmentRow({
             value={getDisplayValue('originZip')}
             onSave={(value) => handleFieldSave('originZip', value)}
             placeholder="Origin ZIP"
-            className="w-16 text-xs"
-            minWidth="64px"
+            className="w-20 text-xs"
+            minWidth="80px"
           />
         ) : (
           <div className="w-16">
@@ -148,8 +148,8 @@ export function EditableShipmentRow({
             value={getDisplayValue('destinationZip')}
             onSave={(value) => handleFieldSave('destinationZip', value)}
             placeholder="Dest ZIP"
-            className="w-16 text-xs"
-            minWidth="64px"
+            className="w-20 text-xs"
+            minWidth="80px"
           />
         ) : (
           <div className="w-16">
@@ -169,8 +169,8 @@ export function EditableShipmentRow({
             value={getDisplayValue('weight')}
             onSave={(value) => handleFieldSave('weight', value)}
             placeholder="Weight"
-            className="w-12 text-xs"
-            minWidth="48px"
+            className="w-16 text-xs"
+            minWidth="64px"
           />
         ) : (
           `${getDisplayValue('weight')} lbs`
@@ -179,29 +179,29 @@ export function EditableShipmentRow({
       
       <TableCell>
         {editMode ? (
-          <div className="flex items-center gap-0.5 text-xs w-20">
+          <div className="flex items-center gap-0.5 text-xs w-24">
             <InlineEditableField
               value={getDisplayValue('length') || '12'}
               onSave={(value) => handleFieldSave('length', value)}
               placeholder="L"
-              className="w-6 text-xs p-1 h-6"
-              minWidth="24px"
+              className="w-8 text-xs p-1 h-6"
+              minWidth="32px"
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
               value={getDisplayValue('width') || '12'}
               onSave={(value) => handleFieldSave('width', value)}
               placeholder="W"
-              className="w-6 text-xs p-1 h-6"
-              minWidth="24px"
+              className="w-8 text-xs p-1 h-6"
+              minWidth="32px"
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
               value={getDisplayValue('height') || '6'}
               onSave={(value) => handleFieldSave('height', value)}
               placeholder="H"
-              className="w-6 text-xs p-1 h-6"
-              minWidth="24px"
+              className="w-8 text-xs p-1 h-6"
+              minWidth="32px"
             />
           </div>
         ) : (

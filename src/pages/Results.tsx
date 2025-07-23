@@ -2518,11 +2518,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                {item.bestService || item.newService || 'UPS Ground'}
                              </Badge>
                             </TableCell>
-                           <TableCell>
-                             <Badge variant="secondary" className="text-xs">
-                               {analysisData?.bestAccount || 'Best Overall'}
-                             </Badge>
-                           </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-xs">
+                                {item.analyzedWithAccount?.name || item.accountName || analysisData?.bestAccount || 'Default Account'}
+                              </Badge>
+                            </TableCell>
                            <TableCell className="text-right font-medium text-foreground">
                              {formatCurrency(item.currentRate)}
                            </TableCell>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Check, X, Edit2 } from 'lucide-react';
+import { Edit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface InlineEditableFieldProps {
@@ -75,49 +74,29 @@ export function InlineEditableField({
 
   if (isEditing) {
     return (
-      <div className="flex items-center gap-2" style={{ minWidth }}>
-        <Input
-          ref={inputRef}
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={isSaving}
-          className={cn(
-            "border-0 bg-transparent p-0 text-inherit font-inherit text-size-inherit",
-            "focus:ring-2 focus:ring-primary/20 focus:bg-muted/10 rounded-md px-2 py-1",
-            "placeholder:text-muted-foreground/50 caret-white",
-            className
-          )}
-          style={{ 
-            fontSize: 'inherit',
-            fontWeight: 'inherit',
-            color: 'inherit',
-            background: 'transparent',
-            caretColor: 'white'
-          }}
-        />
-        <div className="flex gap-1 ml-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleSave}
-            disabled={isSaving || (required && !editValue.trim())}
-            className="h-8 w-8 p-0 flex-shrink-0"
-          >
-            <Check className="h-4 w-4 text-green-600" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleCancel}
-            disabled={isSaving}
-            className="h-8 w-8 p-0 flex-shrink-0"
-          >
-            <X className="h-4 w-4 text-red-600" />
-          </Button>
-        </div>
-      </div>
+      <Input
+        ref={inputRef}
+        value={editValue}
+        onChange={(e) => setEditValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={handleSave}
+        placeholder={placeholder}
+        disabled={isSaving}
+        className={cn(
+          "border-0 bg-transparent p-0 text-inherit font-inherit text-size-inherit",
+          "focus:ring-2 focus:ring-primary/20 focus:bg-muted/10 rounded-md px-2 py-1",
+          "placeholder:text-muted-foreground/50 caret-white",
+          className
+        )}
+        style={{ 
+          fontSize: 'inherit',
+          fontWeight: 'inherit',
+          color: 'inherit',
+          background: 'transparent',
+          caretColor: 'white',
+          width: '100%'
+        }}
+      />
     );
   }
 

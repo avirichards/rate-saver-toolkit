@@ -4,7 +4,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui-lov/Button';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
-import { DimensionsEditor } from '@/components/ui-lov/DimensionsEditor';
 import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
 import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { RotateCw, AlertCircle } from 'lucide-react';
@@ -180,17 +179,31 @@ export function EditableShipmentRow({
       
       <TableCell>
         {editMode ? (
-          <DimensionsEditor
-            length={getDisplayValue('length') || '12'}
-            width={getDisplayValue('width') || '12'}
-            height={getDisplayValue('height') || '6'}
-            onSave={(length, width, height) => {
-              handleFieldSave('length', length);
-              handleFieldSave('width', width);
-              handleFieldSave('height', height);
-            }}
-            className="w-20"
-          />
+          <div className="flex items-center gap-0.5 text-xs w-20">
+            <InlineEditableField
+              value={getDisplayValue('length') || '12'}
+              onSave={(value) => handleFieldSave('length', value)}
+              placeholder="L"
+              className="w-6 text-xs p-1 h-6"
+              minWidth="24px"
+            />
+            <span className="text-muted-foreground">×</span>
+            <InlineEditableField
+              value={getDisplayValue('width') || '12'}
+              onSave={(value) => handleFieldSave('width', value)}
+              placeholder="W"
+              className="w-6 text-xs p-1 h-6"
+              minWidth="24px"
+            />
+            <span className="text-muted-foreground">×</span>
+            <InlineEditableField
+              value={getDisplayValue('height') || '6'}
+              onSave={(value) => handleFieldSave('height', value)}
+              placeholder="H"
+              className="w-6 text-xs p-1 h-6"
+              minWidth="24px"
+            />
+          </div>
         ) : (
           <span className="text-xs">{`${getDisplayValue('length') || 12}×${getDisplayValue('width') || 12}×${getDisplayValue('height') || 6}`}</span>
         )}

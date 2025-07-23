@@ -83,6 +83,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
   const [shipmentData, setShipmentData] = useState<ProcessedShipmentData[]>([]);
   const [orphanedData, setOrphanedData] = useState<any[]>([]);
+  const [shipmentRates, setShipmentRates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -231,6 +232,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       // Load service notes for the newly saved analysis
       loadServiceNotes(data.id);
+      loadShipmentRates(data.id);
       
       return data.id;
     } catch (error) {
@@ -276,6 +278,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         return acc;
       }, {} as Record<string, string>);
       setServiceNotes(notesMap);
+    }
+  };
+
+  // Load shipment rates for account comparison
+  const loadShipmentRates = async (analysisId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from('shipment_rates')
+      .select('*')
+      .eq('analysis_id', analysisId);
+
+    if (data) {
+      setShipmentRates(data);
     }
   };
 
@@ -705,6 +722,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   useEffect(() => {
     if (currentAnalysisId) {
       loadServiceNotes(currentAnalysisId);
+      loadShipmentRates(currentAnalysisId);
     }
   }, [currentAnalysisId]);
 
@@ -2269,7 +2287,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
           <TabsContent value="account-comparison" className="space-y-6">
             <AccountComparisonView 
-              shipmentRates={[]}
+              shipmentRates={shipmentRates}
               shipmentData={shipmentData}
             />
           </TabsContent>

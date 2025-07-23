@@ -2439,12 +2439,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            <TableHead className="text-foreground w-20">Residential</TableHead>
                           <TableHead className="text-foreground w-28">Current Service</TableHead>
                            <TableHead className="text-foreground w-32">Ship Pros Service</TableHead>
-                           {editMode && <TableHead className="text-foreground w-20">Account Selection</TableHead>}
-                           <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
-                           <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
-                           <TableHead className="text-right text-foreground w-24">Savings</TableHead>
-                           {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
-                           <TableHead className="text-foreground w-20">Account</TableHead>
+                            {editMode && <TableHead className="text-foreground w-36">Account Selection</TableHead>}
+                            <TableHead className="text-right text-foreground w-24">Current Rate</TableHead>
+                            <TableHead className="text-right text-foreground w-24">Ship Pros Cost</TableHead>
+                            <TableHead className="text-right text-foreground w-24">Savings</TableHead>
+                            {editMode && <TableHead className="text-foreground w-20">Actions</TableHead>}
+                            {!editMode && <TableHead className="text-foreground w-20">Account</TableHead>}
                         </TableRow>
                       </TableHeader>
                      <TableBody className="bg-background">

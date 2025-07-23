@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from '@/components/ui-lov/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, AlertCircle } from 'lucide-react';
-import { AccountPerformanceSummary } from './AccountPerformanceSummary';
-import { ServiceLevelComparison } from './ServiceLevelComparison';
-import { ShipmentLevelDrillDown } from './ShipmentLevelDrillDown';
+import { formatCurrency } from '@/lib/utils';
+import { Search, TrendingDown, TrendingUp, AlertCircle } from 'lucide-react';
 
 interface ShipmentRate {
   id: string;
@@ -23,27 +23,27 @@ interface ShipmentRate {
   shipment_data: any;
 }
 
-interface AccountData {
-  accountName: string;
+interface GroupedShipmentRates {
+  shipment_index: number;
+  shipment_data: any;
   rates: ShipmentRate[];
-  totalSavings: number;
-  wins: number;
+  bestRate: ShipmentRate | null;
+  potentialSavings: number;
+  highestRate: number;
 }
 
 interface AccountComparisonViewProps {
   analysisId: string | null;
 }
 
-type ViewMode = 'overview' | 'service' | 'shipment';
-
 export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ analysisId }) => {
-  const [shipmentRates, setShipmentRates] = useState<ShipmentRate[]>([]);
+  const [shipmentRates, setShipmentRates] = useState<GroupedShipmentRates[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAccount, setSelectedAccount] = useState<string>('all');
-  const [viewMode, setViewMode] = useState<ViewMode>('overview');
-  const [selectedService, setSelectedService] = useState<string | undefined>();
+  const [selectedService, setSelectedService] = useState<string>('all');
   const [availableAccounts, setAvailableAccounts] = useState<string[]>([]);
+  const [availableServices, setAvailableServices] = useState<string[]>([]);
 
   useEffect(() => {
     if (analysisId) {
@@ -88,13 +88,48 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
         return;
       }
 
-      setShipmentRates(data);
-      const accounts = Array.from(new Set(data.map(rate => rate.account_name))).sort();
-      setAvailableAccounts(accounts);
+      // Group rates by shipment index
+      const groupedRates: { [key: number]: ShipmentRate[] } = {};
+      const accounts = new Set<string>();
+      const services = new Set<string>();
+
+      data.forEach((rate: any) => {
+        const shipmentIndex = rate.shipment_index;
+        if (!groupedRates[shipmentIndex]) {
+          groupedRates[shipmentIndex] = [];
+        }
+        groupedRates[shipmentIndex].push(rate);
+        accounts.add(rate.account_name);
+        if (rate.service_name) {
+          services.add(rate.service_name);
+        }
+      });
+
+      // Create grouped shipment rates with best rate calculation
+      const processedRates: GroupedShipmentRates[] = Object.entries(groupedRates).map(([shipmentIndex, rates]) => {
+        const sortedRates = rates.sort((a, b) => a.rate_amount - b.rate_amount);
+        const bestRate = sortedRates[0];
+        const highestRate = Math.max(...rates.map(r => r.rate_amount));
+        const potentialSavings = highestRate - bestRate.rate_amount;
+
+        return {
+          shipment_index: parseInt(shipmentIndex),
+          shipment_data: bestRate.shipment_data,
+          rates: sortedRates,
+          bestRate,
+          potentialSavings,
+          highestRate
+        };
+      });
+
+      setShipmentRates(processedRates);
+      setAvailableAccounts(Array.from(accounts).sort());
+      setAvailableServices(Array.from(services).sort());
 
       console.log('✅ AccountComparisonView: Data processed successfully:', {
-        shipmentsCount: new Set(data.map(r => r.shipment_index)).size,
-        accountsCount: accounts.length,
+        shipmentsCount: processedRates.length,
+        accountsCount: accounts.size,
+        servicesCount: services.size,
         totalRates: data.length
       });
 
@@ -105,226 +140,37 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
     }
   };
 
-  // Calculate account performance metrics
-  const calculateAccountPerformances = () => {
-    const accountMap = new Map();
-    const shipmentMap = new Map();
-
-    // Group rates by shipment and calculate best rates
-    shipmentRates.forEach(rate => {
-      const shipmentKey = rate.shipment_index;
-      if (!shipmentMap.has(shipmentKey)) {
-        shipmentMap.set(shipmentKey, []);
-      }
-      shipmentMap.get(shipmentKey).push(rate);
-    });
-
-    // Calculate performance for each account
-    availableAccounts.forEach(accountName => {
-      const accountRates = shipmentRates.filter(rate => rate.account_name === accountName);
-      let wins = 0;
-      let totalSavings = 0;
-      let totalTransitDays = 0;
-      let transitCount = 0;
-
-      shipmentMap.forEach(shipmentRates => {
-        const accountRate = shipmentRates.find(r => r.account_name === accountName);
-        if (accountRate) {
-          const bestRate = Math.min(...shipmentRates.map(r => r.rate_amount));
-          const currentRate = accountRate.shipment_data?.currentRate;
-          
-          if (accountRate.rate_amount === bestRate) {
-            wins++;
-          }
-          
-          // Calculate savings vs current rate if available, otherwise vs worst rate
-          if (currentRate && currentRate > accountRate.rate_amount) {
-            totalSavings += currentRate - accountRate.rate_amount;
-          } else {
-            const worstRate = Math.max(...shipmentRates.map(r => r.rate_amount));
-            totalSavings += worstRate - accountRate.rate_amount;
-          }
-          
-          if (accountRate.transit_days) {
-            totalTransitDays += accountRate.transit_days;
-            transitCount++;
-          }
-        }
-      });
-
-      accountMap.set(accountName, {
-        accountName,
-        totalShipments: accountRates.length,
-        totalSavings,
-        averageRate: accountRates.reduce((sum, r) => sum + r.rate_amount, 0) / accountRates.length,
-        winRate: (wins / shipmentMap.size) * 100,
-        averageTransitDays: transitCount > 0 ? totalTransitDays / transitCount : 0,
-        serviceCount: new Set(accountRates.map(r => r.service_name || r.service_code)).size
-      });
-    });
-
-    return Array.from(accountMap.values());
-  };
-
-  // Calculate service performance metrics
-  const calculateServicePerformances = () => {
-    const serviceMap = new Map();
-    
-    shipmentRates.forEach(rate => {
-      const serviceName = rate.service_name || rate.service_code;
-      if (!serviceMap.has(serviceName)) {
-        serviceMap.set(serviceName, {
-          serviceName,
-          serviceCode: rate.service_code,
-          accounts: new Map()
-        });
-      }
-      
-      const service = serviceMap.get(serviceName);
-      if (!service.accounts.has(rate.account_name)) {
-        service.accounts.set(rate.account_name, {
-          accountName: rate.account_name,
-          rates: [],
-          totalSavings: 0,
-          wins: 0
-        });
-      }
-      
-      service.accounts.get(rate.account_name).rates.push(rate);
-    });
-
-    // Calculate metrics for each service
-    return Array.from(serviceMap.values()).map(service => ({
-      serviceName: service.serviceName,
-      serviceCode: service.serviceCode,
-      accounts: Array.from(service.accounts.values()).map((account: AccountData) => {
-        const rates = account.rates;
-        const avgRate = rates.reduce((sum: number, r: ShipmentRate) => sum + r.rate_amount, 0) / rates.length;
-        const avgTransit = rates.filter((r: ShipmentRate) => r.transit_days).reduce((sum: number, r: ShipmentRate) => sum + r.transit_days!, 0) / rates.filter((r: ShipmentRate) => r.transit_days).length || 0;
-        
-        // Calculate wins for this account in this service
-        const shipmentGroups = new Map<number, ShipmentRate[]>();
-        rates.forEach((rate: ShipmentRate) => {
-          if (!shipmentGroups.has(rate.shipment_index)) {
-            shipmentGroups.set(rate.shipment_index, []);
-          }
-          shipmentGroups.get(rate.shipment_index)!.push(rate);
-        });
-        
-        let wins = 0;
-        let totalSavings = 0;
-        shipmentGroups.forEach((shipmentRates: ShipmentRate[]) => {
-          const bestRate = Math.min(...shipmentRates.map((r: ShipmentRate) => r.rate_amount));
-          const accountRate = shipmentRates.find((r: ShipmentRate) => r.account_name === account.accountName);
-          
-          if (accountRate && accountRate.rate_amount === bestRate) {
-            wins++;
-          }
-          if (accountRate) {
-            const currentRate = accountRate.shipment_data?.currentRate;
-            // Calculate savings vs current rate if available, otherwise vs worst rate
-            if (currentRate && currentRate > accountRate.rate_amount) {
-              totalSavings += currentRate - accountRate.rate_amount;
-            } else {
-              const worstRate = Math.max(...shipmentRates.map((r: ShipmentRate) => r.rate_amount));
-              totalSavings += worstRate - accountRate.rate_amount;
-            }
-          }
-        });
-        
-        // Calculate average customer cost
-        const avgCustomerCost = rates.reduce((sum: number, r: ShipmentRate) => {
-          return sum + (r.shipment_data?.currentRate || 0);
-        }, 0) / rates.length;
-
-        return {
-          accountName: account.accountName,
-          averageRate: avgRate,
-          shipmentCount: rates.length,
-          winRate: (wins / shipmentGroups.size) * 100,
-          totalSavings,
-          averageCustomerCost: avgCustomerCost
-        };
-      })
-    }));
-  };
-
-  // Calculate shipment details
-  const calculateShipmentDetails = () => {
-    const shipmentMap = new Map();
-    
-    shipmentRates.forEach(rate => {
-      if (!shipmentMap.has(rate.shipment_index)) {
-        shipmentMap.set(rate.shipment_index, {
-          shipmentIndex: rate.shipment_index,
-          shipmentData: rate.shipment_data,
-          rates: []
-        });
-      }
-      shipmentMap.get(rate.shipment_index).rates.push(rate);
-    });
-
-    return Array.from(shipmentMap.values()).map(shipment => {
-      const sortedRates = shipment.rates.sort((a, b) => a.rate_amount - b.rate_amount);
-      const bestRate = sortedRates[0];
-      const worstRate = sortedRates[sortedRates.length - 1];
-      
-      const currentRate = shipment.shipmentData?.currentRate;
-      const savingsAmount = currentRate && currentRate > bestRate.rate_amount 
-        ? currentRate - bestRate.rate_amount 
-        : worstRate.rate_amount - bestRate.rate_amount;
-
-      return {
-        shipmentIndex: shipment.shipmentIndex,
-        shipmentData: shipment.shipmentData,
-        rates: sortedRates.map(rate => ({
-          accountName: rate.account_name,
-          serviceCode: rate.service_code,
-          serviceName: rate.service_name || rate.service_code,
-          rateAmount: rate.rate_amount,
-          transitDays: rate.transit_days || 0,
-          isNegotiated: rate.is_negotiated,
-          isBest: rate.id === bestRate.id
-        })),
-        bestRate: bestRate.rate_amount,
-        potentialSavings: savingsAmount
-      };
-    });
-  };
-
-  // Filter data based on current filters
-  const applyFilters = (data: any[]) => {
-    let filtered = data;
-
+  // Filter shipments based on search and filters
+  const filteredShipments = shipmentRates.filter(shipment => {
+    // Search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(item => 
-        JSON.stringify(item).toLowerCase().includes(searchLower)
-      );
+      const matchesSearch = 
+        shipment.shipment_data?.shipFrom?.zipCode?.toLowerCase().includes(searchLower) ||
+        shipment.shipment_data?.shipTo?.zipCode?.toLowerCase().includes(searchLower) ||
+        shipment.rates.some(rate => 
+          rate.account_name.toLowerCase().includes(searchLower) ||
+          rate.service_name?.toLowerCase().includes(searchLower)
+        );
+      if (!matchesSearch) return false;
     }
 
+    // Account filter
     if (selectedAccount !== 'all') {
-      filtered = filtered.filter(item => 
-        JSON.stringify(item).includes(selectedAccount)
-      );
+      const hasAccount = shipment.rates.some(rate => rate.account_name === selectedAccount);
+      if (!hasAccount) return false;
     }
 
-    return filtered;
-  };
+    // Service filter
+    if (selectedService !== 'all') {
+      const hasService = shipment.rates.some(rate => rate.service_name === selectedService);
+      if (!hasService) return false;
+    }
 
-  const handleServiceSelect = (serviceName: string) => {
-    setSelectedService(serviceName);
-    setViewMode('shipment');
-  };
+    return true;
+  });
 
-  const handleBackToServices = () => {
-    setSelectedService(undefined);
-    setViewMode('service');
-  };
-
-  const handleBackToOverview = () => {
-    setViewMode('overview');
-  };
+  const totalSavingsOpportunity = filteredShipments.reduce((sum, shipment) => sum + shipment.potentialSavings, 0);
 
   if (loading) {
     return (
@@ -363,66 +209,147 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({ an
     );
   }
 
-  const accountPerformances = calculateAccountPerformances();
-  const servicePerformances = calculateServicePerformances();
-  const shipmentDetails = calculateShipmentDetails();
-
   return (
     <div className="space-y-6">
-      {/* Dynamic Content Based on View Mode */}
-      {viewMode === 'overview' && (
-        <AccountPerformanceSummary 
-          accountPerformances={applyFilters(accountPerformances)} 
-          onAccountSelect={(accountName) => {
-            setSelectedAccount(accountName);
-            setViewMode('service');
-          }}
-        />
-      )}
-
-      {viewMode === 'service' && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <button
-              onClick={handleBackToOverview}
-              className="px-4 py-2 border-2 border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors flex items-center gap-2"
-            >
-              ← Back to Account Overview
-            </button>
-            <div className="text-sm text-muted-foreground">
-              Service Performance Analysis • Click "View Shipments" to see individual shipments
+      {/* Summary Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingDown className="h-5 w-5 text-green-600" />
+            Account Comparison Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <div className="text-2xl font-bold text-primary">{filteredShipments.length}</div>
+              <div className="text-sm text-muted-foreground">Shipments Analyzed</div>
+            </div>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(totalSavingsOpportunity)}</div>
+              <div className="text-sm text-muted-foreground">Total Savings Opportunity</div>
+            </div>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <div className="text-2xl font-bold text-blue-600">{availableAccounts.length}</div>
+              <div className="text-sm text-muted-foreground">Carrier Accounts Compared</div>
             </div>
           </div>
-          <ServiceLevelComparison 
-            servicePerformances={applyFilters(servicePerformances)}
-            onServiceSelect={handleServiceSelect}
-          />
-        </div>
-      )}
+        </CardContent>
+      </Card>
 
-      {viewMode === 'shipment' && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <button
-              onClick={handleBackToServices}
-              className="px-4 py-2 border-2 border-primary text-primary rounded-lg hover:bg-primary/10 transition-colors flex items-center gap-2"
-            >
-              ← Back to Services
-            </button>
-            <button
-              onClick={handleBackToOverview}
-              className="px-4 py-2 text-muted-foreground hover:text-primary transition-colors"
-            >
-              🏠 Return to Overview
-            </button>
+      {/* Filters */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by ZIP code, account, or service..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by Account" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Accounts</SelectItem>
+                {availableAccounts.map(account => (
+                  <SelectItem key={account} value={account}>{account}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={selectedService} onValueChange={setSelectedService}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by Service" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Services</SelectItem>
+                {availableServices.map(service => (
+                  <SelectItem key={service} value={service}>{service}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <ShipmentLevelDrillDown 
-            shipments={applyFilters(shipmentDetails)}
-            selectedService={selectedService}
-            onBack={handleBackToServices}
-          />
-        </div>
-      )}
+        </CardContent>
+      </Card>
+
+      {/* Shipment Comparison Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Detailed Rate Comparison by Shipment</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            {filteredShipments.map((shipment) => (
+              <div key={shipment.shipment_index} className="border rounded-lg p-4">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h4 className="font-medium">Shipment #{shipment.shipment_index + 1}</h4>
+                    <div className="text-sm text-muted-foreground">
+                      {shipment.shipment_data?.shipFrom?.zipCode} → {shipment.shipment_data?.shipTo?.zipCode}
+                      {shipment.shipment_data?.package?.weight && (
+                        <span className="ml-2">• {shipment.shipment_data.package.weight} lbs</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-muted-foreground">Potential Savings</div>
+                    <div className="text-lg font-semibold text-green-600">
+                      {formatCurrency(shipment.potentialSavings)}
+                    </div>
+                  </div>
+                </div>
+
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Account Name</TableHead>
+                      <TableHead>Service</TableHead>
+                      <TableHead>Rate</TableHead>
+                      <TableHead>Transit Days</TableHead>
+                      <TableHead>Rate Type</TableHead>
+                      <TableHead>Best Rate</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {shipment.rates.map((rate, index) => {
+                      const isBest = rate.id === shipment.bestRate?.id;
+                      return (
+                        <TableRow key={rate.id} className={isBest ? 'bg-green-50' : ''}>
+                          <TableCell className="font-medium">{rate.account_name}</TableCell>
+                          <TableCell>{rate.service_name || rate.service_code}</TableCell>
+                          <TableCell className={isBest ? 'text-green-600 font-semibold' : ''}>
+                            {formatCurrency(rate.rate_amount)}
+                          </TableCell>
+                          <TableCell>{rate.transit_days || 'N/A'}</TableCell>
+                          <TableCell>
+                            <Badge variant={rate.is_negotiated ? 'default' : 'secondary'}>
+                              {rate.is_negotiated ? 'Negotiated' : 'Published'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {isBest && (
+                              <Badge variant="default" className="bg-green-600">
+                                <TrendingDown className="h-3 w-3 mr-1" />
+                                Best
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

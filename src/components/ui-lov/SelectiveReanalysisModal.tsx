@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
 import { AccountSelector } from '@/components/ui-lov/AccountSelector';
-import { Search, Replace, AlertCircle } from 'lucide-react';
+import { Plus, Replace, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
@@ -16,6 +16,11 @@ interface ServiceMappingCorrection {
   affectedCount: number;
   isResidential?: boolean;
   accountId?: string;
+  weightFilter?: {
+    enabled: boolean;
+    operator: 'under' | 'over' | 'equal';
+    value: number;
+  };
 }
 
 interface SelectiveReanalysisModalProps {
@@ -36,6 +41,9 @@ export function SelectiveReanalysisModal({
   const [findValue, setFindValue] = useState('');
   const [replaceValue, setReplaceValue] = useState('');
   const [accountValue, setAccountValue] = useState('');
+  const [weightFilterEnabled, setWeightFilterEnabled] = useState(false);
+  const [weightOperator, setWeightOperator] = useState<'under' | 'over' | 'equal'>('under');
+  const [weightValue, setWeightValue] = useState(10);
   const [corrections, setCorrections] = useState<ServiceMappingCorrection[]>([]);
 
   // Get unique current service types from all shipments
@@ -48,20 +56,43 @@ export function SelectiveReanalysisModal({
     return services.sort();
   }, [allShipments]);
 
+  // Calculate how many shipments match current criteria
+  const matchingShipments = useMemo(() => {
+    return allShipments.filter(s => {
+      const currentService = s.service || s.originalService || s.currentService || '';
+      const weight = parseFloat(s.weight) || 0;
+      
+      let serviceMatch = !findValue || currentService === findValue;
+      let weightMatch = true;
+      
+      if (weightFilterEnabled && weightValue > 0) {
+        switch (weightOperator) {
+          case 'under':
+            weightMatch = weight < weightValue;
+            break;
+          case 'over':
+            weightMatch = weight > weightValue;
+            break;
+          case 'equal':
+            weightMatch = weight === weightValue;
+            break;
+        }
+      }
+      
+      return serviceMatch && weightMatch;
+    });
+  }, [allShipments, findValue, weightFilterEnabled, weightOperator, weightValue]);
+
   const handleAddCorrection = () => {
     if (!findValue.trim() || !replaceValue.trim()) {
       toast.error('Please enter both find and replace values');
       return;
     }
 
-    // Count how many shipments will be affected (from all shipments, but corrections apply only to selected)
-    const affectedCount = allShipments.filter(s => {
-      const currentService = s.service || s.originalService || s.currentService || '';
-      return currentService === findValue; // Exact match for dropdown selection
-    }).length;
+    const affectedCount = matchingShipments.length;
 
     if (affectedCount === 0) {
-      toast.error('No shipments found with the specified service type');
+      toast.error('No shipments found with the specified criteria');
       return;
     }
 
@@ -69,13 +100,20 @@ export function SelectiveReanalysisModal({
       from: findValue.trim(),
       to: replaceValue.trim(),
       affectedCount,
-      accountId: accountValue || undefined
+      accountId: accountValue || undefined,
+      weightFilter: weightFilterEnabled ? {
+        enabled: true,
+        operator: weightOperator,
+        value: weightValue
+      } : undefined
     };
 
     setCorrections([...corrections, newCorrection]);
     setFindValue('');
     setReplaceValue('');
     setAccountValue('');
+    setWeightFilterEnabled(false);
+    setWeightValue(10);
   };
 
   const handleRemoveCorrection = (index: number) => {
@@ -105,15 +143,58 @@ export function SelectiveReanalysisModal({
         <div className="space-y-6">
           {/* Current Selection Info */}
           <div className="bg-muted/50 p-4 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">
-                Batch Service Correction
-              </span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  Batch Service Correction
+                </span>
+              </div>
+              <Badge variant="outline" className="text-sm">
+                {matchingShipments.length} shipments match criteria
+              </Badge>
             </div>
-            <div className="text-xs text-muted-foreground">
-              Corrections will apply to ALL shipments with matching service types and re-analyze them
+          </div>
+
+          {/* Weight Filter */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="weight-filter"
+                checked={weightFilterEnabled}
+                onChange={(e) => setWeightFilterEnabled(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <Label htmlFor="weight-filter" className="text-sm font-medium">
+                Apply Weight Filter
+              </Label>
             </div>
+            
+            {weightFilterEnabled && (
+              <div className="flex items-center gap-2 ml-6">
+                <Label className="text-sm">Weight</Label>
+                <Select value={weightOperator} onValueChange={(value: 'under' | 'over' | 'equal') => setWeightOperator(value)}>
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="under">Under</SelectItem>
+                    <SelectItem value="over">Over</SelectItem>
+                    <SelectItem value="equal">Equal to</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  value={weightValue}
+                  onChange={(e) => setWeightValue(parseFloat(e.target.value) || 0)}
+                  className="w-20"
+                  min="0"
+                  step="0.1"
+                />
+                <span className="text-sm text-muted-foreground">lbs</span>
+              </div>
+            )}
           </div>
 
           {/* Find & Replace Interface */}
@@ -170,7 +251,7 @@ export function SelectiveReanalysisModal({
           </div>
 
           <Button onClick={handleAddCorrection} className="w-full" variant="outline">
-            <Search className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-4 mr-2" />
             Add Correction
           </Button>
 
@@ -227,58 +308,68 @@ export function SelectiveReanalysisModal({
                        </Button>
                      </div>
                       
-                      {/* Account info */}
-                      {correction.accountId && (
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs text-muted-foreground">Account:</Label>
-                          <Badge variant="outline" className="text-xs">
-                            Account Selected
-                          </Badge>
-                        </div>
-                      )}
-                      
-                      {/* Residential/Commercial options for this correction */}
-                      <div className="flex items-center gap-2">
-                        <Label className="text-xs text-muted-foreground">Mark as:</Label>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant={correction.isResidential === true ? "default" : "outline"}
-                            onClick={() => {
-                              const updated = [...corrections];
-                              updated[index] = { ...correction, isResidential: true };
-                              setCorrections(updated);
-                            }}
-                            className="h-6 px-2 text-xs"
-                          >
-                            Residential
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={correction.isResidential === false ? "default" : "outline"}
-                            onClick={() => {
-                              const updated = [...corrections];
-                              updated[index] = { ...correction, isResidential: false };
-                              setCorrections(updated);
-                            }}
-                            className="h-6 px-2 text-xs"
-                          >
-                            Commercial
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={correction.isResidential === undefined ? "default" : "outline"}
-                            onClick={() => {
-                              const updated = [...corrections];
-                              updated[index] = { ...correction, isResidential: undefined };
-                              setCorrections(updated);
-                            }}
-                            className="h-6 px-2 text-xs"
-                          >
-                            No Change
-                          </Button>
-                        </div>
-                      </div>
+                       {/* Weight filter info */}
+                       {correction.weightFilter && (
+                         <div className="flex items-center gap-2">
+                           <Label className="text-xs text-muted-foreground">Weight Filter:</Label>
+                           <Badge variant="outline" className="text-xs">
+                             {correction.weightFilter.operator} {correction.weightFilter.value}lbs
+                           </Badge>
+                         </div>
+                       )}
+                       
+                       {/* Account info */}
+                       {correction.accountId && (
+                         <div className="flex items-center gap-2">
+                           <Label className="text-xs text-muted-foreground">Account:</Label>
+                           <Badge variant="outline" className="text-xs">
+                             Account Selected
+                           </Badge>
+                         </div>
+                       )}
+                       
+                       {/* Residential/Commercial options for this correction */}
+                       <div className="flex items-center gap-2">
+                         <Label className="text-xs text-muted-foreground">Mark as:</Label>
+                         <div className="flex gap-1">
+                           <Button
+                             size="sm"
+                             variant={correction.isResidential === true ? "default" : "outline"}
+                             onClick={() => {
+                               const updated = [...corrections];
+                               updated[index] = { ...correction, isResidential: true };
+                               setCorrections(updated);
+                             }}
+                             className="h-6 px-2 text-xs"
+                           >
+                             Residential
+                           </Button>
+                           <Button
+                             size="sm"
+                             variant={correction.isResidential === false ? "default" : "outline"}
+                             onClick={() => {
+                               const updated = [...corrections];
+                               updated[index] = { ...correction, isResidential: false };
+                               setCorrections(updated);
+                             }}
+                             className="h-6 px-2 text-xs"
+                           >
+                             Commercial
+                           </Button>
+                           <Button
+                             size="sm"
+                             variant={correction.isResidential === undefined ? "default" : "outline"}
+                             onClick={() => {
+                               const updated = [...corrections];
+                               updated[index] = { ...correction, isResidential: undefined };
+                               setCorrections(updated);
+                             }}
+                             className="h-6 px-2 text-xs"
+                           >
+                             No Change
+                           </Button>
+                         </div>
+                       </div>
                    </div>
                  ))}
               </div>

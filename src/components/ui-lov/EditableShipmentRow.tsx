@@ -214,12 +214,18 @@ export function EditableShipmentRow({
       
       {/* Account Selection */}
       <TableCell>
-        <AccountSelector
-          value={getDisplayValue('accountId') || ''}
-          onValueChange={(value) => handleFieldSave('accountId', value)}
-          placeholder="Select Account"
-          className="w-36 text-xs"
-        />
+        {editMode ? (
+          <AccountSelector
+            value={getDisplayValue('accountId') || ''}
+            onValueChange={(value) => handleFieldSave('accountId', value)}
+            placeholder="Select Account"
+            className="w-36 text-xs"
+          />
+        ) : (
+          <Badge variant="outline" className="text-xs truncate">
+            {shipment.analyzedWithAccount?.name || shipment.accountName || 'Default Account'}
+          </Badge>
+        )}
       </TableCell>
       
       <TableCell className="text-right">

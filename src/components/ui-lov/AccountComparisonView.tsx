@@ -102,7 +102,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   return (
     <div className="space-y-6">
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-3">
         <SummaryStats
           title="Accounts Compared"
           value={kpiMetrics.accountsCompared}
@@ -122,8 +122,8 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           color="blue"
         />
         <SummaryStats
-          title="Total Savings"
-          value={`${formatCurrency(kpiMetrics.totalSavings)} / ${kpiMetrics.savingsPercentage.toFixed(1)}%`}
+          title="Savings"
+          value={`${formatCurrency(kpiMetrics.totalSavings)} (${kpiMetrics.savingsPercentage.toFixed(1)}%)`}
           icon={<DollarSign />}
           color={kpiMetrics.totalSavings >= 0 ? "green" : "red"}
         />

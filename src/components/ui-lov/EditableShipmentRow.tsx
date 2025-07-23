@@ -241,36 +241,16 @@ export function EditableShipmentRow({
       </TableCell>
       
       {/* Account Selection */}
-      <TableCell>
-        {editMode ? (
+      {editMode && (
+        <TableCell>
           <AccountSelector
             value={getDisplayValue('accountId') || ''}
             onValueChange={(value) => handleFieldSave('accountId', value)}
             placeholder="Select Account"
             className="w-36 text-xs"
           />
-        ) : (
-          <Badge variant="outline" className="text-xs truncate">
-            {(() => {
-              // Priority order: analyzedWithAccount.name > accountNames lookup > accountName > fallback
-              const accountName = shipment.analyzedWithAccount?.name || 
-                                  (shipment.accountId ? accountNames[shipment.accountId] : null) ||
-                                  shipment.accountName || 
-                                  'Default Account';
-              
-              console.log('🏷️ Account badge display:', {
-                shipmentId: shipment.id,
-                analyzedWithAccount: shipment.analyzedWithAccount,
-                accountId: shipment.accountId,
-                accountNames: accountNames,
-                finalAccountName: accountName
-              });
-              
-              return accountName;
-            })()}
-          </Badge>
-        )}
-      </TableCell>
+        </TableCell>
+      )}
       
       <TableCell className="text-right">
         {formatCurrency(shipment.currentRate)}
@@ -299,21 +279,45 @@ export function EditableShipmentRow({
         )}
       </TableCell>
       
+      {editMode && (
+        <TableCell>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onReanalyze(shipment.id)}
+            disabled={isReanalyzing}
+            className="h-8 text-xs"
+          >
+            {isReanalyzing ? (
+              <RotateCw className="h-3 w-3 animate-spin mr-1" />
+            ) : (
+              <RotateCw className="h-3 w-3 mr-1" />
+            )}
+            Re-analyze
+          </Button>
+        </TableCell>
+      )}
+      
       <TableCell>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => onReanalyze(shipment.id)}
-          disabled={isReanalyzing}
-          className="h-8 text-xs"
-        >
-          {isReanalyzing ? (
-            <RotateCw className="h-3 w-3 animate-spin mr-1" />
-          ) : (
-            <RotateCw className="h-3 w-3 mr-1" />
-          )}
-          Re-analyze
-        </Button>
+        <Badge variant="secondary" className="text-xs truncate">
+          {(() => {
+            // Priority order: analyzedWithAccount.name > accountNames lookup > accountName > fallback
+            const accountName = shipment.analyzedWithAccount?.name || 
+                                (shipment.accountId ? accountNames[shipment.accountId] : null) ||
+                                shipment.accountName || 
+                                'Default Account';
+            
+            console.log('🏷️ Account badge display:', {
+              shipmentId: shipment.id,
+              analyzedWithAccount: shipment.analyzedWithAccount,
+              accountId: shipment.accountId,
+              accountNames: accountNames,
+              finalAccountName: accountName
+            });
+            
+            return accountName;
+          })()}
+        </Badge>
       </TableCell>
     </TableRow>
   );

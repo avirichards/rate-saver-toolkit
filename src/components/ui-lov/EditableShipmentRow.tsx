@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui-lov/Button';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
+import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { RotateCw, AlertCircle } from 'lucide-react';
 import { formatCurrency, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
@@ -227,20 +228,25 @@ export function EditableShipmentRow({
         {estimatedSavings.isPending ? (
           <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
         ) : (
-          <div className={getSavingsColor(estimatedSavings.savings)}>
-            {formatCurrency(estimatedSavings.savings)}
+          <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
+            <div className="font-medium">
+              {formatCurrency(estimatedSavings.savings)}
+            </div>
+            <div className="text-xs">
+              {estimatedSavings.savingsPercent?.toFixed(1)}%
+            </div>
           </div>
         )}
       </TableCell>
       
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-orange-500 italic">-%</span>
-        ) : (
-          <div className={getSavingsColor(estimatedSavings.savings)}>
-            {estimatedSavings.savingsPercent?.toFixed(1)}%
-          </div>
-        )}
+      {/* Account Selection */}
+      <TableCell>
+        <AccountSelector
+          value={getDisplayValue('accountId') || ''}
+          onValueChange={(value) => handleFieldSave('accountId', value)}
+          placeholder="Select Account"
+          className="w-36 text-xs"
+        />
       </TableCell>
       
       <TableCell>

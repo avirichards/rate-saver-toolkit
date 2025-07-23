@@ -9,7 +9,6 @@ import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { Plus, Replace, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-
 interface ServiceMappingCorrection {
   from: string;
   to: string;
@@ -27,7 +26,6 @@ interface ServiceMappingCorrection {
     value: number;
   };
 }
-
 interface SelectiveReanalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -35,7 +33,6 @@ interface SelectiveReanalysisModalProps {
   selectedShipments: any[];
   allShipments: any[];
 }
-
 export function SelectiveReanalysisModal({
   isOpen,
   onClose,
@@ -73,11 +70,9 @@ export function SelectiveReanalysisModal({
       const width = parseFloat(s.width) || 12;
       const height = parseFloat(s.height) || 6;
       const dim = length * width * height;
-      
       let serviceMatch = !findValue || currentService === findValue;
       let weightMatch = true;
       let dimMatch = true;
-      
       if (weightFilterEnabled && weightValue > 0) {
         switch (weightOperator) {
           case 'under':
@@ -91,7 +86,6 @@ export function SelectiveReanalysisModal({
             break;
         }
       }
-      
       if (dimFilterEnabled && dimValue > 0) {
         switch (dimOperator) {
           case 'under':
@@ -105,24 +99,19 @@ export function SelectiveReanalysisModal({
             break;
         }
       }
-      
       return serviceMatch && weightMatch && dimMatch;
     });
   }, [allShipments, findValue, weightFilterEnabled, weightOperator, weightValue, dimFilterEnabled, dimOperator, dimValue]);
-
   const handleAddCorrection = () => {
     if (!findValue.trim() || !replaceValue.trim()) {
       toast.error('Please enter both find and replace values');
       return;
     }
-
     const affectedCount = matchingShipments.length;
-
     if (affectedCount === 0) {
       toast.error('No shipments found with the specified criteria');
       return;
     }
-
     const newCorrection: ServiceMappingCorrection = {
       from: findValue.trim(),
       to: replaceValue.trim(),
@@ -139,7 +128,6 @@ export function SelectiveReanalysisModal({
         value: dimValue
       } : undefined
     };
-
     setCorrections([...corrections, newCorrection]);
     setFindValue('');
     setReplaceValue('');
@@ -149,23 +137,18 @@ export function SelectiveReanalysisModal({
     setDimFilterEnabled(false);
     setDimValue(650);
   };
-
   const handleRemoveCorrection = (index: number) => {
     setCorrections(corrections.filter((_, i) => i !== index));
   };
-
   const handleApply = () => {
     if (corrections.length === 0) {
       toast.error('Please add at least one correction');
       return;
     }
-
     onApplyCorrections(corrections);
     onClose();
   };
-
-  return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
+  return <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -201,46 +184,27 @@ export function SelectiveReanalysisModal({
                     <SelectValue placeholder="Select current service to replace" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover border border-border max-h-60 overflow-y-auto z-50">
-                    {currentServices.map((service) => {
-                      const serviceCount = allShipments.filter(s => 
-                        (s.service || s.originalService || s.currentService) === service
-                      ).length;
-                      
-                      return (
-                        <SelectItem 
-                          key={service} 
-                          value={service}
-                          className="hover:bg-accent"
-                        >
+                    {currentServices.map(service => {
+                    const serviceCount = allShipments.filter(s => (s.service || s.originalService || s.currentService) === service).length;
+                    return <SelectItem key={service} value={service} className="hover:bg-accent">
                           <div className="flex items-center justify-between w-full">
                             <span>{service}</span>
                             <div className="text-xs text-muted-foreground ml-4">
                               {serviceCount} shipments
                             </div>
                           </div>
-                        </SelectItem>
-                      );
-                    })}
+                        </SelectItem>;
+                  })}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="replace-service">Replace With Service</Label>
-                <UpsServiceSelector
-                  value={replaceValue}
-                  onValueChange={setReplaceValue}
-                  placeholder="Select UPS Service"
-                  className="w-full"
-                />
+                <UpsServiceSelector value={replaceValue} onValueChange={setReplaceValue} placeholder="Select UPS Service" className="w-full" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="account-select">Use Account (Optional)</Label>
-                <AccountSelector
-                  value={accountValue}
-                  onValueChange={setAccountValue}
-                  placeholder="Select Account"
-                  className="w-full"
-                />
+                <AccountSelector value={accountValue} onValueChange={setAccountValue} placeholder="Select Account" className="w-full" />
               </div>
             </div>
           </div>
@@ -253,20 +217,11 @@ export function SelectiveReanalysisModal({
               {/* Weight Filter */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="weight-filter"
-                    checked={weightFilterEnabled}
-                    onChange={(e) => setWeightFilterEnabled(e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <Label htmlFor="weight-filter" className="text-sm font-medium">
-                    Weight Filter
-                  </Label>
+                  <input type="checkbox" id="weight-filter" checked={weightFilterEnabled} onChange={e => setWeightFilterEnabled(e.target.checked)} className="rounded border-gray-300" />
+                  <Label htmlFor="weight-filter" className="text-sm font-medium">Weight</Label>
                 </div>
                 
-                {weightFilterEnabled && (
-                  <div className="flex items-center gap-2 pl-6 space-x-2">
+                {weightFilterEnabled && <div className="flex items-center gap-2 pl-6 space-x-2">
                     <Label className="text-sm whitespace-nowrap">Weight</Label>
                     <Select value={weightOperator} onValueChange={(value: 'under' | 'over' | 'equal') => setWeightOperator(value)}>
                       <SelectTrigger className="w-20">
@@ -278,36 +233,19 @@ export function SelectiveReanalysisModal({
                         <SelectItem value="equal">Equal</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input
-                      type="number"
-                      value={weightValue}
-                      onChange={(e) => setWeightValue(parseFloat(e.target.value) || 0)}
-                      className="w-16"
-                      min="0"
-                      step="0.1"
-                    />
+                    <Input type="number" value={weightValue} onChange={e => setWeightValue(parseFloat(e.target.value) || 0)} className="w-16" min="0" step="0.1" />
                     <span className="text-sm text-muted-foreground whitespace-nowrap">lbs</span>
-                  </div>
-                )}
+                  </div>}
               </div>
 
               {/* DIM Filter */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="dim-filter"
-                    checked={dimFilterEnabled}
-                    onChange={(e) => setDimFilterEnabled(e.target.checked)}
-                    className="rounded border-gray-300"
-                  />
-                  <Label htmlFor="dim-filter" className="text-sm font-medium">
-                    DIM Filter (L×W×H)
-                  </Label>
+                  <input type="checkbox" id="dim-filter" checked={dimFilterEnabled} onChange={e => setDimFilterEnabled(e.target.checked)} className="rounded border-gray-300" />
+                  <Label htmlFor="dim-filter" className="text-sm font-medium">DIM</Label>
                 </div>
                 
-                {dimFilterEnabled && (
-                  <div className="flex items-center gap-2 pl-6 space-x-2">
+                {dimFilterEnabled && <div className="flex items-center gap-2 pl-6 space-x-2">
                     <Label className="text-sm whitespace-nowrap">DIM</Label>
                     <Select value={dimOperator} onValueChange={(value: 'under' | 'over' | 'equal') => setDimOperator(value)}>
                       <SelectTrigger className="w-20">
@@ -319,17 +257,9 @@ export function SelectiveReanalysisModal({
                         <SelectItem value="equal">Equal</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input
-                      type="number"
-                      value={dimValue}
-                      onChange={(e) => setDimValue(parseFloat(e.target.value) || 0)}
-                      className="w-20"
-                      min="0"
-                      step="1"
-                    />
+                    <Input type="number" value={dimValue} onChange={e => setDimValue(parseFloat(e.target.value) || 0)} className="w-20" min="0" step="1" />
                     <span className="text-sm text-muted-foreground whitespace-nowrap">in³</span>
-                  </div>
-                )}
+                  </div>}
               </div>
             </div>
           </div>
@@ -341,34 +271,23 @@ export function SelectiveReanalysisModal({
 
 
           {/* Current Services Preview */}
-          {currentServices.length > 0 && (
-            <div>
+          {currentServices.length > 0 && <div>
               <Label className="text-sm font-medium">Available Current Services:</Label>
               <div className="flex flex-wrap gap-2 mt-2">
-                {currentServices.slice(0, 8).map((service, index) => (
-                  <Badge key={index} variant="outline" className="text-xs">
+                {currentServices.slice(0, 8).map((service, index) => <Badge key={index} variant="outline" className="text-xs">
                     {service}
-                  </Badge>
-                ))}
-                {currentServices.length > 8 && (
-                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                  </Badge>)}
+                {currentServices.length > 8 && <Badge variant="outline" className="text-xs text-muted-foreground">
                     +{currentServices.length - 8} more...
-                  </Badge>
-                )}
+                  </Badge>}
               </div>
-            </div>
-          )}
+            </div>}
 
           {/* Corrections List */}
-          {corrections.length > 0 && (
-            <div className="space-y-2">
+          {corrections.length > 0 && <div className="space-y-2">
               <Label className="text-sm font-medium">Pending Corrections:</Label>
               <div className="space-y-2 max-h-32 overflow-y-auto">
-                 {corrections.map((correction, index) => (
-                   <div
-                     key={index}
-                     className="bg-muted/30 p-3 rounded-md space-y-3"
-                   >
+                 {corrections.map((correction, index) => <div key={index} className="bg-muted/30 p-3 rounded-md space-y-3">
                      <div className="flex items-center justify-between">
                        <div className="flex items-center gap-2 text-sm">
                          <span className="font-mono bg-muted px-2 py-1 rounded">
@@ -382,109 +301,85 @@ export function SelectiveReanalysisModal({
                            {correction.affectedCount} shipments
                          </Badge>
                        </div>
-                       <Button
-                         size="sm"
-                         variant="ghost"
-                         onClick={() => handleRemoveCorrection(index)}
-                         className="h-8 w-8 p-0"
-                       >
+                       <Button size="sm" variant="ghost" onClick={() => handleRemoveCorrection(index)} className="h-8 w-8 p-0">
                          ×
                        </Button>
                      </div>
                       
                        {/* Weight filter info */}
-                       {correction.weightFilter && (
-                         <div className="flex items-center gap-2">
+                       {correction.weightFilter && <div className="flex items-center gap-2">
                            <Label className="text-xs text-muted-foreground">Weight Filter:</Label>
                            <Badge variant="outline" className="text-xs">
                              {correction.weightFilter.operator} {correction.weightFilter.value}lbs
                            </Badge>
-                         </div>
-                       )}
+                         </div>}
                        
                        {/* DIM filter info */}
-                       {correction.dimFilter && (
-                         <div className="flex items-center gap-2">
+                       {correction.dimFilter && <div className="flex items-center gap-2">
                            <Label className="text-xs text-muted-foreground">DIM Filter:</Label>
                            <Badge variant="outline" className="text-xs">
                              {correction.dimFilter.operator} {correction.dimFilter.value} cubic inches
                            </Badge>
-                         </div>
-                       )}
+                         </div>}
                        
                        {/* Account info */}
-                       {correction.accountId && (
-                         <div className="flex items-center gap-2">
+                       {correction.accountId && <div className="flex items-center gap-2">
                            <Label className="text-xs text-muted-foreground">Account:</Label>
                            <Badge variant="outline" className="text-xs">
                              Account Selected
                            </Badge>
-                         </div>
-                       )}
+                         </div>}
                        
                        {/* Residential/Commercial options for this correction */}
                        <div className="flex items-center gap-2">
                          <Label className="text-xs text-muted-foreground">Mark as:</Label>
                          <div className="flex gap-1">
-                           <Button
-                             size="sm"
-                             variant={correction.isResidential === true ? "default" : "outline"}
-                             onClick={() => {
-                               const updated = [...corrections];
-                               updated[index] = { ...correction, isResidential: true };
-                               setCorrections(updated);
-                             }}
-                             className="h-6 px-2 text-xs"
-                           >
+                           <Button size="sm" variant={correction.isResidential === true ? "default" : "outline"} onClick={() => {
+                    const updated = [...corrections];
+                    updated[index] = {
+                      ...correction,
+                      isResidential: true
+                    };
+                    setCorrections(updated);
+                  }} className="h-6 px-2 text-xs">
                              Residential
                            </Button>
-                           <Button
-                             size="sm"
-                             variant={correction.isResidential === false ? "default" : "outline"}
-                             onClick={() => {
-                               const updated = [...corrections];
-                               updated[index] = { ...correction, isResidential: false };
-                               setCorrections(updated);
-                             }}
-                             className="h-6 px-2 text-xs"
-                           >
+                           <Button size="sm" variant={correction.isResidential === false ? "default" : "outline"} onClick={() => {
+                    const updated = [...corrections];
+                    updated[index] = {
+                      ...correction,
+                      isResidential: false
+                    };
+                    setCorrections(updated);
+                  }} className="h-6 px-2 text-xs">
                              Commercial
                            </Button>
-                           <Button
-                             size="sm"
-                             variant={correction.isResidential === undefined ? "default" : "outline"}
-                             onClick={() => {
-                               const updated = [...corrections];
-                               updated[index] = { ...correction, isResidential: undefined };
-                               setCorrections(updated);
-                             }}
-                             className="h-6 px-2 text-xs"
-                           >
+                           <Button size="sm" variant={correction.isResidential === undefined ? "default" : "outline"} onClick={() => {
+                    const updated = [...corrections];
+                    updated[index] = {
+                      ...correction,
+                      isResidential: undefined
+                    };
+                    setCorrections(updated);
+                  }} className="h-6 px-2 text-xs">
                              No Change
                            </Button>
                          </div>
                        </div>
-                   </div>
-                 ))}
+                   </div>)}
               </div>
-            </div>
-          )}
+            </div>}
 
           {/* Action Buttons */}
           <div className="flex gap-2 pt-4">
             <Button variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
-            <Button 
-              onClick={handleApply} 
-              className="flex-1"
-              disabled={corrections.length === 0}
-            >
+            <Button onClick={handleApply} className="flex-1" disabled={corrections.length === 0}>
               Apply & Re-analyze ({corrections.reduce((sum, c) => sum + c.affectedCount, 0)} shipments)
             </Button>
           </div>
         </div>
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>;
 }

@@ -979,12 +979,23 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         formattedShipmentData = data.processed_shipments;
       } else {
         console.log('🔍 No saved processed_shipments found, formatting from recommendations');
+        console.log('🔍 Data for formatShipmentData:', {
+          recommendationsCount: processedData.recommendations?.length || 0,
+          loadedRatesCount: loadedRates?.length || 0,
+          bestAccount: processedData.bestAccount,
+          sampleRecommendation: processedData.recommendations?.[0]
+        });
         // Fall back to formatting from recommendations if no saved data
         formattedShipmentData = formatShipmentData(
           processedData.recommendations || [], 
           loadedRates || shipmentRates, 
           processedData.bestAccount
         );
+        console.log('📊 Formatted shipment data:', {
+          count: formattedShipmentData.length,
+          sampleShipment: formattedShipmentData[0],
+          services: [...new Set(formattedShipmentData.map(s => s.bestService || s.newService || s.service))]
+        });
       }
       setShipmentData(formattedShipmentData);
       setOrphanedData(processedData.orphanedShipments || []);
@@ -1600,18 +1611,32 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       rate.shipment_data?.trackingId === trackingId
     );
 
-    if (shipmentRatesList.length === 0) return shipment.service;
+    if (shipmentRatesList.length === 0) {
+      console.log(`❌ No rates found for shipment ${trackingId}`);
+      return shipment.service;
+    }
 
     // Get the account that was selected for this shipment (from the optimization)
     const selectedAccount = shipment.account || shipment.accountName;
+    
+    console.log(`🔍 Getting optimized service for ${trackingId}:`, {
+      selectedAccount,
+      availableRates: shipmentRatesList.length,
+      sampleRate: shipmentRatesList[0],
+      shipmentBestService: shipment.bestService,
+      shipmentNewService: shipment.newService
+    });
     
     // Find the rate for the selected account
     const optimizedRate = shipmentRatesList.find(rate => 
       rate.account_name === selectedAccount
     );
 
+    const result = optimizedRate?.service_name || shipmentRatesList[0]?.service_name || shipment.bestService || shipment.newService || shipment.service;
+    console.log(`📊 Final service for ${trackingId}: ${result}`);
+    
     // Return the service name from the optimized rate, or fall back to the first available rate
-    return optimizedRate?.service_name || shipmentRatesList[0]?.service_name || shipment.service;
+    return result;
   };
 
   const generateServiceCostData = () => {

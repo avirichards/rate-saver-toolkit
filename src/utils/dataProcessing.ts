@@ -74,7 +74,16 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
 
 // Helper function to determine best overall account
 const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
-  if (!shipmentRates || shipmentRates.length === 0) return null;
+  if (!shipmentRates || shipmentRates.length === 0) {
+    console.log('❌ No shipment rates provided to determineBestOverallAccount');
+    return null;
+  }
+  
+  console.log('🔍 Determining best account from rates:', {
+    totalRates: shipmentRates.length,
+    uniqueAccounts: [...new Set(shipmentRates.map(r => r.account_name))],
+    sampleRate: shipmentRates[0]
+  });
   
   // Group rates by account and calculate total metrics
   const accountMetrics = shipmentRates.reduce((acc: any, rate: any) => {
@@ -94,6 +103,8 @@ const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
     
     return acc;
   }, {});
+  
+  console.log('📊 Account metrics:', accountMetrics);
   
   // Find best account based on total savings potential
   let bestAccount = null;
@@ -197,6 +208,14 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       const bestAccountRate = shipmentRates.find(rate => 
         rate.account_name === bestAccount && rate.shipment_data?.trackingId === rec.trackingId
       );
+      
+      console.log(`🔍 Finding rate for shipment ${rec.trackingId}:`, {
+        bestAccount,
+        availableRates: shipmentRates.filter(rate => rate.shipment_data?.trackingId === rec.trackingId).length,
+        foundRate: !!bestAccountRate,
+        rateServiceName: bestAccountRate?.service_name,
+        rateServiceCode: bestAccountRate?.service_code
+      });
       
       if (bestAccountRate) {
         newRate = bestAccountRate.rate_amount || 0;

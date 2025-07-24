@@ -241,7 +241,9 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       currentRate,
       newRate,
       savings: calculatedSavings || 0,
-      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0
+      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0,
+      account: bestAccount || undefined,
+      accountName: bestAccount || undefined
     };
   });
 };

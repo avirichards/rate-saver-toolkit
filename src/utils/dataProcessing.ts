@@ -277,9 +277,9 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       originZip: rec.shipment?.originZip || rec.originZip || '',
       destinationZip: rec.shipment?.destZip || rec.destinationZip || '',
       weight: parseFloat(rec.shipment?.weight || rec.weight || '0'),
-      length: parseFloat(rec.shipment?.length || rec.length || '12'),
-      width: parseFloat(rec.shipment?.width || rec.width || '12'),
-      height: parseFloat(rec.shipment?.height || rec.height || '6'),
+      length: parseFloat(rec.shipment?.length || rec.length || '0'),
+      width: parseFloat(rec.shipment?.width || rec.width || '0'),
+      height: parseFloat(rec.shipment?.height || rec.height || '0'),
       dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
       service: shipProsService, // This is the "Ship Pros Service Type" column

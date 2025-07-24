@@ -18,8 +18,8 @@ interface ReanalysisShipment {
 }
 
 interface ServiceMappingCorrection {
-  from: string;
-  to: string;
+  from: string[];
+  to: string[];
   affectedCount: number;
   isResidential?: boolean;
   accountId?: string;
@@ -234,10 +234,15 @@ export function useSelectiveReanalysis() {
       
       corrections.forEach(correction => {
         const currentService = updatedShipment.service || updatedShipment.originalService || '';
-        if (currentService === correction.from) {
+        
+        // Check if current service matches any of the "from" services
+        if (correction.from.includes(currentService)) {
+          // For now, use the first "to" service. In the future, we could implement logic to choose the best match
+          const targetService = correction.to[0] || 'UPS Ground';
+          
           // Update the Ship Pros service (newService), NOT the current service
-          updatedShipment.newService = correction.to;
-          updatedShipment.bestService = correction.to; // Also update bestService for consistency
+          updatedShipment.newService = targetService;
+          updatedShipment.bestService = targetService; // Also update bestService for consistency
           updatedShipment.corrected = true;
           
           // Apply residential status if specified in the correction

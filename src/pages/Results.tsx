@@ -2708,9 +2708,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              </Badge>
                            </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="text-xs text-primary">
-                                {item.bestService || item.newService || 'UPS Ground'}
-                              </Badge>
+                               <Badge variant="outline" className="text-xs text-primary">
+                                 {item.service || item.newService || 'UPS Ground'}
+                               </Badge>
                              </TableCell>
                             <TableCell className="text-right font-medium text-foreground">
                               {formatCurrency(item.currentRate)}

@@ -5,7 +5,6 @@ import { formatCurrency } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { mapServiceToServiceCode } from '@/utils/serviceMapping';
 
 interface ShipmentRate {
   id: string;
@@ -32,7 +31,6 @@ interface ProcessedShipmentData {
   savings: number;
   service: string;
   weight: number;
-  carrier?: string;
   account?: string;
   accountName?: string;
 }
@@ -48,11 +46,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   shipmentData,
   onOptimizationChange
 }) => {
-  // Get a stable key for localStorage that doesn't change between renders
-  const analysisId = new URLSearchParams(window.location.search).get('analysisId') || 'default';
-  const storageKey = `accountSelections_${analysisId}`;
-  
-  // State for tracking selected accounts per service with persistence
+  // State for tracking selected accounts per service
   const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>({});
   
   // Ref to track if user has made manual selections
@@ -63,21 +57,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   const availableAccounts = useMemo(() => {
     return [...new Set(shipmentRates.map(rate => rate.account_name))];
   }, [shipmentRates]);
-
-  // Load saved selections on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) {
-        const savedSelections = JSON.parse(saved);
-        setSelectedAccounts(savedSelections);
-        hasUserSelections.current = true;
-        console.log('📁 Loaded saved account selections:', savedSelections);
-      }
-    } catch (error) {
-      console.warn('Failed to load saved account selections:', error);
-    }
-  }, [storageKey]);
 
   // Debug logging
   console.log('AccountComparisonView data:', {
@@ -97,13 +76,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     };
     setSelectedAccounts(newSelections);
     
-    // Save to localStorage for persistence
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(newSelections));
-    } catch (error) {
-      console.warn('Failed to save account selections:', error);
-    }
-    
     // Auto-apply optimization immediately
     if (onOptimizationChange) {
       onOptimizationChange(newSelections);
@@ -114,22 +86,17 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   const handleSelectAccountForAll = (accountName: string) => {
     hasUserSelections.current = true; // Mark that user has made selections
     const newSelections: Record<string, string> = {};
-    
-    // Force selection for ALL services, regardless of whether account has quotes
     serviceBreakdowns.forEach(service => {
-      newSelections[service.serviceName] = accountName;
+      // Only set if this account has quotes for this service
+      const hasAccountForService = service.accounts.some(acc => acc.accountName === accountName);
+      if (hasAccountForService) {
+        newSelections[service.serviceName] = accountName;
+      } else {
+        // Keep existing selection if account doesn't support this service
+        newSelections[service.serviceName] = selectedAccounts[service.serviceName] || service.accounts[0]?.accountName;
+      }
     });
-    
-    console.log('🎯 Selecting account for all services:', { accountName, newSelections });
     setSelectedAccounts(newSelections);
-    
-    // Save to localStorage for persistence
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(newSelections));
-      console.log('💾 Saved account selections to localStorage');
-    } catch (error) {
-      console.warn('Failed to save account selections:', error);
-    }
     
     // Auto-apply optimization immediately
     if (onOptimizationChange) {
@@ -289,113 +256,63 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     }).sort((a, b) => b.avgDollarSavings - a.avgDollarSavings); // Sort by average savings descending
   }, [shipmentRates, shipmentData]);
 
-  // Group by Ship Pros service type and calculate metrics for each service
+  // Calculate service breakdown by service type
   const serviceBreakdowns = useMemo(() => {
-    console.log('🔄 Calculating service breakdowns...');
-    
-    const breakdowns: Record<string, {
-      serviceName: string;
-      originalService: string;
-      totalShipments: number;
-      accounts: Array<{
-        accountName: string;
-        shipmentCount: number;
-        totalCost: number;
-        avgCost: number;
-        totalSavings: number;
-        avgSavings: number;
-        winRate: number;
-      }>;
-    }> = {};
+    // Get all unique services
+    const services = [...new Set([
+      ...shipmentRates.map(rate => rate.service_name || rate.service_code),
+      ...shipmentData.map(shipment => shipment.service)
+    ].filter(Boolean))];
 
-    // Group by Ship Pros services from rates, showing mapping from original
-    const serviceGroups = new Map<string, { rates: any[], originalServices: Set<string> }>();
-    
-    shipmentRates.forEach(rate => {
-      const shipProsService = rate.service_name;
-      if (!shipProsService) return;
-      
-      if (!serviceGroups.has(shipProsService)) {
-        serviceGroups.set(shipProsService, { rates: [], originalServices: new Set() });
-      }
-      
-      const group = serviceGroups.get(shipProsService)!;
-      group.rates.push(rate);
-      
-      // Find the original service from shipment data
-      const originalShipment = shipmentData.find(s => 
-        s.trackingId === rate.shipment_data?.trackingId
+    console.log('Service breakdown calculation:', { services });
+
+    return services.map(serviceName => {
+      // Get rates for this service
+      const serviceRates = shipmentRates.filter(rate => 
+        (rate.service_name === serviceName || rate.service_code === serviceName)
       );
-      if (originalShipment?.service) {
-        group.originalServices.add(originalShipment.service);
-      }
-    });
-
-    // Also include services from shipment data that don't have rates yet
-    shipmentData.forEach(shipment => {
-      if (!shipment.service) return;
       
-      // Use service mapping to determine what Ship Pros service this would map to
-      const mapping = mapServiceToServiceCode(shipment.service);
-      const shipProsService = mapping.serviceName;
-      
-      if (!serviceGroups.has(shipProsService)) {
-        serviceGroups.set(shipProsService, { rates: [], originalServices: new Set() });
-      }
-      
-      serviceGroups.get(shipProsService)!.originalServices.add(shipment.service);
-    });
+      // Get shipment data for this service  
+      const serviceShipments = shipmentData.filter(shipment => 
+        shipment.service === serviceName
+      );
 
-    serviceGroups.forEach((group, shipProsService) => {
-      const { rates, originalServices } = group;
-      const originalServicesList = Array.from(originalServices);
-      const displayOriginal = originalServicesList.length > 0 ? originalServicesList.join(', ') : shipProsService;
-      
-      console.log(`📊 Ship Pros Service: ${shipProsService}, Original: ${displayOriginal}, Rates: ${rates.length}`);
+      console.log(`Service ${serviceName}:`, {
+        serviceRatesCount: serviceRates.length,
+        serviceShipmentsCount: serviceShipments.length,
+        sampleRate: serviceRates[0],
+        sampleShipment: serviceShipments[0]
+      });
 
-      if (rates.length > 0) {
-        // Group rates by account
-        const accountGroups = rates.reduce((groups, rate) => {
-          const accountName = rate.account_name || 'Unknown';
-          if (!groups[accountName]) {
-            groups[accountName] = [];
-          }
-          groups[accountName].push(rate);
-          return groups;
-        }, {} as Record<string, typeof rates>);
-
-        // Calculate metrics for each account
-        const accounts = Object.entries(accountGroups).map(([accountName, accountRates]: [string, any[]]) => {
+      // Group by account for this service
+      const accountPerformance = [...new Set(serviceRates.map(rate => rate.account_name))]
+        .map(accountName => {
+          const accountRates = serviceRates.filter(rate => rate.account_name === accountName);
+          
+          // Calculate metrics based on rates (simpler approach)
           const totalCost = accountRates.reduce((sum, rate) => sum + (rate.rate_amount || 0), 0);
-          
-          // Find corresponding shipment data to calculate savings
-          const shipmentSavings = accountRates.map(rate => {
-            const shipment = shipmentData.find(s => 
-              s.trackingId === rate.shipment_data?.trackingId
-            );
-            return shipment?.savings || 0;
-          });
-          
-          const totalSavings = shipmentSavings.reduce((sum, savings) => sum + savings, 0);
-          const avgSavings = shipmentSavings.length > 0 ? totalSavings / shipmentSavings.length : 0;
           const avgCost = accountRates.length > 0 ? totalCost / accountRates.length : 0;
           
-          // Calculate win rate (percentage of times this account had the lowest rate)
-          const wins = accountRates.filter(rate => {
+          // Calculate savings by comparing rates to current shipment costs
+          let totalSavings = 0;
+          let winCount = 0;
+          
+          accountRates.forEach(rate => {
+            // Find the corresponding shipment data by tracking ID
             const trackingId = rate.shipment_data?.trackingId;
-            if (!trackingId) return false;
-            
-            const allRatesForShipment = rates.filter(r => 
-              r.shipment_data?.trackingId === trackingId
+            const correspondingShipment = serviceShipments.find(shipment => 
+              shipment.trackingId === trackingId
             );
             
-            if (allRatesForShipment.length <= 1) return true;
-            
-            const minCost = Math.min(...allRatesForShipment.map(r => r.rate_amount || Infinity));
-            return (rate.rate_amount || Infinity) === minCost;
-          }).length;
+            if (correspondingShipment) {
+              const savings = correspondingShipment.currentRate - rate.rate_amount;
+              totalSavings += savings;
+              if (savings > 0) winCount++;
+            }
+          });
           
-          const winRate = accountRates.length > 0 ? (wins / accountRates.length) * 100 : 0;
+          const avgSavings = accountRates.length > 0 ? totalSavings / accountRates.length : 0;
+          const winRate = accountRates.length > 0 ? (winCount / accountRates.length) * 100 : 0;
 
           return {
             accountName,
@@ -406,80 +323,22 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
             avgSavings,
             winRate
           };
-        });
+        })
+        .filter(account => account.shipmentCount > 0)
+        .sort((a, b) => b.avgSavings - a.avgSavings);
 
-        breakdowns[shipProsService] = {
-          serviceName: shipProsService,
-          originalService: displayOriginal,
-          totalShipments: rates.length,
-          accounts: accounts.sort((a, b) => b.avgSavings - a.avgSavings)
-        };
-      } else {
-        // Handle services with shipment data but no rates
-        const serviceShipments = shipmentData.filter(shipment => {
-          const mapping = mapServiceToServiceCode(shipment.service || '');
-          return mapping.serviceName === shipProsService;
-        });
-
-        if (serviceShipments.length > 0) {
-          const accountGroups = serviceShipments.reduce((groups, shipment) => {
-            let accountName = shipment.accountName || shipment.account;
-            
-            if (!accountName && shipment.trackingId) {
-              const matchingRate = shipmentRates.find(rate => 
-                rate.shipment_data?.trackingId === shipment.trackingId
-              );
-              if (matchingRate) {
-                accountName = matchingRate.account_name;
-              }
-            }
-            
-            if (!accountName) {
-              accountName = 'Unknown Account';
-            }
-            
-            if (!groups[accountName]) {
-              groups[accountName] = [];
-            }
-            groups[accountName].push(shipment);
-            return groups;
-          }, {} as Record<string, typeof serviceShipments>);
-
-          const accounts = Object.entries(accountGroups).map(([accountName, shipments]) => {
-            const totalCost = shipments.reduce((sum, shipment) => sum + (shipment.currentRate || 0), 0);
-            const totalSavings = shipments.reduce((sum, shipment) => sum + (shipment.savings || 0), 0);
-            const avgSavings = shipments.length > 0 ? totalSavings / shipments.length : 0;
-            const avgCost = shipments.length > 0 ? totalCost / shipments.length : 0;
-            
-            return {
-              accountName,
-              shipmentCount: shipments.length,
-              totalCost,
-              avgCost,
-              totalSavings,
-              avgSavings,
-              winRate: 100
-            };
-          });
-
-          breakdowns[shipProsService] = {
-            serviceName: shipProsService,
-            originalService: displayOriginal,
-            totalShipments: serviceShipments.length,
-            accounts
-          };
-        }
-      }
-    });
-
-    console.log('📊 Final service breakdowns:', Object.keys(breakdowns));
-    return Object.values(breakdowns).filter(service => service.totalShipments > 0);
+      return {
+        serviceName,
+        totalShipments: serviceRates.length,
+        accounts: accountPerformance
+      };
+    }).filter(service => service.totalShipments > 0);
   }, [shipmentRates, shipmentData]);
 
   // Initialize selected accounts with best performing account for each service
   useEffect(() => {
-    // Only initialize if we haven't initialized yet, user hasn't made selections, and no saved selections exist
-    if (serviceBreakdowns.length > 0 && !isInitialized.current && !hasUserSelections.current && Object.keys(selectedAccounts).length === 0) {
+    // Only initialize if we haven't initialized yet and user hasn't made selections
+    if (serviceBreakdowns.length > 0 && !isInitialized.current && !hasUserSelections.current) {
       const initialSelections: Record<string, string> = {};
       serviceBreakdowns.forEach(service => {
         // Check if shipments in this service have been optimized (have account property)
@@ -506,13 +365,10 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         }
       });
       
-      if (Object.keys(initialSelections).length > 0) {
-        setSelectedAccounts(initialSelections);
-        console.log('🎯 Auto-initialized account selections:', initialSelections);
-      }
+      setSelectedAccounts(initialSelections);
       isInitialized.current = true;
     }
-  }, [serviceBreakdowns, shipmentData, selectedAccounts]);
+  }, [serviceBreakdowns, shipmentData]);
 
   // Calculate optimized metrics based on current selections
   const optimizedMetrics = useMemo(() => {
@@ -728,21 +584,11 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           {serviceBreakdowns.map((service) => (
             <Card key={service.serviceName} className="p-4">
               <CardHeader className="pb-4">
-                 <div className="flex justify-between items-start">
-                   <div>
-                     <CardTitle className="text-base font-semibold">
-                       {service.originalService !== service.serviceName ? (
-                         <>
-                           <span className="text-muted-foreground">{service.originalService}</span>
-                           <span className="mx-2">➡︎</span>
-                           <span>{service.serviceName}</span>
-                         </>
-                       ) : (
-                         service.serviceName
-                       )}
-                     </CardTitle>
-                     <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
-                   </div>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-base font-semibold">{service.serviceName}</CardTitle>
+                    <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
+                  </div>
                   <div className="flex flex-col items-end gap-2">
                     <label className="text-xs text-muted-foreground">Use Account:</label>
                     <Select

@@ -986,44 +986,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           processedData.bestAccount
         );
       }
-      
-      // Apply saved Account Comparison selections if they exist
-      const analysisKey = data.id;
-      const savedSelections = localStorage.getItem(`accountSelections_${analysisKey}`);
-      if (savedSelections) {
-        try {
-          const selections = JSON.parse(savedSelections);
-          console.log('🔄 Applying saved account selections to initial data:', selections);
-          
-          // Apply the saved selections to optimize the shipment data
-          formattedShipmentData = formattedShipmentData.map(shipment => {
-            const selectedAccount = selections[shipment.service];
-            if (selectedAccount && loadedRates) {
-              // Find the rate for this shipment with the selected account
-              const optimizedRate = loadedRates.find(rate => 
-                rate.account_name === selectedAccount &&
-                rate.service_name === shipment.service &&
-                (rate.shipment_data as any)?.trackingId === shipment.trackingId
-              );
-              
-              if (optimizedRate) {
-                const newSavings = shipment.currentRate - optimizedRate.rate_amount;
-                return {
-                  ...shipment,
-                  newRate: optimizedRate.rate_amount,
-                  savings: newSavings,
-                  account: selectedAccount,
-                  accountName: selectedAccount
-                };
-              }
-            }
-            return shipment;
-          });
-        } catch (error) {
-          console.error('Error applying saved account selections:', error);
-        }
-      }
-      
       setShipmentData(formattedShipmentData);
       setOrphanedData(processedData.orphanedShipments || []);
       
@@ -2487,41 +2449,24 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               shipmentRates={shipmentRates}
               shipmentData={shipmentData}
               onOptimizationChange={(selections) => {
-                console.log('🔄 Applying optimization selections:', selections);
+                console.log('Applying optimization selections:', selections);
                 
                 // Apply the optimization by updating shipment data with selected accounts
                 const optimizedShipmentData = shipmentData.map(shipment => {
                   const selectedAccount = selections[shipment.service];
                   if (selectedAccount) {
-                    console.log('🔍 Looking for rate:', {
-                      selectedAccount,
-                      service: shipment.service,
-                      trackingId: shipment.trackingId,
-                      availableRates: shipmentRates
-                        .filter(r => r.shipment_data?.trackingId === shipment.trackingId)
-                        .map(r => ({ 
-                          account: r.account_name, 
-                          service: r.service_name,
-                          amount: r.rate_amount 
-                        }))
-                    });
-                    
                     // Find the rate for this shipment with the selected account
-                    // Need to match by mapped service since shipment.service is now the UPS service name
                     const optimizedRate = shipmentRates.find(rate => 
                       rate.account_name === selectedAccount &&
                       rate.service_name === shipment.service &&
                       rate.shipment_data?.trackingId === shipment.trackingId
                     );
                     
-                    console.log('🎯 Optimized rate found:', optimizedRate ? 'YES' : 'NO', optimizedRate);
-                    
-                    const rateToUse = optimizedRate;
-                    if (rateToUse) {
-                      const newSavings = shipment.currentRate - rateToUse.rate_amount;
+                    if (optimizedRate) {
+                      const newSavings = shipment.currentRate - optimizedRate.rate_amount;
                       const optimizedShipment = {
                         ...shipment,
-                        newRate: rateToUse.rate_amount,
+                        newRate: optimizedRate.rate_amount,
                         savings: newSavings,
                         account: selectedAccount,
                         // Also update accountName for consistency

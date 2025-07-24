@@ -99,6 +99,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [serviceNotes, setServiceNotes] = useState<Record<string, string>>({});
+  const [accountNames, setAccountNames] = useState<Record<string, string>>({});
   const hasTriedAutoSave = useRef(false);
   
   // Selective re-analysis state
@@ -279,6 +280,36 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         return acc;
       }, {} as Record<string, string>);
       setServiceNotes(notesMap);
+    }
+  };
+
+  // Load account names for carrier configs
+  const loadAccountNames = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Get all unique account IDs from shipment data
+    const accountIds = new Set<string>();
+    shipmentData.forEach(shipment => {
+      if (shipment.accountId) {
+        accountIds.add(shipment.accountId);
+      }
+    });
+
+    if (accountIds.size === 0) return;
+
+    const { data } = await supabase
+      .from('carrier_configs')
+      .select('id, account_name')
+      .eq('user_id', user.id)
+      .in('id', Array.from(accountIds));
+
+    if (data) {
+      const namesMap = data.reduce((acc, config) => {
+        acc[config.id] = config.account_name;
+        return acc;
+      }, {} as Record<string, string>);
+      setAccountNames(namesMap);
     }
   };
 
@@ -846,6 +877,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       loadShipmentRates(currentAnalysisId);
     }
   }, [currentAnalysisId]);
+
+  // Load account names when shipment data changes
+  useEffect(() => {
+    if (shipmentData.length > 0) {
+      loadAccountNames();
+    }
+  }, [shipmentData]);
 
   const loadFromDatabase = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -2172,13 +2210,19 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                  </TableCell>
                                  <TableCell>
                                    {(() => {
-                                     // Get all accounts used for this service
-                                     const serviceShipments = shipmentData.filter(item => item.service === service);
-                                     const accountCounts = serviceShipments.reduce((acc, item) => {
-                                       const account = item.account || item.accountName || analysisData?.bestAccount || 'Best Overall';
-                                       acc[account] = (acc[account] || 0) + 1;
-                                       return acc;
-                                     }, {} as Record<string, number>);
+                                      // Get all accounts used for this service
+                                      const serviceShipments = shipmentData.filter(item => item.service === service);
+                                      const accountCounts = serviceShipments.reduce((acc, item) => {
+                                         // Use the same account resolution logic as the Shipment Data tab
+                                         const account = item.account || 
+                                                        item.analyzedWithAccount || 
+                                                        (item.accountId ? accountNames[item.accountId] : null) ||
+                                                        item.accountName || 
+                                                        analysisData?.bestAccount || 
+                                                        'Best Overall';
+                                        acc[account] = (acc[account] || 0) + 1;
+                                        return acc;
+                                      }, {} as Record<string, number>);
                                      
                                      const accounts = Object.entries(accountCounts);
                                      

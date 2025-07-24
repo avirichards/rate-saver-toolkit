@@ -4,7 +4,7 @@ import { useLocation, useParams, useSearchParams, Link } from 'react-router-dom'
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { ClientLayout } from '@/components/layout/ClientLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import * as AccordionComponents from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home, Calculator } from 'lucide-react';
@@ -1879,24 +1879,24 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         {/* Markup Configuration - Hidden in client view */}
         {!isClientView && (
           <div className="mb-8">
-            <Accordion type="single" collapsible className="w-full">
-              <AccordionItem value="markup" className="border rounded-lg">
-                <AccordionTrigger className="px-4 py-3 hover:no-underline">
+            <AccordionComponents.Accordion type="single" collapsible className="w-full">
+              <AccordionComponents.AccordionItem value="markup" className="border rounded-lg">
+                <AccordionComponents.AccordionTrigger className="px-4 py-3 hover:no-underline">
                   <div className="flex items-center gap-2">
                     <Calculator className="h-4 w-4" />
                     <span className="font-medium">Markup Configuration</span>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 pb-4">
+                </AccordionComponents.AccordionTrigger>
+                <AccordionComponents.AccordionContent className="px-4 pb-4">
                   <MarkupConfiguration
                     shipmentData={shipmentData}
                     analysisId={currentAnalysisId}
                     onMarkupChange={setMarkupData}
                     initialMarkupData={markupData}
                   />
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
+                </AccordionComponents.AccordionContent>
+              </AccordionComponents.AccordionItem>
+            </AccordionComponents.Accordion>
           </div>
         )}
 

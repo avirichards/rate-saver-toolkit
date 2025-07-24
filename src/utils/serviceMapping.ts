@@ -106,17 +106,45 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
     };
   }
 
-  // Express patterns (international)
-  if (service.includes('express')) {
+  // FedEx specific mappings (check before general patterns)
+  if (service.includes('fedex')) {
+    if (service.includes('express saver') || service.includes('express_saver')) {
+      return {
+        standardizedService: 'Next Day Air',
+        serviceCode: '01',
+        serviceName: 'UPS Next Day Air',
+        confidence: 0.9
+      };
+    }
+    if (service.includes('overnight') || service.includes('priority overnight')) {
+      return {
+        standardizedService: 'Next Day Air',
+        serviceCode: '01',
+        serviceName: 'UPS Next Day Air',
+        confidence: 0.85
+      };
+    }
+    if (service.includes('2day') || service.includes('2 day')) {
+      return {
+        standardizedService: '2nd Day Air',
+        serviceCode: '02',
+        serviceName: 'UPS 2nd Day Air',
+        confidence: 0.85
+      };
+    }
+  }
+
+  // Express Saver patterns (check before general express)
+  if (service.includes('express saver') || service.includes('express_saver')) {
     return {
-      standardizedService: 'Worldwide Express',
-      serviceCode: '07',
-      serviceName: 'UPS Worldwide Express',
-      confidence: 0.8
+      standardizedService: 'Next Day Air',
+      serviceCode: '01',
+      serviceName: 'UPS Next Day Air',
+      confidence: 0.9
     };
   }
 
-  // Saver patterns (international)
+  // Saver patterns (international - check before general express)
   if (service.includes('saver') && (service.includes('worldwide') || service.includes('international'))) {
     return {
       standardizedService: 'Worldwide Saver',
@@ -136,24 +164,14 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
     };
   }
 
-  // FedEx specific mappings
-  if (service.includes('fedex')) {
-    if (service.includes('overnight') || service.includes('priority overnight')) {
-      return {
-        standardizedService: 'Next Day Air',
-        serviceCode: '01',
-        serviceName: 'UPS Next Day Air',
-        confidence: 0.85
-      };
-    }
-    if (service.includes('2day') || service.includes('2 day')) {
-      return {
-        standardizedService: '2nd Day Air',
-        serviceCode: '02',
-        serviceName: 'UPS 2nd Day Air',
-        confidence: 0.85
-      };
-    }
+  // Express patterns (international - now after more specific patterns)
+  if (service.includes('express')) {
+    return {
+      standardizedService: 'Worldwide Express',
+      serviceCode: '07',
+      serviceName: 'UPS Worldwide Express',
+      confidence: 0.8
+    };
   }
 
   // Default to Ground with low confidence

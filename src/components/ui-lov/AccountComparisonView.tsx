@@ -521,11 +521,12 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                   {service.accounts.map((account) => (
                     <div 
                       key={account.accountName} 
-                      className={`border rounded-lg p-3 transition-all ${
+                      className={`border rounded-lg p-3 transition-all cursor-pointer hover:shadow-md ${
                         selectedAccounts[service.serviceName] === account.accountName
-                          ? 'bg-primary/10 border-primary/50'
-                          : 'bg-muted/20'
+                          ? 'bg-primary/10 border-primary/50 ring-2 ring-primary/30'
+                          : 'bg-muted/20 hover:bg-muted/30'
                       }`}
+                      onClick={() => handleAccountSelection(service.serviceName, account.accountName)}
                     >
                       <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
                         {account.accountName}

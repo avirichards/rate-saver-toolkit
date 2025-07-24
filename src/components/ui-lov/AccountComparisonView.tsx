@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { SummaryStats } from './SummaryStats';
 import { Card, CardContent, CardHeader, CardTitle } from './Card';
 import { formatCurrency } from '@/lib/utils';
@@ -49,6 +49,10 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   // State for tracking selected accounts per service
   const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>({});
   
+  // Ref to track if user has made manual selections
+  const hasUserSelections = useRef(false);
+  const isInitialized = useRef(false);
+  
   // Get all unique accounts for dropdown options
   const availableAccounts = useMemo(() => {
     return [...new Set(shipmentRates.map(rate => rate.account_name))];
@@ -65,6 +69,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   
   // Handle account selection for a service
   const handleAccountSelection = (serviceName: string, accountName: string) => {
+    hasUserSelections.current = true; // Mark that user has made selections
     const newSelections = {
       ...selectedAccounts,
       [serviceName]: accountName
@@ -79,6 +84,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
   // Handle selecting an account for all services
   const handleSelectAccountForAll = (accountName: string) => {
+    hasUserSelections.current = true; // Mark that user has made selections
     const newSelections: Record<string, string> = {};
     serviceBreakdowns.forEach(service => {
       // Only set if this account has quotes for this service
@@ -331,7 +337,8 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
   // Initialize selected accounts with best performing account for each service
   useEffect(() => {
-    if (serviceBreakdowns.length > 0) {
+    // Only initialize if we haven't initialized yet and user hasn't made selections
+    if (serviceBreakdowns.length > 0 && !isInitialized.current && !hasUserSelections.current) {
       const initialSelections: Record<string, string> = {};
       serviceBreakdowns.forEach(service => {
         // Check if shipments in this service have been optimized (have account property)
@@ -357,7 +364,9 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           initialSelections[service.serviceName] = service.accounts[0].accountName;
         }
       });
+      
       setSelectedAccounts(initialSelections);
+      isInitialized.current = true;
     }
   }, [serviceBreakdowns, shipmentData]);
 

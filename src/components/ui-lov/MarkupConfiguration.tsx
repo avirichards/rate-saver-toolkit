@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Percent, DollarSign, TrendingUp, Globe, Settings } from 'lucide-react';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 export interface MarkupData {
   markupType: 'global' | 'per-service';
   globalMarkup: number;
@@ -33,7 +32,6 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
   const [markupType, setMarkupType] = useState<'global' | 'per-service'>('global');
   const [globalMarkup, setGlobalMarkup] = useState(0.0);
   const [perServiceMarkup, setPerServiceMarkup] = useState<Record<string, number>>({});
-  const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Get unique services from shipment data
@@ -99,10 +97,10 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
     };
   }, [shipmentData, markupType, globalMarkup, perServiceMarkup]);
 
-  // Debounced save to database
+  // Silent save to database (no notifications)
   const saveMarkupData = useCallback(async (markupData: MarkupData) => {
     if (!analysisId) return;
-    setIsSaving(true);
+    
     try {
       // First, get the current analysis to recalculate total savings with new markup
       const {
@@ -165,12 +163,6 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
           updatedAt: new Date().toISOString()
         };
       }
-      console.log('🔄 MARKUP CHANGED: Updating database with recalculated savings:', {
-        oldTotal: currentAnalysis?.total_savings,
-        newTotal: newTotalSavings,
-        savingsPercentage: updatedSavingsAnalysis.savingsPercentage,
-        markupData
-      });
 
       // Update markup_data with the calculated savings values that match Results page
       const updatedMarkupData = {
@@ -178,30 +170,19 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
         savingsAmount: newTotalSavings,
         savingsPercentage: updatedSavingsAnalysis.savingsPercentage
       };
-      const {
-        error
-      } = await supabase.from('shipping_analyses').update({
+      
+      const { error } = await supabase.from('shipping_analyses').update({
         markup_data: updatedMarkupData as any,
         total_savings: newTotalSavings,
         savings_analysis: updatedSavingsAnalysis as any,
         updated_at: new Date().toISOString()
       }).eq('id', analysisId);
-      if (error) {
-        console.error('Error saving markup data:', error);
-        toast.error('Failed to save markup configuration');
-      } else {
-        console.log('✅ MARKUP SAVED: Database updated successfully');
-        // Only show success toast if there were unsaved changes
-        if (hasUnsavedChanges) {
-          toast.success('Markup configuration saved');
-        }
+      
+      if (!error) {
         setHasUnsavedChanges(false);
       }
     } catch (error) {
       console.error('Error saving markup data:', error);
-      toast.error('Failed to save markup configuration');
-    } finally {
-      setIsSaving(false);
     }
   }, [analysisId, hasUnsavedChanges]);
 
@@ -345,11 +326,6 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
                   <span className="font-medium text-orange-500">{formatPercentage(markupData.marginPercentage)}</span>
                 </div>
               </div>
-
-              {isSaving && <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="animate-pulse w-2 h-2 bg-primary rounded-full"></div>
-                  Auto-saving...
-                </div>}
             </div>
           </div>
         </div>

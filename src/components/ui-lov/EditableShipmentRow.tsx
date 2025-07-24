@@ -181,7 +181,7 @@ export function EditableShipmentRow({
         {editMode ? (
           <div className="flex items-center gap-0.5 text-xs w-24">
             <InlineEditableField
-              value={getDisplayValue('length') || '12'}
+              value={getDisplayValue('length')}
               onSave={(value) => handleFieldSave('length', value)}
               placeholder="L"
               className="w-7 text-xs p-1 h-6"
@@ -190,7 +190,7 @@ export function EditableShipmentRow({
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
-              value={getDisplayValue('width') || '12'}
+              value={getDisplayValue('width')}
               onSave={(value) => handleFieldSave('width', value)}
               placeholder="W"
               className="w-7 text-xs p-1 h-6"
@@ -199,7 +199,7 @@ export function EditableShipmentRow({
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
-              value={getDisplayValue('height') || '6'}
+              value={getDisplayValue('height')}
               onSave={(value) => handleFieldSave('height', value)}
               placeholder="H"
               className="w-7 text-xs p-1 h-6"
@@ -208,7 +208,7 @@ export function EditableShipmentRow({
             />
           </div>
         ) : (
-          <span className="text-xs">{`${getDisplayValue('length') || 12}×${getDisplayValue('width') || 12}×${getDisplayValue('height') || 6}`}</span>
+          <span className="text-xs">{`${getDisplayValue('length') || 'N/A'}×${getDisplayValue('width') || 'N/A'}×${getDisplayValue('height') || 'N/A'}`}</span>
         )}
       </TableCell>
       

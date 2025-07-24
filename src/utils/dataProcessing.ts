@@ -196,36 +196,21 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     // Find the mapped UPS service using service mappings
     let mappedUpsService = 'UPS Ground'; // Default fallback
     if (serviceMappings && serviceMappings.length > 0) {
-      const serviceMapping = serviceMappings.find(mapping => 
-        mapping.original_service?.toLowerCase() === originalService.toLowerCase()
-      );
+      const serviceMapping = serviceMappings.find(mapping => {
+        // Check different possible property names for original service
+        const mappingOriginal = mapping.original_service || mapping.original;
+        return mappingOriginal?.toLowerCase() === originalService.toLowerCase();
+      });
       
       if (serviceMapping) {
-        // Convert standardized service to readable UPS service name
-        const serviceCode = serviceMapping.standardized_service;
-        switch (serviceCode) {
-          case 'UPS_GROUND':
-            mappedUpsService = 'UPS Ground';
-            break;
-          case 'UPS_NEXT_DAY_AIR':
-            mappedUpsService = 'UPS Next Day Air';
-            break;
-          case 'UPS_2ND_DAY_AIR':
-            mappedUpsService = 'UPS 2nd Day Air';
-            break;
-          case 'UPS_3_DAY_SELECT':
-            mappedUpsService = 'UPS 3 Day Select';
-            break;
-          case 'UPS_NEXT_DAY_AIR_SAVER':
-            mappedUpsService = 'UPS Next Day Air Saver';
-            break;
-          case 'UPS_2ND_DAY_AIR_AM':
-            mappedUpsService = 'UPS 2nd Day Air A.M.';
-            break;
-          default:
-            mappedUpsService = serviceMapping.standardized_service.replace(/_/g, ' ');
+        // Use the standardized service directly - it should already be in readable format
+        const standardizedService = serviceMapping.standardized_service || serviceMapping.standardized;
+        if (standardizedService) {
+          mappedUpsService = standardizedService;
+          console.log(`🔍 Mapped "${originalService}" → "${mappedUpsService}"`);
         }
-        console.log(`🔍 Mapped "${originalService}" → "${mappedUpsService}"`);
+      } else {
+        console.log(`⚠️ No mapping found for service: "${originalService}"`);
       }
     }
     

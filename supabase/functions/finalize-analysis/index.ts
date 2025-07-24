@@ -173,6 +173,7 @@ Deno.serve(async (req) => {
       processed_shipments: processedShipments,
       orphaned_shipments: orphanedShipmentsFormatted,
       processing_metadata: processingMetadata,
+      service_mappings: payload.serviceMappings || [],
       total_shipments: payload.totalShipments,
       total_savings: payload.totalPotentialSavings, // Now we can store negative savings!
       status: 'completed'

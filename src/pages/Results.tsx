@@ -2177,7 +2177,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                  </TableCell>
                                  <TableCell>
                                    <Badge variant="secondary" className="text-xs">
-                                     {analysisData?.bestAccount || 'Best Overall'}
+                                     {(() => {
+                                       // Get the most commonly selected account for this service
+                                       const serviceShipments = shipmentData.filter(item => item.service === service);
+                                       const accounts = serviceShipments.map(item => item.account || item.accountName || analysisData?.bestAccount || 'Best Overall');
+                                       const accountCounts = accounts.reduce((acc, account) => {
+                                         acc[account] = (acc[account] || 0) + 1;
+                                         return acc;
+                                       }, {} as Record<string, number>);
+                                       
+                                       return Object.entries(accountCounts)
+                                         .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'Best Overall';
+                                     })()}
                                    </Badge>
                                  </TableCell>
                               </TableRow>

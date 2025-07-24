@@ -185,11 +185,14 @@ export function SelectiveReanalysisModal({
               <div className="space-y-2">
                 <Label htmlFor="find-service">Find Current Service</Label>
                 <MultiSelect
-                  options={currentServices.map(service => ({
-                    value: service,
-                    label: service,
-                    count: Array.isArray(allShipments) ? allShipments.filter(s => (s.service || s.originalService || s.currentService) === service).length : 0
-                  }))}
+                  options={currentServices
+                    .filter(service => service && typeof service === 'string')
+                    .map(service => ({
+                      value: service,
+                      label: service,
+                      count: Array.isArray(allShipments) ? allShipments.filter(s => (s.service || s.originalService || s.currentService) === service).length : 0
+                    }))
+                  }
                   values={findValues}
                   onValuesChange={setFindValues}
                   placeholder="Select current services to replace"

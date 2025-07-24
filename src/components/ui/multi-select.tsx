@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Check, ChevronsUpDown, X } from 'lucide-react';
@@ -33,9 +32,10 @@ export function MultiSelect({
 
   // Safety check to ensure values is always an array
   const safeValues = Array.isArray(values) ? values : [];
-  const safeOptions = Array.isArray(options) ? options : [];
+  const safeOptions = Array.isArray(options) ? options.filter(opt => opt && typeof opt.value === 'string' && typeof opt.label === 'string') : [];
 
   const handleSelect = (optionValue: string) => {
+    if (!optionValue) return;
     const newValues = safeValues.includes(optionValue)
       ? safeValues.filter(v => v !== optionValue)
       : [...safeValues, optionValue];
@@ -43,6 +43,7 @@ export function MultiSelect({
   };
 
   const handleRemove = (valueToRemove: string) => {
+    if (!valueToRemove) return;
     onValuesChange(safeValues.filter(v => v !== valueToRemove));
   };
 
@@ -92,35 +93,48 @@ export function MultiSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-full p-0 bg-popover border border-border" align="start">
-        <Command className="bg-popover">
-          <CommandInput placeholder="Search..." className="h-9" />
-          <CommandEmpty>No items found.</CommandEmpty>
-          <CommandGroup className="max-h-64 overflow-y-auto">
-            {safeOptions.map((option) => (
-              <CommandItem
-                key={option.value}
-                value={option.value}
-                onSelect={() => handleSelect(option.value)}
-                className="cursor-pointer hover:bg-accent"
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4",
-                    safeValues.includes(option.value) ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                <div className="flex items-center justify-between w-full">
-                  <span>{option.label}</span>
-                  {option.count !== undefined && (
-                    <div className="text-xs text-muted-foreground ml-4">
-                      {option.count} shipments
-                    </div>
-                  )}
+        <div className="max-h-64 overflow-y-auto bg-popover">
+          <div className="p-2 border-b">
+            <input
+              type="text"
+              placeholder="Search..."
+              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              onChange={(e) => {
+                // Simple search - you can implement this later if needed
+              }}
+            />
+          </div>
+          <div className="p-1">
+            {safeOptions && safeOptions.length > 0 ? (
+              safeOptions.map((option) => (
+                <div
+                  key={option.value}
+                  onClick={() => handleSelect(option.value)}
+                  className="flex items-center px-3 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      safeValues.includes(option.value) ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <div className="flex items-center justify-between w-full">
+                    <span>{option.label}</span>
+                    {option.count !== undefined && (
+                      <div className="text-xs text-muted-foreground ml-4">
+                        {option.count} shipments
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </Command>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-sm text-muted-foreground">
+                No items found.
+              </div>
+            )}
+          </div>
+        </div>
       </PopoverContent>
     </Popover>
   );

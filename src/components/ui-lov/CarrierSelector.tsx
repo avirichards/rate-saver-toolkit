@@ -144,12 +144,18 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
         {showAllOption && carrierConfigs.length > 1 && (
           <div 
             className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors"
-            onClick={() => handleSelectAll(!isAllSelected)}
+            onClick={(e) => {
+              // Only handle click if it's not on the checkbox itself
+              if (e.target !== e.currentTarget.querySelector('button')) {
+                handleSelectAll(!isAllSelected);
+              }
+            }}
           >
             <Checkbox
               id="select-all"
               checked={isAllSelected}
               onCheckedChange={handleSelectAll}
+              onClick={(e) => e.stopPropagation()}
             />
             <Label htmlFor="select-all" className="font-medium cursor-pointer flex-1">
               Use All Carriers ({carrierConfigs.length})
@@ -169,12 +175,18 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
               <div 
                 key={config.id} 
                 className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
-                onClick={() => handleCarrierToggle(config.id, !isSelected)}
+                onClick={(e) => {
+                  // Only handle click if it's not on the checkbox itself
+                  if (e.target !== e.currentTarget.querySelector('button')) {
+                    handleCarrierToggle(config.id, !isSelected);
+                  }
+                }}
               >
                 <Checkbox
                   id={config.id}
                   checked={isSelected}
                   onCheckedChange={(checked) => handleCarrierToggle(config.id, !!checked)}
+                  onClick={(e) => e.stopPropagation()}
                 />
                 
                 <div className="flex items-center gap-3 flex-1 pointer-events-none">

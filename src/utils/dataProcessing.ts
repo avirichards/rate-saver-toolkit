@@ -195,20 +195,6 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     });
   }
   
-  // Map standardized service codes to UPS service names for display
-  const standardizedToServiceName: { [key: string]: string } = {
-    'GROUND': 'UPS Ground',
-    '2ND_DAY_AIR': 'UPS 2nd Day Air',
-    'NEXT_DAY_AIR': 'UPS Next Day Air',
-    'EXPRESS_SAVER': 'UPS Next Day Air Saver',
-    '3_DAY_SELECT': 'UPS 3 Day Select',
-    'OVERNIGHT': 'UPS Next Day Air',
-    'PRIORITY': 'UPS 2nd Day Air',
-    'EXPEDITED': 'UPS Next Day Air Saver',
-    '2_DAY': 'UPS 2nd Day Air',
-    'STANDARD': 'UPS Ground'
-  };
-  
   return recommendations.map((rec: any, index: number) => {
     // Get current rate from original data
     const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
@@ -237,19 +223,11 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         let selectedRate = null;
         
         if (mappedServiceName) {
-          // Convert standardized code to display name
-          const displayServiceName = standardizedToServiceName[mappedServiceName] || mappedServiceName;
-          
-          // Try to find a rate that matches the mapped service (try both standardized and display names)
+          // Try to find a rate that matches the mapped service
           selectedRate = bestAccountRates.find(rate => 
-            rate.service_name === displayServiceName || 
-            rate.service_name === mappedServiceName ||
-            rate.service_name?.includes(displayServiceName?.replace('UPS ', '')) ||
-            rate.service_name?.includes(mappedServiceName?.replace('_', ' '))
+            rate.service_name === mappedServiceName || 
+            rate.service_name?.includes(mappedServiceName?.replace('UPS ', ''))
           );
-          
-          // Store the display name for Ship Pros Service Type
-          shipProsService = displayServiceName;
         }
         
         // If no mapped service rate found, use the cheapest available rate from the best account
@@ -257,16 +235,13 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
           selectedRate = bestAccountRates.reduce((cheapest, current) => 
             (current.rate_amount || 0) < (cheapest.rate_amount || 0) ? current : cheapest
           );
-          
-          // If we found a rate but no service mapping, convert standardized code if available
-          if (selectedRate && mappedServiceName) {
-            shipProsService = standardizedToServiceName[mappedServiceName] || mappedServiceName;
-          }
         }
         
         if (selectedRate) {
           newRate = selectedRate.rate_amount || 0;
           bestService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
+          // Use the mapped service name for Ship Pros Service Type
+          shipProsService = mappedServiceName || bestService;
         }
       }
     } else {
@@ -277,7 +252,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       
       // Still apply service mapping for consistency
       const mappedServiceName = serviceMappingLookup.get(originalService);
-      shipProsService = mappedServiceName ? (standardizedToServiceName[mappedServiceName] || mappedServiceName) : bestService;
+      shipProsService = mappedServiceName || bestService;
     }
     
     const calculatedSavings = currentRate - newRate;

@@ -2421,9 +2421,49 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               shipmentRates={shipmentRates}
               shipmentData={shipmentData}
               onOptimizationChange={(selections) => {
-                console.log('Optimization selections:', selections);
-                // TODO: Apply optimizations to the main results
-                toast.success('Optimization strategy applied! (Feature coming soon)');
+                console.log('Applying optimization selections:', selections);
+                
+                // Apply the optimization by updating shipment data with selected accounts
+                const optimizedShipmentData = shipmentData.map(shipment => {
+                  const selectedAccount = selections[shipment.service];
+                  if (selectedAccount) {
+                    // Find the rate for this shipment with the selected account
+                    const optimizedRate = shipmentRates.find(rate => 
+                      rate.account_name === selectedAccount &&
+                      rate.service_name === shipment.service &&
+                      rate.shipment_data?.trackingId === shipment.trackingId
+                    );
+                    
+                    if (optimizedRate) {
+                      const newSavings = shipment.currentRate - optimizedRate.rate_amount;
+                      return {
+                        ...shipment,
+                        newRate: optimizedRate.rate_amount,
+                        savings: newSavings,
+                        account: selectedAccount
+                      };
+                    }
+                  }
+                  return shipment;
+                });
+                
+                // Update the shipment data state
+                setShipmentData(optimizedShipmentData);
+                
+                // Recalculate totals
+                const totalSavings = optimizedShipmentData.reduce((sum, shipment) => sum + (shipment.savings || 0), 0);
+                const totalShipments = optimizedShipmentData.length;
+                
+                // Update analysis data if it exists
+                if (analysisData) {
+                  setAnalysisData({
+                    ...analysisData,
+                    totalPotentialSavings: totalSavings,
+                    totalShipments: totalShipments
+                  });
+                }
+                
+                toast.success(`Optimization applied! New total savings: ${formatCurrency(totalSavings)}`);
               }}
             />
           </TabsContent>

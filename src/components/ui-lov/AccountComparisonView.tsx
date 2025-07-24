@@ -412,30 +412,34 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       {/* Optimization Summary */}
       {optimizedMetrics && (
-        <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-950/30 dark:to-green-950/30 border rounded-lg p-4">
-          <div className="flex justify-between items-center mb-4">
+        <div className="border border-primary/20 bg-card text-card-foreground rounded-lg p-6 shadow-lg">
+          <div className="flex justify-between items-center mb-6">
             <div>
-              <h3 className="text-lg font-semibold text-foreground">Custom Optimization Strategy</h3>
-              <p className="text-sm text-muted-foreground">
+              <h3 className="text-xl font-bold text-foreground">Custom Optimization Strategy</h3>
+              <p className="text-sm text-muted-foreground mt-1">
                 {optimizedMetrics.servicesOptimized} services optimized • {optimizedMetrics.optimizedShipments} shipments
               </p>
             </div>
-            <Button onClick={applyOptimizations} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button 
+              onClick={applyOptimizations} 
+              className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-6 py-3"
+              size="lg"
+            >
               Apply Strategy
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{formatCurrency(optimizedMetrics.totalOptimizedSavings)}</div>
-              <div className="text-sm text-muted-foreground">Projected Savings</div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800">
+              <div className="text-3xl font-bold text-green-700 dark:text-green-400">{formatCurrency(optimizedMetrics.totalOptimizedSavings)}</div>
+              <div className="text-sm font-medium text-green-600 dark:text-green-500 mt-1">Projected Savings</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{optimizedMetrics.optimizedShipments}</div>
-              <div className="text-sm text-muted-foreground">Shipments</div>
+            <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+              <div className="text-3xl font-bold text-blue-700 dark:text-blue-400">{optimizedMetrics.optimizedShipments}</div>
+              <div className="text-sm font-medium text-blue-600 dark:text-blue-500 mt-1">Shipments</div>
             </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{optimizedMetrics.servicesOptimized}</div>
-              <div className="text-sm text-muted-foreground">Services Optimized</div>
+            <div className="text-center p-4 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800">
+              <div className="text-3xl font-bold text-purple-700 dark:text-purple-400">{optimizedMetrics.servicesOptimized}</div>
+              <div className="text-sm font-medium text-purple-600 dark:text-purple-500 mt-1">Services Optimized</div>
             </div>
           </div>
         </div>

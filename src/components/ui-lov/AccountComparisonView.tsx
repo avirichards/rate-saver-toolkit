@@ -71,6 +71,22 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     setSelectedAccounts(newSelections);
   };
 
+  // Handle selecting an account for all services
+  const handleSelectAccountForAll = (accountName: string) => {
+    const newSelections: Record<string, string> = {};
+    serviceBreakdowns.forEach(service => {
+      // Only set if this account has quotes for this service
+      const hasAccountForService = service.accounts.some(acc => acc.accountName === accountName);
+      if (hasAccountForService) {
+        newSelections[service.serviceName] = accountName;
+      } else {
+        // Keep existing selection if account doesn't support this service
+        newSelections[service.serviceName] = selectedAccounts[service.serviceName] || service.accounts[0]?.accountName;
+      }
+    });
+    setSelectedAccounts(newSelections);
+  };
+
   // Apply optimizations and notify parent
   const applyOptimizations = () => {
     if (onOptimizationChange) {
@@ -208,6 +224,12 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       const medianDollarSavings = sortedDollarSavings[Math.floor(sortedDollarSavings.length / 2)] || 0;
       const medianPercentSavings = sortedPercentSavings[Math.floor(sortedPercentSavings.length / 2)] || 0;
 
+      // Calculate total savings
+      const totalSavings = account.savingsData.reduce((sum, s) => sum + s.dollarSavings, 0);
+      const totalSavingsPercent = account.savingsData.length > 0 
+        ? (totalSavings / account.savingsData.reduce((sum, s, i) => sum + (account.totalSpend / account.savingsData.length + s.dollarSavings), 0)) * 100 
+        : 0;
+
       return {
         ...account,
         avgCostPerShipment,
@@ -216,6 +238,8 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         avgPercentSavings,
         medianDollarSavings,
         medianPercentSavings,
+        totalSavings,
+        totalSavingsPercent,
         totalShipments: shipmentData.length
       };
     }).sort((a, b) => b.avgDollarSavings - a.avgDollarSavings); // Sort by average savings descending
@@ -364,6 +388,17 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     return shipmentData.some(shipment => shipment.account);
   }, [shipmentData]);
 
+  // Check if an account is selected for all available services
+  const isAccountSelectedForAll = (accountName: string) => {
+    const servicesWithAccount = serviceBreakdowns.filter(service => 
+      service.accounts.some(acc => acc.accountName === accountName)
+    );
+    
+    return servicesWithAccount.every(service => 
+      selectedAccounts[service.serviceName] === accountName
+    ) && servicesWithAccount.length > 0;
+  };
+
   return (
     <div className="space-y-6">
       {/* KPI Cards Row */}
@@ -400,14 +435,34 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         <h3 className="text-lg font-semibold text-foreground">Account Summary</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {accountSummaries.map((account) => (
-            <Card key={account.accountName} className="p-4">
+            <Card 
+              key={account.accountName} 
+              className={`p-4 cursor-pointer transition-all hover:shadow-lg ${
+                isAccountSelectedForAll(account.accountName)
+                  ? 'bg-primary/10 border-primary/50 ring-2 ring-primary/30'
+                  : 'hover:bg-muted/30'
+              }`}
+              onClick={() => handleSelectAccountForAll(account.accountName)}
+            >
               <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold">{account.accountName}</CardTitle>
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  {account.accountName}
+                  {isAccountSelectedForAll(account.accountName) && (
+                    <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">Selected for All</span>
+                  )}
+                </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Spend:</span>
                   <span className="font-medium">{formatCurrency(account.totalSpend)}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Total Savings:</span>
+                  <span className={`font-medium ${account.totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatCurrency(account.totalSavings)} ({account.totalSavingsPercent.toFixed(1)}%)
+                  </span>
                 </div>
                 
                 <div className="flex justify-between">

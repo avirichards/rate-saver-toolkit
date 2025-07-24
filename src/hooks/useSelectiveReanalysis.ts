@@ -102,8 +102,10 @@ export function useSelectiveReanalysis() {
     // Call multi-carrier quote API with specific carrier config
     const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
       body: { 
-        ...shipmentData,
-        carrierConfigIds: [config.id]
+        shipment: {
+          ...shipmentData,
+          carrierConfigIds: [config.id]
+        }
       }
     });
 
@@ -145,7 +147,7 @@ export function useSelectiveReanalysis() {
     };
   }, []);
 
-  // Re-analyze selected shipments
+  // Re-analyze selected shipments in batches of 100 like Analysis page
   const reanalyzeShipments = useCallback(async (
     shipments: ReanalysisShipment[],
     analysisId: string,
@@ -156,44 +158,81 @@ export function useSelectiveReanalysis() {
     const failedShipments: any[] = [];
 
     try {
-      for (let i = 0; i < shipments.length; i++) {
-        const shipment = shipments[i];
-        setReanalyzingShipments(prev => new Set([...prev, shipment.id]));
+      // Process shipments in parallel batches for much faster processing
+      const batchSize = 100; // Process 100 shipments concurrently - same as Analysis page
+      const totalBatches = Math.ceil(shipments.length / batchSize);
+      
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const startIndex = batchIndex * batchSize;
+        const endIndex = Math.min(startIndex + batchSize, shipments.length);
+        const batchShipments = shipments.slice(startIndex, endIndex);
+        
+        console.log(`🔄 Processing batch ${batchIndex + 1}/${totalBatches} (${batchShipments.length} shipments)`);
+        
+        // Mark all shipments in this batch as being processed
+        setReanalyzingShipments(prev => {
+          const newSet = new Set(prev);
+          batchShipments.forEach(shipment => newSet.add(shipment.id));
+          return newSet;
+        });
 
-        try {
-          const result = await processShipment(shipment);
-          updatedShipments.push({
-            ...shipment,
-            newRate: result.newRate,
-            newService: result.recommendedService,
-            bestService: result.recommendedService, // Ensure both fields are updated
-            upsRates: result.upsRates,
-            isResidential: shipment.isResidential, // Preserve residential status
-            reanalyzed: true,
-            reanalyzedAt: new Date().toISOString(),
-            // Store the account used for analysis
-            accountId: shipment.accountId,
-            analyzedWithAccount: result.accountUsed
-          });
+        // Process all shipments in this batch in parallel
+        const batchPromises = batchShipments.map(async (shipment) => {
+          try {
+            const result = await processShipment(shipment);
+            const updatedShipment = {
+              ...shipment,
+              newRate: result.newRate,
+              newService: result.recommendedService,
+              bestService: result.recommendedService, // Ensure both fields are updated
+              upsRates: result.upsRates,
+              isResidential: shipment.isResidential, // Preserve residential status
+              reanalyzed: true,
+              reanalyzedAt: new Date().toISOString(),
+              // Store the account used for analysis
+              accountId: shipment.accountId,
+              analyzedWithAccount: result.accountUsed
+            };
+            return { success: true, shipment: updatedShipment };
+          } catch (error: any) {
+            console.error(`Failed to re-analyze shipment ${shipment.id}:`, error);
+            return { 
+              success: false, 
+              shipment: {
+                ...shipment,
+                error: error.message,
+                errorType: 'reanalysis_error'
+              }
+            };
+          }
+        });
 
-          onProgress?.(i + 1, shipments.length);
-        } catch (error: any) {
-          console.error(`Failed to re-analyze shipment ${shipment.id}:`, error);
-          failedShipments.push({
-            ...shipment,
-            error: error.message,
-            errorType: 'reanalysis_error'
-          });
-        } finally {
-          setReanalyzingShipments(prev => {
-            const next = new Set(prev);
-            next.delete(shipment.id);
-            return next;
-          });
+        // Wait for all shipments in this batch to complete
+        const batchResults = await Promise.all(batchPromises);
+        
+        // Process results
+        batchResults.forEach(result => {
+          if (result.success) {
+            updatedShipments.push(result.shipment);
+          } else {
+            failedShipments.push(result.shipment);
+          }
+        });
+
+        // Clear processing status for this batch
+        setReanalyzingShipments(prev => {
+          const newSet = new Set(prev);
+          batchShipments.forEach(shipment => newSet.delete(shipment.id));
+          return newSet;
+        });
+
+        // Update progress
+        onProgress?.(Math.min(endIndex, shipments.length), shipments.length);
+        
+        // Small delay between batches to prevent overwhelming the API
+        if (batchIndex < totalBatches - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
-
-        // Small delay to prevent overwhelming the API
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       // Update the database with re-analyzed results

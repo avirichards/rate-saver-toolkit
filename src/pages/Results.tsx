@@ -1632,27 +1632,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       return shipment.service;
     }
 
-    // Get the account that was selected for this shipment (from the optimization)
-    const selectedAccount = shipment.account || shipment.accountName;
+    // Since all rate accounts are being compared, just use the first rate's service name
+    // which will be the UPS equivalent service (the rates are already properly mapped)
+    const rateServiceName = shipmentRatesList[0]?.service_name;
     
-    console.log(`🔍 Getting optimized service for ${trackingId}:`, {
-      selectedAccount,
-      availableRates: shipmentRatesList.length,
-      sampleRate: shipmentRatesList[0],
-      shipmentBestService: shipment.bestService,
-      shipmentNewService: shipment.newService
-    });
+    console.log(`📊 Service for ${trackingId}: ${rateServiceName} (from rate data)`);
     
-    // Find the rate for the selected account
-    const optimizedRate = shipmentRatesList.find(rate => 
-      rate.account_name === selectedAccount
-    );
-
-    const result = optimizedRate?.service_name || shipmentRatesList[0]?.service_name || shipment.bestService || shipment.newService || shipment.service;
-    console.log(`📊 Final service for ${trackingId}: ${result}`);
-    
-    // Return the service name from the optimized rate, or fall back to the first available rate
-    return result;
+    return rateServiceName || shipment.service;
   };
 
   const generateServiceCostData = () => {

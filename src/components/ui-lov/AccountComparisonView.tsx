@@ -5,6 +5,7 @@ import { formatCurrency } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { mapServiceToServiceCode } from '@/utils/serviceMapping';
 
 interface ShipmentRate {
   id: string;
@@ -257,182 +258,191 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     }).sort((a, b) => b.avgDollarSavings - a.avgDollarSavings); // Sort by average savings descending
   }, [shipmentRates, shipmentData]);
 
-  // Calculate service breakdown by service type
+  // Group by Ship Pros service type and calculate metrics for each service
   const serviceBreakdowns = useMemo(() => {
-    // Create a comprehensive list of all services, prioritizing shipmentData services
-    const allServices = new Set<string>();
+    console.log('🔄 Calculating service breakdowns...');
     
-    // Add services from shipment data first (these are the actual processed services)
-    shipmentData.forEach(shipment => {
-      if (shipment.service) {
-        allServices.add(shipment.service);
-      }
-    });
+    const breakdowns: Record<string, {
+      serviceName: string;
+      originalService: string;
+      totalShipments: number;
+      accounts: Array<{
+        accountName: string;
+        shipmentCount: number;
+        totalCost: number;
+        avgCost: number;
+        totalSavings: number;
+        avgSavings: number;
+        winRate: number;
+      }>;
+    }> = {};
+
+    // Group by Ship Pros services from rates, showing mapping from original
+    const serviceGroups = new Map<string, { rates: any[], originalServices: Set<string> }>();
     
-    // Add services from rates that might not be in shipment data
     shipmentRates.forEach(rate => {
-      const serviceName = rate.service_name || rate.service_code;
-      if (serviceName) {
-        allServices.add(serviceName);
+      const shipProsService = rate.service_name;
+      if (!shipProsService) return;
+      
+      if (!serviceGroups.has(shipProsService)) {
+        serviceGroups.set(shipProsService, { rates: [], originalServices: new Set() });
+      }
+      
+      const group = serviceGroups.get(shipProsService)!;
+      group.rates.push(rate);
+      
+      // Find the original service from shipment data
+      const originalShipment = shipmentData.find(s => 
+        s.trackingId === rate.shipment_data?.trackingId
+      );
+      if (originalShipment?.service) {
+        group.originalServices.add(originalShipment.service);
       }
     });
 
-    const services = Array.from(allServices);
-    console.log('Service breakdown calculation:', { services });
-
-    return services.map(serviceName => {
-      // Get shipment data for this service (prioritize exact matches)
-      const serviceShipments = shipmentData.filter(shipment => 
-        shipment.service === serviceName
-      );
+    // Also include services from shipment data that don't have rates yet
+    shipmentData.forEach(shipment => {
+      if (!shipment.service) return;
       
-      // Get rates for this service with more flexible matching
-      const serviceRates = shipmentRates.filter(rate => {
-        const rateServiceName = rate.service_name || rate.service_code;
-        return rateServiceName === serviceName;
-      });
+      // Use service mapping to determine what Ship Pros service this would map to
+      const mapping = mapServiceToServiceCode(shipment.service);
+      const shipProsService = mapping.serviceName;
+      
+      if (!serviceGroups.has(shipProsService)) {
+        serviceGroups.set(shipProsService, { rates: [], originalServices: new Set() });
+      }
+      
+      serviceGroups.get(shipProsService)!.originalServices.add(shipment.service);
+    });
 
-      console.log(`Service ${serviceName}:`, {
-        serviceRatesCount: serviceRates.length,
-        serviceShipmentsCount: serviceShipments.length,
-        sampleRate: serviceRates[0],
-        sampleShipment: serviceShipments[0]
-      });
+    serviceGroups.forEach((group, shipProsService) => {
+      const { rates, originalServices } = group;
+      const originalServicesList = Array.from(originalServices);
+      const displayOriginal = originalServicesList.length > 0 ? originalServicesList.join(', ') : shipProsService;
+      
+      console.log(`📊 Ship Pros Service: ${shipProsService}, Original: ${displayOriginal}, Rates: ${rates.length}`);
 
-      // If we have shipment data but no rates, create account performance from shipment data
-      if (serviceShipments.length > 0 && serviceRates.length === 0) {
-        // Group shipments by account for this service
-        const accountGroups = serviceShipments.reduce((groups, shipment) => {
-          // Try multiple ways to get the account name
-          let accountName = shipment.accountName || shipment.account;
-          
-          // If still no account name, try to find it from rates by tracking ID
-          if (!accountName && shipment.trackingId) {
-            const matchingRate = shipmentRates.find(rate => 
-              rate.shipment_data?.trackingId === shipment.trackingId
-            );
-            if (matchingRate) {
-              accountName = matchingRate.account_name;
-            }
-          }
-          
-          // If still no account name, try to infer from carrier
-          if (!accountName && shipment.carrier) {
-            // Look for any rate with matching carrier type to get a likely account
-            const carrierRates = shipmentRates.filter(rate => 
-              rate.carrier_type?.toLowerCase() === shipment.carrier?.toLowerCase()
-            );
-            if (carrierRates.length > 0) {
-              accountName = carrierRates[0].account_name;
-            }
-          }
-          
-          // Final fallback
-          if (!accountName) {
-            accountName = 'Unknown Account';
-          }
-          
+      if (rates.length > 0) {
+        // Group rates by account
+        const accountGroups = rates.reduce((groups, rate) => {
+          const accountName = rate.account_name || 'Unknown';
           if (!groups[accountName]) {
             groups[accountName] = [];
           }
-          groups[accountName].push(shipment);
+          groups[accountName].push(rate);
           return groups;
-        }, {} as Record<string, typeof serviceShipments>);
+        }, {} as Record<string, typeof rates>);
 
-        const accountPerformance = Object.entries(accountGroups).map(([accountName, shipments]) => {
-          const totalSavings = shipments.reduce((sum, s) => sum + (s.savings || 0), 0);
-          const totalCurrentCost = shipments.reduce((sum, s) => sum + (s.currentRate || 0), 0);
-          const totalNewCost = shipments.reduce((sum, s) => sum + (s.newRate || 0), 0);
-          const avgSavings = shipments.length > 0 ? totalSavings / shipments.length : 0;
-          const avgCost = shipments.length > 0 ? totalNewCost / shipments.length : 0;
-          const winCount = shipments.filter(s => (s.savings || 0) > 0).length;
-          const winRate = shipments.length > 0 ? (winCount / shipments.length) * 100 : 0;
-
-          return {
-            accountName,
-            shipmentCount: shipments.length,
-            totalCost: totalNewCost,
-            avgCost,
-            totalSavings,
-            avgSavings,
-            winRate
-          };
-        }).sort((a, b) => b.avgSavings - a.avgSavings);
-
-        return {
-          serviceName,
-          totalShipments: serviceShipments.length,
-          accounts: accountPerformance
-        };
-      }
-
-      // If we have rates, use the existing logic but improve it
-      const accountPerformance = [...new Set(serviceRates.map(rate => rate.account_name))]
-        .map(accountName => {
-          const accountRates = serviceRates.filter(rate => rate.account_name === accountName);
-          
-          // Calculate metrics based on rates
+        // Calculate metrics for each account
+        const accounts = Object.entries(accountGroups).map(([accountName, accountRates]: [string, any[]]) => {
           const totalCost = accountRates.reduce((sum, rate) => sum + (rate.rate_amount || 0), 0);
-          const avgCost = accountRates.length > 0 ? totalCost / accountRates.length : 0;
           
-          // Calculate savings by comparing rates to current shipment costs
-          let totalSavings = 0;
-          let winCount = 0;
-          let matchedShipments = 0;
-          
-          accountRates.forEach(rate => {
-            // Find the corresponding shipment data by tracking ID
-            const trackingId = rate.shipment_data?.trackingId;
-            if (trackingId) {
-              const correspondingShipment = serviceShipments.find(shipment => 
-                shipment.trackingId === trackingId
-              );
-              
-              if (correspondingShipment) {
-                const savings = correspondingShipment.currentRate - rate.rate_amount;
-                totalSavings += savings;
-                matchedShipments++;
-                if (savings > 0) winCount++;
-              }
-            }
+          // Find corresponding shipment data to calculate savings
+          const shipmentSavings = accountRates.map(rate => {
+            const shipment = shipmentData.find(s => 
+              s.trackingId === rate.shipment_data?.trackingId
+            );
+            return shipment?.savings || 0;
           });
           
-          // If no shipments matched by tracking ID, try to estimate from shipment data
-          if (matchedShipments === 0 && serviceShipments.length > 0) {
-            const shipmentsForAccount = serviceShipments.filter(s => 
-              (s.accountName === accountName || s.account === accountName)
+          const totalSavings = shipmentSavings.reduce((sum, savings) => sum + savings, 0);
+          const avgSavings = shipmentSavings.length > 0 ? totalSavings / shipmentSavings.length : 0;
+          const avgCost = accountRates.length > 0 ? totalCost / accountRates.length : 0;
+          
+          // Calculate win rate (percentage of times this account had the lowest rate)
+          const wins = accountRates.filter(rate => {
+            const trackingId = rate.shipment_data?.trackingId;
+            if (!trackingId) return false;
+            
+            const allRatesForShipment = rates.filter(r => 
+              r.shipment_data?.trackingId === trackingId
             );
             
-            if (shipmentsForAccount.length > 0) {
-              totalSavings = shipmentsForAccount.reduce((sum, s) => sum + (s.savings || 0), 0);
-              winCount = shipmentsForAccount.filter(s => (s.savings || 0) > 0).length;
-              matchedShipments = shipmentsForAccount.length;
-            }
-          }
+            if (allRatesForShipment.length <= 1) return true;
+            
+            const minCost = Math.min(...allRatesForShipment.map(r => r.rate_amount || Infinity));
+            return (rate.rate_amount || Infinity) === minCost;
+          }).length;
           
-          const avgSavings = matchedShipments > 0 ? totalSavings / matchedShipments : 0;
-          const winRate = matchedShipments > 0 ? (winCount / matchedShipments) * 100 : 0;
-          const effectiveShipmentCount = Math.max(accountRates.length, matchedShipments);
+          const winRate = accountRates.length > 0 ? (wins / accountRates.length) * 100 : 0;
 
           return {
             accountName,
-            shipmentCount: effectiveShipmentCount,
+            shipmentCount: accountRates.length,
             totalCost,
             avgCost,
             totalSavings,
             avgSavings,
             winRate
           };
-        })
-        .filter(account => account.shipmentCount > 0)
-        .sort((a, b) => b.avgSavings - a.avgSavings);
+        });
 
-      return {
-        serviceName,
-        totalShipments: Math.max(serviceRates.length, serviceShipments.length),
-        accounts: accountPerformance
-      };
-    }).filter(service => service.totalShipments > 0);
+        breakdowns[shipProsService] = {
+          serviceName: shipProsService,
+          originalService: displayOriginal,
+          totalShipments: rates.length,
+          accounts: accounts.sort((a, b) => b.avgSavings - a.avgSavings)
+        };
+      } else {
+        // Handle services with shipment data but no rates
+        const serviceShipments = shipmentData.filter(shipment => {
+          const mapping = mapServiceToServiceCode(shipment.service || '');
+          return mapping.serviceName === shipProsService;
+        });
+
+        if (serviceShipments.length > 0) {
+          const accountGroups = serviceShipments.reduce((groups, shipment) => {
+            let accountName = shipment.accountName || shipment.account;
+            
+            if (!accountName && shipment.trackingId) {
+              const matchingRate = shipmentRates.find(rate => 
+                rate.shipment_data?.trackingId === shipment.trackingId
+              );
+              if (matchingRate) {
+                accountName = matchingRate.account_name;
+              }
+            }
+            
+            if (!accountName) {
+              accountName = 'Unknown Account';
+            }
+            
+            if (!groups[accountName]) {
+              groups[accountName] = [];
+            }
+            groups[accountName].push(shipment);
+            return groups;
+          }, {} as Record<string, typeof serviceShipments>);
+
+          const accounts = Object.entries(accountGroups).map(([accountName, shipments]) => {
+            const totalCost = shipments.reduce((sum, shipment) => sum + (shipment.currentRate || 0), 0);
+            const totalSavings = shipments.reduce((sum, shipment) => sum + (shipment.savings || 0), 0);
+            const avgSavings = shipments.length > 0 ? totalSavings / shipments.length : 0;
+            const avgCost = shipments.length > 0 ? totalCost / shipments.length : 0;
+            
+            return {
+              accountName,
+              shipmentCount: shipments.length,
+              totalCost,
+              avgCost,
+              totalSavings,
+              avgSavings,
+              winRate: 100
+            };
+          });
+
+          breakdowns[shipProsService] = {
+            serviceName: shipProsService,
+            originalService: displayOriginal,
+            totalShipments: serviceShipments.length,
+            accounts
+          };
+        }
+      }
+    });
+
+    console.log('📊 Final service breakdowns:', Object.keys(breakdowns));
+    return Object.values(breakdowns).filter(service => service.totalShipments > 0);
   }, [shipmentRates, shipmentData]);
 
   // Initialize selected accounts with best performing account for each service
@@ -684,11 +694,21 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           {serviceBreakdowns.map((service) => (
             <Card key={service.serviceName} className="p-4">
               <CardHeader className="pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-base font-semibold">{service.serviceName}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
-                  </div>
+                 <div className="flex justify-between items-start">
+                   <div>
+                     <CardTitle className="text-base font-semibold">
+                       {service.originalService !== service.serviceName ? (
+                         <>
+                           <span className="text-muted-foreground">{service.originalService}</span>
+                           <span className="mx-2">➡︎</span>
+                           <span>{service.serviceName}</span>
+                         </>
+                       ) : (
+                         service.serviceName
+                       )}
+                     </CardTitle>
+                     <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
+                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <label className="text-xs text-muted-foreground">Use Account:</label>
                     <Select

@@ -31,6 +31,7 @@ interface ProcessedShipmentData {
   savings: number;
   service: string;
   weight: number;
+  carrier?: string;
   account?: string;
   accountName?: string;
 }
@@ -302,7 +303,35 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       if (serviceShipments.length > 0 && serviceRates.length === 0) {
         // Group shipments by account for this service
         const accountGroups = serviceShipments.reduce((groups, shipment) => {
-          const accountName = shipment.accountName || shipment.account || 'Unknown';
+          // Try multiple ways to get the account name
+          let accountName = shipment.accountName || shipment.account;
+          
+          // If still no account name, try to find it from rates by tracking ID
+          if (!accountName && shipment.trackingId) {
+            const matchingRate = shipmentRates.find(rate => 
+              rate.shipment_data?.trackingId === shipment.trackingId
+            );
+            if (matchingRate) {
+              accountName = matchingRate.account_name;
+            }
+          }
+          
+          // If still no account name, try to infer from carrier
+          if (!accountName && shipment.carrier) {
+            // Look for any rate with matching carrier type to get a likely account
+            const carrierRates = shipmentRates.filter(rate => 
+              rate.carrier_type?.toLowerCase() === shipment.carrier?.toLowerCase()
+            );
+            if (carrierRates.length > 0) {
+              accountName = carrierRates[0].account_name;
+            }
+          }
+          
+          // Final fallback
+          if (!accountName) {
+            accountName = 'Unknown Account';
+          }
+          
           if (!groups[accountName]) {
             groups[accountName] = [];
           }

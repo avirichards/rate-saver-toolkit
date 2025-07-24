@@ -2074,10 +2074,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             }}
                           />
                         </TableHead>
-                        <TableHead className="text-foreground">Current Service Type</TableHead>
+                        <TableHead className="text-foreground">Service Mapping</TableHead>
                         <TableHead className="text-right text-foreground">Avg Cost Current</TableHead>
                         <TableHead className="text-right text-foreground">Ship Pros Cost</TableHead>
-                        <TableHead className="text-foreground">Ship Pros Service Type</TableHead>
+                        <TableHead className="text-foreground">Ship Pros Service</TableHead>
                         <TableHead className="text-right text-foreground">Shipment Count</TableHead>
                         <TableHead className="text-right text-foreground">Volume %</TableHead>
                         <TableHead className="text-right text-foreground">Avg Weight</TableHead>
@@ -2151,13 +2151,19 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                     }}
                                   />
                                 </TableCell>
-                                <TableCell className="font-medium text-foreground">{service}</TableCell>
+                                 <TableCell className="font-medium text-foreground">
+                                   <div className="flex items-center gap-2">
+                                     <span>{service}</span>
+                                     <span className="text-muted-foreground">➡︎</span>
+                                     <Badge variant="outline" className="text-xs">
+                                       {spServiceType}
+                                     </Badge>
+                                   </div>
+                                 </TableCell>
                                  <TableCell className="text-right font-medium">{formatCurrency(avgCurrentCost)}</TableCell>
                                  <TableCell className="text-right font-medium text-primary">{formatCurrency(avgMarkedUpPrice)}</TableCell>
-                                <TableCell>
-                                  <Badge variant="outline" className="text-xs">
-                                    {spServiceType}
-                                  </Badge>
+                                <TableCell className="text-sm text-muted-foreground">
+                                  {spServiceType}
                                 </TableCell>
                                  <TableCell className="text-right font-medium">{data.count.toLocaleString()}</TableCell>
                                  <TableCell className="text-right">{formatPercentage(volumePercent)}</TableCell>

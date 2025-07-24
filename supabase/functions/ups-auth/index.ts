@@ -6,6 +6,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Token cache - stores tokens in memory with expiration
+interface CachedToken {
+  access_token: string;
+  expires_at: number; // Unix timestamp
+  config_id: string;
+  account_name: string;
+  is_sandbox: boolean;
+}
+
+const tokenCache = new Map<string, CachedToken>();
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -40,6 +51,25 @@ serve(async (req) => {
 
     if (action === 'get_token') {
       console.log('UPS Auth Request:', { action, config_id, userId: user.id });
+      
+      // Check cache first
+      const cacheKey = `${user.id}_${config_id}`;
+      const cachedToken = tokenCache.get(cacheKey);
+      
+      // Return cached token if still valid (with 5 minute buffer)
+      if (cachedToken && cachedToken.expires_at > Date.now() + 300000) {
+        console.log('🚀 Returning cached UPS token for config:', config_id);
+        return new Response(JSON.stringify({
+          access_token: cachedToken.access_token,
+          expires_in: Math.floor((cachedToken.expires_at - Date.now()) / 1000),
+          is_sandbox: cachedToken.is_sandbox,
+          config_id: cachedToken.config_id,
+          account_name: cachedToken.account_name,
+          cached: true
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
       
       // Get carrier config for UPS - with proper handling for multiple configs
       let query = supabase
@@ -144,6 +174,22 @@ serve(async (req) => {
 
       const tokenData = await tokenResponse.json();
       
+      // Cache the token (UPS tokens typically last 1 hour)
+      const expiresAt = Date.now() + (tokenData.expires_in * 1000);
+      tokenCache.set(cacheKey, {
+        access_token: tokenData.access_token,
+        expires_at: expiresAt,
+        config_id: carrierConfig.id,
+        account_name: carrierConfig.account_name,
+        is_sandbox: carrierConfig.is_sandbox
+      });
+      
+      console.log('💾 Cached UPS token for config:', {
+        configId: carrierConfig.id,
+        expiresIn: tokenData.expires_in,
+        cacheKey
+      });
+      
       // Update connection status to success
       try {
         await supabase
@@ -162,7 +208,8 @@ serve(async (req) => {
         expires_in: tokenData.expires_in,
         is_sandbox: carrierConfig.is_sandbox,
         config_id: carrierConfig.id,
-        account_name: carrierConfig.account_name
+        account_name: carrierConfig.account_name,
+        cached: false
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

@@ -416,10 +416,10 @@ const Analysis = () => {
     setCurrentShipmentIndex(0);
     setError(null);
     
-    console.log('🚀 Starting sequential analysis of shipments:', {
+    console.log('🚀 Starting parallel batch analysis of shipments:', {
       totalShipments: shipmentsToAnalyze.length,
       serviceMappingsAvailable: serviceMappings.length,
-      firstShipment: shipmentsToAnalyze[0]
+      batchSize: 6 // Process 6 shipments concurrently
     });
     
     try {
@@ -432,25 +432,40 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
       
-      // Process shipments sequentially (one at a time) to prevent race conditions
-      for (let i = 0; i < shipmentsToAnalyze.length; i++) {
-        // Check if paused before processing each shipment
+      // Process shipments in parallel batches for much faster processing
+      const batchSize = 6; // Process 6 shipments at a time to balance speed vs API limits
+      const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
+      
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        // Check if paused before processing each batch
         if (isPaused) {
           console.log('Analysis paused, stopping processing');
           break;
         }
         
-        console.log(`🔄 Processing shipment ${i + 1}/${shipmentsToAnalyze.length}`, {
-          shipmentId: shipmentsToAnalyze[i].id,
-          service: shipmentsToAnalyze[i].service,
-          weight: shipmentsToAnalyze[i].weight
+        const startIndex = batchIndex * batchSize;
+        const endIndex = Math.min(startIndex + batchSize, shipmentsToAnalyze.length);
+        const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
+        
+        console.log(`🔄 Processing batch ${batchIndex + 1}/${totalBatches} (shipments ${startIndex + 1}-${endIndex})`);
+        
+        // Process all shipments in the batch concurrently
+        const batchPromises = batch.map((shipment, indexInBatch) => {
+          const globalIndex = startIndex + indexInBatch;
+          setCurrentShipmentIndex(globalIndex);
+          return processShipment(globalIndex, shipment, 0, analysisId);
         });
         
-        setCurrentShipmentIndex(i);
-        await processShipment(i, shipmentsToAnalyze[i], 0, analysisId);
+        // Wait for all shipments in the batch to complete
+        await Promise.allSettled(batchPromises);
         
-        // Small delay to show progress and allow for pause to take effect
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Update progress to reflect completed batch
+        setCurrentShipmentIndex(endIndex - 1);
+        
+        // Small delay between batches to prevent overwhelming APIs
+        if (batchIndex < totalBatches - 1 && !isPaused) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
       }
       
       // Only mark complete if we processed all shipments and weren't paused

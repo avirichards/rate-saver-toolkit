@@ -2210,8 +2210,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                  </TableCell>
                                  <TableCell>
                                    {(() => {
-                                      // Get all accounts used for this service
-                                      const serviceShipments = shipmentData.filter(item => item.service === service);
+                                      // Get all accounts used for this service, applying field updates
+                                      const serviceShipments = shipmentData
+                                        .filter(item => item.service === service)
+                                        .map(item => ({ ...item, ...shipmentUpdates[item.id] }));
+                                      
                                       const accountCounts = serviceShipments.reduce((acc, item) => {
                                          // Use the same account resolution logic as the Shipment Data tab
                                          const account = item.account || 
@@ -2241,9 +2244,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                          {accounts
                                            .sort(([,a], [,b]) => (b as number) - (a as number))
                                            .map(([account, count]) => (
-                                             <Badge key={account} variant="secondary" className="text-xs">
-                                               {account} ({count})
-                                             </Badge>
+                                              <Badge key={account} variant="secondary" className="text-xs">
+                                                {account} ({count as number})
+                                              </Badge>
                                            ))
                                          }
                                        </div>

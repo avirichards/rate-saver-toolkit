@@ -74,6 +74,7 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
       newSelected = newSelected.filter(id => id !== carrierId);
     }
     
+    // Allow users to uncheck all carriers if they want
     onCarrierChange(newSelected);
   };
 
@@ -81,6 +82,7 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
     if (checked) {
       onCarrierChange(carrierConfigs.map(config => config.id));
     } else {
+      // Allow unchecking all carriers - user can select individual ones after
       onCarrierChange([]);
     }
   };
@@ -140,13 +142,16 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
       </CardHeader>
       <CardContent className="space-y-4">
         {showAllOption && carrierConfigs.length > 1 && (
-          <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/50">
+          <div 
+            className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors"
+            onClick={() => handleSelectAll(!isAllSelected)}
+          >
             <Checkbox
               id="select-all"
               checked={isAllSelected}
               onCheckedChange={handleSelectAll}
             />
-            <Label htmlFor="select-all" className="font-medium">
+            <Label htmlFor="select-all" className="font-medium cursor-pointer flex-1">
               Use All Carriers ({carrierConfigs.length})
             </Label>
             <Badge variant="outline" className="ml-auto">
@@ -161,20 +166,24 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
             const isSelected = selectedCarriers.includes(config.id);
             
             return (
-              <div key={config.id} className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+              <div 
+                key={config.id} 
+                className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => handleCarrierToggle(config.id, !isSelected)}
+              >
                 <Checkbox
                   id={config.id}
                   checked={isSelected}
                   onCheckedChange={(checked) => handleCarrierToggle(config.id, !!checked)}
                 />
                 
-                <div className="flex items-center gap-3 flex-1">
+                <div className="flex items-center gap-3 flex-1 pointer-events-none">
                   <div className="text-2xl">{carrierInfo.icon}</div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <Label htmlFor={config.id} className="font-medium cursor-pointer">
+                      <span className="font-medium">
                         {config.account_name}
-                      </Label>
+                      </span>
                       <Badge variant="outline" className={carrierInfo.color}>
                         {carrierInfo.label}
                       </Badge>

@@ -1,7 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SummaryStats } from './SummaryStats';
 import { Card, CardContent, CardHeader, CardTitle } from './Card';
 import { formatCurrency } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 
 interface ShipmentRate {
   id: string;
@@ -33,12 +35,38 @@ interface ProcessedShipmentData {
 interface AccountComparisonViewProps {
   shipmentRates: ShipmentRate[];
   shipmentData: ProcessedShipmentData[];
+  onOptimizationChange?: (selections: Record<string, string>) => void;
 }
 
 export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   shipmentRates,
-  shipmentData
+  shipmentData,
+  onOptimizationChange
 }) => {
+  // State for tracking selected accounts per service
+  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>({});
+  
+  // Get all unique accounts for dropdown options
+  const availableAccounts = useMemo(() => {
+    return [...new Set(shipmentRates.map(rate => rate.account_name))];
+  }, [shipmentRates]);
+  
+  // Handle account selection for a service
+  const handleAccountSelection = (serviceName: string, accountName: string) => {
+    const newSelections = {
+      ...selectedAccounts,
+      [serviceName]: accountName
+    };
+    setSelectedAccounts(newSelections);
+  };
+
+  // Apply optimizations and notify parent
+  const applyOptimizations = () => {
+    if (onOptimizationChange) {
+      onOptimizationChange(selectedAccounts);
+    }
+  };
+
   // Calculate KPI metrics from existing data
   const kpiMetrics = useMemo(() => {
     // Get unique accounts from shipment rates
@@ -244,6 +272,33 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     }).filter(service => service.totalShipments > 0);
   }, [shipmentRates, shipmentData]);
 
+  // Calculate optimized metrics based on current selections
+  const optimizedMetrics = useMemo(() => {
+    if (Object.keys(selectedAccounts).length === 0) {
+      return null; // No selections made yet
+    }
+
+    let totalOptimizedSavings = 0;
+    let optimizedShipments = 0;
+
+    serviceBreakdowns.forEach(service => {
+      const selectedAccount = selectedAccounts[service.serviceName];
+      if (selectedAccount) {
+        const accountPerformance = service.accounts.find(acc => acc.accountName === selectedAccount);
+        if (accountPerformance) {
+          totalOptimizedSavings += accountPerformance.totalSavings;
+          optimizedShipments += accountPerformance.shipmentCount;
+        }
+      }
+    });
+
+    return {
+      totalOptimizedSavings,
+      optimizedShipments,
+      servicesOptimized: Object.keys(selectedAccounts).length
+    };
+  }, [selectedAccounts, serviceBreakdowns]);
+
   return (
     <div className="space-y-6">
       {/* KPI Cards Row */}
@@ -329,6 +384,37 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         </div>
       </div>
 
+      {/* Optimization Summary */}
+      {optimizedMetrics && (
+        <div className="bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-950/30 dark:to-green-950/30 border rounded-lg p-4">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Custom Optimization Strategy</h3>
+              <p className="text-sm text-muted-foreground">
+                {optimizedMetrics.servicesOptimized} services optimized • {optimizedMetrics.optimizedShipments} shipments
+              </p>
+            </div>
+            <Button onClick={applyOptimizations} className="bg-primary text-primary-foreground hover:bg-primary/90">
+              Apply Strategy
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{formatCurrency(optimizedMetrics.totalOptimizedSavings)}</div>
+              <div className="text-sm text-muted-foreground">Projected Savings</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{optimizedMetrics.optimizedShipments}</div>
+              <div className="text-sm text-muted-foreground">Shipments</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{optimizedMetrics.servicesOptimized}</div>
+              <div className="text-sm text-muted-foreground">Services Optimized</div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Service Type Breakdown Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-foreground">Performance by Service Type</h3>
@@ -336,14 +422,49 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           {serviceBreakdowns.map((service) => (
             <Card key={service.serviceName} className="p-4">
               <CardHeader className="pb-4">
-                <CardTitle className="text-base font-semibold">{service.serviceName}</CardTitle>
-                <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-base font-semibold">{service.serviceName}</CardTitle>
+                    <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <label className="text-xs text-muted-foreground">Use Account:</label>
+                    <Select
+                      value={selectedAccounts[service.serviceName] || ''}
+                      onValueChange={(value) => handleAccountSelection(service.serviceName, value)}
+                    >
+                      <SelectTrigger className="w-40 h-8 text-xs bg-background border z-50">
+                        <SelectValue placeholder="Select account" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border z-50">
+                        <SelectItem value="" className="text-xs">Default (Best)</SelectItem>
+                        {availableAccounts.map((account) => (
+                          <SelectItem key={account} value={account} className="text-xs">
+                            {account}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {service.accounts.map((account) => (
-                    <div key={account.accountName} className="border rounded-lg p-3 bg-muted/20">
-                      <h4 className="font-medium text-sm mb-2">{account.accountName}</h4>
+                    <div 
+                      key={account.accountName} 
+                      className={`border rounded-lg p-3 transition-all ${
+                        selectedAccounts[service.serviceName] === account.accountName
+                          ? 'bg-primary/10 border-primary/50'
+                          : 'bg-muted/20'
+                      }`}
+                    >
+                      <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
+                        {account.accountName}
+                        {selectedAccounts[service.serviceName] === account.accountName && (
+                          <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">Selected</span>
+                        )}
+                      </h4>
                       <div className="space-y-2 text-xs">
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Shipments:</span>

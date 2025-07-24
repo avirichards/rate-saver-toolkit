@@ -362,6 +362,37 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   }, [shipmentUpdates, currentAnalysisId]);
 
+  // Save updated shipment data to database after reanalysis
+  const saveShipmentData = async (updatedShipmentData?: any[]) => {
+    if (!currentAnalysisId) return;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const dataToSave = updatedShipmentData || shipmentData;
+
+    try {
+      console.log('💾 Saving updated shipment data to database:', dataToSave.length, 'shipments');
+      
+      const { error } = await supabase
+        .from('shipping_analyses')
+        .update({
+          processed_shipments: dataToSave as any,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentAnalysisId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('❌ Error saving shipment data:', error);
+      } else {
+        console.log('✅ Shipment data saved successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error saving shipment data:', error);
+    }
+  };
+
   // Load shipment rates for account comparison
   const loadShipmentRates = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -560,14 +591,19 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       console.log('🔄 Re-analysis result:', result);
       
       // Update local state with re-analyzed data WITHOUT exiting edit mode
-      setShipmentData(prev => prev.map(item => {
+      const updatedShipmentData = shipmentData.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
           console.log('📦 Updating shipment:', item.id, 'with account:', reanalyzed.analyzedWithAccount);
           return { ...item, ...reanalyzed };
         }
         return item;
-      }));
+      });
+      
+      setShipmentData(updatedShipmentData);
+
+      // Save updated shipment data to database
+      await saveShipmentData(updatedShipmentData);
 
       // Clear shipment updates for re-analyzed items but keep them selected
       const reanalyzedIds = result.success.map((r: any) => r.id);
@@ -609,14 +645,19 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       console.log('🔄 Single re-analysis result:', result);
       
       // Update local state with re-analyzed data
-      setShipmentData(prev => prev.map(item => {
+      const updatedShipmentData = shipmentData.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
           console.log('📦 Updating shipment:', item.id, 'with account:', reanalyzed.analyzedWithAccount);
           return { ...item, ...reanalyzed };
         }
         return item;
-      }));
+      });
+      
+      setShipmentData(updatedShipmentData);
+
+      // Save updated shipment data to database
+      await saveShipmentData(updatedShipmentData);
 
       // Clear shipment updates for this shipment
       setShipmentUpdates(prev => {

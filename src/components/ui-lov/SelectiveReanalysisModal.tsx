@@ -5,15 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
-import { UpsServiceMultiSelector } from '@/components/ui-lov/UpsServiceMultiSelector';
-import { MultiSelect, MultiSelectOption } from '@/components/ui/multi-select';
 import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { Plus, Replace, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 interface ServiceMappingCorrection {
-  from: string[];
-  to: string[];
+  from: string;
+  to: string;
   affectedCount: number;
   isResidential?: boolean;
   accountId?: string;
@@ -42,8 +40,8 @@ export function SelectiveReanalysisModal({
   selectedShipments,
   allShipments
 }: SelectiveReanalysisModalProps) {
-  const [findValues, setFindValues] = useState<string[]>([]);
-  const [replaceValues, setReplaceValues] = useState<string[]>([]);
+  const [findValue, setFindValue] = useState('');
+  const [replaceValue, setReplaceValue] = useState('');
   const [accountValue, setAccountValue] = useState('');
   const [weightFilterEnabled, setWeightFilterEnabled] = useState(false);
   const [weightOperator, setWeightOperator] = useState<'under' | 'over' | 'equal'>('under');
@@ -55,8 +53,6 @@ export function SelectiveReanalysisModal({
 
   // Get unique current service types from all shipments
   const currentServices = useMemo(() => {
-    if (!Array.isArray(allShipments)) return [];
-    
     const services = [...new Set(allShipments.map(s => {
       // Try multiple field names for service
       const serviceValue = s.service || s.originalService || s.currentService || s.currentServiceType || s.serviceType;
@@ -67,7 +63,6 @@ export function SelectiveReanalysisModal({
 
   // Calculate how many shipments match current criteria
   const matchingShipments = useMemo(() => {
-    if (!Array.isArray(allShipments)) return [];
     return allShipments.filter(s => {
       const currentService = s.service || s.originalService || s.currentService || '';
       const weight = parseFloat(s.weight) || 0;
@@ -75,7 +70,7 @@ export function SelectiveReanalysisModal({
       const width = parseFloat(s.width) || 12;
       const height = parseFloat(s.height) || 6;
       const dim = length * width * height;
-      let serviceMatch = findValues.length === 0 || findValues.includes(currentService);
+      let serviceMatch = !findValue || currentService === findValue;
       let weightMatch = true;
       let dimMatch = true;
       if (weightFilterEnabled && weightValue > 0) {
@@ -106,10 +101,10 @@ export function SelectiveReanalysisModal({
       }
       return serviceMatch && weightMatch && dimMatch;
     });
-  }, [allShipments, findValues, weightFilterEnabled, weightOperator, weightValue, dimFilterEnabled, dimOperator, dimValue]);
+  }, [allShipments, findValue, weightFilterEnabled, weightOperator, weightValue, dimFilterEnabled, dimOperator, dimValue]);
   const handleAddCorrection = () => {
-    if (findValues.length === 0 || replaceValues.length === 0) {
-      toast.error('Please select at least one service for both find and replace');
+    if (!findValue.trim() || !replaceValue.trim()) {
+      toast.error('Please enter both find and replace values');
       return;
     }
     const affectedCount = matchingShipments.length;
@@ -118,8 +113,8 @@ export function SelectiveReanalysisModal({
       return;
     }
     const newCorrection: ServiceMappingCorrection = {
-      from: findValues,
-      to: replaceValues,
+      from: findValue.trim(),
+      to: replaceValue.trim(),
       affectedCount,
       accountId: accountValue || undefined,
       weightFilter: weightFilterEnabled ? {
@@ -134,8 +129,8 @@ export function SelectiveReanalysisModal({
       } : undefined
     };
     setCorrections([...corrections, newCorrection]);
-    setFindValues([]);
-    setReplaceValues([]);
+    setFindValue('');
+    setReplaceValue('');
     setAccountValue('');
     setWeightFilterEnabled(false);
     setWeightValue(10);
@@ -184,29 +179,28 @@ export function SelectiveReanalysisModal({
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="find-service">Find Current Service</Label>
-                <MultiSelect
-                  options={currentServices
-                    .filter(service => service && typeof service === 'string')
-                    .map(service => ({
-                      value: service,
-                      label: service,
-                      count: Array.isArray(allShipments) ? allShipments.filter(s => (s.service || s.originalService || s.currentService) === service).length : 0
-                    }))
-                  }
-                  values={findValues}
-                  onValuesChange={setFindValues}
-                  placeholder="Select current services to replace"
-                  className="w-full"
-                />
+                <Select value={findValue} onValueChange={setFindValue}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select current service to replace" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border border-border max-h-60 overflow-y-auto z-50">
+                    {currentServices.map(service => {
+                    const serviceCount = allShipments.filter(s => (s.service || s.originalService || s.currentService) === service).length;
+                    return <SelectItem key={service} value={service} className="hover:bg-accent">
+                          <div className="flex items-center justify-between w-full">
+                            <span>{service}</span>
+                            <div className="text-xs text-muted-foreground ml-4">
+                              {serviceCount} shipments
+                            </div>
+                          </div>
+                        </SelectItem>;
+                  })}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="replace-service">Replace With Service</Label>
-                <UpsServiceMultiSelector 
-                  values={replaceValues} 
-                  onValuesChange={setReplaceValues} 
-                  placeholder="Select UPS Services" 
-                  className="w-full" 
-                />
+                <UpsServiceSelector value={replaceValue} onValueChange={setReplaceValue} placeholder="Select UPS Service" className="w-full" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="account-select">Use Account (Optional)</Label>
@@ -295,18 +289,18 @@ export function SelectiveReanalysisModal({
               <div className="space-y-2 max-h-32 overflow-y-auto">
                  {corrections.map((correction, index) => <div key={index} className="bg-muted/30 p-3 rounded-md space-y-3">
                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="font-mono bg-muted px-2 py-1 rounded max-w-40 truncate">
-                            {correction.from.join(', ')}
-                          </div>
-                          <Replace className="h-3 w-3 text-muted-foreground" />
-                          <div className="font-mono bg-muted px-2 py-1 rounded max-w-40 truncate">
-                            {correction.to.join(', ')}
-                          </div>
-                          <Badge variant="secondary" className="text-xs">
-                            {correction.affectedCount} shipments
-                          </Badge>
-                        </div>
+                       <div className="flex items-center gap-2 text-sm">
+                         <span className="font-mono bg-muted px-2 py-1 rounded">
+                           {correction.from}
+                         </span>
+                         <Replace className="h-3 w-3 text-muted-foreground" />
+                         <span className="font-mono bg-muted px-2 py-1 rounded">
+                           {correction.to}
+                         </span>
+                         <Badge variant="secondary" className="text-xs">
+                           {correction.affectedCount} shipments
+                         </Badge>
+                       </div>
                        <Button size="sm" variant="ghost" onClick={() => handleRemoveCorrection(index)} className="h-8 w-8 p-0">
                          ×
                        </Button>

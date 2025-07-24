@@ -712,14 +712,30 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await loadFromDatabase(analysisIdFromQuery);
         } else if (state?.analysisComplete && state.analysisData) {
           setAnalysisData(state.analysisData);
+           
+          // First save the analysis to get an ID, then load rates
+          const savedAnalysisId = await autoSaveAnalysis(false);
           
-          // Auto-save the analysis after a short delay
-          setTimeout(() => {
-            autoSaveAnalysis(false);
-          }, 1000);
+          let processedShipmentData;
           
-          // Process the recommendations using the utility function
-          const processedShipmentData = formatShipmentData(state.analysisData.recommendations);
+          if (savedAnalysisId) {
+            // Load shipment rates for the saved analysis
+            const loadedRates = await loadShipmentRates(savedAnalysisId);
+            
+            // Process the analysis data to get the best account
+            const processedAnalysisData = processAnalysisData(state.analysisData, undefined, loadedRates);
+            
+            // Process the recommendations using the utility function with rates and best account
+            processedShipmentData = formatShipmentData(
+              state.analysisData.recommendations,
+              loadedRates,
+              processedAnalysisData.bestAccount
+            );
+          } else {
+            // Fallback to original processing if saving fails
+            processedShipmentData = formatShipmentData(state.analysisData.recommendations);
+          }
+          
           setShipmentData(processedShipmentData);
           
           // Handle orphaned shipments from state

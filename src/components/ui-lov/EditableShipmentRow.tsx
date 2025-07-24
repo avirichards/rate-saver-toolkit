@@ -208,7 +208,15 @@ export function EditableShipmentRow({
             />
           </div>
         ) : (
-          <span className="text-xs">{`${getDisplayValue('length') || 'N/A'}×${getDisplayValue('width') || 'N/A'}×${getDisplayValue('height') || 'N/A'}`}</span>
+          <span className="text-xs">
+            {(() => {
+              // Get dimensions from shipment object (from recommendations) or fallback to processed shipment data
+              const length = shipment.originalShipment?.length || shipment.length || 'N/A';
+              const width = shipment.originalShipment?.width || shipment.width || 'N/A';
+              const height = shipment.originalShipment?.height || shipment.height || 'N/A';
+              return `${length}×${width}×${height}`;
+            })()}
+          </span>
         )}
       </TableCell>
       

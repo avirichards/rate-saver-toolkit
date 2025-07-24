@@ -162,6 +162,9 @@ Deno.serve(async (req) => {
     }
 
     // Create the complete analysis record
+    // Handle negative savings by setting to 0 to comply with database constraint
+    const totalSavings = payload.totalPotentialSavings >= 0 ? payload.totalPotentialSavings : 0;
+    
     const analysisRecord = {
       user_id: user.id,
       file_name: payload.fileName,
@@ -172,9 +175,13 @@ Deno.serve(async (req) => {
       recommendations: payload.recommendations,
       processed_shipments: processedShipments,
       orphaned_shipments: orphanedShipmentsFormatted,
-      processing_metadata: processingMetadata,
+      processing_metadata: {
+        ...processingMetadata,
+        actualTotalSavings: payload.totalPotentialSavings, // Store the real savings value here
+        hasNegativeSavings: payload.totalPotentialSavings < 0
+      },
       total_shipments: payload.totalShipments,
-      total_savings: payload.totalPotentialSavings,
+      total_savings: totalSavings, // Use 0 if negative to comply with constraint
       status: 'completed'
     }
 

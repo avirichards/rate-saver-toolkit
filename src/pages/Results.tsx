@@ -1611,7 +1611,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
       acc[service].totalSavings += savings;
-      acc[service].bestServices.push(item.service || 'UPS Ground');
+      acc[service].bestServices.push(item.bestService || 'UPS Ground');
       return acc;
     }, {});
     
@@ -2118,7 +2118,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
                             // Determine the most common Ship Pros service for this current service
                             const shipProsSample = shipmentData.filter(item => item.service === service);
-                            const upsServices = shipProsSample.map(item => item.service || 'UPS Ground');
+                            const upsServices = shipProsSample.map(item => item.bestService || 'UPS Ground');
                             const mostCommonUpsService = upsServices.reduce((acc, srv) => {
                               acc[srv] = (acc[srv] || 0) + 1;
                               return acc;

@@ -184,14 +184,26 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     });
   }
   
-  // Create a lookup map for service mappings to UPS service names
+  // Create a lookup map for service mappings
   const serviceMappingLookup = new Map();
   if (serviceMappings) {
     serviceMappings.forEach(mapping => {
-      // Map original service to the standardized service code for lookup
+      // Map original service to the standardized service code
       serviceMappingLookup.set(mapping.original, mapping.standardized);
     });
   }
+  
+  // Convert standardized service codes to UPS service names for rate matching
+  const serviceCodeToNameMap = {
+    'NEXT_DAY_AIR': 'UPS Next Day Air',
+    'NEXT_DAY_AIR_SAVER': 'UPS Next Day Air Saver',
+    '2ND_DAY_AIR': 'UPS 2nd Day Air',
+    '2ND_DAY_AIR_AM': 'UPS 2nd Day Air A.M.',
+    'GROUND': 'UPS Ground',
+    'EXPRESS': 'UPS Worldwide Express',
+    'EXPRESS_SAVER': 'UPS Worldwide Express Saver',
+    'STANDARD': 'UPS Standard'
+  };
   
   return recommendations.map((rec: any, index: number) => {
     // Get current rate from original data
@@ -237,11 +249,22 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         let selectedRate = null;
         
         if (mappedServiceName) {
-          // Try to find a rate that matches the mapped service
+          // Convert standardized service code to UPS service name
+          const upsServiceName = serviceCodeToNameMap[mappedServiceName] || mappedServiceName;
+          
+          // Try to find a rate that matches the mapped UPS service
           selectedRate = bestAccountRates.find(rate => 
-            rate.service_name === mappedServiceName || 
-            rate.service_name?.includes(mappedServiceName?.replace('UPS ', ''))
+            rate.service_name === upsServiceName || 
+            rate.service_name?.includes(upsServiceName?.replace('UPS ', ''))
           );
+          
+          console.log(`🔍 Service mapping for shipment ${index + 1}:`, {
+            original: originalService,
+            standardized: mappedServiceName,
+            upsServiceName,
+            foundRate: !!selectedRate,
+            availableServices: bestAccountRates.map(r => r.service_name)
+          });
         }
         
         // If no mapped service rate found, use the cheapest available rate from the best account

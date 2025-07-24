@@ -601,11 +601,11 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {service.accounts.map((account) => (
                     <div 
                       key={account.accountName} 
-                      className={`border rounded-lg p-3 transition-all cursor-pointer hover:shadow-md ${
+                      className={`border rounded-lg p-2 transition-all cursor-pointer hover:shadow-md ${
                         selectedAccounts[service.serviceName] === account.accountName
                           ? 'bg-primary/10 border-primary/50 ring-2 ring-primary/30'
                           : 'bg-muted/20 hover:bg-muted/30'

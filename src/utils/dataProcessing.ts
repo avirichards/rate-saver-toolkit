@@ -234,7 +234,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
       service: newService, // Ship Pros recommended UPS service
-      originalService: rec.originalService || rec.shipment?.service || rec.shipment?.originalService || 'Unknown', // Customer's original service
+      originalService: rec.originalService || rec.bestService || rec.shipment?.service || rec.shipment?.originalService || rec.service || 'Unknown', // Customer's original service
       newService: newService,
       currentRate,
       newRate,

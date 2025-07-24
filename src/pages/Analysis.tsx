@@ -696,9 +696,20 @@ const Analysis = () => {
         cleanDestZip
       });
       
-      const length = parseFloat(shipment.length || '12');
-      const width = parseFloat(shipment.width || '12'); 
-      const height = parseFloat(shipment.height || '6');
+      const length = parseFloat(shipment.length);
+      const width = parseFloat(shipment.width); 
+      const height = parseFloat(shipment.height);
+      
+      // Validate dimensions are present and valid
+      if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
+        console.error(`❌ Missing or invalid dimensions for shipment ${index + 1}:`, {
+          shipmentId: shipment.id,
+          length: shipment.length,
+          width: shipment.width,
+          height: shipment.height
+        });
+        throw new Error(`Missing or invalid package dimensions. All shipments must have valid length, width, and height values.`);
+      }
       
       // Normalize service names for robust matching
       const normalizeServiceName = (serviceName: string): string => {

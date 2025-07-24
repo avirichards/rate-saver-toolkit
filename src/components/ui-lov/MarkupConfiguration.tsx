@@ -197,17 +197,40 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
     }
   }, [markupType, globalMarkup, perServiceMarkup, onMarkupChange, calculateMarkupMetrics]);
 
-  // Separate effect for auto-save with longer debounce to reduce spam
+  // Auto-save with shorter debounce for faster saves
   useEffect(() => {
     if (!hasUnsavedChanges || !analysisId) return;
     
     const saveTimeout = setTimeout(() => {
       const markupData = calculateMarkupMetrics();
       saveMarkupData(markupData);
-    }, 2000); // Increased to 2 seconds for less frequent saves
+    }, 500); // 500ms debounce for faster saves
     
     return () => clearTimeout(saveTimeout);
   }, [hasUnsavedChanges, analysisId, calculateMarkupMetrics, saveMarkupData]);
+
+  // Save immediately on component unmount to prevent data loss
+  useEffect(() => {
+    return () => {
+      if (hasUnsavedChanges) {
+        const markupData = calculateMarkupMetrics();
+        saveMarkupData(markupData);
+      }
+    };
+  }, []);
+
+  // Save on browser/tab close
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (hasUnsavedChanges) {
+        const markupData = calculateMarkupMetrics();
+        saveMarkupData(markupData);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges, calculateMarkupMetrics, saveMarkupData]);
   const handlePerServiceMarkupChange = (service: string, value: number) => {
     setPerServiceMarkup(prev => ({
       ...prev,

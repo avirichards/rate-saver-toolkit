@@ -2176,20 +2176,40 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                    </span>
                                  </TableCell>
                                  <TableCell>
-                                   <Badge variant="secondary" className="text-xs">
-                                     {(() => {
-                                       // Get the most commonly selected account for this service
-                                       const serviceShipments = shipmentData.filter(item => item.service === service);
-                                       const accounts = serviceShipments.map(item => item.account || item.accountName || analysisData?.bestAccount || 'Best Overall');
-                                       const accountCounts = accounts.reduce((acc, account) => {
-                                         acc[account] = (acc[account] || 0) + 1;
-                                         return acc;
-                                       }, {} as Record<string, number>);
-                                       
-                                       return Object.entries(accountCounts)
-                                         .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'Best Overall';
-                                     })()}
-                                   </Badge>
+                                   {(() => {
+                                     // Get all accounts used for this service
+                                     const serviceShipments = shipmentData.filter(item => item.service === service);
+                                     const accountCounts = serviceShipments.reduce((acc, item) => {
+                                       const account = item.account || item.accountName || analysisData?.bestAccount || 'Best Overall';
+                                       acc[account] = (acc[account] || 0) + 1;
+                                       return acc;
+                                     }, {} as Record<string, number>);
+                                     
+                                     const accounts = Object.entries(accountCounts);
+                                     
+                                     // If only one account, show single badge
+                                     if (accounts.length === 1) {
+                                       return (
+                                         <Badge variant="secondary" className="text-xs">
+                                           {accounts[0][0]}
+                                         </Badge>
+                                       );
+                                     }
+                                     
+                                     // If multiple accounts, show all with counts
+                                     return (
+                                       <div className="flex flex-wrap gap-1">
+                                         {accounts
+                                           .sort(([,a], [,b]) => (b as number) - (a as number))
+                                           .map(([account, count]) => (
+                                             <Badge key={account} variant="secondary" className="text-xs">
+                                               {account} ({count})
+                                             </Badge>
+                                           ))
+                                         }
+                                       </div>
+                                     );
+                                   })()}
                                  </TableCell>
                               </TableRow>
                             );

@@ -34,6 +34,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
   const [globalMarkup, setGlobalMarkup] = useState(0.0);
   const [perServiceMarkup, setPerServiceMarkup] = useState<Record<string, number>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Get unique services from shipment data
   const availableServices = [...new Set(shipmentData.map(item => item.service).filter(Boolean))];
@@ -190,7 +191,11 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
         toast.error('Failed to save markup configuration');
       } else {
         console.log('✅ MARKUP SAVED: Database updated successfully');
-        toast.success('Markup configuration saved');
+        // Only show success toast if there were unsaved changes
+        if (hasUnsavedChanges) {
+          toast.success('Markup configuration saved');
+        }
+        setHasUnsavedChanges(false);
       }
     } catch (error) {
       console.error('Error saving markup data:', error);
@@ -198,21 +203,30 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [analysisId]);
+  }, [analysisId, hasUnsavedChanges]);
 
   // Handle markup changes and notify parent
   useEffect(() => {
     const markupData = calculateMarkupMetrics();
     onMarkupChange(markupData);
+    
+    // Mark as having unsaved changes (except during initial load)
+    if (analysisId) {
+      setHasUnsavedChanges(true);
+    }
+  }, [markupType, globalMarkup, perServiceMarkup, onMarkupChange, calculateMarkupMetrics]);
 
-    // Auto-save with debouncing
+  // Separate effect for auto-save with longer debounce to reduce spam
+  useEffect(() => {
+    if (!hasUnsavedChanges || !analysisId) return;
+    
     const saveTimeout = setTimeout(() => {
-      if (analysisId) {
-        saveMarkupData(markupData);
-      }
-    }, 1000);
+      const markupData = calculateMarkupMetrics();
+      saveMarkupData(markupData);
+    }, 2000); // Increased to 2 seconds for less frequent saves
+    
     return () => clearTimeout(saveTimeout);
-  }, [markupType, globalMarkup, perServiceMarkup, analysisId]);
+  }, [hasUnsavedChanges, analysisId, calculateMarkupMetrics, saveMarkupData]);
   const handlePerServiceMarkupChange = (service: string, value: number) => {
     setPerServiceMarkup(prev => ({
       ...prev,

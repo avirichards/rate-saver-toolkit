@@ -99,7 +99,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [serviceNotes, setServiceNotes] = useState<Record<string, string>>({});
-  const [serviceMappings, setServiceMappings] = useState<any[]>([]);
   const hasTriedAutoSave = useRef(false);
   
   // Selective re-analysis state
@@ -235,7 +234,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       // Load service notes for the newly saved analysis
       loadServiceNotes(data.id);
       loadShipmentRates(data.id);
-      loadServiceMappings(data.id);
       
       return data.id;
     } catch (error) {
@@ -299,37 +297,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       console.log('📊 Loaded shipment rates for best account calculation:', data.length);
     }
     return data;
-  };
-
-  // Load service mappings for this analysis
-  const loadServiceMappings = async (analysisId: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    // First check if mappings are stored in the analysis record
-    const { data: analysisData } = await supabase
-      .from('shipping_analyses')
-      .select('service_mappings')
-      .eq('id', analysisId)
-      .single();
-
-    if (analysisData?.service_mappings && Array.isArray(analysisData.service_mappings)) {
-      setServiceMappings(analysisData.service_mappings);
-      console.log('📋 Loaded service mappings from analysis:', analysisData.service_mappings.length);
-      return;
-    }
-
-    // Fallback: load global service mappings for this user
-    const { data } = await supabase
-      .from('service_mappings')
-      .select('*')
-      .eq('is_verified', true)
-      .order('confidence_score', { ascending: false });
-
-    if (data) {
-      setServiceMappings(data);
-      console.log('📋 Loaded global service mappings:', data.length);
-    }
   };
 
   // Save or update service note
@@ -752,7 +719,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           }, 1000);
           
           // Process the recommendations using the utility function
-          const processedShipmentData = formatShipmentData(state.analysisData.recommendations, [], undefined, serviceMappings);
+          const processedShipmentData = formatShipmentData(state.analysisData.recommendations);
           setShipmentData(processedShipmentData);
           
           // Handle orphaned shipments from state
@@ -872,23 +839,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     if (currentAnalysisId) {
       loadServiceNotes(currentAnalysisId);
       loadShipmentRates(currentAnalysisId);
-      loadServiceMappings(currentAnalysisId);
     }
   }, [currentAnalysisId]);
-
-  // Re-process shipment data when service mappings are loaded
-  useEffect(() => {
-    if (serviceMappings.length > 0 && analysisData?.recommendations?.length > 0) {
-      console.log('🔄 Re-processing shipment data with service mappings');
-      const reprocessedData = formatShipmentData(
-        analysisData.recommendations,
-        shipmentRates,
-        analysisData.bestAccount,
-        serviceMappings
-      );
-      setShipmentData(reprocessedData);
-    }
-  }, [serviceMappings, analysisData, shipmentRates]);
 
   const loadFromDatabase = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1031,8 +983,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         formattedShipmentData = formatShipmentData(
           processedData.recommendations || [], 
           loadedRates || shipmentRates, 
-          processedData.bestAccount,
-          serviceMappings
+          processedData.bestAccount
         );
       }
       setShipmentData(formattedShipmentData);

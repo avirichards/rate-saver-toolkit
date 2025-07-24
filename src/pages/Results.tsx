@@ -1617,33 +1617,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     return 5; // Default for other combinations
   };
 
-  // Get the Ship Pros service for a shipment - SIMPLIFIED FOR DEBUGGING
+  // Get the Ship Pros service for a shipment using pre-calculated bestService
   const getShipmentOptimizedService = (shipment: any) => {
-    const trackingId = shipment.trackingId;
-    if (!trackingId || !shipmentRates) {
-      console.log(`❌ No tracking ID or rates for shipment`);
-      return shipment.service;
-    }
-
-    // Find ALL rates for this shipment (no filtering)
-    const shipmentRatesList = shipmentRates.filter(rate => 
-      rate.shipment_data?.trackingId === trackingId
-    );
-
-    console.log(`🔍 RAW RATES for ${trackingId}:`, {
-      totalRates: shipmentRatesList.length,
-      allServices: shipmentRatesList.map(r => ({ account: r.account_name, service: r.service_name, code: r.service_code })),
-      originalShipmentService: shipment.service
-    });
-
-    if (shipmentRatesList.length === 0) {
-      console.log(`❌ No rates found for shipment ${trackingId}`);
-      return shipment.service;
-    }
-
-    // Just return the first rate's service name - no filtering at all
-    const result = shipmentRatesList[0]?.service_name || shipment.service;
-    console.log(`📊 Using service: ${result} for ${trackingId}`);
+    // Use the pre-calculated bestService or newService field from formatShipmentData
+    // This already contains the correctly mapped UPS service name
+    const result = shipment.bestService || shipment.newService || shipment.service;
+    
+    console.log(`📊 Service for ${shipment.trackingId}: ${result} (from pre-calculated bestService field)`);
     
     return result;
   };

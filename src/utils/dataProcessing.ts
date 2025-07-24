@@ -300,7 +300,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       height: parseFloat(rec.shipment?.height || rec.height || '0'),
       dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-      service: shipProsService, // This is the "Ship Pros Service Type" column
+      service: originalService, // This is the "Current Service" column
       originalService: originalService,
       bestService: bestService,
       newService: shipProsService,

@@ -406,7 +406,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   return (
     <div className="space-y-6">
       {/* KPI Cards Row - Sticky */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40 pb-4 mb-6">
+      <div className="sticky top-4 z-20 bg-background border border-border rounded-lg p-4 mb-6 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-5 gap-4">
         <SummaryStats
           title="Accounts Compared"

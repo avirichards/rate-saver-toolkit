@@ -970,12 +970,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       setAnalysisData(processedData);
       
-      // Use best account for shipment data formatting
-      const formattedShipmentData = formatShipmentData(
-        processedData.recommendations || [], 
-        loadedRates || shipmentRates, 
-        processedData.bestAccount
-      );
+      // Check if we have saved processed_shipments (user edits) to preserve
+      let formattedShipmentData;
+      if (data.processed_shipments && Array.isArray(data.processed_shipments) && data.processed_shipments.length > 0) {
+        console.log('🔄 Using saved processed_shipments to preserve user edits');
+        // Use the saved processed_shipments which contain user edits
+        formattedShipmentData = data.processed_shipments;
+      } else {
+        console.log('🔍 No saved processed_shipments found, formatting from recommendations');
+        // Fall back to formatting from recommendations if no saved data
+        formattedShipmentData = formatShipmentData(
+          processedData.recommendations || [], 
+          loadedRates || shipmentRates, 
+          processedData.bestAccount
+        );
+      }
       setShipmentData(formattedShipmentData);
       setOrphanedData(processedData.orphanedShipments || []);
       

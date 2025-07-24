@@ -30,7 +30,7 @@ export function useSelectiveReanalysis() {
   const [reanalyzingShipments, setReanalyzingShipments] = useState<Set<number>>(new Set());
 
   // Process a single shipment (similar to Analysis.tsx processShipment function)
-  const processShipment = useCallback(async (shipment: ReanalysisShipment & { newService?: string; bestService?: string; accountId?: string }) => {
+  const processShipment = useCallback(async (shipment: ReanalysisShipment & { newService?: string; accountId?: string }) => {
     console.log('🔄 Re-analyzing shipment:', shipment.id, 'with residential status:', shipment.isResidential, 'account:', shipment.accountId);
 
     // Validate carrier configuration
@@ -63,8 +63,8 @@ export function useSelectiveReanalysis() {
     console.log('Using carrier config:', config.account_name, 'for re-analysis');
 
     // Prepare shipment data for UPS API - match the expected interface
-    // Use the corrected service if available, check both newService and bestService fields
-    const targetService = shipment.newService || shipment.bestService || 'UPS Ground';
+    // Use the corrected service if available
+    const targetService = shipment.newService || 'UPS Ground';
     const serviceCode = getServiceCode(targetService);
     
     const shipmentData = {
@@ -166,7 +166,6 @@ export function useSelectiveReanalysis() {
             ...shipment,
             newRate: result.newRate,
             newService: result.recommendedService,
-            bestService: result.recommendedService, // Ensure both fields are updated
             upsRates: result.upsRates,
             isResidential: shipment.isResidential, // Preserve residential status
             reanalyzed: true,
@@ -237,7 +236,6 @@ export function useSelectiveReanalysis() {
         if (currentService === correction.from) {
           // Update the Ship Pros service (newService), NOT the current service
           updatedShipment.newService = correction.to;
-          updatedShipment.bestService = correction.to; // Also update bestService for consistency
           updatedShipment.corrected = true;
           
           // Apply residential status if specified in the correction

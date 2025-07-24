@@ -1600,7 +1600,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           totalNew: 0, 
           shipments: 0,
           totalSavings: 0,
-          bestServices: [] as string[]
+          shipProServices: [] as string[]
         };
       }
       
@@ -1611,13 +1611,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
       acc[service].totalSavings += savings;
-      acc[service].bestServices.push(item.service || 'UPS Ground');
+      acc[service].shipProServices.push(item.service || 'UPS Ground');
       return acc;
     }, {});
     
     return Object.entries(serviceStats).map(([name, stats]: [string, any]) => {
       // Find the most common Ship Pros service for this current service
-      const serviceCounts = stats.bestServices.reduce((acc: any, srv: string) => {
+      const serviceCounts = stats.shipProServices.reduce((acc: any, srv: string) => {
         acc[srv] = (acc[srv] || 0) + 1;
         return acc;
       }, {});

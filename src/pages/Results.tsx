@@ -594,8 +594,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const updatedShipmentData = shipmentData.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
-          console.log('📦 Updating shipment:', item.id, 'with account:', reanalyzed.analyzedWithAccount);
-          return { ...item, ...reanalyzed };
+          console.log('📦 Updating shipment:', item.id, 'with new rate:', reanalyzed.newRate, 'service:', reanalyzed.newService);
+          // Merge the re-analyzed data with the original item
+          return { 
+            ...item, 
+            ...reanalyzed,
+            // Ensure critical fields are updated
+            newRate: reanalyzed.newRate,
+            service: reanalyzed.newService || reanalyzed.bestService,
+            shipProsService: reanalyzed.newService || reanalyzed.bestService,
+            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
+          };
         }
         return item;
       });
@@ -605,13 +614,23 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       // Save updated shipment data to database
       await saveShipmentData(updatedShipmentData);
 
-      // Clear shipment updates for re-analyzed items but keep them selected
-      const reanalyzedIds = result.success.map((r: any) => r.id);
-      setShipmentUpdates(prev => {
-        const updated = { ...prev };
-        reanalyzedIds.forEach(id => delete updated[id]);
-        return updated;
+      // Update shipment updates to include the service changes from re-analysis
+      // This ensures the service changes persist when navigating away and back
+      const reanalyzedUpdates: Record<number, any> = {};
+      result.success.forEach((reanalyzed: any) => {
+        reanalyzedUpdates[reanalyzed.id] = {
+          service: reanalyzed.newService || reanalyzed.bestService,
+          shipProsService: reanalyzed.newService || reanalyzed.bestService,
+          newRate: reanalyzed.newRate,
+          accountId: reanalyzed.accountId,
+          analyzedWithAccount: reanalyzed.analyzedWithAccount
+        };
       });
+      
+      setShipmentUpdates(prev => ({
+        ...prev,
+        ...reanalyzedUpdates
+      }));
 
       // Keep edit mode ON and don't clear selections - user stays in edit mode
       toast.success(`Successfully re-analyzed ${result.success.length} shipments`);
@@ -648,8 +667,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const updatedShipmentData = shipmentData.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
-          console.log('📦 Updating shipment:', item.id, 'with account:', reanalyzed.analyzedWithAccount);
-          return { ...item, ...reanalyzed };
+          console.log('📦 Updating single shipment:', item.id, 'with new rate:', reanalyzed.newRate, 'service:', reanalyzed.newService);
+          // Merge the re-analyzed data with the original item
+          return { 
+            ...item, 
+            ...reanalyzed,
+            // Ensure critical fields are updated
+            newRate: reanalyzed.newRate,
+            service: reanalyzed.newService || reanalyzed.bestService,
+            shipProsService: reanalyzed.newService || reanalyzed.bestService,
+            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
+          };
         }
         return item;
       });
@@ -659,12 +687,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       // Save updated shipment data to database
       await saveShipmentData(updatedShipmentData);
 
-      // Clear shipment updates for this shipment
-      setShipmentUpdates(prev => {
-        const updated = { ...prev };
-        delete updated[shipmentId];
-        return updated;
-      });
+      // Update shipment updates to include the service changes from re-analysis
+      const reanalyzed = result.success[0];
+      if (reanalyzed) {
+        setShipmentUpdates(prev => ({
+          ...prev,
+          [reanalyzed.id]: {
+            service: reanalyzed.newService || reanalyzed.bestService,
+            shipProsService: reanalyzed.newService || reanalyzed.bestService,
+            newRate: reanalyzed.newRate,
+            accountId: reanalyzed.accountId,
+            analyzedWithAccount: reanalyzed.analyzedWithAccount
+          }
+        }));
+      }
+      toast.success(`Successfully re-analyzed shipment`);
 
       toast.success(`Successfully re-analyzed shipment`);
 

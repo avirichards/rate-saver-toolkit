@@ -232,8 +232,8 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         if (selectedRate) {
           newRate = selectedRate.rate_amount || 0;
           bestService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
-          // Use the recommendedService from the analysis data - this is already correctly calculated
-          shipProsService = rec.recommendedService || bestService;
+          // Use the user's re-analyzed service choice first, then fallback to recommendedService, then bestService
+          shipProsService = rec.newService || rec.recommendedService || bestService;
           
           console.log(`✅ Using rate from best account "${bestAccount}" for shipment ${index + 1}:`, {
             trackingId: rec.shipment?.trackingId || rec.trackingId,

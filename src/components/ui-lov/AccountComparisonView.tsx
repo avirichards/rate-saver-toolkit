@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SummaryStats } from './SummaryStats';
 import { Card, CardContent, CardHeader, CardTitle } from './Card';
 import { formatCurrency } from '@/lib/utils';
@@ -30,7 +30,6 @@ interface ProcessedShipmentData {
   newRate: number;
   savings: number;
   service: string;
-  originalService?: string;
   weight: number;
   account?: string;
   accountName?: string;
@@ -50,10 +49,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   // State for tracking selected accounts per service
   const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>({});
   
-  // Ref to track if user has made manual selections
-  const hasUserSelections = useRef(false);
-  const isInitialized = useRef(false);
-  
   // Get all unique accounts for dropdown options
   const availableAccounts = useMemo(() => {
     return [...new Set(shipmentRates.map(rate => rate.account_name))];
@@ -70,7 +65,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   
   // Handle account selection for a service
   const handleAccountSelection = (serviceName: string, accountName: string) => {
-    hasUserSelections.current = true; // Mark that user has made selections
     const newSelections = {
       ...selectedAccounts,
       [serviceName]: accountName
@@ -85,7 +79,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
   // Handle selecting an account for all services
   const handleSelectAccountForAll = (accountName: string) => {
-    hasUserSelections.current = true; // Mark that user has made selections
     const newSelections: Record<string, string> = {};
     serviceBreakdowns.forEach(service => {
       // Only set if this account has quotes for this service
@@ -94,7 +87,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         newSelections[service.serviceName] = accountName;
       } else {
         // Keep existing selection if account doesn't support this service
-        newSelections[service.serviceName] = selectedAccounts[service.serviceName] || (service.accounts[0]?.accountName as string) || '';
+        newSelections[service.serviceName] = selectedAccounts[service.serviceName] || service.accounts[0]?.accountName;
       }
     });
     setSelectedAccounts(newSelections);
@@ -259,56 +252,38 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
   // Calculate service breakdown by service type
   const serviceBreakdowns = useMemo(() => {
-    // Group shipments by their original service type and map to UPS service
-    const serviceGroups = new Map();
+    // Get all unique services
+    const services = [...new Set([
+      ...shipmentRates.map(rate => rate.service_name || rate.service_code),
+      ...shipmentData.map(shipment => shipment.service)
+    ].filter(Boolean))];
 
-    shipmentData.forEach(shipment => {
-      const originalService = shipment.originalService || shipment.service;
-      const mappedService = shipment.service; // This is the UPS service it got mapped to
-      
-      if (!serviceGroups.has(originalService)) {
-        serviceGroups.set(originalService, {
-          originalService,
-          mappedService,
-          shipments: [],
-          rates: []
-        });
-      }
-      
-      serviceGroups.get(originalService).shipments.push(shipment);
-    });
+    console.log('Service breakdown calculation:', { services });
 
-    // Add rates to each service group
-    shipmentRates.forEach(rate => {
-      const trackingId = rate.shipment_data?.trackingId;
-      const correspondingShipment = shipmentData.find(shipment => 
-        shipment.trackingId === trackingId
+    return services.map(serviceName => {
+      // Get rates for this service
+      const serviceRates = shipmentRates.filter(rate => 
+        (rate.service_name === serviceName || rate.service_code === serviceName)
       );
       
-      if (correspondingShipment) {
-        const originalService = correspondingShipment.originalService || correspondingShipment.service;
-        if (serviceGroups.has(originalService)) {
-          serviceGroups.get(originalService).rates.push(rate);
-        }
-      }
-    });
+      // Get shipment data for this service  
+      const serviceShipments = shipmentData.filter(shipment => 
+        shipment.service === serviceName
+      );
 
-    console.log('Service breakdown calculation:', { serviceGroups });
-
-    return Array.from(serviceGroups.values()).map(serviceGroup => {
-      const { originalService, mappedService, shipments, rates } = serviceGroup;
-
-      console.log(`Service ${originalService} → ${mappedService}:`, {
-        shipmentsCount: shipments.length,
-        ratesCount: rates.length
+      console.log(`Service ${serviceName}:`, {
+        serviceRatesCount: serviceRates.length,
+        serviceShipmentsCount: serviceShipments.length,
+        sampleRate: serviceRates[0],
+        sampleShipment: serviceShipments[0]
       });
 
       // Group by account for this service
-      const accountPerformance = [...new Set(rates.map(rate => rate.account_name))]
+      const accountPerformance = [...new Set(serviceRates.map(rate => rate.account_name))]
         .map(accountName => {
-          const accountRates = rates.filter(rate => rate.account_name === accountName);
+          const accountRates = serviceRates.filter(rate => rate.account_name === accountName);
           
-          // Calculate metrics based on rates
+          // Calculate metrics based on rates (simpler approach)
           const totalCost = accountRates.reduce((sum, rate) => sum + (rate.rate_amount || 0), 0);
           const avgCost = accountRates.length > 0 ? totalCost / accountRates.length : 0;
           
@@ -319,7 +294,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           accountRates.forEach(rate => {
             // Find the corresponding shipment data by tracking ID
             const trackingId = rate.shipment_data?.trackingId;
-            const correspondingShipment = shipments.find(shipment => 
+            const correspondingShipment = serviceShipments.find(shipment => 
               shipment.trackingId === trackingId
             );
             
@@ -347,9 +322,8 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         .sort((a, b) => b.avgSavings - a.avgSavings);
 
       return {
-        serviceName: originalService,
-        mappedService,
-        totalShipments: rates.length,
+        serviceName,
+        totalShipments: serviceRates.length,
         accounts: accountPerformance
       };
     }).filter(service => service.totalShipments > 0);
@@ -357,8 +331,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
   // Initialize selected accounts with best performing account for each service
   useEffect(() => {
-    // Only initialize if we haven't initialized yet and user hasn't made selections
-    if (serviceBreakdowns.length > 0 && !isInitialized.current && !hasUserSelections.current) {
+    if (serviceBreakdowns.length > 0) {
       const initialSelections: Record<string, string> = {};
       serviceBreakdowns.forEach(service => {
         // Check if shipments in this service have been optimized (have account property)
@@ -381,12 +354,10 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           }
         } else if (service.accounts.length > 0) {
           // No optimization yet, use best performing account
-          initialSelections[service.serviceName] = service.accounts[0].accountName as string;
+          initialSelections[service.serviceName] = service.accounts[0].accountName;
         }
       });
-      
       setSelectedAccounts(initialSelections);
-      isInitialized.current = true;
     }
   }, [serviceBreakdowns, shipmentData]);
 
@@ -606,9 +577,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-base font-semibold">
-                      {service.serviceName} ➡︎ {service.mappedService}
-                    </CardTitle>
+                    <CardTitle className="text-base font-semibold">{service.serviceName}</CardTitle>
                     <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -635,16 +604,16 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {service.accounts.map((account) => (
                     <div 
-                      key={account.accountName as string} 
+                      key={account.accountName} 
                       className={`border rounded-lg p-2 transition-all cursor-pointer hover:shadow-md ${
                         selectedAccounts[service.serviceName] === account.accountName
                           ? 'bg-primary/10 border-primary/50 ring-2 ring-primary/30'
                           : 'bg-muted/20 hover:bg-muted/30'
                       }`}
-                      onClick={() => handleAccountSelection(service.serviceName, account.accountName as string)}
+                      onClick={() => handleAccountSelection(service.serviceName, account.accountName)}
                     >
                       <h4 className="font-medium text-sm mb-2 flex items-center gap-2">
-                        {account.accountName as string}
+                        {account.accountName}
                         {selectedAccounts[service.serviceName] === account.accountName && (
                           <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">Selected</span>
                         )}

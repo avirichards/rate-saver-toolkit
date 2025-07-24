@@ -719,12 +719,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           }, 1000);
           
           // Process the recommendations using the utility function
-          const processedShipmentData = formatShipmentData(
-            state.analysisData.recommendations,
-            undefined,
-            undefined,
-            undefined // Service mappings not available in this context
-          );
+          const processedShipmentData = formatShipmentData(state.analysisData.recommendations);
           setShipmentData(processedShipmentData);
           
           // Handle orphaned shipments from state
@@ -988,8 +983,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         formattedShipmentData = formatShipmentData(
           processedData.recommendations || [], 
           loadedRates || shipmentRates, 
-          processedData.bestAccount,
-          data.service_mappings
+          processedData.bestAccount
         );
       }
       setShipmentData(formattedShipmentData);

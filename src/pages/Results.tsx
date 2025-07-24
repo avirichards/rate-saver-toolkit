@@ -1590,6 +1590,30 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     return 5; // Default for other combinations
   };
 
+  // Get the Ship Pros service for a shipment based on the optimized rates
+  const getShipmentOptimizedService = (shipment: any) => {
+    const trackingId = shipment.trackingId;
+    if (!trackingId || !shipmentRates) return shipment.service;
+
+    // Find rates for this shipment
+    const shipmentRatesList = shipmentRates.filter(rate => 
+      rate.shipment_data?.trackingId === trackingId
+    );
+
+    if (shipmentRatesList.length === 0) return shipment.service;
+
+    // Get the account that was selected for this shipment (from the optimization)
+    const selectedAccount = shipment.account || shipment.accountName;
+    
+    // Find the rate for the selected account
+    const optimizedRate = shipmentRatesList.find(rate => 
+      rate.account_name === selectedAccount
+    );
+
+    // Return the service name from the optimized rate, or fall back to the first available rate
+    return optimizedRate?.service_name || shipmentRatesList[0]?.service_name || shipment.service;
+  };
+
   const generateServiceCostData = () => {
     const dataToUse = getOverviewFilteredData();
     const serviceStats = dataToUse.reduce((acc, item) => {
@@ -1611,7 +1635,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
       acc[service].totalSavings += savings;
-      acc[service].bestServices.push(item.bestService || 'UPS Ground');
+      
+      // Get the actual Ship Pros service type for this shipment
+      const shipProsService = getShipmentOptimizedService(item);
+      acc[service].bestServices.push(shipProsService);
       return acc;
     }, {});
     

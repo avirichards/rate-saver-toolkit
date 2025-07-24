@@ -97,13 +97,13 @@ export function useSelectiveReanalysis() {
       isResidential: shipment.isResidential === 'true' || shipment.isResidential === true
     };
 
-    console.log('Sending shipment data to UPS API:', shipmentData, 'with configId:', config.id);
+    console.log('Sending shipment data to multi-carrier API:', shipmentData, 'with configId:', config.id);
 
-    // Call UPS rate quote API with specific carrier config
-    const { data, error } = await supabase.functions.invoke('ups-rate-quote', {
+    // Call multi-carrier quote API with specific carrier config
+    const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
       body: { 
-        shipment: shipmentData,
-        configId: config.id
+        ...shipmentData,
+        carrierConfigIds: [config.id]
       }
     });
 
@@ -112,31 +112,31 @@ export function useSelectiveReanalysis() {
       throw new Error(`UPS API Error: ${error.message || 'Failed to get rates'}`);
     }
 
-    if (!data || !data.rates || data.rates.length === 0) {
-      console.warn('No rates returned from UPS API:', data);
+    if (!data || !data.allRates || data.allRates.length === 0) {
+      console.warn('No rates returned from multi-carrier API:', data);
       throw new Error('No rates available for this shipment. Check ZIP codes and package details.');
     }
 
-    // Find the best rate (lowest cost)
-    const bestRate = data.rates.reduce((best: any, current: any) => 
-      (current.totalCharges || 999999) < (best.totalCharges || 999999) ? current : best
+    // Find the best rate (lowest cost) from all rates
+    const bestRate = data.allRates.reduce((best: any, current: any) => 
+      (current.rate_amount || 999999) < (best.rate_amount || 999999) ? current : best
     );
 
     console.log('🔄 Re-analysis result:', {
       shipmentId: shipment.id,
       isResidential: shipment.isResidential,
-      newRate: bestRate.totalCharges,
-      recommendedService: bestRate.serviceName,
-      ratesReceived: data.rates.length
+      newRate: bestRate.rate_amount,
+      recommendedService: bestRate.service_name,
+      ratesReceived: data.allRates.length
     });
 
     return {
       shipment: shipment,
       originalRate: 0, // We don't know the original rate in re-analysis
-      newRate: bestRate.totalCharges,
+      newRate: bestRate.rate_amount,
       savings: 0, // Will be calculated when we know the original rate
-      recommendedService: bestRate.serviceName,
-      upsRates: data.rates,
+      recommendedService: bestRate.service_name,
+      upsRates: data.allRates,
       accountUsed: {
         id: config.id,
         name: config.account_name,

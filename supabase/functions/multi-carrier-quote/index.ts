@@ -103,6 +103,18 @@ serve(async (req) => {
       serviceTypes: shipment.serviceTypes
     });
 
+    // API monitoring metrics for tracking performance issues
+    const apiMetrics = {
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      rateLimitErrors: 0,
+      timeoutErrors: 0,
+      authErrors: 0,
+      averageResponseTime: 0,
+      startTime: Date.now()
+    };
+
     // Get carrier configurations for the user
     const { data: carrierConfigs, error: configError } = await supabase
       .from('carrier_configs')
@@ -123,6 +135,9 @@ serve(async (req) => {
 
     // Process each carrier configuration
     for (const config of carrierConfigs as CarrierConfig[]) {
+      const requestStart = Date.now();
+      apiMetrics.totalRequests++;
+      
       try {
         console.log(`📦 Processing carrier: ${config.carrier_type} (${config.account_name})`);
         
@@ -189,6 +204,12 @@ serve(async (req) => {
             rateCount: rates.length,
             rates: carrierRates
           });
+          
+          // Track successful request
+          apiMetrics.successfulRequests++;
+          const responseTime = Date.now() - requestStart;
+          apiMetrics.averageResponseTime = (apiMetrics.averageResponseTime * (apiMetrics.successfulRequests - 1) + responseTime) / apiMetrics.successfulRequests;
+          
         } else {
           carrierResults.push({
             carrierId: config.id,
@@ -202,12 +223,28 @@ serve(async (req) => {
 
       } catch (error: any) {
         console.error(`❌ Error getting rates for ${config.carrier_type}:`, error);
+        
+        // Track failed request and categorize error
+        apiMetrics.failedRequests++;
+        const errorMessage = error.message || 'Unknown error';
+        
+        if (errorMessage.includes('rate limit') || errorMessage.includes('429')) {
+          apiMetrics.rateLimitErrors++;
+          console.log('🚨 RATE LIMIT ERROR detected');
+        } else if (errorMessage.includes('timeout') || errorMessage.includes('ECONNRESET')) {
+          apiMetrics.timeoutErrors++;
+          console.log('⏰ TIMEOUT ERROR detected');
+        } else if (errorMessage.includes('auth') || errorMessage.includes('401') || errorMessage.includes('403')) {
+          apiMetrics.authErrors++;
+          console.log('🔐 AUTH ERROR detected');
+        }
+        
         carrierResults.push({
           carrierId: config.id,
           carrierName: config.account_name,
           carrierType: config.carrier_type,
           success: false,
-          error: error.message,
+          error: errorMessage,
           rates: []
         });
       }
@@ -216,12 +253,27 @@ serve(async (req) => {
     // Find best rates by service type
     const bestRates = findBestRatesByService(allRates);
 
-    console.log('📊 MULTI-CARRIER RESULTS:', {
-      totalCarriers: carrierConfigs.length,
-      successfulCarriers: carrierResults.filter(r => r.success).length,
-      totalRates: allRates.length,
-      bestRatesCount: bestRates.length
-    });
+  // Log comprehensive API monitoring metrics
+  const totalTime = Date.now() - apiMetrics.startTime;
+  console.log('📊 MULTI-CARRIER RESULTS:', {
+    totalCarriers: carrierConfigs.length,
+    successfulCarriers: carrierResults.filter(r => r.success).length,
+    totalRates: allRates.length,
+    bestRatesCount: bestRates.length
+  });
+  
+  console.log('📈 API PERFORMANCE METRICS:', {
+    totalRequests: apiMetrics.totalRequests,
+    successfulRequests: apiMetrics.successfulRequests,
+    failedRequests: apiMetrics.failedRequests,
+    successRate: `${((apiMetrics.successfulRequests / apiMetrics.totalRequests) * 100).toFixed(1)}%`,
+    rateLimitErrors: apiMetrics.rateLimitErrors,
+    timeoutErrors: apiMetrics.timeoutErrors,
+    authErrors: apiMetrics.authErrors,
+    averageResponseTime: `${apiMetrics.averageResponseTime.toFixed(0)}ms`,
+    totalProcessingTime: `${totalTime}ms`,
+    requestsPerSecond: (apiMetrics.totalRequests / (totalTime / 1000)).toFixed(2)
+  });
 
     return new Response(JSON.stringify({
       success: true,

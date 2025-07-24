@@ -77,6 +77,9 @@ serve(async (req) => {
       configId: configId
     });
 
+    // Track API call metrics for performance monitoring
+    const apiCallStart = Date.now();
+
     // Validate shipment data before building request
     if (!shipment?.shipFrom?.zipCode || !shipment?.shipTo?.zipCode) {
       return new Response(JSON.stringify({ error: 'Missing required ZIP codes' }), {
@@ -443,19 +446,27 @@ serve(async (req) => {
             }
           }
         } else {
+          const apiCallEnd = Date.now();
+          const callDuration = apiCallEnd - apiCallStart;
           const errorText = await response.text();
-          console.error(`UPS API Error for service ${serviceCode} (config ${configId}):`, {
-            status: response.status,
-            statusText: response.statusText,
-            endpoint: ratingEndpoint,
-            body: errorText,
-            requestHeaders: {
-              hasAuth: !!access_token,
-              endpoint: ratingEndpoint,
-              serviceCode: serviceCode,
-              configId
-            }
+          
+          console.error('🚨 UPS API ERROR DETAILS:', {
+            error: errorText,
+            httpStatus: response.status,
+            callDuration: `${callDuration}ms`,
+            serviceCode,
+            configId,
+            timestamp: new Date().toISOString()
           });
+          
+          // Check for specific error types
+          if (response.status === 429) {
+            console.log('🚨 RATE LIMIT EXCEEDED - Consider reducing concurrency');
+          } else if (response.status >= 500) {
+            console.log('🚨 UPS SERVER ERROR - Temporary issue, retry recommended');
+          } else if (response.status === 401 || response.status === 403) {
+            console.log('🚨 AUTHENTICATION ERROR - Token may be expired');
+          }
           
           // Try to parse UPS error response
           try {
@@ -470,7 +481,17 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Successfully retrieved ${rates.length} rates for config ${configId}`);
+    const apiCallEnd = Date.now();
+    const totalCallDuration = apiCallEnd - apiCallStart;
+    
+    console.log(`✅ Successfully retrieved ${rates.length} rates for config ${configId}`);
+    console.log('⚡ UPS API PERFORMANCE:', {
+      totalCallDuration: `${totalCallDuration}ms`,
+      servicesRequested: serviceCodes.length,
+      avgTimePerService: `${(totalCallDuration / serviceCodes.length).toFixed(0)}ms`,
+      configId,
+      timestamp: new Date().toISOString()
+    });
 
     // Calculate overall rate type and savings
     const hasAnyNegotiatedRates = rates.some(rate => rate.hasNegotiatedRates);

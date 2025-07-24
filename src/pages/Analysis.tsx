@@ -433,7 +433,7 @@ const Analysis = () => {
       }
       
       // Process shipments in parallel batches for much faster processing
-      const batchSize = 6; // Process 6 shipments at a time to balance speed vs API limits
+      const batchSize = 100; // Process 100 shipments concurrently - MAXIMUM SPEED MODE
       const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
@@ -462,9 +462,9 @@ const Analysis = () => {
         // Update progress to reflect completed batch
         setCurrentShipmentIndex(endIndex - 1);
         
-        // Small delay between batches to prevent overwhelming APIs
+        // Minimal delay between batches for extreme speed
         if (batchIndex < totalBatches - 1 && !isPaused) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
       }
       

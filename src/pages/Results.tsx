@@ -322,6 +322,46 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   };
 
+  // Save shipment updates to database
+  const saveShipmentUpdates = async () => {
+    if (!currentAnalysisId || Object.keys(shipmentUpdates).length === 0) return;
+    
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    try {
+      console.log('💾 Saving shipment updates to database:', Object.keys(shipmentUpdates).length, 'updates');
+      
+      const { error } = await supabase
+        .from('shipping_analyses')
+        .update({
+          account_assignments: shipmentUpdates as any,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentAnalysisId)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('❌ Error saving shipment updates:', error);
+      } else {
+        console.log('✅ Shipment updates saved successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error saving shipment updates:', error);
+    }
+  };
+
+  // Auto-save shipment updates when they change
+  useEffect(() => {
+    if (Object.keys(shipmentUpdates).length > 0 && currentAnalysisId) {
+      const timeoutId = setTimeout(() => {
+        saveShipmentUpdates();
+      }, 1000); // Debounce saves by 1 second
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [shipmentUpdates, currentAnalysisId]);
+
   // Load shipment rates for account comparison
   const loadShipmentRates = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1020,6 +1060,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       setCurrentAnalysisId(data.id);
       if (data.markup_data) {
         setMarkupData(data.markup_data as MarkupData);
+      }
+
+      // Load saved shipment updates if they exist
+      if (data.account_assignments && typeof data.account_assignments === 'object') {
+        console.log('🔄 Loading saved shipment updates:', Object.keys(data.account_assignments).length, 'updates');
+        setShipmentUpdates(data.account_assignments as Record<number, any>);
       }
 
       // Load shipment rates first to determine best account

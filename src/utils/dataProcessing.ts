@@ -184,10 +184,11 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     });
   }
   
-  // Create a lookup map for service mappings
+  // Create a lookup map for service mappings to UPS service names
   const serviceMappingLookup = new Map();
   if (serviceMappings) {
     serviceMappings.forEach(mapping => {
+      // Map original service to the standardized service code for lookup
       serviceMappingLookup.set(mapping.original, mapping.standardized);
     });
   }
@@ -253,8 +254,8 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         if (selectedRate) {
           newRate = selectedRate.rate_amount || 0;
           bestService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
-          // Use the mapped service name for Ship Pros Service Type
-          shipProsService = mappedServiceName || bestService;
+          // Use the actual UPS service name from the rate, not the mapped standardized name
+          shipProsService = bestService;
           
           console.log(`✅ Using rate from best account "${bestAccount}" for shipment ${index + 1}:`, {
             trackingId: rec.shipment?.trackingId || rec.trackingId,

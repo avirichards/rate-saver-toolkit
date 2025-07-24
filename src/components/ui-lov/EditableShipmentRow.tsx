@@ -311,19 +311,12 @@ export function EditableShipmentRow({
         <TableCell>
           <Badge variant="secondary" className="text-xs truncate">
             {(() => {
-              // Priority order: analyzedWithAccount.name > accountNames lookup > accountName > fallback
-              const accountName = shipment.analyzedWithAccount?.name || 
+              // Priority order: account (from optimization) > analyzedWithAccount.name > accountNames lookup > accountName > fallback
+              const accountName = shipment.account || 
+                                  shipment.analyzedWithAccount?.name || 
                                   (shipment.accountId ? accountNames[shipment.accountId] : null) ||
                                   shipment.accountName || 
                                   'Default Account';
-              
-              console.log('🏷️ Account badge display:', {
-                shipmentId: shipment.id,
-                analyzedWithAccount: shipment.analyzedWithAccount,
-                accountId: shipment.accountId,
-                accountNames: accountNames,
-                finalAccountName: accountName
-              });
               
               return accountName;
             })()}

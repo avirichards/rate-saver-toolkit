@@ -233,8 +233,8 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       height: parseFloat(rec.shipment?.height || rec.height || '6'),
       dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-      service: newService,
-      originalService: rec.originalService || rec.service || 'Unknown',
+      service: newService, // Ship Pros recommended UPS service
+      originalService: rec.originalService || rec.shipment?.service || rec.shipment?.originalService || 'Unknown', // Customer's original service
       newService: newService,
       currentRate,
       newRate,

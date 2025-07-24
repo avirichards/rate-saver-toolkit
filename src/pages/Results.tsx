@@ -1240,8 +1240,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     setShipmentData(validShipments);
     setOrphanedData(orphanedShipments);
     
-    // Initialize service data for filtering
-    const services = [...new Set(validShipments.map(item => item.service).filter(Boolean))] as string[];
+    // Initialize service data for filtering - use original services
+    const services = [...new Set(validShipments.map(item => item.originalService).filter(Boolean))] as string[];
     setAvailableServices(services);
     setSelectedServicesOverview([]);
     
@@ -1365,9 +1365,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       filtered = filtered.filter(item => item.savings < 0);
     }
 
-    // Apply service filter
+    // Apply service filter - filter by original service
     if (selectedService !== 'all') {
-      filtered = filtered.filter(item => item.service === selectedService);
+      filtered = filtered.filter(item => item.originalService === selectedService);
     }
 
     // Apply search filter
@@ -1522,7 +1522,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const generateServiceChartData = () => {
     const dataToUse = getOverviewFilteredData();
     const serviceCount = dataToUse.reduce((acc, item) => {
-      const service = item.service || 'Unknown';
+      const service = item.originalService || 'Unknown'; // Use original service for chart
       acc[service] = (acc[service] || 0) + 1;
       return acc;
     }, {});
@@ -2087,71 +2087,72 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                       </TableRow>
                     </TableHeader>
                      <TableBody className="bg-background">
-                       {(() => {
-                         // Show ALL services in the table, not just selected ones
-                         const serviceAnalysis = shipmentData.reduce((acc, item) => {
-                           const service = item.service || 'Unknown';
-                           if (!acc[service]) {
-                             acc[service] = {
-                               currentCost: 0,
-                               newCost: 0,
-                               savings: 0,
-                               weight: 0,
-                               count: 0,
-                               carrier: item.carrier || 'Unknown'
-                             };
-                           }
-                           acc[service].currentCost += item.currentRate;
-                           acc[service].newCost += item.newRate;
-                           acc[service].savings += item.savings;
-                           acc[service].weight += item.weight;
-                           acc[service].count += 1;
-                           return acc;
-                         }, {} as Record<string, any>);
+                        {(() => {
+                          // Show ALL services in the table, not just selected ones
+                          // Group by originalService (customer's original service), not service (UPS service)
+                          const serviceAnalysis = shipmentData.reduce((acc, item) => {
+                            const originalService = item.originalService || 'Unknown';
+                            if (!acc[originalService]) {
+                              acc[originalService] = {
+                                currentCost: 0,
+                                newCost: 0,
+                                savings: 0,
+                                weight: 0,
+                                count: 0,
+                                carrier: item.carrier || 'Unknown',
+                                shipProServices: [] // Track Ship Pros services recommended for this original service
+                              };
+                            }
+                            acc[originalService].currentCost += item.currentRate;
+                            acc[originalService].newCost += item.newRate;
+                            acc[originalService].savings += item.savings;
+                            acc[originalService].weight += item.weight;
+                            acc[originalService].count += 1;
+                            acc[originalService].shipProServices.push(item.service); // Add the Ship Pros service
+                            return acc;
+                          }, {} as Record<string, any>);
 
-                         return Object.entries(serviceAnalysis).map(([service, data]: [string, any]) => {
-                           const avgCurrentCost = data.currentCost / data.count;
-                           const avgNewCost = data.newCost / data.count;
-                           const avgSavings = data.savings / data.count;
-                           const avgWeight = data.weight / data.count;
-                           const volumePercent = (data.count / shipmentData.length) * 100;
-                           const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
-                            // Determine the most common Ship Pros service for this current service
-                            const shipProsSample = shipmentData.filter(item => item.service === service);
-                            const upsServices = shipProsSample.map(item => item.service || 'UPS Ground');
-                            const mostCommonUpsService = upsServices.reduce((acc, srv) => {
-                              acc[srv] = (acc[srv] || 0) + 1;
-                              return acc;
-                            }, {} as Record<string, number>);
-                            const spServiceType = Object.entries(mostCommonUpsService)
-                              .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
+                          return Object.entries(serviceAnalysis).map(([originalService, data]: [string, any]) => {
+                            const avgCurrentCost = data.currentCost / data.count;
+                            const avgNewCost = data.newCost / data.count;
+                            const avgSavings = data.savings / data.count;
+                            const avgWeight = data.weight / data.count;
+                            const volumePercent = (data.count / shipmentData.length) * 100;
+                            const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
+                             // Determine the most common Ship Pros service for this original service
+                             const mostCommonShipProService = data.shipProServices.reduce((acc: Record<string, number>, srv: string) => {
+                               acc[srv] = (acc[srv] || 0) + 1;
+                               return acc;
+                             }, {});
+                             const spServiceType = Object.entries(mostCommonShipProService)
+                               .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
                            
-                            // Calculate markup info for this service
-                            const serviceShipments = shipmentData.filter(item => item.service === service);
-                            const avgMarkedUpPrice = serviceShipments.reduce((sum, item) => {
-                              const markupInfo = getShipmentMarkup(item);
-                              return sum + markupInfo.markedUpPrice;
-                            }, 0) / serviceShipments.length;
+                             // Calculate markup info for this original service
+                             const serviceShipments = shipmentData.filter(item => item.originalService === originalService);
+                             const avgMarkedUpPrice = serviceShipments.reduce((sum, item) => {
+                               const markupInfo = getShipmentMarkup(item);
+                               return sum + markupInfo.markedUpPrice;
+                             }, 0) / serviceShipments.length;
                             
                             // Update savings calculations to use marked-up price
                             const avgSavingsWithMarkup = avgCurrentCost - avgMarkedUpPrice;
                             const avgSavingsPercentWithMarkup = avgCurrentCost > 0 ? (avgSavingsWithMarkup / avgCurrentCost) * 100 : 0;
 
-                            return (
-                              <TableRow key={service} className="hover:bg-muted/30 border-b border-border/30">
-                                <TableCell className="w-12">
-                                  <Checkbox 
-                                    checked={selectedServicesOverview.includes(service)}
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setSelectedServicesOverview(prev => [...prev, service]);
-                                      } else {
-                                        setSelectedServicesOverview(prev => prev.filter(s => s !== service));
-                                      }
-                                    }}
-                                  />
-                                </TableCell>
-                                <TableCell className="font-medium text-foreground">{service}</TableCell>
+                             return (
+                               <TableRow key={originalService} className="hover:bg-muted/30 border-b border-border/30">
+                                 <TableCell className="w-12">
+                                   <Checkbox 
+                                     checked={selectedServicesOverview.includes(originalService)}
+                                     onCheckedChange={(checked) => {
+                                       if (checked) {
+                                         setSelectedServicesOverview(prev => [...prev, originalService]);
+                                       } else {
+                                         setSelectedServicesOverview(prev => prev.filter(s => s !== originalService));
+                                       }
+                                     }}
+                                   />
+                                 </TableCell>
+                                 <TableCell className="font-medium text-foreground">{originalService}</TableCell>
                                  <TableCell className="text-right font-medium">{formatCurrency(avgCurrentCost)}</TableCell>
                                  <TableCell className="text-right font-medium text-primary">{formatCurrency(avgMarkedUpPrice)}</TableCell>
                                 <TableCell>
@@ -2172,15 +2173,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                      {formatPercentage(avgSavingsPercentWithMarkup)}
                                    </span>
                                  </TableCell>
-                                 <TableCell>
-                                   {(() => {
-                                     // Get all accounts used for this service
-                                     const serviceShipments = shipmentData.filter(item => item.service === service);
-                                     const accountCounts = serviceShipments.reduce((acc, item) => {
-                                       const account = item.account || item.accountName || analysisData?.bestAccount || 'Best Overall';
-                                       acc[account] = (acc[account] || 0) + 1;
-                                       return acc;
-                                     }, {} as Record<string, number>);
+                                  <TableCell>
+                                    {(() => {
+                                      // Get all accounts used for this original service
+                                      const serviceShipments = shipmentData.filter(item => item.originalService === originalService);
+                                      const accountCounts = serviceShipments.reduce((acc, item) => {
+                                        const account = item.account || item.accountName || analysisData?.bestAccount || 'Best Overall';
+                                        acc[account] = (acc[account] || 0) + 1;
+                                        return acc;
+                                      }, {} as Record<string, number>);
                                      
                                      const accounts = Object.entries(accountCounts);
                                      

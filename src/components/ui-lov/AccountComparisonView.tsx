@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './Card';
 import { formatCurrency } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ShipmentRate {
   id: string;
@@ -457,51 +458,109 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Spend:</span>
-                  <span className="font-medium">{formatCurrency(account.totalSpend)}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total Savings:</span>
-                  <span className={`font-medium ${account.totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(account.totalSavings)} ({account.totalSavingsPercent.toFixed(1)}%)
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Avg Savings:</span>
-                  <span className={`font-medium ${account.avgDollarSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(account.avgDollarSavings)} ({account.avgPercentSavings.toFixed(1)}%)
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Median Savings:</span>
-                  <span className={`font-medium ${account.medianDollarSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {formatCurrency(account.medianDollarSavings)} ({account.medianPercentSavings.toFixed(1)}%)
-                  </span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Avg Cost/Shipment:</span>
-                  <span className="font-medium">{formatCurrency(account.avgCostPerShipment)}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Win Rate:</span>
-                  <span className="font-medium">{account.winRate.toFixed(1)}%</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Shipments Quoted:</span>
-                  <span className="font-medium">{account.shipmentsQuoted} / {account.totalShipments}</span>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Max Savings:</span>
-                  <span className="font-medium text-green-600">{account.maxSavingsPercent.toFixed(1)}%</span>
-                </div>
+                <TooltipProvider>
+                  <div className="flex justify-between">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Total Spend:</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Total amount spent across all shipments with this carrier account</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className="font-medium">{formatCurrency(account.totalSpend)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Total Savings:</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Total savings compared to current rates across all shipments</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className={`font-medium ${account.totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(account.totalSavings)} ({account.totalSavingsPercent.toFixed(1)}%)
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Avg Savings:</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Average savings per shipment compared to current rates</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className={`font-medium ${account.avgDollarSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(account.avgDollarSavings)} ({account.avgPercentSavings.toFixed(1)}%)
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Median Savings:</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Middle value of savings when all shipment savings are ordered from least to greatest</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className={`font-medium ${account.medianDollarSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(account.medianDollarSavings)} ({account.medianPercentSavings.toFixed(1)}%)
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Avg Cost/Shipment:</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Average shipping cost per shipment with this carrier account</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className="font-medium">{formatCurrency(account.avgCostPerShipment)}</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Win Rate:</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Percentage of shipments where this account offers lower rates than current carrier</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className="font-medium">{account.winRate.toFixed(1)}%</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Shipments Quoted:</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Number of shipments this account provided quotes for out of total shipments</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className="font-medium">{account.shipmentsQuoted} / {account.totalShipments}</span>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground cursor-help">Max Savings:</span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Highest percentage savings achieved on a single shipment with this account</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <span className="font-medium text-green-600">{account.maxSavingsPercent.toFixed(1)}%</span>
+                  </div>
+                </TooltipProvider>
               </CardContent>
             </Card>
           ))}

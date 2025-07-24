@@ -48,8 +48,18 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   shipmentData,
   onOptimizationChange
 }) => {
-  // State for tracking selected accounts per service
-  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>({});
+  // Get a stable key for localStorage based on shipment data
+  const storageKey = `accountSelections_${shipmentData?.length || 0}_${shipmentRates?.length || 0}`;
+  
+  // State for tracking selected accounts per service with persistence
+  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   
   // Ref to track if user has made manual selections
   const hasUserSelections = useRef(false);
@@ -78,6 +88,13 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     };
     setSelectedAccounts(newSelections);
     
+    // Save to localStorage for persistence
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(newSelections));
+    } catch (error) {
+      console.warn('Failed to save account selections:', error);
+    }
+    
     // Auto-apply optimization immediately
     if (onOptimizationChange) {
       onOptimizationChange(newSelections);
@@ -99,6 +116,13 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       }
     });
     setSelectedAccounts(newSelections);
+    
+    // Save to localStorage for persistence
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(newSelections));
+    } catch (error) {
+      console.warn('Failed to save account selections:', error);
+    }
     
     // Auto-apply optimization immediately
     if (onOptimizationChange) {

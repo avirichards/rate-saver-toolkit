@@ -2456,17 +2456,25 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   const selectedAccount = selections[shipment.service];
                   if (selectedAccount) {
                     // Find the rate for this shipment with the selected account
+                    // Need to match by mapped service since shipment.service is now the UPS service name
                     const optimizedRate = shipmentRates.find(rate => 
                       rate.account_name === selectedAccount &&
                       rate.service_name === shipment.service &&
                       rate.shipment_data?.trackingId === shipment.trackingId
                     );
                     
-                    if (optimizedRate) {
-                      const newSavings = shipment.currentRate - optimizedRate.rate_amount;
+                    // If no exact match, try finding by tracking ID and account only
+                    const fallbackRate = !optimizedRate ? shipmentRates.find(rate => 
+                      rate.account_name === selectedAccount &&
+                      rate.shipment_data?.trackingId === shipment.trackingId
+                    ) : null;
+                    
+                    const rateToUse = optimizedRate || fallbackRate;
+                    if (rateToUse) {
+                      const newSavings = shipment.currentRate - rateToUse.rate_amount;
                       const optimizedShipment = {
                         ...shipment,
-                        newRate: optimizedRate.rate_amount,
+                        newRate: rateToUse.rate_amount,
                         savings: newSavings,
                         account: selectedAccount,
                         // Also update accountName for consistency

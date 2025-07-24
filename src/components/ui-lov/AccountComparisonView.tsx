@@ -406,6 +406,28 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Analysis Mode Notice */}
+      <Card className="p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
+        <CardContent className="pt-0">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mt-0.5">
+              <span className="text-blue-600 dark:text-blue-400 text-sm font-semibold">i</span>
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100">Consistent Account Usage Analysis</h4>
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                This analysis shows realistic savings using <strong>one carrier account consistently</strong> across all shipments, 
+                rather than cherry-picking the best rate for each individual shipment. The best overall account is determined by 
+                calculating which account provides the lowest total cost across all shipments.
+              </p>
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                💡 Use the account selection controls below to see "what if" scenarios using different carrier accounts.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* KPI Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-5 gap-4">
         <SummaryStats
@@ -424,12 +446,12 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           color="blue"
         />
         <SummaryStats
-          title="Savings"
+          title="Consistent Account Savings"
           value={`${formatCurrency(kpiMetrics.totalSavings)} (${Math.round(kpiMetrics.savingsPercentage)}%)`}
           color={kpiMetrics.totalSavings >= 0 ? "green" : "red"}
         />
         <SummaryStats
-          title="Top Performer"
+          title="Best Overall Account"
           value={kpiMetrics.topPerformer}
           color="purple"
         />
@@ -437,7 +459,10 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       {/* Account Summary Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground">Account Summary</h3>
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-foreground">Account Performance Comparison</h3>
+          <p className="text-sm text-muted-foreground">Click any account to use it for all shipments</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {accountSummaries.map((account) => (
             <Card 
@@ -570,7 +595,10 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       {/* Service Type Breakdown Section */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground">Performance by Service Type</h3>
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-foreground">Service-Level Account Selection</h3>
+          <p className="text-sm text-muted-foreground">Fine-tune account selection per service type</p>
+        </div>
         <div className="grid grid-cols-1 gap-6">
           {serviceBreakdowns.map((service) => (
             <Card key={service.serviceName} className="p-4">

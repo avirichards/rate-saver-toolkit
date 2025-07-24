@@ -172,10 +172,11 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
   };
 };
 
-// Convert recommendations to formatted shipment data - using best overall account
-export const formatShipmentData = (recommendations: any[], shipmentRates?: any[], bestAccount?: string): ProcessedShipmentData[] => {
+// Convert recommendations to formatted shipment data - using best overall account and service mappings
+export const formatShipmentData = (recommendations: any[], shipmentRates?: any[], bestAccount?: string, serviceMappings?: any[]): ProcessedShipmentData[] => {
   console.log('🔍 formatShipmentData - Processing recommendations:', recommendations?.length || 0, 'items');
   console.log('🔍 Using best account for all shipments:', bestAccount);
+  console.log('🔍 Available service mappings:', serviceMappings?.length || 0);
   
   if (recommendations?.length > 0) {
     console.log('🔍 Sample recommendation data structure:', {
@@ -189,9 +190,48 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
                        rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
     
+    // Get the original service name
+    const originalService = rec.originalService || rec.service || 'Unknown';
+    
+    // Find the mapped UPS service using service mappings
+    let mappedUpsService = 'UPS Ground'; // Default fallback
+    if (serviceMappings && serviceMappings.length > 0) {
+      const serviceMapping = serviceMappings.find(mapping => 
+        mapping.original_service?.toLowerCase() === originalService.toLowerCase()
+      );
+      
+      if (serviceMapping) {
+        // Convert standardized service to readable UPS service name
+        const serviceCode = serviceMapping.standardized_service;
+        switch (serviceCode) {
+          case 'UPS_GROUND':
+            mappedUpsService = 'UPS Ground';
+            break;
+          case 'UPS_NEXT_DAY_AIR':
+            mappedUpsService = 'UPS Next Day Air';
+            break;
+          case 'UPS_2ND_DAY_AIR':
+            mappedUpsService = 'UPS 2nd Day Air';
+            break;
+          case 'UPS_3_DAY_SELECT':
+            mappedUpsService = 'UPS 3 Day Select';
+            break;
+          case 'UPS_NEXT_DAY_AIR_SAVER':
+            mappedUpsService = 'UPS Next Day Air Saver';
+            break;
+          case 'UPS_2ND_DAY_AIR_AM':
+            mappedUpsService = 'UPS 2nd Day Air A.M.';
+            break;
+          default:
+            mappedUpsService = serviceMapping.standardized_service.replace(/_/g, ' ');
+        }
+        console.log(`🔍 Mapped "${originalService}" → "${mappedUpsService}"`);
+      }
+    }
+    
     // Find the rate for this shipment from the best overall account
     let newRate = 0;
-    let bestService = 'No Quote Available';
+    let bestService = mappedUpsService;
     
     if (bestAccount && shipmentRates) {
       const bestAccountRate = shipmentRates.find(rate => 
@@ -200,13 +240,14 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       
       if (bestAccountRate) {
         newRate = bestAccountRate.rate_amount || 0;
-        bestService = bestAccountRate.service_name || bestAccountRate.service_code || 'UPS Ground';
+        // Use the mapped service, not whatever service came back from the rate quote
+        bestService = mappedUpsService;
       }
     } else {
       // Fallback to original logic if no best account determined
       newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
                 rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
-      bestService = rec.bestService || rec.recommendedService || 'UPS Ground';
+      bestService = mappedUpsService; // Use mapped service instead of generic fallback
     }
     
     const calculatedSavings = currentRate - newRate;

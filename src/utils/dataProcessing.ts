@@ -242,7 +242,17 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
           bestService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
           // Use the mapped service name for Ship Pros Service Type
           shipProsService = mappedServiceName || bestService;
+          
+          console.log(`📋 Using rate from best account "${bestAccount}" for shipment ${index + 1}:`, {
+            trackingId: rec.shipment?.trackingId || rec.trackingId,
+            service: selectedRate.service_name,
+            rate: selectedRate.rate_amount
+          });
+        } else {
+          console.warn(`⚠️ No rates found for shipment ${index + 1} from best account "${bestAccount}"`);
         }
+      } else {
+        console.warn(`⚠️ No rates available for shipment ${index + 1} from best account "${bestAccount}"`);
       }
     } else {
       // Fallback to original logic if no best account determined
@@ -271,6 +281,12 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       });
     }
     
+    // Determine which account was actually used for this rate
+    const usedAccount = bestAccount || rec.account || rec.accountName || 'Default Account';
+    const usedAccountId = bestAccount ? 
+      shipmentRates?.find(rate => rate.account_name === bestAccount)?.carrier_config_id || 'unknown' : 
+      'unknown';
+
     return {
       id: index + 1,
       trackingId: rec.shipment?.trackingId || rec.trackingId || `Shipment-${index + 1}`,
@@ -289,7 +305,15 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       currentRate,
       newRate,
       savings: calculatedSavings || 0,
-      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0
+      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0,
+      // Ensure account fields are consistent and show the actual account used
+      account: usedAccount,
+      accountName: usedAccount,
+      accountId: usedAccountId,
+      analyzedWithAccount: {
+        name: usedAccount,
+        id: usedAccountId
+      }
     };
   });
 };

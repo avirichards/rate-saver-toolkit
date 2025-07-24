@@ -487,21 +487,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     
     setShipmentUpdates(prev => {
       const currentUpdates = prev[shipmentId] || {};
-      let newFieldUpdates = { [field]: value };
       
-      // If updating service or shipProsService, keep both fields in sync
-      if (field === 'service' || field === 'shipProsService') {
-        newFieldUpdates = {
-          service: value,
-          shipProsService: value
-        };
+      // For Ship Pros Service field, always use 'newService' for consistency
+      let fieldToUpdate = field;
+      if (field === 'shipProsService') {
+        fieldToUpdate = 'newService';
       }
       
       const newUpdates = {
         ...prev,
         [shipmentId]: {
           ...currentUpdates,
-          ...newFieldUpdates
+          [fieldToUpdate]: value
         }
       };
       
@@ -528,19 +525,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             
             const updatedShipments = processedShipments.map((shipment: any) => {
               if (shipment.id === shipmentId) {
-                let updateFields = { [field]: value };
-                
-                // If updating service or shipProsService, keep both fields in sync
-                if (field === 'service' || field === 'shipProsService') {
-                  updateFields = {
-                    service: value,
-                    shipProsService: value
-                  };
+                // For Ship Pros Service field, always use 'newService' for consistency
+                let fieldToUpdate = field;
+                if (field === 'shipProsService') {
+                  fieldToUpdate = 'newService';
                 }
                 
                 return {
                   ...shipment,
-                  ...updateFields
+                  [fieldToUpdate]: value
                 };
               }
               return shipment;
@@ -620,10 +613,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           return { 
             ...item, 
             ...reanalyzed,
-            // Ensure critical fields are updated
+            // Ensure critical fields are updated - use newService for Ship Pros Service
             newRate: reanalyzed.newRate,
-            service: reanalyzed.newService || reanalyzed.bestService,
-            shipProsService: reanalyzed.newService || reanalyzed.bestService,
+            newService: reanalyzed.newService || reanalyzed.bestService,
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
           };
         }
@@ -640,8 +632,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const reanalyzedUpdates: Record<number, any> = {};
       result.success.forEach((reanalyzed: any) => {
         reanalyzedUpdates[reanalyzed.id] = {
-          service: reanalyzed.newService || reanalyzed.bestService,
-          shipProsService: reanalyzed.newService || reanalyzed.bestService,
+          newService: reanalyzed.newService || reanalyzed.bestService,
           newRate: reanalyzed.newRate,
           accountId: reanalyzed.accountId,
           analyzedWithAccount: reanalyzed.analyzedWithAccount
@@ -693,10 +684,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           return { 
             ...item, 
             ...reanalyzed,
-            // Ensure critical fields are updated
+            // Ensure critical fields are updated - use newService for Ship Pros Service
             newRate: reanalyzed.newRate,
-            service: reanalyzed.newService || reanalyzed.bestService,
-            shipProsService: reanalyzed.newService || reanalyzed.bestService,
+            newService: reanalyzed.newService || reanalyzed.bestService,
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
           };
         }
@@ -714,8 +704,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setShipmentUpdates(prev => ({
           ...prev,
           [reanalyzed.id]: {
-            service: reanalyzed.newService || reanalyzed.bestService,
-            shipProsService: reanalyzed.newService || reanalyzed.bestService,
+            newService: reanalyzed.newService || reanalyzed.bestService,
             newRate: reanalyzed.newRate,
             accountId: reanalyzed.accountId,
             analyzedWithAccount: reanalyzed.analyzedWithAccount
@@ -1195,7 +1184,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           
           if (update) {
             console.log('📦 Applying update to shipment:', updateKey, update);
-            return { ...shipment, ...update };
+            // Ensure newService field is applied correctly
+            const updatedShipment = { ...shipment, ...update };
+            // If there's a newService update, make sure it's applied
+            if (update.newService) {
+              updatedShipment.newService = update.newService;
+            }
+            return updatedShipment;
           }
           
           return shipment;

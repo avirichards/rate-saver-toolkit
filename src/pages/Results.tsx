@@ -336,7 +336,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         .from('shipping_analyses')
         .update({
           processed_shipments: shipmentData as any, // Save current shipment data as "Current Rates"
-          account_assignments: shipmentUpdates as any,
           updated_at: new Date().toISOString()
         })
         .eq('id', currentAnalysisId)
@@ -1178,30 +1177,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           processedData.bestAccount,
           data.service_mappings // Pass service mappings from database
         );
-      }
-
-      // Apply saved shipment updates if they exist
-      if (data.account_assignments && typeof data.account_assignments === 'object') {
-        const updates = data.account_assignments as Record<number, any>;
-        console.log('🔄 Applying saved shipment updates to formatted data:', Object.keys(updates).length, 'updates');
-        
-        formattedShipmentData = formattedShipmentData.map(shipment => {
-          const updateKey = shipment.id;
-          const update = updates[updateKey];
-          
-          if (update) {
-            console.log('📦 Applying update to shipment:', updateKey, update);
-            // Ensure newService field is applied correctly
-            const updatedShipment = { ...shipment, ...update };
-            // If there's a newService update, make sure it's applied
-            if (update.newService) {
-              updatedShipment.newService = update.newService;
-            }
-            return updatedShipment;
-          }
-          
-          return shipment;
-        });
+        // Save the initial analysis to processed_shipments
+        await supabase
+          .from('shipping_analyses')
+          .update({ 
+            processed_shipments: formattedShipmentData as any,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', data.id);
       }
 
       setShipmentData(formattedShipmentData);
@@ -2716,6 +2699,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 
                 // Update the shipment data state
                 setShipmentData(optimizedShipmentData);
+                
+                // Save optimization to processed_shipments immediately
+                saveShipmentData(optimizedShipmentData);
                 
                 // Recalculate totals
                 const totalSavings = optimizedShipmentData.reduce((sum, shipment) => sum + (shipment.savings || 0), 0);

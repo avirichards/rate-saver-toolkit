@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { SummaryStats } from './SummaryStats';
 import { Card, CardContent, CardHeader, CardTitle } from './Card';
 import { formatCurrency } from '@/lib/utils';
@@ -298,6 +298,20 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     }).filter(service => service.totalShipments > 0);
   }, [shipmentRates, shipmentData]);
 
+  // Initialize selected accounts with best performing account for each service
+  useEffect(() => {
+    if (serviceBreakdowns.length > 0 && Object.keys(selectedAccounts).length === 0) {
+      const initialSelections: Record<string, string> = {};
+      serviceBreakdowns.forEach(service => {
+        if (service.accounts.length > 0) {
+          // Select the account with the highest average savings (first in sorted array)
+          initialSelections[service.serviceName] = service.accounts[0].accountName;
+        }
+      });
+      setSelectedAccounts(initialSelections);
+    }
+  }, [serviceBreakdowns, selectedAccounts]);
+
   // Calculate optimized metrics based on current selections
   const optimizedMetrics = useMemo(() => {
     if (Object.keys(selectedAccounts).length === 0) {
@@ -460,14 +474,13 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                   <div className="flex flex-col items-end gap-2">
                     <label className="text-xs text-muted-foreground">Use Account:</label>
                     <Select
-                      value={selectedAccounts[service.serviceName] || 'default'}
-                      onValueChange={(value) => handleAccountSelection(service.serviceName, value === 'default' ? '' : value)}
+                      value={selectedAccounts[service.serviceName] || ''}
+                      onValueChange={(value) => handleAccountSelection(service.serviceName, value)}
                     >
                       <SelectTrigger className="w-40 h-8 text-xs bg-background border z-50">
                         <SelectValue placeholder="Select account" />
                       </SelectTrigger>
                       <SelectContent className="bg-background border z-50">
-                        <SelectItem value="default" className="text-xs">Default (Best)</SelectItem>
                         {availableAccounts.map((account) => (
                           <SelectItem key={account} value={account} className="text-xs">
                             {account}

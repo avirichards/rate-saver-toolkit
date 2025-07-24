@@ -72,7 +72,17 @@ export function EditableShipmentRow({
   };
 
   const getDisplayValue = (field: string) => {
-    return localChanges[field] ?? shipment[field] ?? '';
+    const value = localChanges[field] ?? shipment[field] ?? '';
+    if (field === 'newService' && shipment.trackingId === '1Z4W80R50338555042') {
+      console.log('🔍 getDisplayValue for newService:', {
+        trackingId: shipment.trackingId,
+        localChanges: localChanges[field],
+        shipmentValue: shipment[field],
+        finalValue: value,
+        fullShipment: shipment
+      });
+    }
+    return value;
   };
 
   const hasChanges = Object.keys(localChanges).length > 0;

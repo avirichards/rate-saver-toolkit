@@ -406,7 +406,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   return (
     <div className="space-y-6">
       {/* KPI Cards Row */}
-      <div className="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-5 gap-4">
         <SummaryStats
           title="Accounts Compared"
           value={kpiMetrics.accountsCompared}

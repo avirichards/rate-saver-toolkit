@@ -1768,22 +1768,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   return (
     <Layout {...layoutProps}>
       <div className="max-w-7xl mx-auto p-6 animate-fade-in">
-        {/* Breadcrumb Navigation - Hidden in client view */}
-        {!isClientView && (searchParams.get('analysisId') || currentAnalysisId) && (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Link to="/" className="hover:text-foreground transition-colors">
-                <Home className="h-4 w-4" />
-              </Link>
-              <span>/</span>
-              <Link to="/reports" className="hover:text-foreground transition-colors">
-                Reports
-              </Link>
-              <span>/</span>
-              <span className="text-foreground font-medium">Analysis Results</span>
-            </div>
-          </div>
-        )}
 
         {/* Header Section */}
         <div className="mb-12">

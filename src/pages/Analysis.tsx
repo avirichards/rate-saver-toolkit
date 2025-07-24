@@ -672,6 +672,17 @@ const Analysis = () => {
         missingFields.push('Valid Cost (greater than $0)');
       }
       
+      // Validate dimensions - NO fallbacks allowed
+      if (!shipment.length || isNaN(parseFloat(shipment.length)) || parseFloat(shipment.length) <= 0) {
+        missingFields.push('Valid Length');
+      }
+      if (!shipment.width || isNaN(parseFloat(shipment.width)) || parseFloat(shipment.width) <= 0) {
+        missingFields.push('Valid Width');
+      }
+      if (!shipment.height || isNaN(parseFloat(shipment.height)) || parseFloat(shipment.height) <= 0) {
+        missingFields.push('Valid Height');
+      }
+
       // Check if we have any missing fields and provide detailed error
       if (missingFields.length > 0) {
         console.error(`❌ Validation failed for shipment ${index + 1}:`, {
@@ -682,7 +693,10 @@ const Analysis = () => {
             destZip: shipment.destZip,
             service: shipment.service,
             weight: shipment.weight,
-            cost: shipment.cost
+            cost: shipment.cost,
+            length: shipment.length,
+            width: shipment.width,
+            height: shipment.height
           }
         });
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
@@ -693,12 +707,13 @@ const Analysis = () => {
         weight,
         currentCost,
         cleanOriginZip,
-        cleanDestZip
+        cleanDestZip,
+        dimensions: `${shipment.length}x${shipment.width}x${shipment.height}`
       });
       
-      const length = parseFloat(shipment.length || '12');
-      const width = parseFloat(shipment.width || '12'); 
-      const height = parseFloat(shipment.height || '6');
+      const length = parseFloat(shipment.length);
+      const width = parseFloat(shipment.width); 
+      const height = parseFloat(shipment.height);
       
       // Normalize service names for robust matching
       const normalizeServiceName = (serviceName: string): string => {
@@ -1577,8 +1592,8 @@ const Analysis = () => {
                         {result.shipment.service && (
                           <p>Service: {result.shipment.service}</p>
                         )}
-                        {(result.shipment.length || result.shipment.width || result.shipment.height) && (
-                          <p>Dimensions: {result.shipment.length || 12}" × {result.shipment.width || 12}" × {result.shipment.height || 6}"</p>
+                        {(result.shipment.length && result.shipment.width && result.shipment.height) && (
+                          <p>Dimensions: {result.shipment.length}" × {result.shipment.width}" × {result.shipment.height}"</p>
                         )}
                         {result.status === 'processing' && (
                           <p className="text-primary font-medium">Getting UPS rates...</p>

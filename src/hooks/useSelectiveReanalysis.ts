@@ -87,9 +87,9 @@ export function useSelectiveReanalysis() {
       package: {
         weight: parseFloat(shipment.weight.toString()),
         weightUnit: 'LBS',
-        length: parseFloat((shipment.length || 12).toString()),
-        width: parseFloat((shipment.width || 12).toString()),
-        height: parseFloat((shipment.height || 6).toString()),
+        length: parseFloat(shipment.length.toString()),
+        width: parseFloat(shipment.width.toString()),
+        height: parseFloat(shipment.height.toString()),
         dimensionUnit: 'IN'
       },
       serviceTypes: [serviceCode],

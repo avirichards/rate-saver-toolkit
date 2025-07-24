@@ -2448,6 +2448,97 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           </TabsContent>
 
           <TabsContent value="account-comparison" className="space-y-6">
+            {/* Sticky KPI Section for Account Comparison */}
+            <div className="sticky top-4 z-20 bg-background border border-border rounded-lg p-4 mb-6 shadow-sm">
+              <div className="grid grid-cols-1 md:grid-cols-5 lg:grid-cols-5 gap-4">
+                {(() => {
+                  // Calculate KPI metrics inline for sticky display
+                  const uniqueAccounts = new Set(shipmentRates.map(rate => rate.account_name));
+                  const accountsCompared = uniqueAccounts.size;
+                  const totalShipments = shipmentData.length;
+                  const totalSavings = shipmentData.reduce((sum, shipment) => sum + (shipment.savings || 0), 0);
+                  const currentCost = shipmentData.reduce((sum, shipment) => sum + (shipment.currentRate || 0), 0);
+                  const savingsPercentage = currentCost > 0 ? (totalSavings / currentCost) * 100 : 0;
+                  
+                  // Find top performer
+                  const accountSavings: Record<string, number> = {};
+                  const shipmentBestRates: Record<string, { account: string; rate: number; currentRate: number }> = {};
+                  
+                  shipmentRates.forEach(rate => {
+                    const trackingId = rate.shipment_data?.trackingId;
+                    if (!trackingId) return;
+                    
+                    const currentShipment = shipmentData.find(s => s.trackingId === trackingId);
+                    if (currentShipment) {
+                      if (!shipmentBestRates[trackingId] || rate.rate_amount < shipmentBestRates[trackingId].rate) {
+                        shipmentBestRates[trackingId] = {
+                          account: rate.account_name,
+                          rate: rate.rate_amount,
+                          currentRate: currentShipment.currentRate
+                        };
+                      }
+                    }
+                  });
+                  
+                  Object.values(shipmentBestRates).forEach(({ account, rate, currentRate }) => {
+                    const savings = currentRate - rate;
+                    accountSavings[account] = (accountSavings[account] || 0) + savings;
+                  });
+                  
+                  const topPerformer = Object.entries(accountSavings).reduce((top, [account, savings]) => {
+                    return savings > top.savings ? { account, savings } : top;
+                  }, { account: 'N/A', savings: 0 });
+
+                  return (
+                    <>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-600">{accountsCompared}</div>
+                            <div className="text-sm text-muted-foreground">Accounts Compared</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-green-600">{totalShipments.toLocaleString()}</div>
+                            <div className="text-sm text-muted-foreground">Total Shipments</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-blue-600">{formatCurrency(currentCost)}</div>
+                            <div className="text-sm text-muted-foreground">Current Cost</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-center">
+                            <div className={`text-2xl font-bold ${totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(totalSavings)} ({Math.round(savingsPercentage)}%)
+                            </div>
+                            <div className="text-sm text-muted-foreground">Savings</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-4">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold text-purple-600">{topPerformer.account}</div>
+                            <div className="text-sm text-muted-foreground">Top Performer</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+            
             <AccountComparisonView 
               shipmentRates={shipmentRates}
               shipmentData={shipmentData}

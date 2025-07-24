@@ -470,11 +470,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                 </div>
                 
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Avg Cost/Shipment:</span>
-                  <span className="font-medium">{formatCurrency(account.avgCostPerShipment)}</span>
-                </div>
-                
-                <div className="flex justify-between">
                   <span className="text-muted-foreground">Avg Savings:</span>
                   <span className={`font-medium ${account.avgDollarSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(account.avgDollarSavings)} ({account.avgPercentSavings.toFixed(1)}%)
@@ -486,6 +481,11 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                   <span className={`font-medium ${account.medianDollarSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                     {formatCurrency(account.medianDollarSavings)} ({account.medianPercentSavings.toFixed(1)}%)
                   </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Avg Cost/Shipment:</span>
+                  <span className="font-medium">{formatCurrency(account.avgCostPerShipment)}</span>
                 </div>
                 
                 <div className="flex justify-between">

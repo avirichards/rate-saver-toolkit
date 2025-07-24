@@ -1617,28 +1617,35 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     return 5; // Default for other combinations
   };
 
-  // Get the Ship Pros service for a shipment based on the optimized rates
+  // Get the Ship Pros service for a shipment - SIMPLIFIED FOR DEBUGGING
   const getShipmentOptimizedService = (shipment: any) => {
     const trackingId = shipment.trackingId;
-    if (!trackingId || !shipmentRates) return shipment.service;
+    if (!trackingId || !shipmentRates) {
+      console.log(`❌ No tracking ID or rates for shipment`);
+      return shipment.service;
+    }
 
-    // Find rates for this shipment
+    // Find ALL rates for this shipment (no filtering)
     const shipmentRatesList = shipmentRates.filter(rate => 
       rate.shipment_data?.trackingId === trackingId
     );
+
+    console.log(`🔍 RAW RATES for ${trackingId}:`, {
+      totalRates: shipmentRatesList.length,
+      allServices: shipmentRatesList.map(r => ({ account: r.account_name, service: r.service_name, code: r.service_code })),
+      originalShipmentService: shipment.service
+    });
 
     if (shipmentRatesList.length === 0) {
       console.log(`❌ No rates found for shipment ${trackingId}`);
       return shipment.service;
     }
 
-    // Since all rate accounts are being compared, just use the first rate's service name
-    // which will be the UPS equivalent service (the rates are already properly mapped)
-    const rateServiceName = shipmentRatesList[0]?.service_name;
+    // Just return the first rate's service name - no filtering at all
+    const result = shipmentRatesList[0]?.service_name || shipment.service;
+    console.log(`📊 Using service: ${result} for ${trackingId}`);
     
-    console.log(`📊 Service for ${trackingId}: ${rateServiceName} (from rate data)`);
-    
-    return rateServiceName || shipment.service;
+    return result;
   };
 
   const generateServiceCostData = () => {

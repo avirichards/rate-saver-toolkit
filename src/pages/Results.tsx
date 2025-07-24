@@ -2420,6 +2420,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             <AccountComparisonView 
               shipmentRates={shipmentRates}
               shipmentData={shipmentData}
+              onOptimizationChange={(selections) => {
+                console.log('Optimization selections:', selections);
+                // TODO: Apply optimizations to the main results
+                toast.success('Optimization strategy applied! (Feature coming soon)');
+              }}
             />
           </TabsContent>
 

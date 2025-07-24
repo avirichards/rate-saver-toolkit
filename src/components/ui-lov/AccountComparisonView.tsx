@@ -50,6 +50,15 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   const availableAccounts = useMemo(() => {
     return [...new Set(shipmentRates.map(rate => rate.account_name))];
   }, [shipmentRates]);
+
+  // Debug logging
+  console.log('AccountComparisonView data:', {
+    shipmentRatesCount: shipmentRates.length,
+    shipmentDataCount: shipmentData.length,
+    availableAccounts,
+    sampleShipmentRate: shipmentRates[0],
+    sampleShipmentData: shipmentData[0]
+  });
   
   // Handle account selection for a service
   const handleAccountSelection = (serviceName: string, accountName: string) => {
@@ -218,38 +227,55 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       ...shipmentData.map(shipment => shipment.service)
     ].filter(Boolean))];
 
+    console.log('Service breakdown calculation:', { services });
+
     return services.map(serviceName => {
       // Get rates for this service
       const serviceRates = shipmentRates.filter(rate => 
         (rate.service_name === serviceName || rate.service_code === serviceName)
       );
       
-      // Get shipment data for this service
+      // Get shipment data for this service  
       const serviceShipments = shipmentData.filter(shipment => 
         shipment.service === serviceName
       );
+
+      console.log(`Service ${serviceName}:`, {
+        serviceRatesCount: serviceRates.length,
+        serviceShipmentsCount: serviceShipments.length,
+        sampleRate: serviceRates[0],
+        sampleShipment: serviceShipments[0]
+      });
 
       // Group by account for this service
       const accountPerformance = [...new Set(serviceRates.map(rate => rate.account_name))]
         .map(accountName => {
           const accountRates = serviceRates.filter(rate => rate.account_name === accountName);
-          const accountShipments = serviceShipments.filter(shipment => {
-            // Find matching rates to determine if this shipment used this account
-            return shipmentRates.some(rate => 
-              rate.account_name === accountName && 
-              rate.shipment_index === shipment.id &&
-              (rate.service_name === serviceName || rate.service_code === serviceName)
-            );
-          });
-
+          
+          // Calculate metrics based on rates (simpler approach)
           const totalCost = accountRates.reduce((sum, rate) => sum + (rate.rate_amount || 0), 0);
           const avgCost = accountRates.length > 0 ? totalCost / accountRates.length : 0;
           
-          const totalSavings = accountShipments.reduce((sum, shipment) => sum + (shipment.savings || 0), 0);
-          const avgSavings = accountShipments.length > 0 ? totalSavings / accountShipments.length : 0;
+          // Calculate savings by comparing rates to current shipment costs
+          let totalSavings = 0;
+          let winCount = 0;
           
-          const winCount = accountShipments.filter(shipment => (shipment.savings || 0) > 0).length;
-          const winRate = accountShipments.length > 0 ? (winCount / accountShipments.length) * 100 : 0;
+          accountRates.forEach(rate => {
+            // Find the corresponding shipment data by tracking ID
+            const trackingId = rate.shipment_data?.trackingId;
+            const correspondingShipment = serviceShipments.find(shipment => 
+              shipment.trackingId === trackingId
+            );
+            
+            if (correspondingShipment) {
+              const savings = correspondingShipment.currentRate - rate.rate_amount;
+              totalSavings += savings;
+              if (savings > 0) winCount++;
+            }
+          });
+          
+          const avgSavings = accountRates.length > 0 ? totalSavings / accountRates.length : 0;
+          const winRate = accountRates.length > 0 ? (winCount / accountRates.length) * 100 : 0;
 
           return {
             accountName,

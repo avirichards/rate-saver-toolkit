@@ -42,10 +42,7 @@ export interface ProcessedShipmentData {
   account?: string;
   accountName?: string;
   accountId?: string;
-  analyzedWithAccount?: {
-    name: string;
-    id: string;
-  };
+  analyzedWithAccount?: string; // Changed from object to string for simpler display
 }
 
 export interface ValidationResult {
@@ -308,7 +305,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     }
     
     // Determine which account was actually used for this rate - should always be the best account now
-    const usedAccount = bestAccount || 'Unknown Account';
+    const usedAccount = bestAccount || 'Default Account';
     const usedAccountId = bestAccount ? 
       shipmentRates?.find(rate => rate.account_name === bestAccount)?.carrier_config_id || 'unknown' : 
       'unknown';
@@ -336,10 +333,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       account: usedAccount,
       accountName: usedAccount,
       accountId: usedAccountId,
-      analyzedWithAccount: {
-        name: usedAccount,
-        id: usedAccountId
-      }
+      analyzedWithAccount: usedAccount // Changed to simple string
     };
   });
 };

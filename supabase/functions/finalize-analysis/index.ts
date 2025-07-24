@@ -104,7 +104,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Format processed shipments for centralized storage
     // Filter out shipments that should be orphaned (missing service type or no rates)
     const validRecommendations = payload.recommendations.filter(rec => {
       const service = rec.originalService || rec.shipment.service || '';
@@ -113,23 +112,72 @@ Deno.serve(async (req) => {
       return hasValidService && hasRates;
     });
 
-    const processedShipments = validRecommendations.map((rec, index) => ({
-      id: index + 1,
-      trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
-      originZip: rec.shipment.originZip || '',
-      destinationZip: rec.shipment.destZip || '',
-      weight: parseFloat(rec.shipment.weight || '0'),
-      length: parseFloat(rec.shipment.length || '0'),
-      width: parseFloat(rec.shipment.width || '0'),
-      height: parseFloat(rec.shipment.height || '0'),
-      dimensions: rec.shipment.dimensions,
-      carrier: rec.carrier || 'UPS',
-      service: rec.originalService || rec.shipment.service || 'Unknown',
-      currentRate: rec.currentCost || 0,
-      newRate: rec.recommendedCost || 0,
-      savings: rec.savings || 0,
-      savingsPercent: rec.currentCost && rec.currentCost > 0 ? ((rec.savings || 0) / rec.currentCost) * 100 : 0
-    }))
+    // Determine the best overall account before processing shipments
+    // Calculate total cost for each account across all shipments
+    const accountTotals: { [key: string]: { totalCost: number; shipmentCount: number } } = {};
+    
+    validRecommendations.forEach(rec => {
+      if (rec.allRates && Array.isArray(rec.allRates)) {
+        rec.allRates.forEach((rate: any) => {
+          const accountName = rate.carrierName || rate.accountName || 'Unknown';
+          if (!accountTotals[accountName]) {
+            accountTotals[accountName] = { totalCost: 0, shipmentCount: 0 };
+          }
+          accountTotals[accountName].totalCost += rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0;
+          accountTotals[accountName].shipmentCount += 1;
+        });
+      }
+    });
+
+    // Find the account with the lowest total cost
+    let bestOverallAccount = '';
+    let lowestTotalCost = Infinity;
+    
+    Object.entries(accountTotals).forEach(([accountName, totals]) => {
+      if (totals.totalCost < lowestTotalCost) {
+        lowestTotalCost = totals.totalCost;
+        bestOverallAccount = accountName;
+      }
+    });
+
+    console.log('Best overall account determined:', bestOverallAccount, 'with total cost:', lowestTotalCost);
+    console.log('Account totals:', accountTotals);
+
+    // Format processed shipments using only rates from the best overall account
+    const processedShipments = validRecommendations.map((rec, index) => {
+      // Find the rate from the best overall account for this shipment
+      let bestAccountRate = null;
+      if (rec.allRates && Array.isArray(rec.allRates)) {
+        bestAccountRate = rec.allRates.find((rate: any) => {
+          const accountName = rate.carrierName || rate.accountName || 'Unknown';
+          return accountName === bestOverallAccount;
+        });
+      }
+
+      // Use the best account rate or fallback to the original recommendation
+      const newRate = bestAccountRate ? (bestAccountRate.totalCharges || bestAccountRate.negotiatedRate || bestAccountRate.rate_amount || 0) : (rec.recommendedCost || 0);
+      const currentRate = rec.currentCost || 0;
+      const savings = currentRate - newRate;
+
+      return {
+        id: index + 1,
+        trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
+        originZip: rec.shipment.originZip || '',
+        destinationZip: rec.shipment.destZip || '',
+        weight: parseFloat(rec.shipment.weight || '0'),
+        length: parseFloat(rec.shipment.length || '0'),
+        width: parseFloat(rec.shipment.width || '0'),
+        height: parseFloat(rec.shipment.height || '0'),
+        dimensions: rec.shipment.dimensions,
+        carrier: rec.carrier || 'UPS',
+        service: rec.originalService || rec.shipment.service || 'Unknown',
+        currentRate: currentRate,
+        newRate: newRate,
+        savings: savings,
+        savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
+        analyzedWithAccount: bestOverallAccount // Add the account information
+      }
+    })
 
     // Format orphaned shipments for centralized storage
     const orphanedShipmentsFormatted = payload.orphanedShipments.map((orphan, index) => ({

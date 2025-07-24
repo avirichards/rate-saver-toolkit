@@ -1,5 +1,6 @@
 
 import { toast } from 'sonner';
+import { mapServiceToServiceCode } from './serviceMapping';
 
 // Standardized interfaces for data processing
 export interface ProcessedAnalysisData {
@@ -208,11 +209,19 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       // Get the original service for this shipment
       const originalService = rec.originalService || rec.service || rec.shipment?.service;
       
-      // First, try to find a rate from the best account that matches the original service type
+      // Use the service mapping utility to find what UPS service this should map to
+      const { serviceCode: targetServiceCode, serviceName: targetServiceName } = mapServiceToServiceCode(originalService);
+      
+      console.log(`🔍 Service mapping for ${originalService}:`, {
+        targetServiceCode,
+        targetServiceName
+      });
+      
+      // First, try to find a rate from the best account that matches the target service type
       const matchingServiceRate = shipmentRates.find(rate => 
         rate.account_name === bestAccount && 
         rate.shipment_data?.trackingId === rec.trackingId &&
-        (rate.service_name === originalService || rate.service_code === originalService)
+        (rate.service_code === targetServiceCode || rate.service_name === targetServiceName)
       );
       
       // If no matching service, fall back to any rate from the best account for this shipment
@@ -225,6 +234,8 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       console.log(`🔍 Finding rate for shipment ${rec.trackingId}:`, {
         bestAccount,
         originalService,
+        targetServiceCode,
+        targetServiceName,
         availableRates: shipmentRates.filter(rate => rate.shipment_data?.trackingId === rec.trackingId).length,
         foundMatchingService: !!matchingServiceRate,
         foundFallback: !!fallbackRate,

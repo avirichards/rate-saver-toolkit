@@ -486,11 +486,22 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     setSelectedShipments(prev => new Set([...prev, shipmentId]));
     
     setShipmentUpdates(prev => {
+      const currentUpdates = prev[shipmentId] || {};
+      let newFieldUpdates = { [field]: value };
+      
+      // If updating service or shipProsService, keep both fields in sync
+      if (field === 'service' || field === 'shipProsService') {
+        newFieldUpdates = {
+          service: value,
+          shipProsService: value
+        };
+      }
+      
       const newUpdates = {
         ...prev,
         [shipmentId]: {
-          ...prev[shipmentId],
-          [field]: value
+          ...currentUpdates,
+          ...newFieldUpdates
         }
       };
       
@@ -517,9 +528,19 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             
             const updatedShipments = processedShipments.map((shipment: any) => {
               if (shipment.id === shipmentId) {
+                let updateFields = { [field]: value };
+                
+                // If updating service or shipProsService, keep both fields in sync
+                if (field === 'service' || field === 'shipProsService') {
+                  updateFields = {
+                    service: value,
+                    shipProsService: value
+                  };
+                }
+                
                 return {
                   ...shipment,
-                  [field]: value
+                  ...updateFields
                 };
               }
               return shipment;

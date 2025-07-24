@@ -17,6 +17,7 @@ export interface ProcessedAnalysisData {
   report_name?: string;
   client_id?: string;
   bestAccount?: string;
+  serviceMappings?: any[];
 }
 
 export interface ProcessedShipmentData {
@@ -72,46 +73,47 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
   };
 };
 
-// Helper function to determine best overall account
+// Helper function to determine best overall account based on total cost across all shipments
 const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
   if (!shipmentRates || shipmentRates.length === 0) return null;
   
-  // Group rates by account and calculate total metrics
-  const accountMetrics = shipmentRates.reduce((acc: any, rate: any) => {
+  // Group rates by account and calculate total cost for ALL shipments
+  const accountTotals = shipmentRates.reduce((acc: any, rate: any) => {
     const accountName = rate.account_name;
+    const shipmentIndex = rate.shipment_index;
+    
     if (!acc[accountName]) {
       acc[accountName] = {
         totalCost: 0,
-        totalSavings: 0,
-        shipmentCount: 0,
-        rates: []
+        shipmentCosts: new Map()
       };
     }
     
-    acc[accountName].totalCost += rate.rate_amount || 0;
-    acc[accountName].shipmentCount += 1;
-    acc[accountName].rates.push(rate);
+    // Only count each shipment once per account (use lowest rate for that shipment)
+    const currentCost = acc[accountName].shipmentCosts.get(shipmentIndex);
+    const newCost = rate.rate_amount || 0;
+    
+    if (!currentCost || newCost < currentCost) {
+      const oldCost = currentCost || 0;
+      acc[accountName].totalCost = acc[accountName].totalCost - oldCost + newCost;
+      acc[accountName].shipmentCosts.set(shipmentIndex, newCost);
+    }
     
     return acc;
   }, {});
   
-  // Find best account based on total savings potential
+  // Find account with lowest total cost across all shipments
   let bestAccount = null;
-  let bestSavings = -Infinity;
+  let lowestTotalCost = Infinity;
   
-  Object.entries(accountMetrics).forEach(([accountName, metrics]: [string, any]) => {
-    // Calculate potential savings - this would need original costs to be accurate
-    // For now, use account with lowest total cost as proxy for best savings
-    const averageCost = metrics.totalCost / metrics.shipmentCount;
-    const savingsScore = -averageCost; // Lower cost = higher score
-    
-    if (savingsScore > bestSavings) {
-      bestSavings = savingsScore;
+  Object.entries(accountTotals).forEach(([accountName, metrics]: [string, any]) => {
+    if (metrics.totalCost < lowestTotalCost) {
+      lowestTotalCost = metrics.totalCost;
       bestAccount = accountName;
     }
   });
   
-  console.log('🏆 Best overall account determined:', bestAccount);
+  console.log('🏆 Best overall account determined:', bestAccount, 'with total cost:', lowestTotalCost);
   return bestAccount;
 };
 
@@ -172,10 +174,11 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
   };
 };
 
-// Convert recommendations to formatted shipment data - using best overall account
-export const formatShipmentData = (recommendations: any[], shipmentRates?: any[], bestAccount?: string): ProcessedShipmentData[] => {
+// Convert recommendations to formatted shipment data - using best overall account with service mapping
+export const formatShipmentData = (recommendations: any[], shipmentRates?: any[], bestAccount?: string, serviceMappings?: any[]): ProcessedShipmentData[] => {
   console.log('🔍 formatShipmentData - Processing recommendations:', recommendations?.length || 0, 'items');
   console.log('🔍 Using best account for all shipments:', bestAccount);
+  console.log('🔍 Service mappings available:', serviceMappings?.length || 0);
   
   if (recommendations?.length > 0) {
     console.log('🔍 Sample recommendation data structure:', {
@@ -184,29 +187,72 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     });
   }
   
+  // Create a lookup map for service mappings
+  const serviceMappingLookup = new Map();
+  if (serviceMappings) {
+    serviceMappings.forEach(mapping => {
+      serviceMappingLookup.set(mapping.original, mapping.standardized);
+    });
+  }
+  
   return recommendations.map((rec: any, index: number) => {
     // Get current rate from original data
     const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
                        rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
     
+    const originalService = rec.originalService || rec.service || 'Unknown';
+    
     // Find the rate for this shipment from the best overall account
     let newRate = 0;
     let bestService = 'No Quote Available';
+    let shipProsService = originalService; // Default to original service
     
     if (bestAccount && shipmentRates) {
-      const bestAccountRate = shipmentRates.find(rate => 
-        rate.account_name === bestAccount && rate.shipment_data?.trackingId === rec.trackingId
+      const shipmentTrackingId = rec.shipment?.trackingId || rec.trackingId;
+      
+      // Find rates for this specific shipment from the best account
+      const bestAccountRates = shipmentRates.filter(rate => 
+        rate.account_name === bestAccount && 
+        (rate.shipment_data?.trackingId === shipmentTrackingId || rate.shipment_index === index)
       );
       
-      if (bestAccountRate) {
-        newRate = bestAccountRate.rate_amount || 0;
-        bestService = bestAccountRate.service_name || bestAccountRate.service_code || 'UPS Ground';
+      if (bestAccountRates.length > 0) {
+        // Use service mapping to find the appropriate service
+        const mappedServiceName = serviceMappingLookup.get(originalService);
+        
+        let selectedRate = null;
+        
+        if (mappedServiceName) {
+          // Try to find a rate that matches the mapped service
+          selectedRate = bestAccountRates.find(rate => 
+            rate.service_name === mappedServiceName || 
+            rate.service_name?.includes(mappedServiceName?.replace('UPS ', ''))
+          );
+        }
+        
+        // If no mapped service rate found, use the cheapest available rate from the best account
+        if (!selectedRate && bestAccountRates.length > 0) {
+          selectedRate = bestAccountRates.reduce((cheapest, current) => 
+            (current.rate_amount || 0) < (cheapest.rate_amount || 0) ? current : cheapest
+          );
+        }
+        
+        if (selectedRate) {
+          newRate = selectedRate.rate_amount || 0;
+          bestService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
+          // Use the mapped service name for Ship Pros Service Type
+          shipProsService = mappedServiceName || bestService;
+        }
       }
     } else {
       // Fallback to original logic if no best account determined
       newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
                 rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
       bestService = rec.bestService || rec.recommendedService || 'UPS Ground';
+      
+      // Still apply service mapping for consistency
+      const mappedServiceName = serviceMappingLookup.get(originalService);
+      shipProsService = mappedServiceName || bestService;
     }
     
     const calculatedSavings = currentRate - newRate;
@@ -214,12 +260,14 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     if (index < 3) { // Debug first 3 items
       console.log(`🔍 Processing shipment ${index + 1}:`, {
         trackingId: rec.shipment?.trackingId || rec.trackingId,
+        originalService,
+        mappedService: serviceMappingLookup.get(originalService),
+        shipProsService,
         currentRate,
         newRate,
         calculatedSavings,
         bestAccount,
-        bestService,
-        availableFields: Object.keys(rec)
+        bestService
       });
     }
     
@@ -234,10 +282,10 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       height: parseFloat(rec.shipment?.height || rec.height || '6'),
       dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-      service: rec.originalService || rec.service || 'Unknown',
-      originalService: rec.originalService || rec.service || 'Unknown',
+      service: shipProsService, // This is the "Ship Pros Service Type" column
+      originalService: originalService,
       bestService: bestService,
-      newService: bestService,
+      newService: shipProsService,
       currentRate,
       newRate,
       savings: calculatedSavings || 0,

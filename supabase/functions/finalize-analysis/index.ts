@@ -167,6 +167,7 @@ Deno.serve(async (req) => {
       file_name: payload.fileName,
       original_data: payload.originalData,
       carrier_configs_used: payload.carrierConfigsUsed,
+      service_mappings: payload.serviceMappings || [],
       ups_quotes: payload.recommendations.map(r => r.allRates || r.upsRates || []),
       savings_analysis: savingsAnalysis,
       recommendations: payload.recommendations,

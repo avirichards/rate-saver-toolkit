@@ -323,10 +323,10 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       return {
         serviceName,
-        totalShipments: serviceShipments.length, // Use unique shipments count instead of rates count
+        totalShipments: serviceRates.length,
         accounts: accountPerformance
       };
-    }).filter(service => service.accounts.length > 0); // Filter by accounts having data instead of shipments
+    }).filter(service => service.totalShipments > 0);
   }, [shipmentRates, shipmentData]);
 
   // Initialize selected accounts with best performing account for each service

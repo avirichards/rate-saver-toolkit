@@ -2470,9 +2470,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     ) : null;
                     
                     const rateToUse = optimizedRate || fallbackRate;
+                    
+                    // Always apply the account change, even if no rate is found
+                    let optimizedShipment;
                     if (rateToUse) {
                       const newSavings = shipment.currentRate - rateToUse.rate_amount;
-                      const optimizedShipment = {
+                      optimizedShipment = {
                         ...shipment,
                         newRate: rateToUse.rate_amount,
                         savings: newSavings,
@@ -2480,17 +2483,31 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                         // Also update accountName for consistency
                         accountName: selectedAccount
                       };
-                      
-                      console.log('🔄 Optimizing shipment:', {
+                    } else {
+                      // No rate found, but still update the account assignment
+                      optimizedShipment = {
+                        ...shipment,
+                        account: selectedAccount,
+                        accountName: selectedAccount
+                      };
+                      console.log('⚠️ No rate found for account, but updating account assignment:', {
                         trackingId: shipment.trackingId,
                         service: shipment.service,
-                        originalAccount: shipment.account || shipment.accountName,
-                        newAccount: selectedAccount,
-                        optimizedShipment
+                        selectedAccount,
+                        availableRates: shipmentRates.filter(r => r.shipment_data?.trackingId === shipment.trackingId).map(r => ({ account: r.account_name, service: r.service_name }))
                       });
-                      
-                      return optimizedShipment;
                     }
+                    
+                    console.log('🔄 Optimizing shipment:', {
+                      trackingId: shipment.trackingId,
+                      service: shipment.service,
+                      originalAccount: shipment.account || shipment.accountName,
+                      newAccount: selectedAccount,
+                      hadRate: !!rateToUse,
+                      optimizedShipment
+                    });
+                    
+                    return optimizedShipment;
                   }
                   return shipment;
                 });

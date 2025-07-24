@@ -48,18 +48,12 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   shipmentData,
   onOptimizationChange
 }) => {
-  // Get a stable key for localStorage based on shipment data
-  const storageKey = `accountSelections_${shipmentData?.length || 0}_${shipmentRates?.length || 0}`;
+  // Get a stable key for localStorage that doesn't change between renders
+  const analysisId = new URLSearchParams(window.location.search).get('analysisId') || 'default';
+  const storageKey = `accountSelections_${analysisId}`;
   
   // State for tracking selected accounts per service with persistence
-  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [selectedAccounts, setSelectedAccounts] = useState<Record<string, string>>({});
   
   // Ref to track if user has made manual selections
   const hasUserSelections = useRef(false);
@@ -69,6 +63,21 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   const availableAccounts = useMemo(() => {
     return [...new Set(shipmentRates.map(rate => rate.account_name))];
   }, [shipmentRates]);
+
+  // Load saved selections on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const savedSelections = JSON.parse(saved);
+        setSelectedAccounts(savedSelections);
+        hasUserSelections.current = true;
+        console.log('📁 Loaded saved account selections:', savedSelections);
+      }
+    } catch (error) {
+      console.warn('Failed to load saved account selections:', error);
+    }
+  }, [storageKey]);
 
   // Debug logging
   console.log('AccountComparisonView data:', {
@@ -105,21 +114,19 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   const handleSelectAccountForAll = (accountName: string) => {
     hasUserSelections.current = true; // Mark that user has made selections
     const newSelections: Record<string, string> = {};
+    
+    // Force selection for ALL services, regardless of whether account has quotes
     serviceBreakdowns.forEach(service => {
-      // Only set if this account has quotes for this service
-      const hasAccountForService = service.accounts.some(acc => acc.accountName === accountName);
-      if (hasAccountForService) {
-        newSelections[service.serviceName] = accountName;
-      } else {
-        // Keep existing selection if account doesn't support this service
-        newSelections[service.serviceName] = selectedAccounts[service.serviceName] || service.accounts[0]?.accountName;
-      }
+      newSelections[service.serviceName] = accountName;
     });
+    
+    console.log('🎯 Selecting account for all services:', { accountName, newSelections });
     setSelectedAccounts(newSelections);
     
     // Save to localStorage for persistence
     try {
       localStorage.setItem(storageKey, JSON.stringify(newSelections));
+      console.log('💾 Saved account selections to localStorage');
     } catch (error) {
       console.warn('Failed to save account selections:', error);
     }
@@ -471,8 +478,8 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
   // Initialize selected accounts with best performing account for each service
   useEffect(() => {
-    // Only initialize if we haven't initialized yet and user hasn't made selections
-    if (serviceBreakdowns.length > 0 && !isInitialized.current && !hasUserSelections.current) {
+    // Only initialize if we haven't initialized yet, user hasn't made selections, and no saved selections exist
+    if (serviceBreakdowns.length > 0 && !isInitialized.current && !hasUserSelections.current && Object.keys(selectedAccounts).length === 0) {
       const initialSelections: Record<string, string> = {};
       serviceBreakdowns.forEach(service => {
         // Check if shipments in this service have been optimized (have account property)
@@ -499,10 +506,13 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         }
       });
       
-      setSelectedAccounts(initialSelections);
+      if (Object.keys(initialSelections).length > 0) {
+        setSelectedAccounts(initialSelections);
+        console.log('🎯 Auto-initialized account selections:', initialSelections);
+      }
       isInitialized.current = true;
     }
-  }, [serviceBreakdowns, shipmentData]);
+  }, [serviceBreakdowns, shipmentData, selectedAccounts]);
 
   // Calculate optimized metrics based on current selections
   const optimizedMetrics = useMemo(() => {

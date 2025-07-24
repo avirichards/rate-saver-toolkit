@@ -323,7 +323,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       return {
         serviceName,
-        totalShipments: serviceShipments.length, // Use unique shipments count instead of rates count
+        totalShipments: serviceRates.length,
         accounts: accountPerformance
       };
     }).filter(service => service.totalShipments > 0);

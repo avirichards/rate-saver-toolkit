@@ -32,7 +32,6 @@ export interface ProcessedShipmentData {
   carrier: string;
   service: string;
   originalService?: string;
-  bestService?: string;
   newService?: string;
   currentRate: number;
   newRate: number;
@@ -191,7 +190,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     
     // Find the rate for this shipment from the best overall account
     let newRate = 0;
-    let bestService = 'No Quote Available';
+    let newService = 'No Quote Available';
     
     if (bestAccount && shipmentRates) {
       const bestAccountRate = shipmentRates.find(rate => 
@@ -200,13 +199,13 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       
       if (bestAccountRate) {
         newRate = bestAccountRate.rate_amount || 0;
-        bestService = bestAccountRate.service_name || bestAccountRate.service_code || 'UPS Ground';
+        newService = bestAccountRate.service_name || bestAccountRate.service_code || 'UPS Ground';
       }
     } else {
       // Fallback to original logic if no best account determined
       newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
                 rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
-      bestService = rec.bestService || rec.recommendedService || 'UPS Ground';
+      newService = rec.recommendedService || 'UPS Ground';
     }
     
     const calculatedSavings = currentRate - newRate;
@@ -218,7 +217,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         newRate,
         calculatedSavings,
         bestAccount,
-        bestService,
+        newService,
         availableFields: Object.keys(rec)
       });
     }
@@ -234,10 +233,9 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       height: parseFloat(rec.shipment?.height || rec.height || '6'),
       dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-      service: rec.originalService || rec.service || 'Unknown',
+      service: newService,
       originalService: rec.originalService || rec.service || 'Unknown',
-      bestService: bestService,
-      newService: bestService,
+      newService: newService,
       currentRate,
       newRate,
       savings: calculatedSavings || 0,
@@ -269,7 +267,7 @@ export const generateExportData = (filteredData: any[], getShipmentMarkup: (ship
       'Destination ZIP': item.destinationZip,
       'Weight': item.weight,
       'Dimensions': item.dimensions || `${item.length || 0}x${item.width || 0}x${item.height || 0}`,
-      'Current Service': item.originalService || item.currentService || '',
+      'Current Service': item.originalService || '',
       'Ship Pros Service': item.service,
       'Current Rate': `$${item.currentRate.toFixed(2)}`,
       'Ship Pros Cost': `$${markupInfo.markedUpPrice.toFixed(2)}`,

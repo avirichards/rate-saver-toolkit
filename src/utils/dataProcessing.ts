@@ -77,9 +77,7 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
 const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
   if (!shipmentRates || shipmentRates.length === 0) return null;
   
-  console.log('🔍 Determining best overall account from', shipmentRates.length, 'rates');
-  
-  // Group rates by account and calculate total cost using the best service for each shipment
+  // Group rates by account and calculate total cost for ALL shipments
   const accountTotals = shipmentRates.reduce((acc: any, rate: any) => {
     const accountName = rate.account_name;
     const shipmentIndex = rate.shipment_index;
@@ -87,12 +85,11 @@ const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
     if (!acc[accountName]) {
       acc[accountName] = {
         totalCost: 0,
-        shipmentCosts: new Map(),
-        shipmentCount: 0
+        shipmentCosts: new Map()
       };
     }
     
-    // Only count each shipment once per account (use lowest rate for that shipment from this account)
+    // Only count each shipment once per account (use lowest rate for that shipment)
     const currentCost = acc[accountName].shipmentCosts.get(shipmentIndex);
     const newCost = rate.rate_amount || 0;
     
@@ -100,11 +97,6 @@ const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
       const oldCost = currentCost || 0;
       acc[accountName].totalCost = acc[accountName].totalCost - oldCost + newCost;
       acc[accountName].shipmentCosts.set(shipmentIndex, newCost);
-      
-      // Count unique shipments for this account
-      if (!currentCost) {
-        acc[accountName].shipmentCount += 1;
-      }
     }
     
     return acc;
@@ -113,21 +105,15 @@ const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
   // Find account with lowest total cost across all shipments
   let bestAccount = null;
   let lowestTotalCost = Infinity;
-  let bestAccountDetails = null;
   
   Object.entries(accountTotals).forEach(([accountName, metrics]: [string, any]) => {
-    // Only consider accounts that have quotes for a reasonable number of shipments
-    const shipmentCoverage = metrics.shipmentCount;
-    console.log(`📊 Account ${accountName}: ${shipmentCoverage} shipments, $${metrics.totalCost.toFixed(2)} total`);
-    
     if (metrics.totalCost < lowestTotalCost) {
       lowestTotalCost = metrics.totalCost;
       bestAccount = accountName;
-      bestAccountDetails = { ...metrics, accountName };
     }
   });
   
-  console.log('🏆 Best overall account determined:', bestAccount, 'with total cost:', lowestTotalCost.toFixed(2), 'for', bestAccountDetails?.shipmentCount, 'shipments');
+  console.log('🏆 Best overall account determined:', bestAccount, 'with total cost:', lowestTotalCost);
   return bestAccount;
 };
 
@@ -188,10 +174,10 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
   };
 };
 
-// Convert recommendations to formatted shipment data - using best overall account consistently
+// Convert recommendations to formatted shipment data - using best overall account with service mapping
 export const formatShipmentData = (recommendations: any[], shipmentRates?: any[], bestAccount?: string, serviceMappings?: any[]): ProcessedShipmentData[] => {
   console.log('🔍 formatShipmentData - Processing recommendations:', recommendations?.length || 0, 'items');
-  console.log('🔍 Using best overall account consistently for all shipments:', bestAccount);
+  console.log('🔍 Using best account for all shipments:', bestAccount);
   console.log('🔍 Service mappings available:', serviceMappings?.length || 0);
   
   if (recommendations?.length > 0) {
@@ -216,16 +202,15 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     
     const originalService = rec.originalService || rec.service || 'Unknown';
     
-    // **KEY CHANGE**: Always use the best overall account consistently for all shipments
+    // Find the rate for this shipment from the best overall account
     let newRate = 0;
     let bestService = 'No Quote Available';
     let shipProsService = originalService; // Default to original service
-    let selectedAccountName = bestAccount || 'No Account';
     
     if (bestAccount && shipmentRates) {
       const shipmentTrackingId = rec.shipment?.trackingId || rec.trackingId;
       
-      // Find ALL rates for this specific shipment from the best account only
+      // Find rates for this specific shipment from the best account
       const bestAccountRates = shipmentRates.filter(rate => 
         rate.account_name === bestAccount && 
         (rate.shipment_data?.trackingId === shipmentTrackingId || rate.shipment_index === index)
@@ -238,7 +223,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         let selectedRate = null;
         
         if (mappedServiceName) {
-          // Try to find a rate that matches the mapped service from this account
+          // Try to find a rate that matches the mapped service
           selectedRate = bestAccountRates.find(rate => 
             rate.service_name === mappedServiceName || 
             rate.service_name?.includes(mappedServiceName?.replace('UPS ', ''))
@@ -258,15 +243,9 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
           // Use the mapped service name for Ship Pros Service Type
           shipProsService = mappedServiceName || bestService;
         }
-      } else {
-        // If the best account doesn't have a quote for this shipment, mark it accordingly
-        console.warn(`⚠️ Best account "${bestAccount}" has no quote for shipment ${index + 1} (${shipmentTrackingId})`);
-        newRate = currentRate; // Keep current rate if no quote available
-        bestService = 'No Quote from ' + bestAccount;
-        shipProsService = originalService;
       }
     } else {
-      // Fallback to original logic if no best account determined (should rarely happen)
+      // Fallback to original logic if no best account determined
       newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
                 rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
       bestService = rec.bestService || rec.recommendedService || 'UPS Ground';
@@ -274,13 +253,12 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       // Still apply service mapping for consistency
       const mappedServiceName = serviceMappingLookup.get(originalService);
       shipProsService = mappedServiceName || bestService;
-      selectedAccountName = 'Mixed/Unknown';
     }
     
     const calculatedSavings = currentRate - newRate;
     
     if (index < 3) { // Debug first 3 items
-      console.log(`🔍 Processing shipment ${index + 1} with consistent account:`, {
+      console.log(`🔍 Processing shipment ${index + 1}:`, {
         trackingId: rec.shipment?.trackingId || rec.trackingId,
         originalService,
         mappedService: serviceMappingLookup.get(originalService),
@@ -288,7 +266,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         currentRate,
         newRate,
         calculatedSavings,
-        consistentAccount: bestAccount,
+        bestAccount,
         bestService
       });
     }
@@ -311,9 +289,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       currentRate,
       newRate,
       savings: calculatedSavings || 0,
-      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0,
-      account: selectedAccountName, // Store which account is being used
-      accountName: selectedAccountName
+      savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0
     };
   });
 };

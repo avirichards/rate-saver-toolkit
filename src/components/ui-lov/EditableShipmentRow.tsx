@@ -252,7 +252,7 @@ export function EditableShipmentRow({
           />
         ) : (
           <Badge variant="outline" className="text-xs text-primary truncate">
-            {shipment.newService || shipment.bestService || 'UPS Ground'}
+            {getDisplayValue('newService') || shipment.newService || shipment.bestService || 'UPS Ground'}
           </Badge>
         )}
       </TableCell>

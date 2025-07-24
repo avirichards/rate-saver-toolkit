@@ -2761,9 +2761,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                 </span>
                               </div>
                             </TableCell>
-                             <TableCell>
+                              <TableCell>
                                 <Badge variant="secondary" className="text-xs">
-                                  {item.analyzedWithAccount?.name || 'Default Account'}
+                                  {item.analyzedWithAccount?.name || item.accountName || analysisData?.bestAccount || 'Unknown Account'}
                                 </Badge>
                               </TableCell>
                            </TableRow>

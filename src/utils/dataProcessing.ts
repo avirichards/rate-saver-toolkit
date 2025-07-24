@@ -202,19 +202,35 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     
     const originalService = rec.originalService || rec.service || 'Unknown';
     
-    // Find the rate for this shipment from the best overall account
+    // Always force usage of the best account rates - no fallbacks
     let newRate = 0;
     let bestService = 'No Quote Available';
     let shipProsService = originalService; // Default to original service
     
-    if (bestAccount && shipmentRates) {
-      const shipmentTrackingId = rec.shipment?.trackingId || rec.trackingId;
-      
-      // Find rates for this specific shipment from the best account
-      const bestAccountRates = shipmentRates.filter(rate => 
+    if (bestAccount && shipmentRates?.length) {
+      // Filter rates for this specific shipment and account
+      let bestAccountRates = shipmentRates.filter(rate => 
         rate.account_name === bestAccount && 
-        (rate.shipment_data?.trackingId === shipmentTrackingId || rate.shipment_index === index)
+        rate.shipment_index === index
       );
+      
+      // If no rates found with shipment_index, try matching by tracking ID
+      if (bestAccountRates.length === 0) {
+        const currentTrackingId = rec.shipment?.trackingId || rec.trackingId;
+        if (currentTrackingId) {
+          bestAccountRates = shipmentRates.filter(rate => 
+            rate.account_name === bestAccount && 
+            (rate.shipment_data?.trackingId === currentTrackingId ||
+             rate.shipment_data?.tracking_id === currentTrackingId)
+          );
+        }
+      }
+      
+      // If still no rates, get ANY rate from the best account for this shipment type
+      if (bestAccountRates.length === 0) {
+        bestAccountRates = shipmentRates.filter(rate => rate.account_name === bestAccount);
+        console.log(`🔄 No exact match for shipment ${index + 1}, using any rate from ${bestAccount}:`, bestAccountRates.length);
+      }
       
       if (bestAccountRates.length > 0) {
         // Use service mapping to find the appropriate service
@@ -243,26 +259,36 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
           // Use the mapped service name for Ship Pros Service Type
           shipProsService = mappedServiceName || bestService;
           
-          console.log(`📋 Using rate from best account "${bestAccount}" for shipment ${index + 1}:`, {
+          console.log(`✅ Using rate from best account "${bestAccount}" for shipment ${index + 1}:`, {
             trackingId: rec.shipment?.trackingId || rec.trackingId,
             service: selectedRate.service_name,
-            rate: selectedRate.rate_amount
+            rate: selectedRate.rate_amount,
+            originalService,
+            mappedService: mappedServiceName
           });
         } else {
-          console.warn(`⚠️ No rates found for shipment ${index + 1} from best account "${bestAccount}"`);
+          console.error(`❌ No valid rate found for shipment ${index + 1} from best account "${bestAccount}"`);
+          // Force a default rate from the best account rather than falling back
+          if (bestAccountRates.length > 0) {
+            selectedRate = bestAccountRates[0];
+            newRate = selectedRate.rate_amount || 0;
+            bestService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
+            shipProsService = bestService;
+            console.log(`🔧 Using fallback rate from ${bestAccount}:`, selectedRate.rate_amount);
+          }
         }
       } else {
-        console.warn(`⚠️ No rates available for shipment ${index + 1} from best account "${bestAccount}"`);
+        console.error(`❌ No rates found for best account "${bestAccount}" - this should not happen!`);
+        // Force zero rate to make the issue obvious
+        newRate = 0;
+        bestService = 'No Rate Available';
+        shipProsService = 'No Service Available';
       }
     } else {
-      // Fallback to original logic if no best account determined
-      newRate = rec.recommendedCost || rec.recommended_cost || rec.newRate || 
-                rec.shipment?.newRate || rec.shipment?.recommended_cost || 0;
-      bestService = rec.bestService || rec.recommendedService || 'UPS Ground';
-      
-      // Still apply service mapping for consistency
-      const mappedServiceName = serviceMappingLookup.get(originalService);
-      shipProsService = mappedServiceName || bestService;
+      console.error(`❌ No best account or shipment rates available!`);
+      newRate = 0;
+      bestService = 'No Rate Available';
+      shipProsService = 'No Service Available';
     }
     
     const calculatedSavings = currentRate - newRate;
@@ -281,8 +307,8 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       });
     }
     
-    // Determine which account was actually used for this rate
-    const usedAccount = bestAccount || rec.account || rec.accountName || 'Default Account';
+    // Determine which account was actually used for this rate - should always be the best account now
+    const usedAccount = bestAccount || 'Unknown Account';
     const usedAccountId = bestAccount ? 
       shipmentRates?.find(rate => rate.account_name === bestAccount)?.carrier_config_id || 'unknown' : 
       'unknown';

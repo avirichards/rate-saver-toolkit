@@ -288,11 +288,20 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    // Get all unique account IDs from shipment data
+    // Get all unique account IDs from shipment data and shipment updates
     const accountIds = new Set<string>();
+    
+    // Add account IDs from original shipment data
     shipmentData.forEach(shipment => {
       if (shipment.accountId) {
         accountIds.add(shipment.accountId);
+      }
+    });
+    
+    // Add account IDs from shipment updates
+    Object.values(shipmentUpdates).forEach(update => {
+      if (update.accountId) {
+        accountIds.add(update.accountId);
       }
     });
 
@@ -884,6 +893,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       loadAccountNames();
     }
   }, [shipmentData]);
+
+  // Load account names when shipment updates change
+  useEffect(() => {
+    if (Object.keys(shipmentUpdates).length > 0) {
+      loadAccountNames();
+    }
+  }, [shipmentUpdates]);
 
   const loadFromDatabase = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();

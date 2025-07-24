@@ -2449,12 +2449,25 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               shipmentRates={shipmentRates}
               shipmentData={shipmentData}
               onOptimizationChange={(selections) => {
-                console.log('Applying optimization selections:', selections);
+                console.log('🔄 Applying optimization selections:', selections);
                 
                 // Apply the optimization by updating shipment data with selected accounts
                 const optimizedShipmentData = shipmentData.map(shipment => {
                   const selectedAccount = selections[shipment.service];
                   if (selectedAccount) {
+                    console.log('🔍 Looking for rate:', {
+                      selectedAccount,
+                      service: shipment.service,
+                      trackingId: shipment.trackingId,
+                      availableRates: shipmentRates
+                        .filter(r => r.shipment_data?.trackingId === shipment.trackingId)
+                        .map(r => ({ 
+                          account: r.account_name, 
+                          service: r.service_name,
+                          amount: r.rate_amount 
+                        }))
+                    });
+                    
                     // Find the rate for this shipment with the selected account
                     // Need to match by mapped service since shipment.service is now the UPS service name
                     const optimizedRate = shipmentRates.find(rate => 
@@ -2463,13 +2476,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                       rate.shipment_data?.trackingId === shipment.trackingId
                     );
                     
-                    // If no exact match, try finding by tracking ID and account only
-                    const fallbackRate = !optimizedRate ? shipmentRates.find(rate => 
-                      rate.account_name === selectedAccount &&
-                      rate.shipment_data?.trackingId === shipment.trackingId
-                    ) : null;
+                    console.log('🎯 Optimized rate found:', optimizedRate ? 'YES' : 'NO', optimizedRate);
                     
-                    const rateToUse = optimizedRate || fallbackRate;
+                    const rateToUse = optimizedRate;
                     if (rateToUse) {
                       const newSavings = shipment.currentRate - rateToUse.rate_amount;
                       const optimizedShipment = {

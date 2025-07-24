@@ -2436,12 +2436,24 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     
                     if (optimizedRate) {
                       const newSavings = shipment.currentRate - optimizedRate.rate_amount;
-                      return {
+                      const optimizedShipment = {
                         ...shipment,
                         newRate: optimizedRate.rate_amount,
                         savings: newSavings,
-                        account: selectedAccount
+                        account: selectedAccount,
+                        // Also update accountName for consistency
+                        accountName: selectedAccount
                       };
+                      
+                      console.log('🔄 Optimizing shipment:', {
+                        trackingId: shipment.trackingId,
+                        service: shipment.service,
+                        originalAccount: shipment.account || shipment.accountName,
+                        newAccount: selectedAccount,
+                        optimizedShipment
+                      });
+                      
+                      return optimizedShipment;
                     }
                   }
                   return shipment;

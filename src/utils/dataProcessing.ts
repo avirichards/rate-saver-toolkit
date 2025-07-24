@@ -38,6 +38,13 @@ export interface ProcessedShipmentData {
   newRate: number;
   savings: number;
   savingsPercent: number;
+  account?: string;
+  accountName?: string;
+  accountId?: string;
+  analyzedWithAccount?: {
+    name: string;
+    id: string;
+  };
 }
 
 export interface ValidationResult {

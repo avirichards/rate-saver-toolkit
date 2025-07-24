@@ -209,18 +209,18 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
     warnings.cost = ['Missing cost data - cannot calculate savings'];
   }
 
-  // Validate dimensions - now required, no defaults
-  const lengthResult = validateDimension(shipment.length, 'Length', true);
+  // Validate dimensions - now optional with smart defaults
+  const lengthResult = validateDimension(shipment.length, 'Length', false);
   if (!lengthResult.isValid) {
     errors.length = lengthResult.errors;
   }
 
-  const widthResult = validateDimension(shipment.width, 'Width', true);
+  const widthResult = validateDimension(shipment.width, 'Width', false);
   if (!widthResult.isValid) {
     errors.width = widthResult.errors;
   }
 
-  const heightResult = validateDimension(shipment.height, 'Height', true);
+  const heightResult = validateDimension(shipment.height, 'Height', false);
   if (!heightResult.isValid) {
     errors.height = heightResult.errors;
   }

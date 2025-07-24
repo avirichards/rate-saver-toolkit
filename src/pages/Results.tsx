@@ -335,6 +335,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const { error } = await supabase
         .from('shipping_analyses')
         .update({
+          processed_shipments: shipmentData as any, // Save current shipment data as "Current Rates"
           account_assignments: shipmentUpdates as any,
           updated_at: new Date().toISOString()
         })
@@ -1164,14 +1165,20 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       setAnalysisData(processedData);
       
-      // Always use recommendations data to ensure shipProsService is correct
-      console.log('🔍 Formatting shipment data from recommendations');
-      let formattedShipmentData = formatShipmentData(
-        processedData.recommendations || [], 
-        loadedRates || shipmentRates, 
-        processedData.bestAccount,
-        data.service_mappings // Pass service mappings from database
-      );
+      // Check if processed_shipments exists (contains user's choices), otherwise use formatShipmentData for initial processing
+      let formattedShipmentData;
+      if (data.processed_shipments && Array.isArray(data.processed_shipments) && data.processed_shipments.length > 0) {
+        console.log('🔍 Loading shipment data from processed_shipments (user choices preserved)');
+        formattedShipmentData = data.processed_shipments;
+      } else {
+        console.log('🔍 Formatting shipment data from recommendations (initial analysis)');
+        formattedShipmentData = formatShipmentData(
+          processedData.recommendations || [], 
+          loadedRates || shipmentRates, 
+          processedData.bestAccount,
+          data.service_mappings // Pass service mappings from database
+        );
+      }
 
       // Apply saved shipment updates if they exist
       if (data.account_assignments && typeof data.account_assignments === 'object') {

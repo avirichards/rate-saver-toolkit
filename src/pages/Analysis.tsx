@@ -88,6 +88,7 @@ const Analysis = () => {
   const [isAnalysisStarted, setIsAnalysisStarted] = useState(false); // Track if analysis has been started
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
+  const [hasLoadedInitialCarriers, setHasLoadedInitialCarriers] = useState(false);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
@@ -247,6 +248,7 @@ const Analysis = () => {
   }, [location, navigate]);
   
   // Auto-select all carriers on initial load if available
+  // Load initial carriers only once when component mounts and shipments are available
   useEffect(() => {
     const loadInitialCarriers = async () => {
       try {
@@ -262,15 +264,18 @@ const Analysis = () => {
         if (!error && data && data.length > 0) {
           setSelectedCarriers(data.map(config => config.id));
         }
+        setHasLoadedInitialCarriers(true);
       } catch (error) {
         console.error('Error loading carrier configs:', error);
+        setHasLoadedInitialCarriers(true);
       }
     };
 
-    if (shipments.length > 0 && selectedCarriers.length === 0) {
+    // Only auto-load carriers once when we first have shipments and haven't loaded carriers yet
+    if (shipments.length > 0 && !hasLoadedInitialCarriers) {
       loadInitialCarriers();
     }
-  }, [shipments, selectedCarriers]);
+  }, [shipments, hasLoadedInitialCarriers]);
 
   // Wait for both service mappings and carrier selection to complete
   useEffect(() => {

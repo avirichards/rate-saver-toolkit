@@ -438,26 +438,26 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       {/* Account Summary Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-foreground">Account Summary</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
           {accountSummaries.map((account) => (
             <Card 
               key={account.accountName} 
-              className={`p-4 cursor-pointer transition-all hover:shadow-lg ${
+              className={`p-3 cursor-pointer transition-all hover:shadow-lg ${
                 isAccountSelectedForAll(account.accountName)
                   ? 'bg-primary/10 border-primary/50 ring-2 ring-primary/30'
                   : 'hover:bg-muted/30'
               }`}
               onClick={() => handleSelectAccountForAll(account.accountName)}
             >
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  {account.accountName}
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-1.5">
+                  <span className="truncate">{account.accountName}</span>
                   {isAccountSelectedForAll(account.accountName) && (
-                    <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">Selected for All</span>
+                    <span className="text-xs bg-primary text-primary-foreground px-1.5 py-0.5 rounded whitespace-nowrap">Selected</span>
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm">
+              <CardContent className="space-y-2 text-xs">
                 <TooltipProvider>
                   <div className="flex justify-between">
                     <Tooltip>

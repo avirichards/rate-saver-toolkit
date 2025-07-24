@@ -30,6 +30,8 @@ interface ProcessedShipmentData {
   savings: number;
   service: string;
   weight: number;
+  account?: string;
+  accountName?: string;
 }
 
 interface AccountComparisonViewProps {
@@ -300,17 +302,35 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
   // Initialize selected accounts with best performing account for each service
   useEffect(() => {
-    if (serviceBreakdowns.length > 0 && Object.keys(selectedAccounts).length === 0) {
+    if (serviceBreakdowns.length > 0) {
       const initialSelections: Record<string, string> = {};
       serviceBreakdowns.forEach(service => {
-        if (service.accounts.length > 0) {
-          // Select the account with the highest average savings (first in sorted array)
+        // Check if shipments in this service have been optimized (have account property)
+        const serviceShipments = shipmentData.filter(s => s.service === service.serviceName);
+        const optimizedShipments = serviceShipments.filter(s => s.account);
+        
+        if (optimizedShipments.length > 0) {
+          // Use the most common optimized account for this service
+          const accountCounts = optimizedShipments.reduce((acc, s) => {
+            const account = s.account!;
+            acc[account] = (acc[account] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          
+          const mostUsedAccount = Object.entries(accountCounts)
+            .sort(([,a], [,b]) => b - a)[0]?.[0];
+          
+          if (mostUsedAccount) {
+            initialSelections[service.serviceName] = mostUsedAccount;
+          }
+        } else if (service.accounts.length > 0) {
+          // No optimization yet, use best performing account
           initialSelections[service.serviceName] = service.accounts[0].accountName;
         }
       });
       setSelectedAccounts(initialSelections);
     }
-  }, [serviceBreakdowns, selectedAccounts]);
+  }, [serviceBreakdowns, shipmentData]);
 
   // Calculate optimized metrics based on current selections
   const optimizedMetrics = useMemo(() => {
@@ -338,6 +358,11 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       servicesOptimized: Object.keys(selectedAccounts).length
     };
   }, [selectedAccounts, serviceBreakdowns]);
+
+  // Check if optimization has already been applied
+  const hasOptimizationApplied = useMemo(() => {
+    return shipmentData.some(shipment => shipment.account);
+  }, [shipmentData]);
 
   return (
     <div className="space-y-6">
@@ -424,8 +449,8 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         </div>
       </div>
 
-      {/* Optimization Summary */}
-      {optimizedMetrics && (
+      {/* Optimization Summary - Only show if optimization hasn't been applied yet */}
+      {optimizedMetrics && !hasOptimizationApplied && (
         <div className="border border-primary/20 bg-card text-card-foreground rounded-lg p-6 shadow-lg">
           <div className="flex justify-between items-center mb-6">
             <div>

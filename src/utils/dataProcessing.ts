@@ -205,16 +205,31 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     let bestService = 'No Quote Available';
     
     if (bestAccount && shipmentRates) {
-      const bestAccountRate = shipmentRates.find(rate => 
+      // Get the original service for this shipment
+      const originalService = rec.originalService || rec.service || rec.shipment?.service;
+      
+      // First, try to find a rate from the best account that matches the original service type
+      const matchingServiceRate = shipmentRates.find(rate => 
+        rate.account_name === bestAccount && 
+        rate.shipment_data?.trackingId === rec.trackingId &&
+        (rate.service_name === originalService || rate.service_code === originalService)
+      );
+      
+      // If no matching service, fall back to any rate from the best account for this shipment
+      const fallbackRate = shipmentRates.find(rate => 
         rate.account_name === bestAccount && rate.shipment_data?.trackingId === rec.trackingId
       );
       
+      const bestAccountRate = matchingServiceRate || fallbackRate;
+      
       console.log(`🔍 Finding rate for shipment ${rec.trackingId}:`, {
         bestAccount,
+        originalService,
         availableRates: shipmentRates.filter(rate => rate.shipment_data?.trackingId === rec.trackingId).length,
-        foundRate: !!bestAccountRate,
-        rateServiceName: bestAccountRate?.service_name,
-        rateServiceCode: bestAccountRate?.service_code
+        foundMatchingService: !!matchingServiceRate,
+        foundFallback: !!fallbackRate,
+        finalServiceName: bestAccountRate?.service_name,
+        finalServiceCode: bestAccountRate?.service_code
       });
       
       if (bestAccountRate) {

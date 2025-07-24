@@ -17,7 +17,7 @@ interface UpsService {
 }
 
 export function UpsServiceMultiSelector({ 
-  values, 
+  values = [], 
   onValuesChange, 
   placeholder = "Select UPS Services",
   className 

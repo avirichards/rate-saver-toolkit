@@ -22,8 +22,8 @@ interface MultiSelectProps {
 }
 
 export function MultiSelect({
-  options,
-  values,
+  options = [],
+  values = [],
   onValuesChange,
   placeholder = "Select items...",
   className,
@@ -31,19 +31,23 @@ export function MultiSelect({
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
 
+  // Safety check to ensure values is always an array
+  const safeValues = Array.isArray(values) ? values : [];
+  const safeOptions = Array.isArray(options) ? options : [];
+
   const handleSelect = (optionValue: string) => {
-    const newValues = values.includes(optionValue)
-      ? values.filter(v => v !== optionValue)
-      : [...values, optionValue];
+    const newValues = safeValues.includes(optionValue)
+      ? safeValues.filter(v => v !== optionValue)
+      : [...safeValues, optionValue];
     onValuesChange(newValues);
   };
 
   const handleRemove = (valueToRemove: string) => {
-    onValuesChange(values.filter(v => v !== valueToRemove));
+    onValuesChange(safeValues.filter(v => v !== valueToRemove));
   };
 
-  const displayedValues = values.slice(0, maxDisplayItems);
-  const remainingCount = values.length - maxDisplayItems;
+  const displayedValues = safeValues.slice(0, maxDisplayItems);
+  const remainingCount = safeValues.length - maxDisplayItems;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -55,12 +59,12 @@ export function MultiSelect({
           className={cn("w-full justify-between min-h-9", className)}
         >
           <div className="flex items-center gap-1 flex-wrap flex-1">
-            {values.length === 0 ? (
+            {safeValues.length === 0 ? (
               <span className="text-muted-foreground">{placeholder}</span>
             ) : (
               <>
                 {displayedValues.map((value) => {
-                  const option = options.find(opt => opt.value === value);
+                  const option = safeOptions.find(opt => opt.value === value);
                   return (
                     <Badge
                       key={value}
@@ -92,7 +96,7 @@ export function MultiSelect({
           <CommandInput placeholder="Search..." className="h-9" />
           <CommandEmpty>No items found.</CommandEmpty>
           <CommandGroup className="max-h-64 overflow-y-auto">
-            {options.map((option) => (
+            {safeOptions.map((option) => (
               <CommandItem
                 key={option.value}
                 value={option.value}
@@ -102,7 +106,7 @@ export function MultiSelect({
                 <Check
                   className={cn(
                     "mr-2 h-4 w-4",
-                    values.includes(option.value) ? "opacity-100" : "opacity-0"
+                    safeValues.includes(option.value) ? "opacity-100" : "opacity-0"
                   )}
                 />
                 <div className="flex items-center justify-between w-full">

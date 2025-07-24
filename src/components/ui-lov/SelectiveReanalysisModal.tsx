@@ -55,6 +55,8 @@ export function SelectiveReanalysisModal({
 
   // Get unique current service types from all shipments
   const currentServices = useMemo(() => {
+    if (!Array.isArray(allShipments)) return [];
+    
     const services = [...new Set(allShipments.map(s => {
       // Try multiple field names for service
       const serviceValue = s.service || s.originalService || s.currentService || s.currentServiceType || s.serviceType;
@@ -65,6 +67,7 @@ export function SelectiveReanalysisModal({
 
   // Calculate how many shipments match current criteria
   const matchingShipments = useMemo(() => {
+    if (!Array.isArray(allShipments)) return [];
     return allShipments.filter(s => {
       const currentService = s.service || s.originalService || s.currentService || '';
       const weight = parseFloat(s.weight) || 0;
@@ -185,7 +188,7 @@ export function SelectiveReanalysisModal({
                   options={currentServices.map(service => ({
                     value: service,
                     label: service,
-                    count: allShipments.filter(s => (s.service || s.originalService || s.currentService) === service).length
+                    count: Array.isArray(allShipments) ? allShipments.filter(s => (s.service || s.originalService || s.currentService) === service).length : 0
                   }))}
                   values={findValues}
                   onValuesChange={setFindValues}

@@ -237,14 +237,14 @@ export function EditableShipmentRow({
       <TableCell>
         {editMode ? (
           <UpsServiceSelector
-            value={getDisplayValue('newService') || shipment.newService || shipment.service || 'UPS Ground'}
+            value={getDisplayValue('newService') || shipment.newService || shipment.bestService || 'UPS Ground'}
             onValueChange={(value) => handleFieldSave('newService', value)}
             placeholder="Select Service"
             className="w-24 text-xs"
           />
         ) : (
           <Badge variant="outline" className="text-xs text-primary truncate">
-            {shipment.newService || shipment.service || 'UPS Ground'}
+            {shipment.newService || shipment.bestService || 'UPS Ground'}
           </Badge>
         )}
       </TableCell>

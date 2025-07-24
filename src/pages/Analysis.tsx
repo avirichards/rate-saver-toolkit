@@ -970,6 +970,11 @@ const Analysis = () => {
           mappedServiceCode: equivalentServiceCode,
           mappedServiceName: serviceMapping.serviceName,
           serviceRatesFound: serviceRates.length,
+          bestServiceRate: comparisonRate ? {
+            carrier: comparisonRate.carrierType,
+            serviceName: comparisonRate.serviceName,
+            cost: comparisonRate.totalCharges
+          } : null
         });
       }
       

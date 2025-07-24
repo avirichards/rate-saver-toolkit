@@ -430,14 +430,14 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                   <div className="flex flex-col items-end gap-2">
                     <label className="text-xs text-muted-foreground">Use Account:</label>
                     <Select
-                      value={selectedAccounts[service.serviceName] || ''}
-                      onValueChange={(value) => handleAccountSelection(service.serviceName, value)}
+                      value={selectedAccounts[service.serviceName] || 'default'}
+                      onValueChange={(value) => handleAccountSelection(service.serviceName, value === 'default' ? '' : value)}
                     >
                       <SelectTrigger className="w-40 h-8 text-xs bg-background border z-50">
                         <SelectValue placeholder="Select account" />
                       </SelectTrigger>
                       <SelectContent className="bg-background border z-50">
-                        <SelectItem value="" className="text-xs">Default (Best)</SelectItem>
+                        <SelectItem value="default" className="text-xs">Default (Best)</SelectItem>
                         {availableAccounts.map((account) => (
                           <SelectItem key={account} value={account} className="text-xs">
                             {account}

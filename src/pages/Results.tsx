@@ -1119,12 +1119,31 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       // Always use recommendations data to ensure shipProsService is correct
       console.log('🔍 Formatting shipment data from recommendations');
-      const formattedShipmentData = formatShipmentData(
+      let formattedShipmentData = formatShipmentData(
         processedData.recommendations || [], 
         loadedRates || shipmentRates, 
         processedData.bestAccount,
         data.service_mappings // Pass service mappings from database
       );
+
+      // Apply saved shipment updates if they exist
+      if (data.account_assignments && typeof data.account_assignments === 'object') {
+        const updates = data.account_assignments as Record<number, any>;
+        console.log('🔄 Applying saved shipment updates to formatted data:', Object.keys(updates).length, 'updates');
+        
+        formattedShipmentData = formattedShipmentData.map(shipment => {
+          const updateKey = shipment.id;
+          const update = updates[updateKey];
+          
+          if (update) {
+            console.log('📦 Applying update to shipment:', updateKey, update);
+            return { ...shipment, ...update };
+          }
+          
+          return shipment;
+        });
+      }
+
       setShipmentData(formattedShipmentData);
       setOrphanedData(processedData.orphanedShipments || []);
       

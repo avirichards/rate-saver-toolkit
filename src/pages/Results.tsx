@@ -712,30 +712,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await loadFromDatabase(analysisIdFromQuery);
         } else if (state?.analysisComplete && state.analysisData) {
           setAnalysisData(state.analysisData);
-           
-          // First save the analysis to get an ID, then load rates
-          const savedAnalysisId = await autoSaveAnalysis(false);
           
-          let processedShipmentData;
+          // Auto-save the analysis after a short delay
+          setTimeout(() => {
+            autoSaveAnalysis(false);
+          }, 1000);
           
-          if (savedAnalysisId) {
-            // Load shipment rates for the saved analysis
-            const loadedRates = await loadShipmentRates(savedAnalysisId);
-            
-            // Process the analysis data to get the best account
-            const processedAnalysisData = processAnalysisData(state.analysisData, undefined, loadedRates);
-            
-            // Process the recommendations using the utility function with rates and best account
-            processedShipmentData = formatShipmentData(
-              state.analysisData.recommendations,
-              loadedRates,
-              processedAnalysisData.bestAccount
-            );
-          } else {
-            // Fallback to original processing if saving fails
-            processedShipmentData = formatShipmentData(state.analysisData.recommendations);
-          }
-          
+          // Process the recommendations using the utility function
+          const processedShipmentData = formatShipmentData(state.analysisData.recommendations);
           setShipmentData(processedShipmentData);
           
           // Handle orphaned shipments from state
@@ -995,23 +979,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         formattedShipmentData = data.processed_shipments;
       } else {
         console.log('🔍 No saved processed_shipments found, formatting from recommendations');
-        console.log('🔍 Data for formatShipmentData:', {
-          recommendationsCount: processedData.recommendations?.length || 0,
-          loadedRatesCount: loadedRates?.length || 0,
-          bestAccount: processedData.bestAccount,
-          sampleRecommendation: processedData.recommendations?.[0]
-        });
         // Fall back to formatting from recommendations if no saved data
         formattedShipmentData = formatShipmentData(
           processedData.recommendations || [], 
           loadedRates || shipmentRates, 
           processedData.bestAccount
         );
-        console.log('📊 Formatted shipment data:', {
-          count: formattedShipmentData.length,
-          sampleShipment: formattedShipmentData[0],
-          services: [...new Set(formattedShipmentData.map(s => s.bestService || s.newService || s.service))]
-        });
       }
       setShipmentData(formattedShipmentData);
       setOrphanedData(processedData.orphanedShipments || []);
@@ -1617,17 +1590,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     return 5; // Default for other combinations
   };
 
-  // Get the Ship Pros service for a shipment using pre-calculated bestService
-  const getShipmentOptimizedService = (shipment: any) => {
-    // Use the pre-calculated bestService or newService field from formatShipmentData
-    // This already contains the correctly mapped UPS service name
-    const result = shipment.bestService || shipment.newService || shipment.service;
-    
-    console.log(`📊 Service for ${shipment.trackingId}: ${result} (from pre-calculated bestService field)`);
-    
-    return result;
-  };
-
   const generateServiceCostData = () => {
     const dataToUse = getOverviewFilteredData();
     const serviceStats = dataToUse.reduce((acc, item) => {
@@ -1649,10 +1611,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
       acc[service].totalSavings += savings;
-      
-      // Get the actual Ship Pros service type for this shipment
-      const shipProsService = getShipmentOptimizedService(item);
-      acc[service].bestServices.push(shipProsService);
+      acc[service].bestServices.push(item.bestService || 'UPS Ground');
       return acc;
     }, {});
     

@@ -71,73 +71,46 @@ export const validateShipmentData = (shipment: any): ValidationResult => {
   };
 };
 
-// Helper function to determine best overall account based on actual savings
-const determineBestOverallAccount = (shipmentRates: any[], processedShipments: any[]): string | null => {
-  if (!shipmentRates || shipmentRates.length === 0 || !processedShipments || processedShipments.length === 0) return null;
+// Helper function to determine best overall account
+const determineBestOverallAccount = (shipmentRates: any[]): string | null => {
+  if (!shipmentRates || shipmentRates.length === 0) return null;
   
-  console.log('🔍 Determining best account from', shipmentRates.length, 'rates and', processedShipments.length, 'shipments');
-  
-  // Create a map of shipment tracking IDs to their original costs
-  const originalCosts = processedShipments.reduce((acc: any, shipment: any) => {
-    const trackingId = shipment.trackingId || shipment.shipment?.trackingId;
-    const originalCost = shipment.currentRate || shipment.currentCost || shipment.current_rate || 0;
-    if (trackingId && originalCost > 0) {
-      acc[trackingId] = originalCost;
-    }
-    return acc;
-  }, {});
-  
-  console.log('🔍 Original costs mapped for', Object.keys(originalCosts).length, 'shipments');
-  
-  // Group rates by account and calculate total savings
+  // Group rates by account and calculate total metrics
   const accountMetrics = shipmentRates.reduce((acc: any, rate: any) => {
     const accountName = rate.account_name;
-    const trackingId = rate.shipment_data?.trackingId;
-    const originalCost = originalCosts[trackingId];
-    const accountCost = rate.rate_amount || 0;
-    
-    // Only include if we have both original and account costs
-    if (!originalCost || !accountCost || !trackingId) return acc;
-    
     if (!acc[accountName]) {
       acc[accountName] = {
-        totalOriginalCost: 0,
-        totalAccountCost: 0,
+        totalCost: 0,
         totalSavings: 0,
         shipmentCount: 0,
         rates: []
       };
     }
     
-    const savings = originalCost - accountCost;
-    acc[accountName].totalOriginalCost += originalCost;
-    acc[accountName].totalAccountCost += accountCost;
-    acc[accountName].totalSavings += savings;
+    acc[accountName].totalCost += rate.rate_amount || 0;
     acc[accountName].shipmentCount += 1;
     acc[accountName].rates.push(rate);
     
     return acc;
   }, {});
   
-  console.log('🔍 Account metrics calculated:', Object.keys(accountMetrics).map(account => ({
-    account,
-    totalSavings: accountMetrics[account].totalSavings,
-    shipmentCount: accountMetrics[account].shipmentCount,
-    avgSavings: accountMetrics[account].totalSavings / accountMetrics[account].shipmentCount
-  })));
-  
-  // Find best account based on highest total savings
+  // Find best account based on total savings potential
   let bestAccount = null;
-  let bestTotalSavings = -Infinity;
+  let bestSavings = -Infinity;
   
   Object.entries(accountMetrics).forEach(([accountName, metrics]: [string, any]) => {
-    if (metrics.totalSavings > bestTotalSavings) {
-      bestTotalSavings = metrics.totalSavings;
+    // Calculate potential savings - this would need original costs to be accurate
+    // For now, use account with lowest total cost as proxy for best savings
+    const averageCost = metrics.totalCost / metrics.shipmentCount;
+    const savingsScore = -averageCost; // Lower cost = higher score
+    
+    if (savingsScore > bestSavings) {
+      bestSavings = savingsScore;
       bestAccount = accountName;
     }
   });
   
-  console.log('🏆 Best overall account determined:', bestAccount, 'with total savings of $', bestTotalSavings.toFixed(2));
+  console.log('🏆 Best overall account determined:', bestAccount);
   return bestAccount;
 };
 
@@ -151,7 +124,7 @@ export const processAnalysisData = (analysis: any, getShipmentMarkup?: (shipment
   const markupData = analysis.markup_data;
   
   // Determine best overall account if shipment rates are provided
-  const bestAccount = shipmentRates ? determineBestOverallAccount(shipmentRates, processedShipments) : null;
+  const bestAccount = shipmentRates ? determineBestOverallAccount(shipmentRates) : null;
   
   console.log('📊 Data sources:', {
     processedShipmentsCount: processedShipments.length,

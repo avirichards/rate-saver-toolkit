@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { FileUpload } from '@/components/ui-lov/FileUpload';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -15,6 +16,7 @@ interface RateCardUploadDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  editConfig?: any; // Rate card config to edit, if any
 }
 
 const CARRIER_TYPES = [
@@ -28,7 +30,8 @@ const CARRIER_TYPES = [
 export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
   isOpen,
   onClose,
-  onSuccess
+  onSuccess,
+  editConfig
 }) => {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -39,8 +42,27 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
     service_type: '' as UniversalServiceCategory | '',
     weight_unit: 'lbs' as 'lbs' | 'oz',
     dimensional_divisor: 166,
-    fuel_surcharge_percent: 0
+    fuel_surcharge_percent: 0,
+    is_active: true
   });
+
+  const isEditMode = !!editConfig;
+
+  // Pre-populate form when editing
+  useEffect(() => {
+    if (editConfig) {
+      setFormData({
+        carrier_type: editConfig.carrier_type,
+        account_name: editConfig.account_name || '',
+        account_group: editConfig.account_group || '',
+        service_type: editConfig.enabled_services?.[0] || '',
+        weight_unit: editConfig.weight_unit || 'lbs',
+        dimensional_divisor: editConfig.dimensional_divisor || 166,
+        fuel_surcharge_percent: editConfig.fuel_surcharge_percent || 0,
+        is_active: editConfig.is_active ?? true
+      });
+    }
+  }, [editConfig]);
 
   const resetForm = () => {
     setSelectedFile(null);
@@ -51,7 +73,8 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
       service_type: '',
       weight_unit: 'lbs',
       dimensional_divisor: 166,
-      fuel_surcharge_percent: 0
+      fuel_surcharge_percent: 0,
+      is_active: true
     });
   };
 
@@ -168,9 +191,14 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
     window.URL.revokeObjectURL(url);
   };
 
-  const uploadRateCard = async () => {
-    if (!selectedFile || !formData.account_name.trim() || !formData.service_type) {
-      toast.error('Please select a file, enter an account name, and choose a service type');
+  const handleSubmit = async () => {
+    if (!formData.account_name.trim() || !formData.service_type) {
+      toast.error('Please enter an account name and choose a service type');
+      return;
+    }
+
+    if (!isEditMode && !selectedFile) {
+      toast.error('Please select a file to upload');
       return;
     }
 
@@ -179,67 +207,89 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Parse the rate card file using standardized format
-      const rates = await parseStandardizedRateCard(selectedFile);
+      if (isEditMode) {
+        // Update existing rate card config
+        const { error: updateError } = await supabase
+          .from('carrier_configs')
+          .update({
+            carrier_type: formData.carrier_type,
+            account_name: formData.account_name,
+            account_group: formData.account_group || null,
+            dimensional_divisor: formData.dimensional_divisor,
+            fuel_surcharge_percent: formData.fuel_surcharge_percent,
+            weight_unit: formData.weight_unit,
+            is_active: formData.is_active
+          })
+          .eq('id', editConfig.id);
 
-      if (rates.length === 0) {
-        throw new Error('No valid rate data found in file');
+        if (updateError) throw updateError;
+
+        toast.success('Rate card updated successfully!');
+      } else {
+        // Create new rate card
+        // Parse the rate card file using standardized format
+        const rates = await parseStandardizedRateCard(selectedFile!);
+
+        if (rates.length === 0) {
+          throw new Error('No valid rate data found in file');
+        }
+
+        // Upload file to storage
+        const filePath = `${user.id}/${Date.now()}-${selectedFile!.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('rate-cards')
+          .upload(filePath, selectedFile!);
+
+        if (uploadError) throw uploadError;
+
+        // Create carrier config record
+        const { data: carrierConfig, error: configError } = await supabase
+          .from('carrier_configs')
+          .insert({
+            user_id: user.id,
+            carrier_type: formData.carrier_type,
+            account_name: formData.account_name,
+            account_group: formData.account_group || null,
+            is_rate_card: true,
+            rate_card_filename: selectedFile!.name,
+            rate_card_uploaded_at: new Date().toISOString(),
+            dimensional_divisor: formData.dimensional_divisor,
+            fuel_surcharge_percent: formData.fuel_surcharge_percent,
+            weight_unit: formData.weight_unit,
+            is_sandbox: false,
+            is_active: formData.is_active,
+            enabled_services: []
+          })
+          .select()
+          .single();
+
+        if (configError) throw configError;
+
+        // Insert rate data
+        const rateRecords = rates.map(rate => ({
+          carrier_config_id: carrierConfig.id,
+          service_code: rate.service_code,
+          service_name: rate.service_name,
+          zone: rate.zone,
+          weight_break: rate.weight_break,
+          rate_amount: rate.rate_amount
+        }));
+
+        const { error: rateError } = await supabase
+          .from('rate_card_rates')
+          .insert(rateRecords);
+
+        if (rateError) throw rateError;
+
+        toast.success(`Rate card uploaded successfully! ${rates.length} rates imported.`);
       }
 
-      // Upload file to storage
-      const filePath = `${user.id}/${Date.now()}-${selectedFile.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('rate-cards')
-        .upload(filePath, selectedFile);
-
-      if (uploadError) throw uploadError;
-
-      // Create carrier config record
-      const { data: carrierConfig, error: configError } = await supabase
-        .from('carrier_configs')
-        .insert({
-          user_id: user.id,
-          carrier_type: formData.carrier_type,
-          account_name: formData.account_name,
-          account_group: formData.account_group || null,
-          is_rate_card: true,
-          rate_card_filename: selectedFile.name,
-          rate_card_uploaded_at: new Date().toISOString(),
-          dimensional_divisor: formData.dimensional_divisor,
-          fuel_surcharge_percent: formData.fuel_surcharge_percent,
-          weight_unit: formData.weight_unit,
-          is_sandbox: false,
-          is_active: true,
-          enabled_services: []
-        })
-        .select()
-        .single();
-
-      if (configError) throw configError;
-
-      // Insert rate data
-      const rateRecords = rates.map(rate => ({
-        carrier_config_id: carrierConfig.id,
-        service_code: rate.service_code,
-        service_name: rate.service_name,
-        zone: rate.zone,
-        weight_break: rate.weight_break,
-        rate_amount: rate.rate_amount
-      }));
-
-      const { error: rateError } = await supabase
-        .from('rate_card_rates')
-        .insert(rateRecords);
-
-      if (rateError) throw rateError;
-
-      toast.success(`Rate card uploaded successfully! ${rates.length} rates imported.`);
       onSuccess();
       onClose();
       resetForm();
     } catch (error: any) {
-      console.error('Error uploading rate card:', error);
-      toast.error(`Failed to upload rate card: ${error.message}`);
+      console.error('Error with rate card:', error);
+      toast.error(`Failed to ${isEditMode ? 'update' : 'upload'} rate card: ${error.message}`);
     } finally {
       setUploading(false);
     }
@@ -256,7 +306,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Upload Rate Card</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit Rate Card' : 'Upload Rate Card'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -335,6 +385,15 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="is_active"
+                checked={formData.is_active}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_active: checked }))}
+              />
+              <Label htmlFor="is_active">Active</Label>
+            </div>
           </div>
 
           {/* Rate Card Configuration */}
@@ -367,48 +426,52 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
             </div>
           </div>
 
-          {/* File Upload */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Upload Rate Card File</h3>
-              <Button variant="outline" size="sm" onClick={downloadSampleFile}>
-                <Download className="h-4 w-4 mr-1" />
-                Download Sample
-              </Button>
-            </div>
-            <FileUpload
-              accept=".csv,.xlsx,.xls"
-              maxFileSizeMB={10}
-              onFileSelect={setSelectedFile}
-              acceptedFileTypes={['csv', 'xlsx', 'xls']}
-              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6"
-            />
-            {selectedFile && (
-              <p className="text-sm text-muted-foreground">
-                Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-              </p>
-            )}
-          </div>
+          {/* File Upload - Only show in add mode */}
+          {!isEditMode && (
+            <>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Upload Rate Card File</h3>
+                  <Button variant="outline" size="sm" onClick={downloadSampleFile}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Download Sample
+                  </Button>
+                </div>
+                <FileUpload
+                  accept=".csv,.xlsx,.xls"
+                  maxFileSizeMB={10}
+                  onFileSelect={setSelectedFile}
+                  acceptedFileTypes={['csv', 'xlsx', 'xls']}
+                  className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6"
+                />
+                {selectedFile && (
+                  <p className="text-sm text-muted-foreground">
+                    Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                  </p>
+                )}
+              </div>
 
-          {/* Format Requirements */}
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <h4 className="text-sm font-medium mb-2">Required Format:</h4>
-            <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• <strong>Row 1:</strong> Zone numbers starting in column B (B1=2, C1=3, D1=4, etc.)</li>
-              <li>• <strong>Column A:</strong> Weight values starting in A2 (1, 2, 3, 5, 10, etc.)</li>
-              <li>• <strong>Rate cells:</strong> Corresponding rates for each weight/zone combination</li>
-              <li>• <strong>Zones:</strong> Can range from 2-20 (columns B through T)</li>
-              <li>• <strong>Weights:</strong> Can go up to 200 lbs (rows 2-201)</li>
-            </ul>
-          </div>
+              {/* Format Requirements */}
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <h4 className="text-sm font-medium mb-2">Required Format:</h4>
+                <ul className="text-xs text-muted-foreground space-y-1">
+                  <li>• <strong>Row 1:</strong> Zone numbers starting in column B (B1=2, C1=3, D1=4, etc.)</li>
+                  <li>• <strong>Column A:</strong> Weight values starting in A2 (1, 2, 3, 5, 10, etc.)</li>
+                  <li>• <strong>Rate cells:</strong> Corresponding rates for each weight/zone combination</li>
+                  <li>• <strong>Zones:</strong> Can range from 2-20 (columns B through T)</li>
+                  <li>• <strong>Weights:</strong> Can go up to 200 lbs (rows 2-201)</li>
+                </ul>
+              </div>
+            </>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={handleClose} disabled={uploading}>
               Cancel
             </Button>
-            <Button onClick={uploadRateCard} disabled={uploading || !selectedFile || !formData.service_type}>
-              {uploading ? 'Uploading...' : 'Upload Rate Card'}
+            <Button onClick={handleSubmit} disabled={uploading || (!isEditMode && !selectedFile) || !formData.service_type}>
+              {uploading ? (isEditMode ? 'Updating...' : 'Uploading...') : (isEditMode ? 'Update Rate Card' : 'Upload Rate Card')}
             </Button>
           </div>
         </div>

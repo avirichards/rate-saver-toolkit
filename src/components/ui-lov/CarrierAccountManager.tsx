@@ -7,15 +7,16 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck, FileText } from 'lucide-react';
+import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck, FileText, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
 import { RateCardUploadDialog } from './RateCardUploadDialog';
+import { ViewRateCardDialog } from './ViewRateCardDialog';
 
 interface CarrierConfig {
   id: string;
-  carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
+  carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon';
   account_name: string;
   account_group?: string;
   enabled_services: string[];
@@ -58,7 +59,8 @@ const CARRIER_TYPES = [
   { value: 'ups', label: 'UPS', icon: '📦' },
   { value: 'fedex', label: 'FedEx', icon: '🚚' },
   { value: 'dhl', label: 'DHL', icon: '✈️' },
-  { value: 'usps', label: 'USPS', icon: '📮' }
+  { value: 'usps', label: 'USPS', icon: '📮' },
+  { value: 'amazon', label: 'Amazon', icon: '📱' }
 ] as const;
 
 export const CarrierAccountManager = () => {
@@ -69,9 +71,10 @@ export const CarrierAccountManager = () => {
   const [isAddingRateCard, setIsAddingRateCard] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CarrierConfig | null>(null);
   const [testingAccount, setTestingAccount] = useState<string | null>(null);
+  const [viewingRateCard, setViewingRateCard] = useState<{ id: string; name: string } | null>(null);
 
   const [newAccount, setNewAccount] = useState<{
-    carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
+    carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon';
     account_name: string;
     account_group: string;
     enabled_services: string[];
@@ -166,7 +169,7 @@ export const CarrierAccountManager = () => {
   };
 
   const validateAccountData = (account: {
-    carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
+    carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon';
     account_name: string;
     [key: string]: any;
   }) => {
@@ -197,6 +200,12 @@ export const CarrierAccountManager = () => {
       case 'usps':
         if (!account.usps_user_id) {
           toast.error('USPS requires User ID');
+          return false;
+        }
+        break;
+      case 'amazon':
+        if (!account.account_name) {
+          toast.error('Amazon requires Account Name');
           return false;
         }
         break;
@@ -485,7 +494,7 @@ const updateAccount = async (account: CarrierConfig) => {
   };
 
   const renderCarrierFields = (
-    account: { carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps'; [key: string]: any }, 
+    account: { carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon'; [key: string]: any }, 
     setAccount: (account: any) => void, 
     isEdit = false
   ) => {
@@ -622,6 +631,14 @@ const updateAccount = async (account: CarrierConfig) => {
               />
             </div>
           </>
+        );
+      case 'amazon':
+        return (
+          <div className="bg-muted/50 p-4 rounded-lg">
+            <p className="text-sm text-muted-foreground">
+              Amazon integration will be available soon. For now, use rate cards for Amazon shipping rates.
+            </p>
+          </div>
         );
       default:
         return null;
@@ -800,32 +817,47 @@ const updateAccount = async (account: CarrierConfig) => {
                                  </>
                                )}
                              </div>
-                           </div>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          {config.is_active ? (
-                            <Badge variant="default">Active</Badge>
-                          ) : (
-                            <Badge variant="secondary">Inactive</Badge>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => testConnection(config)}
-                            disabled={testingAccount === config.id}
-                            iconLeft={<TestTube className="h-4 w-4" />}
-                          >
-                            {testingAccount === config.id ? 'Testing...' : 'Test'}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingAccount({ ...config })}
-                            iconLeft={<Edit2 className="h-4 w-4" />}
-                          >
-                            Edit
-                          </Button>
-                        </div>
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-2">
+                           <Button
+                             size="sm"
+                             variant="outline"
+                             onClick={() => setEditingAccount(config)}
+                             iconLeft={<Edit2 className="h-3 w-3" />}
+                           >
+                             Edit
+                           </Button>
+                           {config.is_rate_card && (
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={() => setViewingRateCard({ id: config.id, name: config.account_name })}
+                               iconLeft={<Eye className="h-3 w-3" />}
+                             >
+                               View
+                             </Button>
+                           )}
+                           {!config.is_rate_card && (
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={() => testConnection(config)}
+                               disabled={testingAccount === config.id}
+                               iconLeft={testingAccount === config.id ? <div className="animate-spin rounded-full h-3 w-3 border-b border-current" /> : <TestTube className="h-3 w-3" />}
+                             >
+                               {testingAccount === config.id ? 'Testing...' : 'Test'}
+                             </Button>
+                           )}
+                           <Button
+                             size="sm"
+                             variant="outline"
+                             onClick={() => deleteAccount(config.id)}
+                             iconLeft={<Trash2 className="h-3 w-3" />}
+                           >
+                             Delete
+                           </Button>
+                         </div>
                       </div>
                     </div>
                   ))}
@@ -911,6 +943,16 @@ const updateAccount = async (account: CarrierConfig) => {
           onClose={() => setIsAddingRateCard(false)}
           onSuccess={loadCarrierConfigs}
         />
+
+        {/* View Rate Card Dialog */}
+        {viewingRateCard && (
+          <ViewRateCardDialog
+            isOpen={!!viewingRateCard}
+            onClose={() => setViewingRateCard(null)}
+            carrierConfigId={viewingRateCard.id}
+            accountName={viewingRateCard.name}
+          />
+        )}
       </CardContent>
     </Card>
   );

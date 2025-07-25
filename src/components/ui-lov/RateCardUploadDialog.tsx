@@ -20,7 +20,8 @@ const CARRIER_TYPES = [
   { value: 'ups', label: 'UPS' },
   { value: 'fedex', label: 'FedEx' },
   { value: 'dhl', label: 'DHL' },
-  { value: 'usps', label: 'USPS' }
+  { value: 'usps', label: 'USPS' },
+  { value: 'amazon', label: 'Amazon' }
 ] as const;
 
 export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
@@ -30,73 +31,81 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
 }) => {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [showMapping, setShowMapping] = useState(false);
+  const [columnMapping, setColumnMapping] = useState({
+    service_code: '',
+    service_name: '',
+    zone: '',
+    weight_break: '',
+    rate_amount: ''
+  });
   const [formData, setFormData] = useState({
     carrier_type: 'ups' as const,
     account_name: '',
     account_group: '',
+    service_type: '',
     dimensional_divisor: 166,
-    fuel_surcharge_percent: 0,
-    fuel_auto_lookup: false,
-    is_sandbox: false
+    fuel_surcharge_percent: 0
   });
 
   const resetForm = () => {
     setSelectedFile(null);
+    setCsvHeaders([]);
+    setShowMapping(false);
+    setColumnMapping({
+      service_code: '',
+      service_name: '',
+      zone: '',
+      weight_break: '',
+      rate_amount: ''
+    });
     setFormData({
       carrier_type: 'ups',
       account_name: '',
       account_group: '',
+      service_type: '',
       dimensional_divisor: 166,
-      fuel_surcharge_percent: 0,
-      fuel_auto_lookup: false,
-      is_sandbox: false
+      fuel_surcharge_percent: 0
     });
   };
 
   const parseRateCardCSV = (csvContent: string) => {
     const lines = csvContent.split('\n').filter(line => line.trim());
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const headers = lines[0].split(',').map(h => h.trim());
     
-    // Expected columns: service_code, service_name, zone, weight_break, rate_amount
-    const requiredColumns = ['service_code', 'zone', 'weight_break', 'rate_amount'];
-    const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+    // Set headers for mapping
+    setCsvHeaders(headers);
     
-    if (missingColumns.length > 0) {
-      throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
-    }
-
-    const rates = [];
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim());
-      if (values.length < headers.length) continue;
-
-      const rate: any = {};
-      headers.forEach((header, index) => {
-        rate[header] = values[index];
-      });
-
-      // Validate and convert numeric fields
-      const weightBreak = parseFloat(rate.weight_break);
-      const rateAmount = parseFloat(rate.rate_amount);
-      
-      if (isNaN(weightBreak) || isNaN(rateAmount)) {
-        console.warn(`Skipping invalid rate on line ${i + 1}: weight_break=${rate.weight_break}, rate_amount=${rate.rate_amount}`);
-        continue;
+    // Auto-detect common column mappings
+    const autoMapping = {
+      service_code: '',
+      service_name: '',
+      zone: '',
+      weight_break: '',
+      rate_amount: ''
+    };
+    
+    headers.forEach(header => {
+      const lowerHeader = header.toLowerCase();
+      if (lowerHeader.includes('service') && lowerHeader.includes('code')) {
+        autoMapping.service_code = header;
+      } else if (lowerHeader.includes('service') && (lowerHeader.includes('name') || lowerHeader.includes('type'))) {
+        autoMapping.service_name = header;
+      } else if (lowerHeader.includes('zone')) {
+        autoMapping.zone = header;
+      } else if (lowerHeader.includes('weight') || lowerHeader.includes('lb')) {
+        autoMapping.weight_break = header;
+      } else if (lowerHeader.includes('rate') || lowerHeader.includes('cost') || lowerHeader.includes('price')) {
+        autoMapping.rate_amount = header;
       }
-
-      rates.push({
-        service_code: rate.service_code,
-        service_name: rate.service_name || rate.service_code,
-        zone: rate.zone,
-        weight_break: weightBreak,
-        rate_amount: rateAmount
-      });
-    }
-
-    return rates;
+    });
+    
+    setColumnMapping(autoMapping);
+    return headers;
   };
 
-  const parseRateCardExcel = (file: File): Promise<any[]> => {
+  const parseRateCardExcel = (file: File): Promise<string[]> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -111,42 +120,36 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
             throw new Error('Excel file must have at least a header row and one data row');
           }
 
-          const headers = jsonData[0].map((h: any) => String(h).trim().toLowerCase());
-          const requiredColumns = ['service_code', 'zone', 'weight_break', 'rate_amount'];
-          const missingColumns = requiredColumns.filter(col => !headers.includes(col));
+          const headers = jsonData[0].map((h: any) => String(h).trim());
           
-          if (missingColumns.length > 0) {
-            throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
-          }
-
-          const rates = [];
-          for (let i = 1; i < jsonData.length; i++) {
-            const row = jsonData[i];
-            if (!row || row.length === 0) continue;
-
-            const rate: any = {};
-            headers.forEach((header, index) => {
-              rate[header] = row[index];
-            });
-
-            const weightBreak = parseFloat(rate.weight_break);
-            const rateAmount = parseFloat(rate.rate_amount);
-            
-            if (isNaN(weightBreak) || isNaN(rateAmount)) {
-              console.warn(`Skipping invalid rate on row ${i + 1}`);
-              continue;
+          // Set headers for mapping and auto-detect
+          setCsvHeaders(headers);
+          
+          const autoMapping = {
+            service_code: '',
+            service_name: '',
+            zone: '',
+            weight_break: '',
+            rate_amount: ''
+          };
+          
+          headers.forEach(header => {
+            const lowerHeader = header.toLowerCase();
+            if (lowerHeader.includes('service') && lowerHeader.includes('code')) {
+              autoMapping.service_code = header;
+            } else if (lowerHeader.includes('service') && (lowerHeader.includes('name') || lowerHeader.includes('type'))) {
+              autoMapping.service_name = header;
+            } else if (lowerHeader.includes('zone')) {
+              autoMapping.zone = header;
+            } else if (lowerHeader.includes('weight') || lowerHeader.includes('lb')) {
+              autoMapping.weight_break = header;
+            } else if (lowerHeader.includes('rate') || lowerHeader.includes('cost') || lowerHeader.includes('price')) {
+              autoMapping.rate_amount = header;
             }
-
-            rates.push({
-              service_code: rate.service_code,
-              service_name: rate.service_name || rate.service_code,
-              zone: rate.zone,
-              weight_break: weightBreak,
-              rate_amount: rateAmount
-            });
-          }
-
-          resolve(rates);
+          });
+          
+          setColumnMapping(autoMapping);
+          resolve(headers);
         } catch (error) {
           reject(error);
         }
@@ -156,9 +159,111 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
     });
   };
 
+  const handleFileSelect = async (file: File) => {
+    setSelectedFile(file);
+    
+    try {
+      const fileExtension = file.name.split('.').pop()?.toLowerCase();
+      
+      if (fileExtension === 'csv') {
+        const csvContent = await file.text();
+        parseRateCardCSV(csvContent);
+        setShowMapping(true);
+      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        await parseRateCardExcel(file);
+        setShowMapping(true);
+      } else {
+        throw new Error('Only CSV and Excel files are supported');
+      }
+    } catch (error: any) {
+      toast.error(`Error reading file: ${error.message}`);
+      setSelectedFile(null);
+    }
+  };
+
+  const validateMapping = () => {
+    const requiredMappings = ['zone', 'weight_break', 'rate_amount'];
+    const missingMappings = requiredMappings.filter(field => !columnMapping[field as keyof typeof columnMapping]);
+    
+    if (missingMappings.length > 0) {
+      toast.error(`Please map required columns: ${missingMappings.join(', ')}`);
+      return false;
+    }
+    return true;
+  };
+
+  const parseFileWithMapping = async () => {
+    if (!selectedFile) return [];
+
+    const fileExtension = selectedFile.name.split('.').pop()?.toLowerCase();
+    let rawData: any[][] = [];
+    
+    if (fileExtension === 'csv') {
+      const csvContent = await selectedFile.text();
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      rawData = lines.map(line => line.split(',').map(cell => cell.trim()));
+    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+      const data = await selectedFile.arrayBuffer();
+      const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    }
+
+    const headers = rawData[0];
+    const rates = [];
+
+    for (let i = 1; i < rawData.length; i++) {
+      const row = rawData[i];
+      if (!row || row.length === 0) continue;
+
+      const rate: any = {};
+      
+      // Map columns based on user selection
+      Object.entries(columnMapping).forEach(([field, headerName]) => {
+        if (headerName) {
+          const columnIndex = headers.indexOf(headerName);
+          if (columnIndex !== -1) {
+            rate[field] = row[columnIndex];
+          }
+        }
+      });
+
+      // Use provided service type if no service mapping
+      if (!rate.service_code && formData.service_type) {
+        rate.service_code = formData.service_type;
+      }
+      if (!rate.service_name && formData.service_type) {
+        rate.service_name = formData.service_type;
+      }
+
+      const weightBreak = parseFloat(rate.weight_break);
+      const rateAmount = parseFloat(rate.rate_amount);
+      
+      if (isNaN(weightBreak) || isNaN(rateAmount)) {
+        console.warn(`Skipping invalid rate on row ${i + 1}`);
+        continue;
+      }
+
+      rates.push({
+        service_code: rate.service_code || formData.service_type || 'UNKNOWN',
+        service_name: rate.service_name || formData.service_type || 'UNKNOWN',
+        zone: rate.zone,
+        weight_break: weightBreak,
+        rate_amount: rateAmount
+      });
+    }
+
+    return rates;
+  };
+
   const uploadRateCard = async () => {
     if (!selectedFile || !formData.account_name.trim()) {
       toast.error('Please select a file and enter an account name');
+      return;
+    }
+
+    if (!validateMapping()) {
       return;
     }
 
@@ -167,18 +272,8 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Parse the rate card file
-      let rates: any[];
-      const fileExtension = selectedFile.name.split('.').pop()?.toLowerCase();
-      
-      if (fileExtension === 'csv') {
-        const csvContent = await selectedFile.text();
-        rates = parseRateCardCSV(csvContent);
-      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-        rates = await parseRateCardExcel(selectedFile);
-      } else {
-        throw new Error('Only CSV and Excel files are supported');
-      }
+      // Parse the rate card file with user mappings
+      const rates = await parseFileWithMapping();
 
       if (rates.length === 0) {
         throw new Error('No valid rate data found in file');
@@ -205,10 +300,10 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
           rate_card_uploaded_at: new Date().toISOString(),
           dimensional_divisor: formData.dimensional_divisor,
           fuel_surcharge_percent: formData.fuel_surcharge_percent,
-          fuel_auto_lookup: formData.fuel_auto_lookup,
-          is_sandbox: formData.is_sandbox,
+          is_sandbox: false,
           is_active: true,
-          enabled_services: []
+          enabled_services: [],
+          column_mappings: columnMapping
         })
         .select()
         .single();
@@ -298,8 +393,115 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                 placeholder="Optional group name"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="service_type">Service Type</Label>
+              <Input
+                id="service_type"
+                value={formData.service_type}
+                onChange={(e) => setFormData(prev => ({ ...prev, service_type: e.target.value }))}
+                placeholder="e.g., GROUND, OVERNIGHT, etc."
+              />
+              <p className="text-xs text-muted-foreground">
+                Used when service code/name is not in the file
+              </p>
+            </div>
           </div>
 
+          {/* Column Mapping */}
+          {showMapping && csvHeaders.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium">Column Mapping</h3>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label>Zone Column *</Label>
+                  <Select 
+                    value={columnMapping.zone} 
+                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, zone: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select zone column" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      {csvHeaders.map(header => (
+                        <SelectItem key={header} value={header}>{header}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Weight Break Column (lbs) *</Label>
+                  <Select 
+                    value={columnMapping.weight_break} 
+                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, weight_break: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select weight column" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      {csvHeaders.map(header => (
+                        <SelectItem key={header} value={header}>{header}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Rate Amount Column *</Label>
+                  <Select 
+                    value={columnMapping.rate_amount} 
+                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, rate_amount: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select rate column" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      {csvHeaders.map(header => (
+                        <SelectItem key={header} value={header}>{header}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Service Code Column (optional)</Label>
+                  <Select 
+                    value={columnMapping.service_code} 
+                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, service_code: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select service code column" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      <SelectItem value="">None - Use service type above</SelectItem>
+                      {csvHeaders.map(header => (
+                        <SelectItem key={header} value={header}>{header}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Service Name Column (optional)</Label>
+                  <Select 
+                    value={columnMapping.service_name} 
+                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, service_name: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select service name column" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border shadow-lg z-50">
+                      <SelectItem value="">None - Use service type above</SelectItem>
+                      {csvHeaders.map(header => (
+                        <SelectItem key={header} value={header}>{header}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+          )}
+            
           {/* Rate Card Configuration */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium">Rate Card Configuration</h3>
@@ -325,64 +527,54 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                   value={formData.fuel_surcharge_percent}
                   onChange={(e) => setFormData(prev => ({ ...prev, fuel_surcharge_percent: parseFloat(e.target.value) || 0 }))}
                   placeholder="0"
-                  disabled={formData.fuel_auto_lookup}
                 />
               </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="fuel_auto_lookup"
-                checked={formData.fuel_auto_lookup}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, fuel_auto_lookup: checked }))}
-              />
-              <Label htmlFor="fuel_auto_lookup">Auto-lookup fuel surcharge</Label>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="is_sandbox"
-                checked={formData.is_sandbox}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_sandbox: checked }))}
-              />
-              <Label htmlFor="is_sandbox">Test/Sandbox rates</Label>
             </div>
           </div>
 
           {/* File Upload */}
-          <div className="space-y-4">
-            <h3 className="text-sm font-medium">Upload Rate Card File</h3>
-            <FileUpload
-              accept=".csv,.xlsx,.xls"
-              maxFileSizeMB={10}
-              onFileSelect={setSelectedFile}
-              acceptedFileTypes={['csv', 'xlsx', 'xls']}
-              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6"
-            />
-            {selectedFile && (
-              <p className="text-sm text-muted-foreground">
-                Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-              </p>
-            )}
-          </div>
+          {!showMapping && (
+            <div className="space-y-4">
+              <h3 className="text-sm font-medium">Upload Rate Card File</h3>
+              <FileUpload
+                accept=".csv,.xlsx,.xls"
+                maxFileSizeMB={10}
+                onFileSelect={handleFileSelect}
+                acceptedFileTypes={['csv', 'xlsx', 'xls']}
+                className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6"
+              />
+              {selectedFile && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Help Text */}
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <h4 className="text-sm font-medium mb-2">Rate Card Format Requirements:</h4>
-            <ul className="text-xs text-muted-foreground space-y-1">
-              <li>• CSV or Excel file with headers</li>
-              <li>• Required columns: service_code, zone, weight_break, rate_amount</li>
-              <li>• Optional columns: service_name</li>
-              <li>• Example: service_code=GND, zone=2, weight_break=1, rate_amount=10.50</li>
-            </ul>
-          </div>
+          {!showMapping && (
+            <div className="bg-muted/50 p-4 rounded-lg">
+              <h4 className="text-sm font-medium mb-2">Rate Card Format Requirements:</h4>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• CSV or Excel file with headers</li>
+                <li>• Must contain columns for: zone, weight breaks (lbs), and rate amounts</li>
+                <li>• Optional: service code and service name columns</li>
+                <li>• You'll be able to map columns after uploading the file</li>
+              </ul>
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={handleClose} disabled={uploading}>
               Cancel
             </Button>
-            <Button onClick={uploadRateCard} disabled={uploading || !selectedFile}>
+            {showMapping && !uploading && (
+              <Button variant="outline" onClick={() => { setShowMapping(false); setSelectedFile(null); }}>
+                Change File
+              </Button>
+            )}
+            <Button onClick={uploadRateCard} disabled={uploading || !selectedFile || (showMapping && !validateMapping())}>
               {uploading ? 'Uploading...' : 'Upload Rate Card'}
             </Button>
           </div>

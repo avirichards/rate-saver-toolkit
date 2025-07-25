@@ -13,7 +13,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { UniversalServiceCategory, UNIVERSAL_SERVICES } from '@/utils/universalServiceCategories';
 import { mapServiceToServiceCode } from '@/utils/serviceMapping';
 import { toast } from 'sonner';
-import { ReanalysisConfirmationDialog } from '@/components/ui-lov/ReanalysisConfirmationDialog';
 
 interface EditableShipmentRowProps {
   shipment: any;
@@ -38,7 +37,6 @@ export function EditableShipmentRow({
 }: EditableShipmentRowProps) {
   const [localChanges, setLocalChanges] = useState<Record<string, string>>({});
   const [accountNames, setAccountNames] = useState<Record<string, string>>({});
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Clear local changes when shipment data is updated (after re-analysis)
   useEffect(() => {
@@ -371,7 +369,7 @@ export function EditableShipmentRow({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => setShowConfirmDialog(true)}
+            onClick={() => onReanalyze(shipment.id)}
             disabled={isReanalyzing}
             className="h-8 text-xs"
           >
@@ -382,21 +380,6 @@ export function EditableShipmentRow({
             )}
             Re-analyze
           </Button>
-          
-          <ReanalysisConfirmationDialog
-            open={showConfirmDialog}
-            onOpenChange={setShowConfirmDialog}
-            onConfirm={() => {
-              setShowConfirmDialog(false);
-              onReanalyze(shipment.id);
-            }}
-            shipment={shipment}
-            pendingChanges={localChanges}
-            accountName={(() => {
-              const accountId = localChanges.accountId || shipment.accountId;
-              return accountId ? accountNames[accountId] : undefined;
-            })()}
-          />
         </TableCell>
       )}
       

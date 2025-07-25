@@ -229,7 +229,7 @@ const Upload = () => {
                 <tbody>
                   <tr className="border-b">
                     <td className="py-2 px-3">1Z999AA10123456784</td>
-                    <td className="py-2 px-3">UPS Ground</td>
+                    <td className="py-2 px-3">Ground</td>
                     <td className="py-2 px-3">5.25</td>
                     <td className="py-2 px-3">90210</td>
                     <td className="py-2 px-3">10001</td>

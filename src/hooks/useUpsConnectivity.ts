@@ -95,7 +95,7 @@ export function useUpsConnectivity() {
           height: 6,
           dimensionUnit: 'IN'
         },
-        serviceTypes: ['03'] // UPS Ground only for test
+        serviceTypes: ['03'] // Ground only for test
       };
 
       const { data: rateData, error: rateError } = await supabase.functions.invoke('ups-rate-quote', {

@@ -15,17 +15,17 @@ export interface TestShipmentData {
   signature_required?: boolean;
 }
 
-const UPS_SERVICES = [
-  'UPS Ground',
-  'UPS Next Day Air',
-  'UPS Next Day Air Saver',
-  'UPS 2nd Day Air',
-  'UPS 3 Day Select',
-  'UPS Next Day Air Early',
-  'UPS 2nd Day Air A.M.',
-  'UPS Express',
-  'UPS Express Saver',
-  'UPS Standard'
+const UNIVERSAL_SERVICES = [
+  'Ground',
+  'Overnight',
+  'Overnight Saver',
+  '2-Day',
+  '3-Day Select',
+  'Overnight Early',
+  '2-Day Morning',
+  'International Express',
+  'International Expedited',
+  'International Standard'
 ];
 
 const COMMON_ZIPS = [
@@ -77,18 +77,18 @@ const generateRandomDimensions = (): { length: number; width: number; height: nu
 const calculateEstimatedCost = (weight: number, service: string, zone?: string): number => {
   let baseRate = 8.50;
   
-  // Service multipliers
+  // Service multipliers for universal categories
   const serviceMultipliers: Record<string, number> = {
-    'UPS Ground': 1.0,
-    'UPS 3 Day Select': 1.3,
-    'UPS 2nd Day Air': 1.8,
-    'UPS 2nd Day Air A.M.': 2.0,
-    'UPS Next Day Air Saver': 2.5,
-    'UPS Next Day Air': 3.0,
-    'UPS Next Day Air Early': 3.5,
-    'UPS Express': 2.2,
-    'UPS Express Saver': 2.0,
-    'UPS Standard': 1.1
+    'Ground': 1.0,
+    '3-Day Select': 1.3,
+    '2-Day': 1.8,
+    '2-Day Morning': 2.0,
+    'Overnight Saver': 2.5,
+    'Overnight': 3.0,
+    'Overnight Early': 3.5,
+    'International Express': 2.2,
+    'International Expedited': 2.0,
+    'International Standard': 1.1
   };
   
   // Weight calculation
@@ -108,7 +108,7 @@ export const generateTestData = (count: number = 50): TestShipmentData[] => {
   for (let i = 1; i <= count; i++) {
     const weight = generateRandomWeight();
     const dimensions = Math.random() > 0.2 ? generateRandomDimensions() : undefined;
-    const service = getRandomElement(UPS_SERVICES);
+    const service = getRandomElement(UNIVERSAL_SERVICES);
     const zone = Math.random() > 0.3 ? String(Math.floor(Math.random() * 8) + 2) : undefined;
     const actualWeight = weight.lbs + (weight.oz || 0) / 16;
     
@@ -198,12 +198,12 @@ export const TEST_SCENARIOS = {
   
   express_only: () => generateTestData(30).map(item => ({
     ...item,
-    service_type: getRandomElement(['UPS Next Day Air', 'UPS Next Day Air Saver', 'UPS 2nd Day Air'])
+    service_type: getRandomElement(['Overnight', 'Overnight Saver', '2-Day'])
   })),
   
   ground_only: () => generateTestData(40).map(item => ({
     ...item,
-    service_type: 'UPS Ground'
+    service_type: 'Ground'
   }))
 };
 

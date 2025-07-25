@@ -279,14 +279,20 @@ export function detectServiceTypes(data: any[], serviceColumn: string): ServiceM
   const uniqueServices = [...new Set(data.map(row => row[serviceColumn]).filter(Boolean))];
   
   return uniqueServices.map(service => {
-    const standardized = standardizeService(service);
+    const serviceMapping = mapServiceToServiceCode(service);
+    
+    // Import carrier service registry to get UPS service code for backward compatibility
+    const { getCarrierServiceCode, CarrierType } = require('@/utils/carrierServiceRegistry');
+    const upsCode = getCarrierServiceCode(CarrierType.UPS, serviceMapping.standardizedService);
+    
     return {
       original: service,
-      standardized: standardized.service,
-      confidence: standardized.confidence,
-      isResidential: standardized.isResidential,
-      isResidentialDetected: standardized.isResidential !== undefined,
-      residentialDetectionSource: standardized.residentialSource as 'service_name' | 'address_pattern' | 'csv_data' | 'manual'
+      standardized: serviceMapping.serviceName,
+      confidence: serviceMapping.confidence,
+      serviceCode: upsCode || '03', // Populate UPS service code for backward compatibility
+      isResidential: undefined,
+      isResidentialDetected: false,
+      residentialDetectionSource: 'service_name' as const
     };
   });
 }

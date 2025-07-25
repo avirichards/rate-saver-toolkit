@@ -228,7 +228,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         
         if (selectedRate) {
           shipProsCost = selectedRate.rate_amount || 0;
-          shipProsService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
+          shipProsService = selectedRate.service_name || selectedRate.service_code || 'Ground';
           
           console.log(`✅ Using rate from best account "${bestAccount}" for shipment ${index + 1}:`, {
             trackingId: rec.shipment?.trackingId || rec.trackingId,
@@ -243,7 +243,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
           if (bestAccountRates.length > 0) {
             const fallbackRate = bestAccountRates[0];
             shipProsCost = fallbackRate.rate_amount || 0;
-            shipProsService = fallbackRate.service_name || fallbackRate.service_code || 'UPS Ground';
+            shipProsService = fallbackRate.service_name || fallbackRate.service_code || 'Ground';
             console.log(`🔧 Using fallback rate from ${bestAccount}:`, fallbackRate.rate_amount);
           }
         }

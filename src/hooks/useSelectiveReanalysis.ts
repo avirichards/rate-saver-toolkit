@@ -65,7 +65,7 @@ export function useSelectiveReanalysis() {
 
     // Prepare shipment data for UPS API - match the expected interface
     // Use the recommended service from the single source of truth
-    const targetService = shipment.ShipPros_service || 'UPS Ground';
+    const targetService = shipment.ShipPros_service || 'Ground';
     const serviceCode = getServiceCode(targetService);
     
     const shipmentData = {

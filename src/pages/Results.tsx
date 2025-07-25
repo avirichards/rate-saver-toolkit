@@ -508,7 +508,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             ...reanalyzed,
             // Ensure critical fields are updated
             ShipPros_cost: reanalyzed.ShipPros_cost,
-            ShipPros_service: reanalyzed.ShipPros_service || 'UPS Ground',
+            ShipPros_service: reanalyzed.ShipPros_service || 'Ground',
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0
           };
         }
@@ -525,7 +525,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const reanalyzedUpdates: Record<number, any> = {};
       result.success.forEach((reanalyzed: any) => {
         reanalyzedUpdates[reanalyzed.id] = {
-          ShipPros_service: reanalyzed.ShipPros_service || 'UPS Ground',
+          ShipPros_service: reanalyzed.ShipPros_service || 'Ground',
           ShipPros_cost: reanalyzed.ShipPros_cost,
           accountId: reanalyzed.accountId,
           analyzedWithAccount: reanalyzed.analyzedWithAccount
@@ -573,7 +573,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             ...reanalyzed,
             // Ensure critical fields are updated
             ShipPros_cost: reanalyzed.ShipPros_cost,
-            ShipPros_service: reanalyzed.ShipPros_service || 'UPS Ground',
+            ShipPros_service: reanalyzed.ShipPros_service || 'Ground',
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0
           };
         }
@@ -1678,7 +1678,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
       acc[service].totalSavings += savings;
-      acc[service].bestServices.push(item.ShipPros_service || 'UPS Ground');
+      acc[service].bestServices.push(item.ShipPros_service || 'Ground');
       return acc;
     }, {});
     
@@ -1689,7 +1689,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         return acc;
       }, {});
       const mostCommonShipProsService = Object.entries(serviceCounts)
-        .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
+        .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'Ground';
       
       const avgCurrentCost = stats.totalCurrent / stats.shipments;
       const avgNewCost = stats.totalNew / stats.shipments;
@@ -2185,13 +2185,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
                             // Determine the most common Ship Pros service for this current service
                              const shipProsSample = shipmentData.filter(item => item.customer_service === service);
-                             const upsServices = shipProsSample.map(item => item.ShipPros_service || 'UPS Ground');
+                             const upsServices = shipProsSample.map(item => item.ShipPros_service || 'Ground');
                             const mostCommonUpsService = upsServices.reduce((acc, srv) => {
                               acc[srv] = (acc[srv] || 0) + 1;
                               return acc;
                             }, {} as Record<string, number>);
                             const spServiceType = Object.entries(mostCommonUpsService)
-                              .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
+                              .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'Ground';
                            
                             // Calculate markup info for this service
                             const serviceShipments = shipmentData.filter(item => item.customer_service === service);
@@ -2785,7 +2785,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs text-primary">
-                                {item.ShipPros_service || 'UPS Ground'}
+                                {item.ShipPros_service || 'Ground'}
                               </Badge>
                              </TableCell>
                             <TableCell className="text-right font-medium text-foreground">

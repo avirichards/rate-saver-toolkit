@@ -41,7 +41,7 @@ export function EditableShipmentRow({
   // Clear local changes when shipment data is updated (after re-analysis)
   useEffect(() => {
     setLocalChanges({});
-  }, [shipment.savings, shipment.ShipPros_cost, shipment.savingsPercent]);
+  }, [shipment.savings, shipment.ShipPros_cost, shipment.savingsPercent, shipment.reanalyzedAt, shipment.weight, shipment.length, shipment.width, shipment.height]);
 
   // Load account names when accountId changes
   useEffect(() => {

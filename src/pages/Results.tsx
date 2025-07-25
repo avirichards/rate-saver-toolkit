@@ -107,6 +107,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [selectedShipments, setSelectedShipments] = useState<Set<number>>(new Set());
   const [isReanalysisModalOpen, setIsReanalysisModalOpen] = useState(false);
   
+  // Defensive declaration to prevent runtime errors during cleanup transition
+  const shipmentUpdates = {};
   
   // Use selective re-analysis hook
   const { 

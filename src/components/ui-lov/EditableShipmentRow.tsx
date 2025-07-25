@@ -369,9 +369,13 @@ export function EditableShipmentRow({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onReanalyze(shipment.id)}
+            onClick={() => {
+              console.log('🔄 Re-analyze button clicked for shipment:', shipment.id, 'with changes:', localChanges);
+              onReanalyze(shipment.id);
+            }}
             disabled={isReanalyzing}
-            className="h-8 text-xs"
+            className={`h-8 text-xs ${hasChanges ? 'border-primary text-primary hover:bg-primary hover:text-primary-foreground' : ''}`}
+            title={hasChanges ? 'Re-analyze with pending changes' : 'Re-analyze shipment'}
           >
             {isReanalyzing ? (
               <RotateCw className="h-3 w-3 animate-spin mr-1" />
@@ -379,6 +383,7 @@ export function EditableShipmentRow({
               <RotateCw className="h-3 w-3 mr-1" />
             )}
             Re-analyze
+            {hasChanges && <span className="ml-1 text-xs">*</span>}
           </Button>
         </TableCell>
       )}

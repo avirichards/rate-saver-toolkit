@@ -33,8 +33,7 @@ export interface ProcessedShipmentData {
   carrier: string;
   service: string;
   originalService?: string;
-  bestService?: string;
-  newService?: string;
+  recommendedService: string; // Single source of truth for Ship Pros Service
   currentRate: number;
   newRate: number;
   savings: number;
@@ -195,8 +194,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     
     // Always force usage of the best account rates - no fallbacks
     let newRate = 0;
-    let bestService = 'No Quote Available';
-    let shipProsService = originalService; // Default to original service
+    let recommendedService = originalService; // Default to original service
     
     if (bestAccount && shipmentRates?.length) {
       // Filter rates for this specific shipment and account
@@ -231,16 +229,14 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         
         if (selectedRate) {
           newRate = selectedRate.rate_amount || 0;
-          bestService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
-          // Use the user's re-analyzed service choice first, then fallback to recommendedService, then bestService
-          shipProsService = rec.newService || rec.recommendedService || bestService;
+          recommendedService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
           
           console.log(`✅ Using rate from best account "${bestAccount}" for shipment ${index + 1}:`, {
             trackingId: rec.shipment?.trackingId || rec.trackingId,
             service: selectedRate.service_name,
             rate: selectedRate.rate_amount,
             originalService,
-            recommendedService: rec.recommendedService
+            recommendedService
           });
         } else {
           console.error(`❌ No valid rate found for shipment ${index + 1} from best account "${bestAccount}"`);
@@ -248,8 +244,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
           if (bestAccountRates.length > 0) {
             const fallbackRate = bestAccountRates[0];
             newRate = fallbackRate.rate_amount || 0;
-            bestService = fallbackRate.service_name || fallbackRate.service_code || 'UPS Ground';
-            shipProsService = rec.recommendedService || bestService;
+            recommendedService = fallbackRate.service_name || fallbackRate.service_code || 'UPS Ground';
             console.log(`🔧 Using fallback rate from ${bestAccount}:`, fallbackRate.rate_amount);
           }
         }
@@ -257,14 +252,12 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         console.error(`❌ No rates found for best account "${bestAccount}" - this should not happen!`);
         // Force zero rate to make the issue obvious
         newRate = 0;
-        bestService = 'No Rate Available';
-        shipProsService = 'No Service Available';
+        recommendedService = 'No Service Available';
       }
     } else {
       console.error(`❌ No best account or shipment rates available!`);
       newRate = 0;
-      bestService = 'No Rate Available';
-      shipProsService = 'No Service Available';
+      recommendedService = 'No Service Available';
     }
     
     const calculatedSavings = currentRate - newRate;
@@ -273,13 +266,11 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       console.log(`🔍 Processing shipment ${index + 1}:`, {
         trackingId: rec.shipment?.trackingId || rec.trackingId,
         originalService,
-        recommendedService: rec.recommendedService,
-        shipProsService,
+        recommendedService,
         currentRate,
         newRate,
         calculatedSavings,
-        bestAccount,
-        bestService
+        bestAccount
       });
     }
     
@@ -302,8 +293,7 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
       service: originalService, // This is the "Current Service" column
       originalService: originalService,
-      bestService: bestService,
-      newService: shipProsService,
+      recommendedService: recommendedService, // Single source of truth for Ship Pros Service
       currentRate,
       newRate,
       savings: calculatedSavings || 0,

@@ -501,14 +501,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const updatedShipmentData = shipmentData.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
-          console.log('📦 Updating shipment:', item.id, 'with new rate:', reanalyzed.newRate, 'service:', reanalyzed.newService);
+          console.log('📦 Updating shipment:', item.id, 'with new rate:', reanalyzed.newRate, 'service:', reanalyzed.recommendedService);
           // Merge the re-analyzed data with the original item
           return { 
             ...item, 
             ...reanalyzed,
-            // Ensure critical fields are updated - use newService for Ship Pros Service
+            // Ensure critical fields are updated
             newRate: reanalyzed.newRate,
-            newService: reanalyzed.newService || reanalyzed.bestService,
+            recommendedService: reanalyzed.recommendedService || 'UPS Ground',
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
           };
         }
@@ -525,7 +525,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const reanalyzedUpdates: Record<number, any> = {};
       result.success.forEach((reanalyzed: any) => {
         reanalyzedUpdates[reanalyzed.id] = {
-          newService: reanalyzed.newService || reanalyzed.bestService,
+          recommendedService: reanalyzed.recommendedService || 'UPS Ground',
           newRate: reanalyzed.newRate,
           accountId: reanalyzed.accountId,
           analyzedWithAccount: reanalyzed.analyzedWithAccount
@@ -566,14 +566,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const updatedShipmentData = shipmentData.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
-          console.log('📦 Updating single shipment:', item.id, 'with new rate:', reanalyzed.newRate, 'service:', reanalyzed.newService);
+          console.log('📦 Updating single shipment:', item.id, 'with new rate:', reanalyzed.newRate, 'service:', reanalyzed.recommendedService);
           // Merge the re-analyzed data with the original item
           return { 
             ...item, 
             ...reanalyzed,
-            // Ensure critical fields are updated - use newService for Ship Pros Service
+            // Ensure critical fields are updated
             newRate: reanalyzed.newRate,
-            newService: reanalyzed.newService || reanalyzed.bestService,
+            recommendedService: reanalyzed.recommendedService || 'UPS Ground',
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
           };
         }
@@ -1678,7 +1678,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
       acc[service].totalSavings += savings;
-      acc[service].bestServices.push(item.bestService || 'UPS Ground');
+      acc[service].bestServices.push(item.recommendedService || 'UPS Ground');
       return acc;
     }, {});
     
@@ -2185,7 +2185,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
                             // Determine the most common Ship Pros service for this current service
                             const shipProsSample = shipmentData.filter(item => item.service === service);
-                            const upsServices = shipProsSample.map(item => item.bestService || 'UPS Ground');
+                            const upsServices = shipProsSample.map(item => item.recommendedService || 'UPS Ground');
                             const mostCommonUpsService = upsServices.reduce((acc, srv) => {
                               acc[srv] = (acc[srv] || 0) + 1;
                               return acc;
@@ -2784,7 +2784,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs text-primary">
-                                {item.bestService || item.newService || 'UPS Ground'}
+                                {item.recommendedService || 'UPS Ground'}
                               </Badge>
                              </TableCell>
                             <TableCell className="text-right font-medium text-foreground">

@@ -73,8 +73,8 @@ export function EditableShipmentRow({
 
   const getDisplayValue = (field: string) => {
     const value = localChanges[field] ?? shipment[field] ?? '';
-    if (field === 'newService' && shipment.trackingId === '1Z4W80R50338555042') {
-      console.log('🔍 getDisplayValue for newService:', {
+    if (field === 'recommendedService' && shipment.trackingId === '1Z4W80R50338555042') {
+      console.log('🔍 getDisplayValue for recommendedService:', {
         trackingId: shipment.trackingId,
         localChanges: localChanges[field],
         shipmentValue: shipment[field],
@@ -255,14 +255,14 @@ export function EditableShipmentRow({
       <TableCell>
         {editMode ? (
           <UpsServiceSelector
-            value={getDisplayValue('newService') || shipment.newService || shipment.bestService || 'UPS Ground'}
-            onValueChange={(value) => handleFieldSave('newService', value)}
+            value={getDisplayValue('recommendedService') || shipment.recommendedService || 'UPS Ground'}
+            onValueChange={(value) => handleFieldSave('recommendedService', value)}
             placeholder="Select Service"
             className="w-24 text-xs"
           />
         ) : (
           <Badge variant="outline" className="text-xs text-primary truncate">
-            {getDisplayValue('newService') || shipment.newService || shipment.bestService || 'UPS Ground'}
+            {getDisplayValue('recommendedService') || shipment.recommendedService || 'UPS Ground'}
           </Badge>
         )}
       </TableCell>

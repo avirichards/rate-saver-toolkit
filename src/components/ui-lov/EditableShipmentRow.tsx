@@ -38,7 +38,7 @@ export function EditableShipmentRow({
   // Clear local changes when shipment data is updated (after re-analysis)
   useEffect(() => {
     setLocalChanges({});
-  }, [shipment.savings, shipment.newRate, shipment.savingsPercent]);
+  }, [shipment.savings, shipment.ShipPros_cost, shipment.savingsPercent]);
 
   // Load account names when accountId changes
   useEffect(() => {
@@ -73,8 +73,8 @@ export function EditableShipmentRow({
 
   const getDisplayValue = (field: string) => {
     const value = localChanges[field] ?? shipment[field] ?? '';
-    if (field === 'recommendedService' && shipment.trackingId === '1Z4W80R50338555042') {
-      console.log('🔍 getDisplayValue for recommendedService:', {
+    if (field === 'ShipPros_service' && shipment.trackingId === '1Z4W80R50338555042') {
+      console.log('🔍 getDisplayValue for ShipPros_service:', {
         trackingId: shipment.trackingId,
         localChanges: localChanges[field],
         shipmentValue: shipment[field],
@@ -94,7 +94,7 @@ export function EditableShipmentRow({
       return {
         savings: 0,
         savingsPercent: 0,
-        newRate: 0,
+        ShipPros_cost: 0,
         isPending: true
       };
     }
@@ -107,7 +107,7 @@ export function EditableShipmentRow({
     return {
       savings,
       savingsPercent,
-      newRate: markupInfo.markedUpPrice
+      ShipPros_cost: markupInfo.markedUpPrice
     };
   }, [localChanges, shipment, getShipmentMarkup]);
 

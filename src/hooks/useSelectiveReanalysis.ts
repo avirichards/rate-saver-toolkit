@@ -126,8 +126,8 @@ export function useSelectiveReanalysis() {
     console.log('🔄 Re-analysis result:', {
       shipmentId: shipment.id,
       isResidential: shipment.isResidential,
-      newRate: bestRate.totalCharges,
-      recommendedService: bestRate.serviceName,
+      ShipPros_cost: bestRate.totalCharges,
+      ShipPros_service: bestRate.serviceName,
       ratesReceived: data.rates.length
     });
 

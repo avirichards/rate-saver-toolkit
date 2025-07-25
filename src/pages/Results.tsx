@@ -1277,7 +1277,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           originZip: shipmentData.originZip || '',
           destinationZip: shipmentData.destZip || shipmentData.destinationZip || '',
           weight: parseFloat(shipmentData.weight || '0'),
-          service: originalShipment?.originalService || shipmentData.service || '',
+          customer_service: originalShipment?.customer_service || shipmentData.customer_service || '',
           error: 'Missing from analysis data - shipment was not processed during analysis',
           errorType: 'Missing Data',
           missingFields: originalShipment ? ['Analysis incomplete'] : ['All data missing']
@@ -2541,7 +2541,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                       const newSavings = shipment.currentRate - optimizedRate.rate_amount;
                       const optimizedShipment = {
                         ...shipment,
-                        newRate: optimizedRate.rate_amount,
+                        ShipPros_cost: optimizedRate.rate_amount,
                         savings: newSavings,
                         account: selectedAccount,
                         // Also update accountName for consistency

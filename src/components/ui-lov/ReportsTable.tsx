@@ -422,7 +422,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                              if (report.markup_data?.markupType === 'global') {
                                markupPercent = report.markup_data.globalMarkup || 0;
                              } else {
-                               markupPercent = report.markup_data?.perServiceMarkup?.[shipment.customer_service || shipment.originalService] || 0;
+                               markupPercent = report.markup_data?.perServiceMarkup?.[shipment.customer_service] || 0;
                              }
                              
                              const markedUpPrice = shipProsCost * (1 + markupPercent / 100);

@@ -189,11 +189,11 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
     const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
                        rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
     
-    const originalService = rec.originalService || rec.service || 'Unknown';
+    const originalService = rec.customer_service || 'Unknown';
     
     // Always force usage of the best account rates - no fallbacks
-    let newRate = 0;
-    let recommendedService = originalService; // Default to original service
+    let shipProsCost = 0;
+    let shipProsService = originalService; // Default to original service
     
     if (bestAccount && shipmentRates?.length) {
       // Filter rates for this specific shipment and account
@@ -227,47 +227,47 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
         );
         
         if (selectedRate) {
-          newRate = selectedRate.rate_amount || 0;
-          recommendedService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
+          shipProsCost = selectedRate.rate_amount || 0;
+          shipProsService = selectedRate.service_name || selectedRate.service_code || 'UPS Ground';
           
           console.log(`✅ Using rate from best account "${bestAccount}" for shipment ${index + 1}:`, {
             trackingId: rec.shipment?.trackingId || rec.trackingId,
             service: selectedRate.service_name,
             rate: selectedRate.rate_amount,
             originalService,
-            recommendedService
+            shipProsService
           });
         } else {
           console.error(`❌ No valid rate found for shipment ${index + 1} from best account "${bestAccount}"`);
           // Force a default rate from the best account rather than falling back
           if (bestAccountRates.length > 0) {
             const fallbackRate = bestAccountRates[0];
-            newRate = fallbackRate.rate_amount || 0;
-            recommendedService = fallbackRate.service_name || fallbackRate.service_code || 'UPS Ground';
+            shipProsCost = fallbackRate.rate_amount || 0;
+            shipProsService = fallbackRate.service_name || fallbackRate.service_code || 'UPS Ground';
             console.log(`🔧 Using fallback rate from ${bestAccount}:`, fallbackRate.rate_amount);
           }
         }
       } else {
         console.error(`❌ No rates found for best account "${bestAccount}" - this should not happen!`);
         // Force zero rate to make the issue obvious
-        newRate = 0;
-        recommendedService = 'No Service Available';
+        shipProsCost = 0;
+        shipProsService = 'No Service Available';
       }
     } else {
       console.error(`❌ No best account or shipment rates available!`);
-      newRate = 0;
-      recommendedService = 'No Service Available';
+      shipProsCost = 0;
+      shipProsService = 'No Service Available';
     }
     
-    const calculatedSavings = currentRate - newRate;
+    const calculatedSavings = currentRate - shipProsCost;
     
     if (index < 3) { // Debug first 3 items
       console.log(`🔍 Processing shipment ${index + 1}:`, {
         trackingId: rec.shipment?.trackingId || rec.trackingId,
         originalService,
-        recommendedService,
+        shipProsService,
         currentRate,
-        newRate,
+        shipProsCost,
         calculatedSavings,
         bestAccount
       });
@@ -291,9 +291,9 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
       customer_service: originalService, // Customer's original service
-      ShipPros_service: recommendedService, // Ship Pros recommended service
+      ShipPros_service: shipProsService, // Ship Pros recommended service
       currentRate,
-      ShipPros_cost: newRate, // Ship Pros recommended cost
+      ShipPros_cost: shipProsCost, // Ship Pros recommended cost
       savings: calculatedSavings || 0,
       savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0,
       // Ensure account fields are consistent and show the actual account used

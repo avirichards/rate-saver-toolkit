@@ -65,7 +65,7 @@ const recoverOrphanedData = (analysis: LegacyAnalysis): any[] => {
           originZip: shipmentData?.originZip || '',
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
-          service: rec.originalService || shipmentData?.service || 'Unknown',
+          customer_service: rec.customer_service || shipmentData?.customer_service || 'Unknown',
           error: rec.error || 'Processing failed',
           errorType: 'Processing Error',
           source: 'recommendations'
@@ -159,7 +159,7 @@ export const migrateSingleAnalysis = async (analysis: LegacyAnalysis): Promise<b
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
-          customer_service: rec.originalService || shipmentData?.service || 'Unknown',
+          customer_service: rec.customer_service || shipmentData?.customer_service || 'Unknown',
           currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
           ShipPros_cost: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.ShipPros_cost || 0,
           savings: rec.savings || rec.savings_amount || 0,

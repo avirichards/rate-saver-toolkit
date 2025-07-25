@@ -46,6 +46,7 @@ export type Database = {
           user_id: string
           usps_password: string | null
           usps_user_id: string | null
+          weight_unit: string | null
         }
         Insert: {
           account_group?: string | null
@@ -78,6 +79,7 @@ export type Database = {
           user_id: string
           usps_password?: string | null
           usps_user_id?: string | null
+          weight_unit?: string | null
         }
         Update: {
           account_group?: string | null
@@ -110,6 +112,7 @@ export type Database = {
           user_id?: string
           usps_password?: string | null
           usps_user_id?: string | null
+          weight_unit?: string | null
         }
         Relationships: []
       }

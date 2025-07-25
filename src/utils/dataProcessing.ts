@@ -42,7 +42,7 @@ export interface ProcessedShipmentData {
   account?: string;
   accountName?: string;
   accountId?: string;
-  analyzedWithAccount?: string; // Changed from object to string for simpler display
+  analyzedWithAccount?: { name: string } | string; // Can be object with name or string
 }
 
 export interface ValidationResult {

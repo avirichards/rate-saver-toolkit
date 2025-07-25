@@ -2248,7 +2248,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                       const accountCounts = serviceShipments.reduce((acc, item) => {
                                          // Use the same account resolution logic as the Shipment Data tab
                                           const account = item.account || 
-                                                         item.analyzedWithAccount || 
+                                                         (typeof item.analyzedWithAccount === 'object' ? item.analyzedWithAccount?.name : item.analyzedWithAccount) || 
                                                          (item.accountId ? accountNames[item.accountId] : null) ||
                                                          item.accountName || 
                                                          analysisData?.bestAccount || 

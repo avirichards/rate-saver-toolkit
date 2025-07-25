@@ -51,18 +51,44 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
   // Pre-populate form when editing
   useEffect(() => {
     if (editConfig) {
+      // For rate cards, try to get service type from enabled_services first, 
+      // or we might need to fetch it from rate_card_rates table
+      const serviceType = editConfig.enabled_services?.[0] || '';
+      
       setFormData({
         carrier_type: editConfig.carrier_type,
         account_name: editConfig.account_name || '',
         account_group: editConfig.account_group || '',
-        service_type: editConfig.enabled_services?.[0] || '',
+        service_type: serviceType,
         weight_unit: editConfig.weight_unit || 'lbs',
         dimensional_divisor: editConfig.dimensional_divisor || 166,
         fuel_surcharge_percent: editConfig.fuel_surcharge_percent || 0,
         is_active: editConfig.is_active ?? true
       });
+
+      // If no service type in enabled_services, fetch from rate_card_rates
+      if (!serviceType && editConfig.is_rate_card) {
+        fetchServiceTypeFromRates(editConfig.id);
+      }
     }
   }, [editConfig]);
+
+  const fetchServiceTypeFromRates = async (carrierConfigId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('rate_card_rates')
+        .select('service_code')
+        .eq('carrier_config_id', carrierConfigId)
+        .limit(1)
+        .single();
+
+      if (!error && data?.service_code) {
+        setFormData(prev => ({ ...prev, service_type: data.service_code as UniversalServiceCategory }));
+      }
+    } catch (error) {
+      console.error('Error fetching service type from rates:', error);
+    }
+  };
 
   const resetForm = () => {
     setSelectedFile(null);
@@ -255,11 +281,11 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
             rate_card_uploaded_at: new Date().toISOString(),
             dimensional_divisor: formData.dimensional_divisor,
             fuel_surcharge_percent: formData.fuel_surcharge_percent,
-            weight_unit: formData.weight_unit,
-            is_sandbox: false,
-            is_active: formData.is_active,
-            enabled_services: []
-          })
+             weight_unit: formData.weight_unit,
+             is_sandbox: false,
+             is_active: formData.is_active,
+             enabled_services: [formData.service_type] // Store the service type for easier editing later
+           })
           .select()
           .single();
 

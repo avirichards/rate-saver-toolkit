@@ -106,7 +106,7 @@ Deno.serve(async (req) => {
 
     // Filter out shipments that should be orphaned (missing service type or no rates)
     const validRecommendations = payload.recommendations.filter(rec => {
-      const service = rec.customer_service || rec.shipment.customer_service || '';
+      const service = rec.customer_service || rec.shipment.service || '';
       const hasValidService = service && service.trim() !== '' && service !== 'Unknown';
       const hasRates = rec.allRates && rec.allRates.length > 0;
       return hasValidService && hasRates;
@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
         height: parseFloat(rec.shipment.height || '0'),
         dimensions: rec.shipment.dimensions,
         carrier: rec.carrier || 'UPS',
-        customer_service: rec.originalService || rec.shipment.service || 'Unknown',
+        customer_service: rec.customer_service || rec.shipment.service || 'Unknown',
         ShipPros_service: bestAccountRate ? (bestAccountRate.serviceName || bestAccountRate.description || 'UPS Ground') : 'UPS Ground',
         currentRate: currentRate,
         ShipPros_cost: newRate,
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
       width: parseFloat(orphan.shipment.width || '0'),
       height: parseFloat(orphan.shipment.height || '0'),
       dimensions: orphan.shipment.dimensions,
-      service: orphan.customer_service || orphan.shipment.customer_service || 'Unknown',
+      service: orphan.customer_service || orphan.shipment.service || 'Unknown',
       error: orphan.error || 'Processing failed',
       errorType: orphan.errorType || 'Unknown',
       errorCategory: 'Processing Error'

@@ -131,7 +131,7 @@ export const generateReportExcelFromProcessedData = (
         data.length || shipment.length || '',
         data.width || shipment.width || '',
         data.height || shipment.height || '',
-        data.service || data.currentService || shipment.currentService || shipment.service || '',
+        data.customer_service || data.currentService || shipment.currentService || shipment.customer_service || '',
         data.cost || data.currentRate || shipment.currentRate || shipment.cost || 0,
         shipment.reason || data.reason || 'Unable to quote'
       ]);

@@ -994,7 +994,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     
     // Service is optional for orphan classification - missing service doesn't make a shipment invalid
     // but we'll note it as a warning
-    const hasService = shipment.service && shipment.service.trim() !== '';
+    const hasService = shipment.customer_service && shipment.customer_service.trim() !== '';
     
     // Only consider shipment invalid if it's missing critical shipping data (tracking, addresses, weight)
     // Service issues should preserve the shipment as orphaned data, not exclude it entirely
@@ -1057,7 +1057,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       setOrphanedData(processedData.orphanedShipments || []);
       
       // Initialize services from the processed data
-      const services = [...new Set((processedData.recommendations || []).map((item: any) => item.service).filter(Boolean))] as string[];
+      const services = [...new Set((processedData.recommendations || []).map((item: any) => item.customer_service).filter(Boolean))] as string[];
       setAvailableServices(services);
       setSelectedServicesOverview([]);
       
@@ -1202,7 +1202,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         errorType: validation.errorType,
         hasDestZip: !!shipmentData?.destZip,
         hasOriginZip: !!shipmentData?.originZip,
-        hasService: !!shipmentData?.service,
+        hasService: !!shipmentData?.customer_service,
         hasWeight: !!shipmentData?.weight,
         hasError: !!errorStatus,
         recordType: rec.shipment ? 'recommendation' : rec.shipment_data ? 'rate_quote' : 'raw_data'
@@ -1237,7 +1237,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
-          service: rec.customer_service || shipmentData?.service || 'Unknown',
+          customer_service: rec.customer_service || shipmentData?.customer_service || 'Unknown',
           // Try multiple field names for rates based on different data sources
           currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
           ShipPros_cost: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.ShipPros_cost || 0,
@@ -1308,7 +1308,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     setOrphanedData(orphanedShipments);
     
     // Initialize service data for filtering
-    const services = [...new Set(validShipments.map(item => item.service).filter(Boolean))] as string[];
+    const services = [...new Set(validShipments.map(item => item.customer_service).filter(Boolean))] as string[];
     setAvailableServices(services);
     setSelectedServicesOverview([]);
     
@@ -2779,7 +2779,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              </TableCell>
                            <TableCell>
                              <Badge variant="outline" className="text-xs">
-                               {item.originalService || item.service}
+                               {item.customer_service || item.service}
                              </Badge>
                            </TableCell>
                             <TableCell>

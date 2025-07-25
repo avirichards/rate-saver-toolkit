@@ -1261,8 +1261,8 @@ const Analysis = () => {
         currentCost: result.currentCost || 0,
         recommendedCost: result.bestRate?.totalCharges || 0,
         savings: result.savings || 0,
-        originalService: result.originalService || result.shipment.service,
-        recommendedService: result.bestRate?.serviceName || 'Unknown',
+        customer_service: result.originalService || result.shipment.service,
+        ShipPros_service: result.bestRate?.serviceName || 'Unknown',
         carrier: 'UPS',
         status: 'completed',
         allRates: result.allRates,
@@ -1273,7 +1273,7 @@ const Analysis = () => {
         shipment: result.shipment,
         error: result.error,
         errorType: result.errorType || 'unknown_error',
-        originalService: result.originalService || result.shipment.service,
+        customer_service: result.originalService || result.shipment.service,
         status: 'error'
       }));
 
@@ -1326,8 +1326,8 @@ const Analysis = () => {
         currentCost: result.currentCost || 0,
         recommendedCost: result.bestRate?.totalCharges || 0,
         savings: result.savings || 0,
-        originalService: result.originalService || result.shipment.service,
-        recommendedService: result.bestRate?.serviceName || 'Unknown',
+        customer_service: result.originalService || result.shipment.service,
+        ShipPros_service: result.bestRate?.serviceName || 'Unknown',
         carrier: 'UPS',
         status: 'completed',
         allRates: result.allRates,
@@ -1338,7 +1338,7 @@ const Analysis = () => {
         shipment: result.shipment,
         error: result.error,
         errorType: result.errorType || 'unknown_error',
-        originalService: result.originalService || result.shipment.service,
+        customer_service: result.originalService || result.shipment.service,
         status: 'error'
       }));
 

@@ -96,7 +96,7 @@ export const validateAnalysisDataIntegrity = async (analysisId: string): Promise
     // Check for data structure integrity
     if (hasProcessedShipments) {
       const invalidShipments = processedShipments.filter((shipment: any) => {
-        return !shipment.trackingId || !shipment.service || typeof shipment.savings !== 'number';
+        return !shipment.trackingId || !shipment.customer_service || typeof shipment.savings !== 'number';
       });
       
       if (invalidShipments.length > 0) {

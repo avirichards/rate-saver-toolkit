@@ -37,7 +37,7 @@ const validateShipmentData = (shipment: any): { isValid: boolean; missingFields:
   }
   
   // Service is optional for orphan classification
-  const hasService = shipment.service && shipment.service.trim() !== '';
+  const hasService = shipment.customer_service && shipment.customer_service.trim() !== '';
   
   const isValid = missingFields.length === 0 && hasService;
   const errorType = missingFields.length > 0 ? 'Missing Critical Data' : 

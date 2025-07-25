@@ -221,7 +221,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
       
       // Map columns based on user selection
       Object.entries(columnMapping).forEach(([field, headerName]) => {
-        if (headerName) {
+        if (headerName && headerName !== 'none') {
           const columnIndex = headers.indexOf(headerName);
           if (columnIndex !== -1) {
             rate[field] = row[columnIndex];
@@ -473,7 +473,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                       <SelectValue placeholder="Select service code column" />
                     </SelectTrigger>
                     <SelectContent className="bg-background border shadow-lg z-50">
-                      <SelectItem value="">None - Use service type above</SelectItem>
+                      <SelectItem value="none">None - Use service type above</SelectItem>
                       {csvHeaders.map(header => (
                         <SelectItem key={header} value={header}>{header}</SelectItem>
                       ))}
@@ -491,7 +491,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                       <SelectValue placeholder="Select service name column" />
                     </SelectTrigger>
                     <SelectContent className="bg-background border shadow-lg z-50">
-                      <SelectItem value="">None - Use service type above</SelectItem>
+                      <SelectItem value="none">None - Use service type above</SelectItem>
                       {csvHeaders.map(header => (
                         <SelectItem key={header} value={header}>{header}</SelectItem>
                       ))}

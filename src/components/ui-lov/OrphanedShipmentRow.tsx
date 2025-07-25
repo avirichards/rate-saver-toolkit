@@ -3,7 +3,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
-import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
+import { UniversalServiceSelector } from '@/components/ui-lov/UniversalServiceSelector';
 import { CheckCircle, AlertTriangle } from 'lucide-react';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 
@@ -118,7 +118,7 @@ export function OrphanedShipmentRow({
       </TableCell>
       
       <TableCell>
-        <UpsServiceSelector
+        <UniversalServiceSelector
           value={getDisplayValue('service')}
           onValueChange={(value) => handleFieldUpdate('service', value)}
           placeholder="Select Service"

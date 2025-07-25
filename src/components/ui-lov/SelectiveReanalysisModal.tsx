@@ -4,7 +4,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
+import { UniversalServiceSelector } from '@/components/ui-lov/UniversalServiceSelector';
 import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { Plus, Replace, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -200,7 +200,7 @@ export function SelectiveReanalysisModal({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="replace-service">Replace With Service</Label>
-                <UpsServiceSelector value={replaceValue} onValueChange={setReplaceValue} placeholder="Select UPS Service" className="w-full" />
+                <UniversalServiceSelector value={replaceValue} onValueChange={setReplaceValue} placeholder="Select Service" className="w-full" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="account-select">Use Account (Optional)</Label>

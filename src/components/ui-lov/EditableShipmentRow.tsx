@@ -4,7 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui-lov/Button';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
-import { UpsServiceSelector } from '@/components/ui-lov/UpsServiceSelector';
+import { UniversalServiceSelector } from '@/components/ui-lov/UniversalServiceSelector';
 import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { RotateCw, AlertCircle } from 'lucide-react';
 import { formatCurrency, getSavingsColor } from '@/lib/utils';
@@ -254,8 +254,8 @@ export function EditableShipmentRow({
       {/* Ship Pros Service - Editable */}
       <TableCell>
         {editMode ? (
-          <UpsServiceSelector
-            value={getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'UPS Ground'}
+          <UniversalServiceSelector
+            value={getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'GROUND'}
             onValueChange={(value) => handleFieldSave('ShipPros_service', value)}
             placeholder="Select Service"
             className="w-24 text-xs"

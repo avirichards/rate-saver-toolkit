@@ -265,7 +265,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       mapping.original_service === customerService || 
       mapping.customer_service === customerService
     );
-    return mapping?.ShipPros_service || customerService;
+    return mapping?.standardized || mapping?.ShipPros_service || customerService;
   };
 
   // Calculate service breakdown by customer service type

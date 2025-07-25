@@ -16,7 +16,7 @@ interface ReanalysisShipment {
   service: string;
   carrier?: string;
   trackingId?: string;
-  isResidential?: string | boolean;
+  isResidential?: string | boolean | { _type?: string; value?: any };
   accountId?: string;
   ShipPros_service?: string | UniversalServiceCategory;
 }
@@ -103,7 +103,14 @@ export function useSelectiveReanalysis() {
       },
       serviceTypes: [serviceCode],
       equivalentServiceCode: serviceCode,
-      isResidential: shipment.isResidential === 'true' || shipment.isResidential === true
+      isResidential: (() => {
+        if (typeof shipment.isResidential === 'boolean') return shipment.isResidential;
+        if (typeof shipment.isResidential === 'string') return shipment.isResidential === 'true';
+        if (shipment.isResidential && typeof shipment.isResidential === 'object' && 'value' in shipment.isResidential) {
+          return shipment.isResidential.value === 'true' || shipment.isResidential.value === true;
+        }
+        return false;
+      })()
     };
 
     console.log('Sending shipment data to UPS API:', shipmentData, 'with configId:', config.id);
@@ -176,7 +183,14 @@ export function useSelectiveReanalysis() {
             ShipPros_cost: result.ShipPros_cost,
             ShipPros_service: result.ShipPros_service,
             upsRates: result.upsRates,
-            isResidential: shipment.isResidential, // Preserve residential status
+            isResidential: (() => {
+              if (typeof shipment.isResidential === 'boolean') return shipment.isResidential;
+              if (typeof shipment.isResidential === 'string') return shipment.isResidential === 'true';
+              if (shipment.isResidential && typeof shipment.isResidential === 'object' && 'value' in shipment.isResidential) {
+                return shipment.isResidential.value === 'true' || shipment.isResidential.value === true;
+              }
+              return false;
+            })(),
             reanalyzed: true,
             reanalyzedAt: new Date().toISOString(),
             // Store the account used for analysis

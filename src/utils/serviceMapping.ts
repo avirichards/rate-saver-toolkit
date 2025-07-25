@@ -1,41 +1,23 @@
 /**
- * Service mapping utility to convert various carrier service names to UPS service codes
+ * Carrier-agnostic service mapping utility to convert various service names to universal service categories
  */
 
+import { UniversalServiceCategory, DEFAULT_SERVICE_CATEGORIES } from './universalServiceCategories';
+
 export interface ServiceMapping {
-  standardizedService: string;
-  serviceCode: string;
+  standardizedService: UniversalServiceCategory;
   serviceName: string;
   confidence: number;
 }
 
-// Common UPS service codes
-export const UPS_SERVICE_CODES = {
-  '01': 'UPS Next Day Air',
-  '02': 'UPS 2nd Day Air',
-  '03': 'UPS Ground',
-  '12': 'UPS 3 Day Select',
-  '13': 'UPS Next Day Air Saver',
-  '14': 'UPS Next Day Air Early',
-  '59': 'UPS 2nd Day Air A.M.',
-  '07': 'UPS Worldwide Express',
-  '08': 'UPS Worldwide Expedited',
-  '11': 'UPS Standard',
-  '65': 'UPS Worldwide Saver'
-};
-
-// Default service types to request when no specific mapping is found
-export const DEFAULT_SERVICE_CODES = ['01', '02', '03', '12', '13', '59'];
-
 /**
- * Maps a service name to the most appropriate UPS service code
+ * Maps a service name to the most appropriate universal service category
  */
 export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
   if (!serviceName) {
     return {
-      standardizedService: 'Ground',
-      serviceCode: '03',
-      serviceName: 'UPS Ground',
+      standardizedService: UniversalServiceCategory.GROUND,
+      serviceName: 'Ground',
       confidence: 0.5
     };
   }
@@ -46,24 +28,21 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
   if (service.includes('next day') || service.includes('overnight') || service.includes('1 day')) {
     if (service.includes('saver') || service.includes('save')) {
       return {
-        standardizedService: 'Next Day Air Saver',
-        serviceCode: '13',
-        serviceName: 'UPS Next Day Air Saver',
+        standardizedService: UniversalServiceCategory.OVERNIGHT_SAVER,
+        serviceName: 'Overnight Saver',
         confidence: 0.95
       };
     }
     if (service.includes('early') || service.includes('am')) {
       return {
-        standardizedService: 'Next Day Air Early',
-        serviceCode: '14',
-        serviceName: 'UPS Next Day Air Early',
+        standardizedService: UniversalServiceCategory.OVERNIGHT_EARLY,
+        serviceName: 'Overnight Early',
         confidence: 0.95
       };
     }
     return {
-      standardizedService: 'Next Day Air',
-      serviceCode: '01',
-      serviceName: 'UPS Next Day Air',
+      standardizedService: UniversalServiceCategory.OVERNIGHT,
+      serviceName: 'Overnight',
       confidence: 0.9
     };
   }
@@ -72,16 +51,14 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
   if (service.includes('2nd day') || service.includes('2 day') || service.includes('second day')) {
     if (service.includes('am') || service.includes('a.m.') || service.includes('morning')) {
       return {
-        standardizedService: '2nd Day Air A.M.',
-        serviceCode: '59',
-        serviceName: 'UPS 2nd Day Air A.M.',
+        standardizedService: UniversalServiceCategory.TWO_DAY_MORNING,
+        serviceName: '2-Day Morning',
         confidence: 0.95
       };
     }
     return {
-      standardizedService: '2nd Day Air',
-      serviceCode: '02',
-      serviceName: 'UPS 2nd Day Air',
+      standardizedService: UniversalServiceCategory.TWO_DAY,
+      serviceName: '2-Day',
       confidence: 0.9
     };
   }
@@ -89,9 +66,8 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
   // 3 Day Select patterns
   if (service.includes('3 day') || service.includes('3-day') || service.includes('select')) {
     return {
-      standardizedService: '3 Day Select',
-      serviceCode: '12',
-      serviceName: 'UPS 3 Day Select',
+      standardizedService: UniversalServiceCategory.THREE_DAY,
+      serviceName: '3-Day Select',
       confidence: 0.9
     };
   }
@@ -99,29 +75,51 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
   // Ground patterns
   if (service.includes('ground') || service.includes('standard') || service.includes('regular')) {
     return {
-      standardizedService: 'Ground',
-      serviceCode: '03',
-      serviceName: 'UPS Ground',
+      standardizedService: UniversalServiceCategory.GROUND,
+      serviceName: 'Ground',
       confidence: 0.9
     };
   }
 
   // Express patterns (international)
   if (service.includes('express')) {
+    if (service.includes('worldwide') || service.includes('international')) {
+      return {
+        standardizedService: UniversalServiceCategory.INTERNATIONAL_EXPRESS,
+        serviceName: 'International Express',
+        confidence: 0.9
+      };
+    }
     return {
-      standardizedService: 'Worldwide Express',
-      serviceCode: '07',
-      serviceName: 'UPS Worldwide Express',
+      standardizedService: UniversalServiceCategory.OVERNIGHT,
+      serviceName: 'Overnight',
       confidence: 0.8
+    };
+  }
+
+  // Expedited patterns (international)
+  if (service.includes('expedited') && (service.includes('worldwide') || service.includes('international'))) {
+    return {
+      standardizedService: UniversalServiceCategory.INTERNATIONAL_EXPEDITED,
+      serviceName: 'International Expedited',
+      confidence: 0.9
     };
   }
 
   // Saver patterns (international)
   if (service.includes('saver') && (service.includes('worldwide') || service.includes('international'))) {
     return {
-      standardizedService: 'Worldwide Saver',
-      serviceCode: '65',
-      serviceName: 'UPS Worldwide Saver',
+      standardizedService: UniversalServiceCategory.INTERNATIONAL_SAVER,
+      serviceName: 'International Saver',
+      confidence: 0.9
+    };
+  }
+
+  // Standard patterns (international)
+  if (service.includes('standard') && (service.includes('worldwide') || service.includes('international'))) {
+    return {
+      standardizedService: UniversalServiceCategory.INTERNATIONAL_STANDARD,
+      serviceName: 'International Standard',
       confidence: 0.9
     };
   }
@@ -129,9 +127,8 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
   // Priority patterns
   if (service.includes('priority')) {
     return {
-      standardizedService: 'Next Day Air',
-      serviceCode: '01',
-      serviceName: 'UPS Next Day Air',
+      standardizedService: UniversalServiceCategory.OVERNIGHT,
+      serviceName: 'Overnight',
       confidence: 0.7
     };
   }
@@ -140,17 +137,33 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
   if (service.includes('fedex')) {
     if (service.includes('overnight') || service.includes('priority overnight')) {
       return {
-        standardizedService: 'Next Day Air',
-        serviceCode: '01',
-        serviceName: 'UPS Next Day Air',
+        standardizedService: UniversalServiceCategory.OVERNIGHT,
+        serviceName: 'Overnight',
         confidence: 0.85
       };
     }
     if (service.includes('2day') || service.includes('2 day')) {
       return {
-        standardizedService: '2nd Day Air',
-        serviceCode: '02',
-        serviceName: 'UPS 2nd Day Air',
+        standardizedService: UniversalServiceCategory.TWO_DAY,
+        serviceName: '2-Day',
+        confidence: 0.85
+      };
+    }
+    if (service.includes('ground')) {
+      return {
+        standardizedService: UniversalServiceCategory.GROUND,
+        serviceName: 'Ground',
+        confidence: 0.85
+      };
+    }
+  }
+
+  // DHL specific mappings
+  if (service.includes('dhl')) {
+    if (service.includes('express')) {
+      return {
+        standardizedService: UniversalServiceCategory.INTERNATIONAL_EXPRESS,
+        serviceName: 'International Express',
         confidence: 0.85
       };
     }
@@ -158,29 +171,28 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
 
   // Default to Ground with low confidence
   return {
-    standardizedService: 'Ground',
-    serviceCode: '03',
-    serviceName: 'UPS Ground',
+    standardizedService: UniversalServiceCategory.GROUND,
+    serviceName: 'Ground',
     confidence: 0.3
   };
 }
 
 /**
- * Gets service codes to request, prioritizing the mapped service
+ * Gets service categories to request, prioritizing the mapped service
  */
-export function getServiceCodesToRequest(originalService: string): string[] {
+export function getServiceCategoriesToRequest(originalService: string): UniversalServiceCategory[] {
   const mapping = mapServiceToServiceCode(originalService);
-  const primaryCode = mapping.serviceCode;
+  const primaryCategory = mapping.standardizedService;
   
   // Always include the mapped service first, then add others
-  const serviceCodes = [primaryCode];
+  const serviceCategories = [primaryCategory];
   
   // Add other common services (avoiding duplicates)
-  DEFAULT_SERVICE_CODES.forEach(code => {
-    if (!serviceCodes.includes(code)) {
-      serviceCodes.push(code);
+  DEFAULT_SERVICE_CATEGORIES.forEach(category => {
+    if (!serviceCategories.includes(category)) {
+      serviceCategories.push(category);
     }
   });
   
-  return serviceCodes;
+  return serviceCategories;
 }

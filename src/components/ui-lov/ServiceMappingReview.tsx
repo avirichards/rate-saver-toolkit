@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui-lov/Card';
 import { Button } from '@/components/ui-lov/Button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { AlertTriangle, CheckCircle, Home, Building } from 'lucide-react';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { standardizeService } from '@/utils/csvParser';
+import { UniversalServiceSelector } from './UniversalServiceSelector';
+import { UniversalServiceCategory, UNIVERSAL_SERVICES } from '@/utils/universalServiceCategories';
+import { mapServiceToServiceCode } from '@/utils/serviceMapping';
 
 interface ServiceMappingReviewProps {
   csvData: any[];
@@ -15,7 +17,7 @@ interface ServiceMappingReviewProps {
 }
 
 interface ExtendedServiceMapping extends ServiceMapping {
-  serviceCode: string;
+  serviceCategory: UniversalServiceCategory;
   status: 'needs-review' | 'good-match';
   count: number;
   // Override only to make required for UI display
@@ -41,27 +43,6 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       return acc;
     }, {} as Record<string, number>);
 
-    // Map standardized service names to service codes
-    const standardizedToServiceCode = (standardized: string): string => {
-      const mapping: Record<string, string> = {
-        'NEXT_DAY_AIR': '01',
-        'NEXT_DAY_AIR_SAVER': '13', 
-        'NEXT_DAY_AIR_EARLY': '14',
-        '2ND_DAY_AIR': '02',
-        '3_DAY_SELECT': '12',
-        'GROUND': '03',
-        'WORLDWIDE_EXPRESS': '07',
-        'WORLDWIDE_EXPRESS_PLUS': '54',
-        'WORLDWIDE_EXPEDITED': '08',
-        'UPS_STANDARD': '11',
-        'UPS_SAVER': '65',
-        'EXPRESS_SAVER': '13',
-        'EXPRESS_AIR': '01',
-        'PRIORITY_MAIL': '02'
-      };
-      return mapping[standardized] || '03';
-    };
-
     const extendedMappings = initialMappings.map(mapping => {
       // Get residential status from service analysis - but don't override existing manual settings
       const serviceAnalysis = standardizeService(mapping.original);
@@ -79,8 +60,15 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
             residentialSource: serviceAnalysis.residentialSource || 'auto-detected'
           };
       
-      console.log('🏠 ServiceMappingReview - Processing mapping for:', {
+      // Convert the old standardized service name to a universal service category
+      const serviceMapping = mapServiceToServiceCode(mapping.original);
+      const serviceCategory = serviceMapping.standardizedService;
+      
+      console.log('🔄 ServiceMappingReview - Processing mapping for:', {
         original: mapping.original,
+        oldStandardized: mapping.standardized,
+        newServiceCategory: serviceCategory,
+        confidence: serviceMapping.confidence,
         hasExistingResidentialData,
         existingIsResidential: mapping.isResidential,
         existingResidentialSource: mapping.residentialSource,
@@ -91,9 +79,11 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       
       return {
         ...mapping,
-        serviceCode: mapping.serviceCode || standardizedToServiceCode(mapping.standardized),
-        status: mapping.confidence >= 0.8 ? 'good-match' as const : 'needs-review' as const,
+        standardized: UNIVERSAL_SERVICES[serviceCategory]?.displayName || serviceCategory,
+        serviceCategory: serviceCategory,
+        status: serviceMapping.confidence >= 0.8 ? 'good-match' as const : 'needs-review' as const,
         count: serviceCounts[mapping.original] || 0,
+        confidence: serviceMapping.confidence,
         ...residentialData
       };
     });
@@ -112,11 +102,16 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
 
   const updateMapping = (
     originalService: string, 
-    serviceCode: string | null
+    serviceCategory: UniversalServiceCategory
   ) => {
     setMappings(prev => prev.map(mapping => 
       mapping.original === originalService
-        ? { ...mapping, serviceCode: serviceCode || '', status: 'good-match' as const }
+        ? { 
+            ...mapping, 
+            serviceCategory: serviceCategory,
+            standardized: UNIVERSAL_SERVICES[serviceCategory].displayName,
+            status: 'good-match' as const 
+          }
         : mapping
     ));
   };
@@ -146,9 +141,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
     const confirmedMappings: ServiceMapping[] = mappings.map(mapping => ({
       original: mapping.original,
       standardized: mapping.standardized,
-      serviceCode: mapping.serviceCode || '',
       confidence: mapping.confidence,
-      carrier: mapping.carrier,
       isResidential: mapping.isResidential,
       residentialSource: mapping.residentialSource,
       isResidentialDetected: mapping.isResidentialDetected,
@@ -158,30 +151,6 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
     console.log('🏠 ServiceMappingReview - Confirmed mappings with residential data:', confirmedMappings);
     onMappingsConfirmed(confirmedMappings);
   };
-
-  const serviceOptions = [
-    { group: 'Next Day', services: [
-      { code: '01', name: 'UPS Next Day Air', standardized: 'NEXT_DAY_AIR' },
-      { code: '13', name: 'UPS Next Day Air Saver', standardized: 'NEXT_DAY_AIR_SAVER' },
-      { code: '14', name: 'UPS Next Day Air Early', standardized: 'NEXT_DAY_AIR_EARLY' }
-    ]},
-    { group: '2-3 Day', services: [
-      { code: '02', name: 'UPS 2nd Day Air', standardized: '2ND_DAY_AIR' },
-      { code: '12', name: 'UPS 3 Day Select', standardized: '3_DAY_SELECT' }
-    ]},
-    { group: 'Ground', services: [
-      { code: '03', name: 'UPS Ground', standardized: 'GROUND' }
-    ]},
-    { group: 'International', services: [
-      { code: '07', name: 'UPS Worldwide Express', standardized: 'WORLDWIDE_EXPRESS' },
-      { code: '54', name: 'UPS Worldwide Express Plus', standardized: 'WORLDWIDE_EXPRESS_PLUS' },
-      { code: '08', name: 'UPS Worldwide Expedited', standardized: 'WORLDWIDE_EXPEDITED' },
-      { code: '11', name: 'UPS Standard', standardized: 'UPS_STANDARD' },
-      { code: '65', name: 'UPS Saver', standardized: 'UPS_SAVER' }
-    ]}
-  ];
-
-  const allServiceOptions = serviceOptions.flatMap(g => g.services);
 
   return (
     <div className="space-y-6">
@@ -198,7 +167,6 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
               <ServiceMappingCard 
                 key={mapping.original}
                 mapping={mapping}
-                serviceOptions={allServiceOptions}
                 updateMapping={updateMapping}
                 updateResidentialStatus={updateResidentialStatus}
                 confirmMapping={confirmMapping}
@@ -222,7 +190,6 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
               <ServiceMappingCard 
                 key={mapping.original}
                 mapping={mapping}
-                serviceOptions={allServiceOptions}
                 updateMapping={updateMapping}
                 updateResidentialStatus={updateResidentialStatus}
                 showConfirmButton={false}
@@ -249,8 +216,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
 // Individual Service Mapping Card Component
 interface ServiceMappingCardProps {
   mapping: ExtendedServiceMapping;
-  serviceOptions: any[];
-  updateMapping: (originalService: string, serviceCode: string | null) => void;
+  updateMapping: (originalService: string, serviceCategory: UniversalServiceCategory) => void;
   updateResidentialStatus: (originalService: string, isResidential: boolean) => void;
   confirmMapping?: (originalService: string) => void;
   showConfirmButton: boolean;
@@ -258,14 +224,11 @@ interface ServiceMappingCardProps {
 
 const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
   mapping,
-  serviceOptions,
   updateMapping,
   updateResidentialStatus,
   confirmMapping,
   showConfirmButton
 }) => {
-  const selectedService = serviceOptions.find(s => s.code === mapping.serviceCode);
-  
   return (
     <Card className={`p-4 ${mapping.status === 'needs-review' ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
       <CardContent className="p-0">
@@ -279,7 +242,9 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
               )}
               <div>
                 <h3 className="font-semibold text-base">{mapping.original}</h3>
-                <p className="text-sm text-muted-foreground">Carrier: {mapping.carrier}</p>
+                <p className="text-sm text-muted-foreground">
+                  Mapped to: {UNIVERSAL_SERVICES[mapping.serviceCategory]?.displayName}
+                </p>
               </div>
               <div className="ml-auto">
                 <span className="text-xs bg-muted px-2 py-1 rounded-full">
@@ -290,22 +255,14 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
             
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <label className="text-sm text-muted-foreground">Mapped Service:</label>
-                <Select
-                  value={mapping.serviceCode}
-                  onValueChange={(value) => updateMapping(mapping.original, value)}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select service" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border border-border shadow-lg z-50">
-                    {serviceOptions.map(service => (
-                      <SelectItem key={service.code} value={service.code}>
-                        {service.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <label className="text-sm text-muted-foreground">Service Category:</label>
+                <div className="mt-1">
+                  <UniversalServiceSelector
+                    value={mapping.serviceCategory}
+                    onValueChange={(value) => updateMapping(mapping.original, value)}
+                    placeholder="Select service category"
+                  />
+                </div>
               </div>
             </div>
             

@@ -12,7 +12,7 @@ import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
-import { mapServiceToServiceCode, getServiceCodesToRequest } from '@/utils/serviceMapping';
+import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/serviceMapping';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
 

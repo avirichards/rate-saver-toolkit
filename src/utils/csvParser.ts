@@ -14,9 +14,7 @@ export interface FieldMapping {
 export interface ServiceMapping {
   original: string;
   standardized: string;
-  carrier: string;
   confidence: number;
-  serviceCode?: string;
   isResidential?: boolean; // For all services
   residentialSource?: string; // How residential status was determined
   isResidentialDetected?: boolean; // Auto-detected from service name
@@ -284,7 +282,6 @@ export function detectServiceTypes(data: any[], serviceColumn: string): ServiceM
     return {
       original: service,
       standardized: standardized.service,
-      carrier: standardized.carrier,
       confidence: standardized.confidence,
       isResidential: standardized.isResidential,
       isResidentialDetected: standardized.isResidential !== undefined,
@@ -440,14 +437,10 @@ function parseResidentialValue(value: any): boolean {
   return false;
 }
 
-export function standardizeService(service: string): { service: string; carrier: string; confidence: number; isResidential?: boolean; residentialSource?: string } {
+import { mapServiceToServiceCode } from './serviceMapping';
+
+export function standardizeService(service: string): { service: string; confidence: number; isResidential?: boolean; residentialSource?: string } {
   const serviceLower = service.toLowerCase().trim();
-  
-  // First, determine the carrier for reporting purposes
-  let carrier = 'UNKNOWN';
-  if (serviceLower.includes('ups')) carrier = 'UPS';
-  else if (serviceLower.includes('fedex') || serviceLower.includes('federal express')) carrier = 'FedEx';
-  else if (serviceLower.includes('usps') || serviceLower.includes('postal') || serviceLower.includes('mail')) carrier = 'USPS';
   
   // Detect residential vs commercial from service names
   let isResidential: boolean | undefined = undefined;
@@ -460,7 +453,7 @@ export function standardizeService(service: string): { service: string; carrier:
   }
   
   // FEDEX-SPECIFIC RESIDENTIAL DETECTION
-  if (carrier === 'FedEx') {
+  if (serviceLower.includes('fedex')) {
     if (serviceLower.includes('fedex home')) {
       isResidential = true;
     } else if (serviceLower.includes('fedex ground') && !serviceLower.includes('home')) {
@@ -469,7 +462,7 @@ export function standardizeService(service: string): { service: string; carrier:
   }
   
   // USPS RESIDENTIAL DETECTION
-  if (carrier === 'USPS') {
+  if (serviceLower.includes('usps') || serviceLower.includes('postal') || serviceLower.includes('mail')) {
     // Most USPS services are residential by nature
     if (serviceLower.includes('priority mail') || serviceLower.includes('first-class') || 
         serviceLower.includes('media mail') || serviceLower.includes('parcel select')) {
@@ -477,66 +470,13 @@ export function standardizeService(service: string): { service: string; carrier:
     }
   }
 
-  // NEXT DAY AIR SAVER (check for saver first before general next day)
-  if ((serviceLower.includes('next day') || serviceLower.includes('nextday') || serviceLower.includes('next air')) && 
-      (serviceLower.includes('saver') || serviceLower.includes('save'))) {
-    return { service: 'NEXT_DAY_AIR_SAVER', carrier, confidence: 0.95, isResidential, residentialSource };
-  }
+  // Use the new universal service mapping function
+  const mapping = mapServiceToServiceCode(service);
   
-  // NEXT DAY / OVERNIGHT services (highest priority for speed)
-  if (serviceLower.includes('next day') || serviceLower.includes('nextday') || 
-      serviceLower.includes('next air') || serviceLower.includes('nda') ||
-      serviceLower.includes('overnight') || serviceLower.includes('1 day') ||
-      serviceLower.includes('standard overnight') || serviceLower.includes('priority overnight') ||
-      serviceLower.includes('express mail') || serviceLower.includes('priority mail express')) {
-    return { service: 'NEXT_DAY_AIR', carrier, confidence: 0.95, isResidential, residentialSource };
-  }
-  
-  // EARLY AM / SATURDAY services (premium next day)
-  if (serviceLower.includes('early') || serviceLower.includes('saturday') || 
-      serviceLower.includes('am') || serviceLower.includes('before')) {
-    return { service: 'NEXT_DAY_AIR_EARLY', carrier, confidence: 0.9, isResidential, residentialSource };
-  }
-  
-  // 2ND DAY services
-  if (serviceLower.includes('2nd day') || serviceLower.includes('2 day') ||
-      serviceLower.includes('second day') || serviceLower.includes('2da') ||
-      serviceLower.includes('2day') || serviceLower.includes('two day')) {
-    return { service: '2ND_DAY_AIR', carrier, confidence: 0.95, isResidential, residentialSource };
-  }
-  
-  // 3RD DAY / SELECT services
-  if (serviceLower.includes('3rd day') || serviceLower.includes('3 day') ||
-      serviceLower.includes('third day') || serviceLower.includes('3da') ||
-      serviceLower.includes('3day') || serviceLower.includes('three day') ||
-      serviceLower.includes('select') || serviceLower.includes('3 select')) {
-    return { service: '3_DAY_SELECT', carrier, confidence: 0.95, isResidential, residentialSource };
-  }
-  
-  // EXPRESS services (faster than ground, but not next day)
-  if (serviceLower.includes('express') && !serviceLower.includes('ground') && 
-      !serviceLower.includes('mail') && !serviceLower.includes('overnight')) {
-    return { service: 'EXPRESS_SAVER', carrier, confidence: 0.8, isResidential, residentialSource };
-  }
-  
-  // PRIORITY services (typically 1-3 days depending on carrier)
-  if (serviceLower.includes('priority') && !serviceLower.includes('express') && 
-      !serviceLower.includes('overnight') && !serviceLower.includes('mail express')) {
-    return { service: 'PRIORITY_MAIL', carrier, confidence: 0.8, isResidential, residentialSource };
-  }
-  
-  // GROUND services (slowest/cheapest)
-  if (serviceLower.includes('ground') || serviceLower.includes('gnd') ||
-      serviceLower.includes('surface') || serviceLower.includes('standard') ||
-      serviceLower.includes('advantage') || serviceLower.includes('basic')) {
-    return { service: 'GROUND', carrier, confidence: 0.9, isResidential, residentialSource };
-  }
-  
-  // Fallback patterns for common service names that don't fit above
-  if (serviceLower.includes('air') && !serviceLower.includes('ground')) {
-    return { service: 'EXPRESS_AIR', carrier, confidence: 0.6, isResidential, residentialSource };
-  }
-  
-  // Default fallback - assume ground for unknown services
-  return { service: 'GROUND', carrier, confidence: 0.3, isResidential, residentialSource };
+  return {
+    service: mapping.serviceName,
+    confidence: mapping.confidence,
+    isResidential,
+    residentialSource
+  };
 }

@@ -422,7 +422,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                       <SelectValue placeholder="Select zone column" />
                     </SelectTrigger>
                     <SelectContent className="bg-background border shadow-lg z-50">
-                      {csvHeaders.map(header => (
+                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
                         <SelectItem key={header} value={header}>{header}</SelectItem>
                       ))}
                     </SelectContent>
@@ -439,7 +439,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                       <SelectValue placeholder="Select weight column" />
                     </SelectTrigger>
                     <SelectContent className="bg-background border shadow-lg z-50">
-                      {csvHeaders.map(header => (
+                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
                         <SelectItem key={header} value={header}>{header}</SelectItem>
                       ))}
                     </SelectContent>
@@ -456,7 +456,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                       <SelectValue placeholder="Select rate column" />
                     </SelectTrigger>
                     <SelectContent className="bg-background border shadow-lg z-50">
-                      {csvHeaders.map(header => (
+                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
                         <SelectItem key={header} value={header}>{header}</SelectItem>
                       ))}
                     </SelectContent>
@@ -474,7 +474,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                     </SelectTrigger>
                     <SelectContent className="bg-background border shadow-lg z-50">
                       <SelectItem value="none">None - Use service type above</SelectItem>
-                      {csvHeaders.map(header => (
+                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
                         <SelectItem key={header} value={header}>{header}</SelectItem>
                       ))}
                     </SelectContent>
@@ -492,7 +492,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                     </SelectTrigger>
                     <SelectContent className="bg-background border shadow-lg z-50">
                       <SelectItem value="none">None - Use service type above</SelectItem>
-                      {csvHeaders.map(header => (
+                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
                         <SelectItem key={header} value={header}>{header}</SelectItem>
                       ))}
                     </SelectContent>

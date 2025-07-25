@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { mapServiceToServiceCode } from '@/utils/serviceMapping';
+import { getCarrierServiceCode, CarrierType } from '@/utils/carrierServiceRegistry';
 
 interface ReanalysisShipment {
   id: number;
@@ -307,10 +309,6 @@ export function useSelectiveReanalysis() {
 
 // Helper function to map service names to UPS service codes using universal categories
 function getServiceCode(serviceName: string): string {
-  // Import the service mapping function
-  const { mapServiceToServiceCode } = require('@/utils/serviceMapping');
-  const { getCarrierServiceCode, CarrierType } = require('@/utils/carrierServiceRegistry');
-  
   // Map the service name to a universal category
   const mapping = mapServiceToServiceCode(serviceName);
   

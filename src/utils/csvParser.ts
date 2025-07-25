@@ -1,4 +1,6 @@
 import { UniversalServiceCategory } from './universalServiceCategories';
+import { mapServiceToServiceCode } from './serviceMapping';
+import { getCarrierServiceCode, CarrierType } from './carrierServiceRegistry';
 
 export interface CSVParseResult {
   headers: string[];
@@ -284,8 +286,7 @@ export function detectServiceTypes(data: any[], serviceColumn: string): ServiceM
   return uniqueServices.map(service => {
     const serviceMapping = mapServiceToServiceCode(service);
     
-    // Import carrier service registry to get UPS service code for backward compatibility
-    const { getCarrierServiceCode, CarrierType } = require('@/utils/carrierServiceRegistry');
+    // Get UPS service code for backward compatibility
     const upsCode = getCarrierServiceCode(CarrierType.UPS, serviceMapping.standardizedService);
     
     return {
@@ -447,8 +448,6 @@ function parseResidentialValue(value: any): boolean {
   if (typeof value === 'number') return value === 1;
   return false;
 }
-
-import { mapServiceToServiceCode } from './serviceMapping';
 
 export function standardizeService(service: string): { service: string; confidence: number; isResidential?: boolean; residentialSource?: string } {
   const serviceLower = service.toLowerCase().trim();

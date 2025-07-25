@@ -38,12 +38,14 @@ interface ProcessedShipmentData {
 interface AccountComparisonViewProps {
   shipmentRates: ShipmentRate[];
   shipmentData: ProcessedShipmentData[];
+  serviceMappings?: any[];
   onOptimizationChange?: (selections: Record<string, string>) => void;
 }
 
 export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   shipmentRates,
   shipmentData,
+  serviceMappings = [],
   onOptimizationChange
 }) => {
   // State for tracking selected accounts per service
@@ -250,28 +252,40 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     }).sort((a, b) => b.avgDollarSavings - a.avgDollarSavings); // Sort by average savings descending
   }, [shipmentRates, shipmentData]);
 
-  // Calculate service breakdown by service type
+  // Helper function to get UPS service mapping for a customer service
+  const getUpsServiceForCustomerService = (customerService: string) => {
+    const mapping = serviceMappings?.find(mapping => 
+      mapping.original_service === customerService || 
+      mapping.customer_service === customerService
+    );
+    return mapping?.ShipPros_service || customerService;
+  };
+
+  // Calculate service breakdown by customer service type
   const serviceBreakdowns = useMemo(() => {
-    // Get all unique services
-    const services = [...new Set([
-      ...shipmentRates.map(rate => rate.service_name || rate.service_code),
-      ...shipmentData.map(shipment => shipment.customer_service)
-    ].filter(Boolean))];
+    // Get all unique customer services from shipment data
+    const customerServices = [...new Set(shipmentData.map(shipment => shipment.customer_service))].filter(Boolean);
 
-    console.log('Service breakdown calculation:', { services });
+    console.log('Service breakdown calculation (customer services):', { customerServices, serviceMappings });
 
-    return services.map(serviceName => {
-      // Get rates for this service
-      const serviceRates = shipmentRates.filter(rate => 
-        (rate.service_name === serviceName || rate.service_code === serviceName)
-      );
+    return customerServices.map(customerService => {
+      // Get UPS equivalent service for rate lookup
+      const upsService = getUpsServiceForCustomerService(customerService);
       
-      // Get shipment data for this service  
+      // Get shipment data for this customer service  
       const serviceShipments = shipmentData.filter(shipment => 
-        shipment.customer_service === serviceName
+        shipment.customer_service === customerService
       );
 
-      console.log(`Service ${serviceName}:`, {
+      // Get rates for the UPS equivalent service
+      const serviceRates = shipmentRates.filter(rate => {
+        // Check if any shipment with this customer service has rates
+        return serviceShipments.some(shipment => 
+          rate.shipment_data?.trackingId === shipment.trackingId
+        );
+      });
+
+      console.log(`Customer Service ${customerService} → UPS ${upsService}:`, {
         serviceRatesCount: serviceRates.length,
         serviceShipmentsCount: serviceShipments.length,
         sampleRate: serviceRates[0],
@@ -283,13 +297,11 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         .map(accountName => {
           const accountRates = serviceRates.filter(rate => rate.account_name === accountName);
           
-          // Calculate metrics based on rates (simpler approach)
-          const totalCost = accountRates.reduce((sum, rate) => sum + (rate.rate_amount || 0), 0);
-          const avgCost = accountRates.length > 0 ? totalCost / accountRates.length : 0;
-          
-          // Calculate savings by comparing rates to current shipment costs
+          // Calculate metrics based on rates that match our shipments
+          let totalCost = 0;
           let totalSavings = 0;
           let winCount = 0;
+          let validRatesCount = 0;
           
           accountRates.forEach(rate => {
             // Find the corresponding shipment data by tracking ID
@@ -299,18 +311,22 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
             );
             
             if (correspondingShipment) {
+              totalCost += rate.rate_amount;
+              validRatesCount++;
+              
               const savings = correspondingShipment.currentRate - rate.rate_amount;
               totalSavings += savings;
               if (savings > 0) winCount++;
             }
           });
           
-          const avgSavings = accountRates.length > 0 ? totalSavings / accountRates.length : 0;
-          const winRate = accountRates.length > 0 ? (winCount / accountRates.length) * 100 : 0;
+          const avgCost = validRatesCount > 0 ? totalCost / validRatesCount : 0;
+          const avgSavings = validRatesCount > 0 ? totalSavings / validRatesCount : 0;
+          const winRate = validRatesCount > 0 ? (winCount / validRatesCount) * 100 : 0;
 
           return {
             accountName,
-            shipmentCount: accountRates.length,
+            shipmentCount: validRatesCount,
             totalCost,
             avgCost,
             totalSavings,
@@ -322,12 +338,13 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         .sort((a, b) => b.avgSavings - a.avgSavings);
 
       return {
-        serviceName,
-        totalShipments: serviceRates.length,
+        serviceName: customerService,
+        upsServiceName: upsService,
+        totalShipments: serviceShipments.length,
         accounts: accountPerformance
       };
     }).filter(service => service.totalShipments > 0);
-  }, [shipmentRates, shipmentData]);
+  }, [shipmentRates, shipmentData, serviceMappings]);
 
   // Initialize selected accounts with best performing account for each service
   useEffect(() => {
@@ -577,7 +594,14 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-base font-semibold">{service.serviceName}</CardTitle>
+                    <CardTitle className="text-base font-semibold">
+                      {service.serviceName}
+                      {service.upsServiceName && service.upsServiceName !== service.serviceName && (
+                        <span className="text-xs font-normal text-muted-foreground ml-2">
+                          → {service.upsServiceName}
+                        </span>
+                      )}
+                    </CardTitle>
                     <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
                   </div>
                   <div className="flex flex-col items-end gap-2">

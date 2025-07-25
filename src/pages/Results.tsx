@@ -2523,6 +2523,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             <AccountComparisonView 
               shipmentRates={shipmentRates}
               shipmentData={shipmentData}
+              serviceMappings={analysisData?.serviceMappings}
               onOptimizationChange={(selections) => {
                 console.log('Applying optimization selections:', selections);
                 
@@ -2531,9 +2532,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   const selectedAccount = selections[shipment.customer_service];
                   if (selectedAccount) {
                     // Find the rate for this shipment with the selected account
+                    // Use customer_service directly since we're now grouping by customer_service
                     const optimizedRate = shipmentRates.find(rate => 
                       rate.account_name === selectedAccount &&
-                      rate.service_name === shipment.customer_service &&
                       rate.shipment_data?.trackingId === shipment.trackingId
                     );
                     

@@ -55,7 +55,7 @@ export function SelectiveReanalysisModal({
   const currentServices = useMemo(() => {
     const services = [...new Set(allShipments.map(s => {
       // Try multiple field names for service
-      const serviceValue = s.service || s.originalService || s.currentService || s.currentServiceType || s.serviceType;
+      const serviceValue = s.customer_service || s.originalService || s.currentService || s.currentServiceType || s.serviceType;
       return serviceValue;
     }).filter(Boolean))];
     return services.sort();
@@ -64,7 +64,7 @@ export function SelectiveReanalysisModal({
   // Calculate how many shipments match current criteria
   const matchingShipments = useMemo(() => {
     return allShipments.filter(s => {
-      const currentService = s.service || s.originalService || s.currentService || '';
+      const currentService = s.customer_service || s.originalService || s.currentService || '';
       const weight = parseFloat(s.weight) || 0;
       const length = parseFloat(s.length) || 12;
       const width = parseFloat(s.width) || 12;
@@ -185,7 +185,7 @@ export function SelectiveReanalysisModal({
                   </SelectTrigger>
                   <SelectContent className="bg-popover border border-border max-h-60 overflow-y-auto z-50">
                     {currentServices.map(service => {
-                    const serviceCount = allShipments.filter(s => (s.service || s.originalService || s.currentService) === service).length;
+                    const serviceCount = allShipments.filter(s => (s.customer_service || s.originalService || s.currentService) === service).length;
                     return <SelectItem key={service} value={service} className="hover:bg-accent">
                           <div className="flex items-center justify-between w-full">
                             <span>{service}</span>

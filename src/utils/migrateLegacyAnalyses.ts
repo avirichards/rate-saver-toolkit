@@ -159,9 +159,9 @@ export const migrateSingleAnalysis = async (analysis: LegacyAnalysis): Promise<b
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
-          service: rec.originalService || shipmentData?.service || 'Unknown',
+          customer_service: rec.originalService || shipmentData?.service || 'Unknown',
           currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
-          newRate: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.newRate || 0,
+          ShipPros_cost: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.ShipPros_cost || 0,
           savings: rec.savings || rec.savings_amount || 0,
           savingsPercent: (() => {
             const current = rec.currentCost || rec.current_rate || rec.published_rate || 0;

@@ -405,15 +405,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
   // Calculate markup for individual shipment
   const getShipmentMarkup = (shipment: any) => {
-    if (!markupData) return { markedUpPrice: shipment.newRate, margin: 0, marginPercent: 0 };
+    if (!markupData) return { markedUpPrice: shipment.ShipPros_cost, margin: 0, marginPercent: 0 };
     
-    const shipProsCost = shipment.newRate || 0;
+    const shipProsCost = shipment.ShipPros_cost || 0;
     let markupPercent = 0;
     
     if (markupData.markupType === 'global') {
       markupPercent = markupData.globalMarkup;
     } else {
-      markupPercent = markupData.perServiceMarkup[shipment.service] || 0;
+      markupPercent = markupData.perServiceMarkup[shipment.customer_service] || 0;
     }
     
     const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
@@ -501,7 +501,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const updatedShipmentData = shipmentData.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
-          console.log('📦 Updating shipment:', item.id, 'with new rate:', reanalyzed.newRate, 'service:', reanalyzed.recommendedService);
+          console.log('📦 Updating shipment:', item.id, 'with new rate:', reanalyzed.ShipPros_cost, 'service:', reanalyzed.ShipPros_service);
           // Merge the re-analyzed data with the original item
           return { 
             ...item, 
@@ -509,7 +509,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             // Ensure critical fields are updated
             ShipPros_cost: reanalyzed.ShipPros_cost,
             ShipPros_service: reanalyzed.ShipPros_service || 'UPS Ground',
-            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
+            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0
           };
         }
         return item;
@@ -525,8 +525,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const reanalyzedUpdates: Record<number, any> = {};
       result.success.forEach((reanalyzed: any) => {
         reanalyzedUpdates[reanalyzed.id] = {
-          recommendedService: reanalyzed.recommendedService || 'UPS Ground',
-          newRate: reanalyzed.newRate,
+          ShipPros_service: reanalyzed.ShipPros_service || 'UPS Ground',
+          ShipPros_cost: reanalyzed.ShipPros_cost,
           accountId: reanalyzed.accountId,
           analyzedWithAccount: reanalyzed.analyzedWithAccount
         };
@@ -566,15 +566,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const updatedShipmentData = shipmentData.map(item => {
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
-          console.log('📦 Updating single shipment:', item.id, 'with new rate:', reanalyzed.newRate, 'service:', reanalyzed.recommendedService);
+          console.log('📦 Updating single shipment:', item.id, 'with new rate:', reanalyzed.ShipPros_cost, 'service:', reanalyzed.ShipPros_service);
           // Merge the re-analyzed data with the original item
           return { 
             ...item, 
             ...reanalyzed,
             // Ensure critical fields are updated
-            newRate: reanalyzed.newRate,
-            recommendedService: reanalyzed.recommendedService || 'UPS Ground',
-            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
+            ShipPros_cost: reanalyzed.ShipPros_cost,
+            ShipPros_service: reanalyzed.ShipPros_service || 'UPS Ground',
+            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0
           };
         }
         return item;
@@ -720,15 +720,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           // Create a markup function that uses the markup data directly from the analysis
           const getMarkupWithData = (shipment: any) => {
             const markupDataFromAnalysis = analysis.markup_data as any;
-            if (!markupDataFromAnalysis) return { markedUpPrice: shipment.newRate, margin: 0, marginPercent: 0 };
+            if (!markupDataFromAnalysis) return { markedUpPrice: shipment.ShipPros_cost, margin: 0, marginPercent: 0 };
             
-            const shipProsCost = shipment.newRate || 0;
+            const shipProsCost = shipment.ShipPros_cost || 0;
             let markupPercent = 0;
             
             if (markupDataFromAnalysis.markupType === 'global') {
               markupPercent = markupDataFromAnalysis.globalMarkup;
             } else {
-              markupPercent = markupDataFromAnalysis.perServiceMarkup[shipment.service] || 0;
+              markupPercent = markupDataFromAnalysis.perServiceMarkup[shipment.customer_service] || 0;
             }
             
             const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
@@ -1240,7 +1240,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           service: rec.customer_service || shipmentData?.service || 'Unknown',
           // Try multiple field names for rates based on different data sources
           currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
-          newRate: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.newRate || 0,
+          ShipPros_cost: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.ShipPros_cost || 0,
           savings: rec.savings || rec.savings_amount || 0,
           savingsPercent: (() => {
             const current = rec.currentCost || rec.current_rate || rec.published_rate || 0;
@@ -2784,7 +2784,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            </TableCell>
                             <TableCell>
                               <Badge variant="outline" className="text-xs text-primary">
-                                {item.recommendedService || 'UPS Ground'}
+                                {item.ShipPros_service || 'UPS Ground'}
                               </Badge>
                              </TableCell>
                             <TableCell className="text-right font-medium text-foreground">

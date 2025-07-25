@@ -183,15 +183,15 @@ export const downloadReportExcel = async (reportId: string): Promise<void> => {
     // Create markup function
     const getShipmentMarkup = (shipment: any) => {
       const markupData = report.markup_data as any;
-      if (!markupData) return { markedUpPrice: shipment.newRate || 0, margin: 0, marginPercent: 0 };
+      if (!markupData) return { markedUpPrice: shipment.ShipPros_cost || 0, margin: 0, marginPercent: 0 };
       
-      const shipProsCost = shipment.newRate || 0;
+      const shipProsCost = shipment.ShipPros_cost || 0;
       let markupPercent = 0;
       
       if (markupData.markupType === 'global') {
         markupPercent = markupData.globalMarkup || 0;
       } else if (markupData.markupType === 'per_service') {
-        markupPercent = markupData.perServiceMarkup?.[shipment.service] || 0;
+        markupPercent = markupData.perServiceMarkup?.[shipment.customer_service] || 0;
       }
       
       const markedUpPrice = shipProsCost * (1 + markupPercent / 100);

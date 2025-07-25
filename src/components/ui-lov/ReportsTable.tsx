@@ -415,14 +415,14 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                            
                            shipmentsData.forEach((shipment: any) => {
                              const currentCost = shipment.currentRate || shipment.currentCost || 0;
-                             const shipProsCost = shipment.newRate || shipment.recommendedCost || 0;
+                             const shipProsCost = shipment.ShipPros_cost || shipment.recommendedCost || 0;
                              
                              // Apply markup to ShipPros cost (same logic as getShipmentMarkup)
                              let markupPercent = 0;
                              if (report.markup_data?.markupType === 'global') {
                                markupPercent = report.markup_data.globalMarkup || 0;
                              } else {
-                               markupPercent = report.markup_data?.perServiceMarkup?.[shipment.service || shipment.originalService] || 0;
+                               markupPercent = report.markup_data?.perServiceMarkup?.[shipment.customer_service || shipment.originalService] || 0;
                              }
                              
                              const markedUpPrice = shipProsCost * (1 + markupPercent / 100);

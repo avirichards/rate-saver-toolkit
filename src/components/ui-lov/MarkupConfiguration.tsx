@@ -35,7 +35,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Get unique services from shipment data
-  const availableServices = [...new Set(shipmentData.map(item => item.service).filter(Boolean))];
+  const availableServices = [...new Set(shipmentData.map(item => item.customer_service).filter(Boolean))];
 
   // Initialize per-service markup with default values
   useEffect(() => {
@@ -65,7 +65,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
     let totalSavings = 0;
     let totalCurrentCost = 0;
     shipmentData.forEach(shipment => {
-      const shipProsCost = shipment.newRate || 0;
+      const shipProsCost = shipment.ShipPros_cost || 0;
       const currentCost = shipment.currentRate || 0;
       const savings = shipment.savings || 0;
       totalShipProsCost += shipProsCost;
@@ -75,7 +75,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
       if (markupType === 'global') {
         markupPercent = globalMarkup;
       } else {
-        markupPercent = perServiceMarkup[shipment.service] || 0;
+        markupPercent = perServiceMarkup[shipment.customer_service] || 0;
       }
       const markedUpPrice = shipProsCost * (1 + markupPercent / 100);
       const margin = markedUpPrice - shipProsCost;
@@ -136,16 +136,16 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
         let totalNewCost = 0;
         shipmentData.forEach((shipment: any) => {
           const currentRate = shipment.currentRate || 0;
-          const newRate = shipment.newRate || 0;
+          const ShipPros_cost = shipment.ShipPros_cost || 0;
           const baseSavings = shipment.savings || 0;
           totalCurrentCost += currentRate;
-          totalNewCost += newRate;
+          totalNewCost += ShipPros_cost;
 
           // Add markup to the savings calculation
           let markupAmount = 0;
-          if (newRate) {
-            const markupPercent = markupData.markupType === 'global' ? markupData.globalMarkup : markupData.perServiceMarkup[shipment.service] || 0;
-            markupAmount = newRate * markupPercent / 100;
+          if (ShipPros_cost) {
+            const markupPercent = markupData.markupType === 'global' ? markupData.globalMarkup : markupData.perServiceMarkup[shipment.customer_service] || 0;
+            markupAmount = ShipPros_cost * markupPercent / 100;
           }
           newTotalSavings += baseSavings + markupAmount;
         });
@@ -238,7 +238,7 @@ export const MarkupConfiguration: React.FC<MarkupConfigurationProps> = ({
     }));
   };
   const markupData = calculateMarkupMetrics();
-  const totalShipProsCost = shipmentData.reduce((sum, item) => sum + (item.newRate || 0), 0);
+  const totalShipProsCost = shipmentData.reduce((sum, item) => sum + (item.ShipPros_cost || 0), 0);
   const totalMarkedUpRevenue = totalShipProsCost + markupData.totalMargin;
   return <Card className="animate-fade-in">
       <CardHeader>

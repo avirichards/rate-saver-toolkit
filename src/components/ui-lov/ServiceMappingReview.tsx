@@ -141,6 +141,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
     const confirmedMappings: ServiceMapping[] = mappings.map(mapping => ({
       original: mapping.original,
       standardized: mapping.standardized,
+      standardizedService: mapping.serviceCategory, // Use the universal service category
       confidence: mapping.confidence,
       isResidential: mapping.isResidential,
       residentialSource: mapping.residentialSource,

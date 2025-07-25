@@ -772,6 +772,7 @@ const Analysis = () => {
         confirmedMapping || { 
           original: shipment.service || '',
           standardized: serviceMapping.serviceName,
+          standardizedService: serviceMapping.standardizedService,
           confidence: 0.5
         },
         csvResidentialField

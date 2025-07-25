@@ -1,3 +1,5 @@
+import { UniversalServiceCategory } from './universalServiceCategories';
+
 export interface CSVParseResult {
   headers: string[];
   data: any[];
@@ -14,6 +16,7 @@ export interface FieldMapping {
 export interface ServiceMapping {
   original: string;
   standardized: string;
+  standardizedService: UniversalServiceCategory; // Add enum for new system
   confidence: number;
   serviceCode?: string; // Backward compatibility - will be removed once all components updated
   isResidential?: boolean; // For all services
@@ -288,6 +291,7 @@ export function detectServiceTypes(data: any[], serviceColumn: string): ServiceM
     return {
       original: service,
       standardized: serviceMapping.serviceName,
+      standardizedService: serviceMapping.standardizedService, // Add enum value
       confidence: serviceMapping.confidence,
       serviceCode: upsCode || '03', // Populate UPS service code for backward compatibility
       isResidential: undefined,

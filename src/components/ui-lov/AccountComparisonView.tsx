@@ -249,8 +249,15 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         totalSavingsPercent,
         totalShipments: shipmentData.length
       };
-    }).sort((a, b) => b.avgDollarSavings - a.avgDollarSavings); // Sort by average savings descending
-  }, [shipmentRates, shipmentData]);
+    }).sort((a, b) => {
+      // Sort to match KPI summary order (top performer first, then by total spend)
+      const topPerformer = kpiMetrics.topPerformer;
+      if (a.accountName === topPerformer) return -1;
+      if (b.accountName === topPerformer) return 1;
+      // Then sort by total spend (descending) to match typical account importance
+      return b.totalSpend - a.totalSpend;
+    });
+  }, [shipmentRates, shipmentData, kpiMetrics.topPerformer]);
 
   // Helper function to get UPS service mapping for a customer service
   const getUpsServiceForCustomerService = (customerService: string) => {
@@ -335,7 +342,15 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           };
         })
         .filter(account => account.shipmentCount > 0)
-        .sort((a, b) => b.avgSavings - a.avgSavings);
+        .sort((a, b) => {
+          // Sort to match the account summary order
+          const aIndex = accountSummaries.findIndex(acc => acc.accountName === a.accountName);
+          const bIndex = accountSummaries.findIndex(acc => acc.accountName === b.accountName);
+          if (aIndex === -1 && bIndex === -1) return b.avgSavings - a.avgSavings;
+          if (aIndex === -1) return 1;
+          if (bIndex === -1) return -1;
+          return aIndex - bIndex;
+        });
 
       return {
         serviceName: customerService,
@@ -344,7 +359,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         accounts: accountPerformance
       };
     }).filter(service => service.totalShipments > 0);
-  }, [shipmentRates, shipmentData, serviceMappings]);
+  }, [shipmentRates, shipmentData, serviceMappings, accountSummaries]);
 
   // Initialize selected accounts with best performing account for each service
   useEffect(() => {
@@ -602,7 +617,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                         </span>
                       )}
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground">{service.totalShipments} shipments analyzed</p>
+                    
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <label className="text-xs text-muted-foreground">Use Account:</label>

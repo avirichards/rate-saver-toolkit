@@ -1970,13 +1970,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
             <TabsTrigger value="account-comparison" className="flex items-center gap-2">
               <Target className="h-4 w-4" />
               Account Comparison
+            </TabsTrigger>
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <BarChart className="h-4 w-4" />
+              Overview
             </TabsTrigger>
             <TabsTrigger value="shipment-data" className="flex items-center gap-2">
               <Package className="h-4 w-4" />

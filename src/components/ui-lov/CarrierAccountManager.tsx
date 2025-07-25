@@ -7,10 +7,11 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck } from 'lucide-react';
+import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck, FileText } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
+import { RateCardUploadDialog } from './RateCardUploadDialog';
 
 interface CarrierConfig {
   id: string;
@@ -34,6 +35,12 @@ interface CarrierConfig {
   dhl_password?: string;
   usps_user_id?: string;
   usps_password?: string;
+  is_rate_card?: boolean;
+  rate_card_filename?: string;
+  rate_card_uploaded_at?: string;
+  dimensional_divisor?: number;
+  fuel_surcharge_percent?: number;
+  fuel_auto_lookup?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +66,7 @@ export const CarrierAccountManager = () => {
   const [availableServices, setAvailableServices] = useState<CarrierService[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [isAddingRateCard, setIsAddingRateCard] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CarrierConfig | null>(null);
   const [testingAccount, setTestingAccount] = useState<string | null>(null);
 
@@ -303,6 +311,11 @@ const updateAccount = async (account: CarrierConfig) => {
   };
 
   const testConnection = async (config: CarrierConfig) => {
+    if (config.is_rate_card) {
+      toast.info('Rate cards don\'t require connection testing');
+      return;
+    }
+
     setTestingAccount(config.id);
     try {
       if (config.carrier_type === 'ups') {
@@ -637,15 +650,16 @@ const updateAccount = async (account: CarrierConfig) => {
               Carrier Accounts
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Manage multiple carrier accounts for rate shopping and analysis
+              Manage carrier accounts and rate cards for rate shopping and analysis
             </p>
           </div>
-          <Dialog open={isAddingAccount} onOpenChange={setIsAddingAccount}>
-            <DialogTrigger asChild>
-              <Button variant="primary" iconLeft={<Plus className="h-4 w-4" />}>
-                Add Account
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Dialog open={isAddingAccount} onOpenChange={setIsAddingAccount}>
+              <DialogTrigger asChild>
+                <Button variant="primary" iconLeft={<Plus className="h-4 w-4" />}>
+                  Add Account
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Carrier Account</DialogTitle>
@@ -718,6 +732,15 @@ const updateAccount = async (account: CarrierConfig) => {
               </div>
             </DialogContent>
           </Dialog>
+          
+          <Button 
+            variant="outline" 
+            iconLeft={<FileText className="h-4 w-4" />}
+            onClick={() => setIsAddingRateCard(true)}
+          >
+            Add Rate Card
+          </Button>
+        </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -750,16 +773,34 @@ const updateAccount = async (account: CarrierConfig) => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <span className="text-2xl">{getCarrierIcon(config.carrier_type)}</span>
-                          <div>
-                            <h3 className="font-medium">{config.account_name}</h3>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <span>{getCarrierLabel(config.carrier_type)}</span>
-                              <span>•</span>
-                              <span>{config.is_sandbox ? 'Sandbox' : 'Production'}</span>
-                              <span>•</span>
-                              <span>{config.enabled_services?.length || 0} services</span>
-                            </div>
-                          </div>
+                           <div>
+                             <div className="flex items-center gap-2">
+                               <h3 className="font-medium">{config.account_name}</h3>
+                               {config.is_rate_card && (
+                                 <Badge variant="secondary" className="text-xs">
+                                   <FileText className="h-3 w-3 mr-1" />
+                                   Rate Card
+                                 </Badge>
+                               )}
+                             </div>
+                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                               <span>{getCarrierLabel(config.carrier_type)}</span>
+                               <span>•</span>
+                               <span>{config.is_sandbox ? 'Sandbox' : 'Production'}</span>
+                               {!config.is_rate_card && (
+                                 <>
+                                   <span>•</span>
+                                   <span>{config.enabled_services?.length || 0} services</span>
+                                 </>
+                               )}
+                               {config.is_rate_card && config.rate_card_filename && (
+                                 <>
+                                   <span>•</span>
+                                   <span>File: {config.rate_card_filename}</span>
+                                 </>
+                               )}
+                             </div>
+                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
                           {config.is_active ? (
@@ -863,6 +904,13 @@ const updateAccount = async (account: CarrierConfig) => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Rate Card Upload Dialog */}
+        <RateCardUploadDialog
+          isOpen={isAddingRateCard}
+          onClose={() => setIsAddingRateCard(false)}
+          onSuccess={loadCarrierConfigs}
+        />
       </CardContent>
     </Card>
   );

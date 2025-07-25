@@ -135,7 +135,7 @@ const Analysis = () => {
       serviceMappingsCount: state.serviceMappings?.length || 0,
       serviceMappings: state.serviceMappings?.map(m => ({
         original: m.original,
-        serviceCode: m.serviceCode,
+        standardizedService: m.standardizedService,
         standardized: m.standardized
       }))
     });
@@ -289,7 +289,8 @@ const Analysis = () => {
         isAnalysisStarted,
         mappings: serviceMappings.map(m => ({
           original: m.original,
-          serviceCode: m.serviceCode
+          standardizedService: m.standardizedService,
+          standardized: m.standardized
         }))
       });
       
@@ -728,27 +729,41 @@ const Analysis = () => {
         availableMappings: serviceMappings.map(m => ({
           original: m.original,
           normalized: normalizeServiceName(m.original),
-          serviceCode: m.serviceCode
+          standardizedService: m.standardizedService
         })),
         foundMapping: confirmedMapping
       });
       
       let serviceMapping, serviceCodesToRequest, equivalentServiceCode, isConfirmedMapping = false;
       
-      if (confirmedMapping && confirmedMapping.serviceCode) {
-        // Use the user-confirmed mapping - REQUEST ONLY THE MAPPED SERVICE for accurate comparison
+      if (confirmedMapping && confirmedMapping.standardizedService) {
+        console.log(`🔧 Found confirmed mapping for "${shipment.service}":`, {
+          original: confirmedMapping.original,
+          standardizedService: confirmedMapping.standardizedService,
+          standardized: confirmedMapping.standardized
+        });
+        
+        // Use the user-confirmed mapping - get UPS service code from the universal service
         isConfirmedMapping = true;
-        equivalentServiceCode = confirmedMapping.serviceCode;
+        
+        // Convert universal service to UPS service code
+        equivalentServiceCode = getCarrierServiceCode(CarrierType.UPS, confirmedMapping.standardizedService);
+        
+        if (!equivalentServiceCode) {
+          throw new Error(`Unable to find UPS service code for universal service "${confirmedMapping.standardizedService}". Please check carrier service registry.`);
+        }
+        
         serviceCodesToRequest = [equivalentServiceCode]; // ONLY request the confirmed service code
         serviceMapping = {
           serviceCode: equivalentServiceCode,
           serviceName: confirmedMapping.standardized,
-          standardizedService: confirmedMapping.standardized,
+          standardizedService: confirmedMapping.standardizedService, // Use the enum value
           confidence: confirmedMapping.confidence
         };
         
         console.log(`✅ Using confirmed mapping for ${shipment.service} → UPS Service Code ${equivalentServiceCode}:`, {
           originalService: shipment.service,
+          universalService: confirmedMapping.standardizedService,
           mappedServiceCode: equivalentServiceCode,
           mappedServiceName: confirmedMapping.standardized,
           requestingOnlyMappedService: true

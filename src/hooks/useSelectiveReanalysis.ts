@@ -305,24 +305,19 @@ export function useSelectiveReanalysis() {
   };
 }
 
-// Helper function to map service names to UPS service codes
+// Helper function to map service names to UPS service codes using universal categories
 function getServiceCode(serviceName: string): string {
-  const serviceMap: Record<string, string> = {
-    'UPS Ground': '03',
-    'UPS 3 Day Select': '12',
-    'UPS 2nd Day Air': '02',
-    'UPS 2nd Day Air A.M.': '59',
-    'UPS Next Day Air': '01',
-    'UPS Next Day Air Saver': '13',
-    'UPS Next Day Air Early': '14',
-    'UPS Worldwide Express': '07',
-    'UPS Worldwide Expedited': '08',
-    'UPS Standard': '11',
-    'UPS Worldwide Express Plus': '54',
-    'UPS Worldwide Saver': '65'
-  };
+  // Import the service mapping function
+  const { mapServiceToServiceCode } = require('@/utils/serviceMapping');
+  const { getCarrierServiceCode, CarrierType } = require('@/utils/carrierServiceRegistry');
   
-  return serviceMap[serviceName] || '03'; // Default to Ground if not found
+  // Map the service name to a universal category
+  const mapping = mapServiceToServiceCode(serviceName);
+  
+  // Convert the universal category to UPS service code
+  const upsCode = getCarrierServiceCode(CarrierType.UPS, mapping.standardizedService);
+  
+  return upsCode || '03'; // Default to Ground if not found
 }
 
 // Helper function to update analysis in database

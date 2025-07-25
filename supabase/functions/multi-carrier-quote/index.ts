@@ -139,10 +139,62 @@ serve(async (req) => {
       apiMetrics.totalRequests++;
       
       try {
-        console.log(`📦 Processing carrier: ${config.carrier_type} (${config.account_name})`);
+        
+        // Convert universal service categories to carrier-specific codes
+        let servicesToRequest = shipment.serviceTypes || [];
+        
+        // If universal service categories are provided, convert them to carrier-specific codes
+        if (servicesToRequest.length > 0) {
+          const carrierType = config.carrier_type.toUpperCase();
+          
+          // Map universal categories to carrier-specific codes
+          servicesToRequest = servicesToRequest.map(serviceType => {
+            // If it's already a carrier-specific code, use it
+            if ((carrierType === 'UPS' && serviceType.length <= 3 && /^\d+$/.test(serviceType)) ||
+                (carrierType === 'FEDEX' && serviceType.includes('_')) ||
+                (carrierType === 'DHL' && serviceType.includes('_'))) {
+              return serviceType;
+            }
+            
+            // Convert from universal category to carrier-specific code
+            const universalToCarrierMap: Record<string, Record<string, string>> = {
+              'UPS': {
+                'OVERNIGHT': '01',
+                'OVERNIGHT_SAVER': '13', 
+                'OVERNIGHT_EARLY': '14',
+                'TWO_DAY': '02',
+                'TWO_DAY_MORNING': '59',
+                'THREE_DAY': '12',
+                'GROUND': '03',
+                'INTERNATIONAL_EXPRESS': '07',
+                'INTERNATIONAL_EXPEDITED': '08',
+                'INTERNATIONAL_STANDARD': '11',
+                'INTERNATIONAL_SAVER': '65'
+              },
+              'FEDEX': {
+                'OVERNIGHT': 'PRIORITY_OVERNIGHT',
+                'OVERNIGHT_SAVER': 'STANDARD_OVERNIGHT',
+                'OVERNIGHT_EARLY': 'FIRST_OVERNIGHT',
+                'TWO_DAY': 'FEDEX_2_DAY',
+                'TWO_DAY_MORNING': 'FEDEX_2_DAY_AM',
+                'GROUND': 'FEDEX_GROUND',
+                'INTERNATIONAL_EXPRESS': 'INTERNATIONAL_PRIORITY',
+                'INTERNATIONAL_EXPEDITED': 'INTERNATIONAL_ECONOMY'
+              },
+              'DHL': {
+                'OVERNIGHT': 'EXPRESS_10_30',
+                'OVERNIGHT_EARLY': 'EXPRESS_9_00',
+                'TWO_DAY': 'EXPRESS_12_00',
+                'INTERNATIONAL_EXPRESS': 'EXPRESS_WORLDWIDE',
+                'INTERNATIONAL_EXPEDITED': 'EXPRESS_EASY'
+              }
+            };
+            
+            return universalToCarrierMap[carrierType]?.[serviceType] || serviceType;
+          }).filter(Boolean);
+        }
         
         // Filter service types based on enabled services in carrier config
-        let servicesToRequest = shipment.serviceTypes || [];
         if (config.enabled_services && config.enabled_services.length > 0) {
           servicesToRequest = servicesToRequest.filter(service => 
             config.enabled_services!.includes(service)

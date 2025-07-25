@@ -13,6 +13,7 @@ import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/serviceMapping';
+import { getCarrierServiceCode, CarrierType } from '@/utils/carrierServiceRegistry';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
 
@@ -770,10 +771,9 @@ const Analysis = () => {
         shipment, 
         confirmedMapping || { 
           original: shipment.service || '',
-          standardized: serviceMapping.standardizedService,
-          carrier: 'UPS',
+          standardized: serviceMapping.serviceName,
           confidence: 0.5
-        }, 
+        },
         csvResidentialField
       );
       

@@ -15,6 +15,7 @@ export interface ServiceMapping {
   original: string;
   standardized: string;
   confidence: number;
+  serviceCode?: string; // Backward compatibility - will be removed once all components updated
   isResidential?: boolean; // For all services
   residentialSource?: string; // How residential status was determined
   isResidentialDetected?: boolean; // Auto-detected from service name

@@ -4,11 +4,12 @@ import { Button } from '@/components/ui-lov/Button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { FileUpload } from '@/components/ui-lov/FileUpload';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { UNIVERSAL_SERVICES, UniversalServiceCategory } from '@/utils/universalServiceCategories';
+import { Download } from 'lucide-react';
 
 interface RateCardUploadDialogProps {
   isOpen: boolean;
@@ -31,239 +32,145 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
 }) => {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
-  const [showMapping, setShowMapping] = useState(false);
-  const [columnMapping, setColumnMapping] = useState({
-    service_code: '',
-    service_name: '',
-    zone: '',
-    weight_break: '',
-    rate_amount: ''
-  });
   const [formData, setFormData] = useState({
     carrier_type: 'ups' as const,
     account_name: '',
     account_group: '',
-    service_type: '',
+    service_type: '' as UniversalServiceCategory | '',
+    weight_unit: 'lbs' as 'lbs' | 'oz',
     dimensional_divisor: 166,
     fuel_surcharge_percent: 0
   });
 
   const resetForm = () => {
     setSelectedFile(null);
-    setCsvHeaders([]);
-    setShowMapping(false);
-    setColumnMapping({
-      service_code: '',
-      service_name: '',
-      zone: '',
-      weight_break: '',
-      rate_amount: ''
-    });
     setFormData({
       carrier_type: 'ups',
       account_name: '',
       account_group: '',
       service_type: '',
+      weight_unit: 'lbs',
       dimensional_divisor: 166,
       fuel_surcharge_percent: 0
     });
   };
 
-  const parseRateCardCSV = (csvContent: string) => {
-    const lines = csvContent.split('\n').filter(line => line.trim());
-    const headers = lines[0].split(',').map(h => h.trim());
-    
-    // Set headers for mapping
-    setCsvHeaders(headers);
-    
-    // Auto-detect common column mappings
-    const autoMapping = {
-      service_code: '',
-      service_name: '',
-      zone: '',
-      weight_break: '',
-      rate_amount: ''
-    };
-    
-    headers.forEach(header => {
-      const lowerHeader = header.toLowerCase();
-      if (lowerHeader.includes('service') && lowerHeader.includes('code')) {
-        autoMapping.service_code = header;
-      } else if (lowerHeader.includes('service') && (lowerHeader.includes('name') || lowerHeader.includes('type'))) {
-        autoMapping.service_name = header;
-      } else if (lowerHeader.includes('zone')) {
-        autoMapping.zone = header;
-      } else if (lowerHeader.includes('weight') || lowerHeader.includes('lb')) {
-        autoMapping.weight_break = header;
-      } else if (lowerHeader.includes('rate') || lowerHeader.includes('cost') || lowerHeader.includes('price')) {
-        autoMapping.rate_amount = header;
-      }
-    });
-    
-    setColumnMapping(autoMapping);
-    return headers;
-  };
-
-  const parseRateCardExcel = (file: File): Promise<string[]> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const data = new Uint8Array(e.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: 'array' });
-          const sheetName = workbook.SheetNames[0];
-          const worksheet = workbook.Sheets[sheetName];
-          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-          
-          if (jsonData.length < 2) {
-            throw new Error('Excel file must have at least a header row and one data row');
-          }
-
-          const headers = jsonData[0].map((h: any) => String(h).trim());
-          
-          // Set headers for mapping and auto-detect
-          setCsvHeaders(headers);
-          
-          const autoMapping = {
-            service_code: '',
-            service_name: '',
-            zone: '',
-            weight_break: '',
-            rate_amount: ''
-          };
-          
-          headers.forEach(header => {
-            const lowerHeader = header.toLowerCase();
-            if (lowerHeader.includes('service') && lowerHeader.includes('code')) {
-              autoMapping.service_code = header;
-            } else if (lowerHeader.includes('service') && (lowerHeader.includes('name') || lowerHeader.includes('type'))) {
-              autoMapping.service_name = header;
-            } else if (lowerHeader.includes('zone')) {
-              autoMapping.zone = header;
-            } else if (lowerHeader.includes('weight') || lowerHeader.includes('lb')) {
-              autoMapping.weight_break = header;
-            } else if (lowerHeader.includes('rate') || lowerHeader.includes('cost') || lowerHeader.includes('price')) {
-              autoMapping.rate_amount = header;
-            }
-          });
-          
-          setColumnMapping(autoMapping);
-          resolve(headers);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = () => reject(new Error('Failed to read Excel file'));
-      reader.readAsArrayBuffer(file);
-    });
-  };
-
-  const handleFileSelect = async (file: File) => {
-    setSelectedFile(file);
-    
-    try {
-      const fileExtension = file.name.split('.').pop()?.toLowerCase();
-      
-      if (fileExtension === 'csv') {
-        const csvContent = await file.text();
-        parseRateCardCSV(csvContent);
-        setShowMapping(true);
-      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-        await parseRateCardExcel(file);
-        setShowMapping(true);
-      } else {
-        throw new Error('Only CSV and Excel files are supported');
-      }
-    } catch (error: any) {
-      toast.error(`Error reading file: ${error.message}`);
-      setSelectedFile(null);
-    }
-  };
-
-  const validateMapping = () => {
-    const requiredMappings = ['zone', 'weight_break', 'rate_amount'];
-    const missingMappings = requiredMappings.filter(field => !columnMapping[field as keyof typeof columnMapping]);
-    
-    if (missingMappings.length > 0) {
-      toast.error(`Please map required columns: ${missingMappings.join(', ')}`);
-      return false;
-    }
-    return true;
-  };
-
-  const parseFileWithMapping = async () => {
-    if (!selectedFile) return [];
-
-    const fileExtension = selectedFile.name.split('.').pop()?.toLowerCase();
+  const parseStandardizedRateCard = async (file: File) => {
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
     let rawData: any[][] = [];
     
     if (fileExtension === 'csv') {
-      const csvContent = await selectedFile.text();
+      const csvContent = await file.text();
       const lines = csvContent.split('\n').filter(line => line.trim());
       rawData = lines.map(line => line.split(',').map(cell => cell.trim()));
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-      const data = await selectedFile.arrayBuffer();
+      const data = await file.arrayBuffer();
       const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+    } else {
+      throw new Error('Only CSV and Excel files are supported');
     }
 
-    const headers = rawData[0];
+    if (rawData.length < 2) {
+      throw new Error('File must have at least zone headers and one weight row');
+    }
+
+    // Parse zones from row 1 (B1, C1, D1, etc.)
+    const zones = [];
+    for (let col = 1; col < rawData[0].length; col++) {
+      const zoneValue = rawData[0][col];
+      if (zoneValue !== undefined && zoneValue !== null && zoneValue !== '') {
+        zones.push(String(zoneValue));
+      }
+    }
+
+    if (zones.length === 0) {
+      throw new Error('No zones found in row 1 (columns B, C, D, etc.)');
+    }
+
+    // Parse rates starting from row 2 (A2, B2, C2, etc.)
     const rates = [];
-
-    for (let i = 1; i < rawData.length; i++) {
-      const row = rawData[i];
-      if (!row || row.length === 0) continue;
-
-      const rate: any = {};
-      
-      // Map columns based on user selection
-      Object.entries(columnMapping).forEach(([field, headerName]) => {
-        if (headerName && headerName !== 'none') {
-          const columnIndex = headers.indexOf(headerName);
-          if (columnIndex !== -1) {
-            rate[field] = row[columnIndex];
-          }
-        }
-      });
-
-      // Use provided service type if no service mapping
-      if (!rate.service_code && formData.service_type) {
-        rate.service_code = formData.service_type;
-      }
-      if (!rate.service_name && formData.service_type) {
-        rate.service_name = formData.service_type;
-      }
-
-      const weightBreak = parseFloat(rate.weight_break);
-      const rateAmount = parseFloat(rate.rate_amount);
-      
-      if (isNaN(weightBreak) || isNaN(rateAmount)) {
-        console.warn(`Skipping invalid rate on row ${i + 1}`);
+    for (let row = 1; row < rawData.length; row++) {
+      const weightValue = rawData[row][0];
+      if (weightValue === undefined || weightValue === null || weightValue === '') {
         continue;
       }
 
-      rates.push({
-        service_code: rate.service_code || formData.service_type || 'UNKNOWN',
-        service_name: rate.service_name || formData.service_type || 'UNKNOWN',
-        zone: rate.zone,
-        weight_break: weightBreak,
-        rate_amount: rateAmount
-      });
+      const weight = parseFloat(String(weightValue));
+      if (isNaN(weight)) {
+        console.warn(`Skipping invalid weight on row ${row + 1}: ${weightValue}`);
+        continue;
+      }
+
+      // Convert weight to lbs if needed
+      const weightInLbs = formData.weight_unit === 'oz' ? weight / 16 : weight;
+
+      // Parse rates for each zone
+      for (let col = 1; col < rawData[row].length && col - 1 < zones.length; col++) {
+        const rateValue = rawData[row][col];
+        if (rateValue === undefined || rateValue === null || rateValue === '') {
+          continue;
+        }
+
+        // Clean rate value (remove $ and other non-numeric characters except decimal point)
+        const cleanRate = String(rateValue).replace(/[^0-9.]/g, '');
+        const rate = parseFloat(cleanRate);
+        
+        if (isNaN(rate)) {
+          console.warn(`Skipping invalid rate on row ${row + 1}, col ${col + 1}: ${rateValue}`);
+          continue;
+        }
+
+        rates.push({
+          service_code: formData.service_type,
+          service_name: UNIVERSAL_SERVICES[formData.service_type as UniversalServiceCategory]?.displayName || formData.service_type,
+          zone: zones[col - 1],
+          weight_break: weightInLbs,
+          rate_amount: rate
+        });
+      }
+    }
+
+    if (rates.length === 0) {
+      throw new Error('No valid rate data found. Please check the file format.');
     }
 
     return rates;
   };
 
-  const uploadRateCard = async () => {
-    if (!selectedFile || !formData.account_name.trim()) {
-      toast.error('Please select a file and enter an account name');
-      return;
-    }
+  const downloadSampleFile = () => {
+    // Create sample data
+    const sampleData = [
+      ['Weight (lbs)', '2', '3', '4', '5', '6', '7', '8'], // Header row with zones
+      [1, 4.38, 4.38, 4.38, 4.38, 4.38, 4.38, 4.38],
+      [2, 6.95, 6.95, 6.95, 6.95, 6.95, 7.08, 7.20],
+      [3, 6.95, 6.95, 6.95, 6.95, 6.95, 7.56, 7.93],
+      [5, 6.95, 6.95, 6.95, 6.95, 7.18, 8.48, 9.00],
+      [10, 6.95, 7.08, 6.95, 7.60, 7.86, 10.43, 11.53],
+      [15, 8.09, 8.72, 8.66, 9.85, 11.36, 14.38, 15.91],
+      [20, 8.71, 9.79, 9.53, 11.71, 13.64, 17.45, 19.57],
+      [25, 10.28, 12.00, 12.84, 15.36, 19.03, 22.94, 26.18],
+      [30, 11.56, 13.60, 15.05, 18.01, 22.49, 26.12, 30.78]
+    ];
 
-    if (!validateMapping()) {
+    // Create CSV content
+    const csvContent = sampleData.map(row => row.join(',')).join('\n');
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rate-card-sample.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const uploadRateCard = async () => {
+    if (!selectedFile || !formData.account_name.trim() || !formData.service_type) {
+      toast.error('Please select a file, enter an account name, and choose a service type');
       return;
     }
 
@@ -272,8 +179,8 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Parse the rate card file with user mappings
-      const rates = await parseFileWithMapping();
+      // Parse the rate card file using standardized format
+      const rates = await parseStandardizedRateCard(selectedFile);
 
       if (rates.length === 0) {
         throw new Error('No valid rate data found in file');
@@ -300,10 +207,10 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
           rate_card_uploaded_at: new Date().toISOString(),
           dimensional_divisor: formData.dimensional_divisor,
           fuel_surcharge_percent: formData.fuel_surcharge_percent,
+          weight_unit: formData.weight_unit,
           is_sandbox: false,
           is_active: true,
-          enabled_services: [],
-          column_mappings: columnMapping
+          enabled_services: []
         })
         .select()
         .single();
@@ -393,115 +300,43 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
                 placeholder="Optional group name"
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="service_type">Service Type</Label>
-              <Input
-                id="service_type"
-                value={formData.service_type}
-                onChange={(e) => setFormData(prev => ({ ...prev, service_type: e.target.value }))}
-                placeholder="e.g., GROUND, OVERNIGHT, etc."
-              />
-              <p className="text-xs text-muted-foreground">
-                Used when service code/name is not in the file
-              </p>
+              <Label htmlFor="service_type">Service Type *</Label>
+              <Select 
+                value={formData.service_type} 
+                onValueChange={(value: UniversalServiceCategory) => setFormData(prev => ({ ...prev, service_type: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select service type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.values(UNIVERSAL_SERVICES).map(service => (
+                    <SelectItem key={service.category} value={service.category}>
+                      {service.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="weight_unit">Weight Unit *</Label>
+              <Select 
+                value={formData.weight_unit} 
+                onValueChange={(value: 'lbs' | 'oz') => setFormData(prev => ({ ...prev, weight_unit: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="lbs">Pounds (lbs)</SelectItem>
+                  <SelectItem value="oz">Ounces (oz)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Column Mapping */}
-          {showMapping && csvHeaders.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-sm font-medium">Column Mapping</h3>
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label>Zone Column *</Label>
-                  <Select 
-                    value={columnMapping.zone} 
-                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, zone: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select zone column" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
-                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Weight Break Column (lbs) *</Label>
-                  <Select 
-                    value={columnMapping.weight_break} 
-                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, weight_break: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select weight column" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
-                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Rate Amount Column *</Label>
-                  <Select 
-                    value={columnMapping.rate_amount} 
-                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, rate_amount: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select rate column" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
-                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Service Code Column (optional)</Label>
-                  <Select 
-                    value={columnMapping.service_code} 
-                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, service_code: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select service code column" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      <SelectItem value="none">None - Use service type above</SelectItem>
-                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
-                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Service Name Column (optional)</Label>
-                  <Select 
-                    value={columnMapping.service_name} 
-                    onValueChange={(value) => setColumnMapping(prev => ({ ...prev, service_name: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select service name column" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background border shadow-lg z-50">
-                      <SelectItem value="none">None - Use service type above</SelectItem>
-                      {csvHeaders.filter(header => header.trim() !== '').map(header => (
-                        <SelectItem key={header} value={header}>{header}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          )}
-            
           {/* Rate Card Configuration */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium">Rate Card Configuration</h3>
@@ -533,48 +368,46 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
           </div>
 
           {/* File Upload */}
-          {!showMapping && (
-            <div className="space-y-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium">Upload Rate Card File</h3>
-              <FileUpload
-                accept=".csv,.xlsx,.xls"
-                maxFileSizeMB={10}
-                onFileSelect={handleFileSelect}
-                acceptedFileTypes={['csv', 'xlsx', 'xls']}
-                className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6"
-              />
-              {selectedFile && (
-                <p className="text-sm text-muted-foreground">
-                  Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
-                </p>
-              )}
+              <Button variant="outline" size="sm" onClick={downloadSampleFile}>
+                <Download className="h-4 w-4 mr-1" />
+                Download Sample
+              </Button>
             </div>
-          )}
+            <FileUpload
+              accept=".csv,.xlsx,.xls"
+              maxFileSizeMB={10}
+              onFileSelect={setSelectedFile}
+              acceptedFileTypes={['csv', 'xlsx', 'xls']}
+              className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6"
+            />
+            {selectedFile && (
+              <p className="text-sm text-muted-foreground">
+                Selected: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+              </p>
+            )}
+          </div>
 
-          {/* Help Text */}
-          {!showMapping && (
-            <div className="bg-muted/50 p-4 rounded-lg">
-              <h4 className="text-sm font-medium mb-2">Rate Card Format Requirements:</h4>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• CSV or Excel file with headers</li>
-                <li>• Must contain columns for: zone, weight breaks (lbs), and rate amounts</li>
-                <li>• Optional: service code and service name columns</li>
-                <li>• You'll be able to map columns after uploading the file</li>
-              </ul>
-            </div>
-          )}
+          {/* Format Requirements */}
+          <div className="bg-muted/50 p-4 rounded-lg">
+            <h4 className="text-sm font-medium mb-2">Required Format:</h4>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li>• <strong>Row 1:</strong> Zone numbers starting in column B (B1=2, C1=3, D1=4, etc.)</li>
+              <li>• <strong>Column A:</strong> Weight values starting in A2 (1, 2, 3, 5, 10, etc.)</li>
+              <li>• <strong>Rate cells:</strong> Corresponding rates for each weight/zone combination</li>
+              <li>• <strong>Zones:</strong> Can range from 2-20 (columns B through T)</li>
+              <li>• <strong>Weights:</strong> Can go up to 200 lbs (rows 2-201)</li>
+            </ul>
+          </div>
 
           {/* Actions */}
           <div className="flex justify-end space-x-2">
             <Button variant="outline" onClick={handleClose} disabled={uploading}>
               Cancel
             </Button>
-            {showMapping && !uploading && (
-              <Button variant="outline" onClick={() => { setShowMapping(false); setSelectedFile(null); }}>
-                Change File
-              </Button>
-            )}
-            <Button onClick={uploadRateCard} disabled={uploading || !selectedFile || (showMapping && !validateMapping())}>
+            <Button onClick={uploadRateCard} disabled={uploading || !selectedFile || !formData.service_type}>
               {uploading ? 'Uploading...' : 'Upload Rate Card'}
             </Button>
           </div>

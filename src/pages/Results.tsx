@@ -106,7 +106,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [editMode, setEditMode] = useState(false);
   const [selectedShipments, setSelectedShipments] = useState<Set<number>>(new Set());
   const [isReanalysisModalOpen, setIsReanalysisModalOpen] = useState(false);
-  const [shipmentUpdates, setShipmentUpdates] = useState<Record<number, any>>({});
+  
   
   // Use selective re-analysis hook
   const { 
@@ -298,10 +298,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }
     });
     
-    // Add account IDs from shipment updates
-    Object.values(shipmentUpdates).forEach(update => {
-      if (update.accountId) {
-        accountIds.add(update.accountId);
+    // Add account IDs from shipment data
+    shipmentData.forEach(shipment => {
+      if (shipment.accountId) {
+        accountIds.add(shipment.accountId);
       }
     });
 
@@ -322,45 +322,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   };
 
-  // Save shipment updates to database
-  const saveShipmentUpdates = async () => {
-    if (!currentAnalysisId || Object.keys(shipmentUpdates).length === 0) return;
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    try {
-      console.log('💾 Saving shipment updates to database:', Object.keys(shipmentUpdates).length, 'updates');
-      
-      const { error } = await supabase
-        .from('shipping_analyses')
-        .update({
-          processed_shipments: shipmentData as any, // Save current shipment data as "Current Rates"
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentAnalysisId)
-        .eq('user_id', user.id);
-
-      if (error) {
-        console.error('❌ Error saving shipment updates:', error);
-      } else {
-        console.log('✅ Shipment updates saved successfully');
-      }
-    } catch (error) {
-      console.error('❌ Error saving shipment updates:', error);
-    }
-  };
-
-  // Auto-save shipment updates when they change
-  useEffect(() => {
-    if (Object.keys(shipmentUpdates).length > 0 && currentAnalysisId) {
-      const timeoutId = setTimeout(() => {
-        saveShipmentUpdates();
-      }, 1000); // Debounce saves by 1 second
-
-      return () => clearTimeout(timeoutId);
-    }
-  }, [shipmentUpdates, currentAnalysisId]);
 
   // Save updated shipment data to database after reanalysis
   const saveShipmentData = async (updatedShipmentData?: any[]) => {
@@ -485,87 +446,20 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     // Auto-select the shipment when any field is edited
     setSelectedShipments(prev => new Set([...prev, shipmentId]));
     
-    setShipmentUpdates(prev => {
-      const currentUpdates = prev[shipmentId] || {};
-      
-      // For Ship Pros Service field, always use 'newService' for consistency
-      let fieldToUpdate = field;
-      if (field === 'shipProsService') {
-        fieldToUpdate = 'newService';
+    // Update shipment data directly
+    setShipmentData(prev => prev.map(shipment => {
+      if (shipment.id === shipmentId) {
+        // For Ship Pros Service field, always use 'newService' for consistency
+        const fieldToUpdate = field === 'shipProsService' ? 'newService' : field;
+        
+        console.log('🔄 Field update:', { shipmentId, field: fieldToUpdate, value });
+        return { ...shipment, [fieldToUpdate]: value };
       }
-      
-      const newUpdates = {
-        ...prev,
-        [shipmentId]: {
-          ...currentUpdates,
-          [fieldToUpdate]: value
-        }
-      };
-      
-      // Auto-save to database if we have an analysis ID
-      if (currentAnalysisId) {
-        const timeoutId = setTimeout(async () => {
-          try {
-            // Get current analysis data
-            const { data: currentAnalysis, error: fetchError } = await supabase
-              .from('shipping_analyses')
-              .select('processed_shipments')
-              .eq('id', currentAnalysisId)
-              .single();
-            
-            if (fetchError) {
-              console.error('Failed to fetch current analysis:', fetchError);
-              return;
-            }
-            
-            // Update the processed_shipments with the new field value
-            const processedShipments = Array.isArray(currentAnalysis.processed_shipments) 
-              ? currentAnalysis.processed_shipments 
-              : [];
-            
-            const updatedShipments = processedShipments.map((shipment: any) => {
-              if (shipment.id === shipmentId) {
-                // For Ship Pros Service field, always use 'newService' for consistency
-                let fieldToUpdate = field;
-                if (field === 'shipProsService') {
-                  fieldToUpdate = 'newService';
-                }
-                
-                return {
-                  ...shipment,
-                  [fieldToUpdate]: value
-                };
-              }
-              return shipment;
-            });
-            
-            // Save back to database
-            const { error: updateError } = await supabase
-              .from('shipping_analyses')
-              .update({
-                processed_shipments: updatedShipments,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', currentAnalysisId);
-              
-            if (updateError) {
-              console.error('Failed to auto-save shipment update:', updateError);
-              toast.error('Failed to auto-save changes');
-            } else {
-              console.log('✅ Shipment field auto-saved:', { shipmentId, field, value });
-              // Show a subtle success indicator (only for first few saves to avoid spam)
-              if (Math.random() < 0.3) { // Show success toast 30% of the time to avoid spam
-                toast.success('Changes auto-saved', { duration: 1000 });
-              }
-            }
-          } catch (error) {
-            console.error('Auto-save error:', error);
-          }
-        }, 1500); // Debounce for 1.5 seconds
-      }
-      
-      return newUpdates;
-    });
+      return shipment;
+    }));
+    
+    // Save to database immediately
+    setTimeout(() => saveShipmentData(), 100);
   };
 
   const handleBatchResidentialUpdate = (isResidential: boolean) => {
@@ -594,10 +488,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
 
     const selectedData = filteredData.filter(item => selectedShipments.has(item.id));
-    const shipmentsToReanalyze = selectedData.map(item => ({
-      ...item,
-      ...shipmentUpdates[item.id] // Apply any field updates
-    }));
+    const shipmentsToReanalyze = selectedData; // No need to apply updates - already in shipmentData
 
     try {
       const result = await reanalyzeShipments(shipmentsToReanalyze, currentAnalysisId);
@@ -639,10 +530,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         };
       });
       
-      setShipmentUpdates(prev => ({
-        ...prev,
-        ...reanalyzedUpdates
-      }));
+      // Updates are applied directly to shipmentData in the reanalyzeShipments hook
 
       // Keep edit mode ON and don't clear selections - user stays in edit mode
       toast.success(`Successfully re-analyzed ${result.success.length} shipments`);
@@ -665,10 +553,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       return;
     }
 
-    const shipmentWithUpdates = {
-      ...shipmentToReanalyze,
-      ...shipmentUpdates[shipmentId] // Apply any field updates
-    };
+    const shipmentWithUpdates = shipmentToReanalyze; // No need to apply updates - already in shipmentData
 
     try {
       const result = await reanalyzeShipments([shipmentWithUpdates], currentAnalysisId);
@@ -700,17 +585,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
       // Update shipment updates to include the service changes from re-analysis
       const reanalyzed = result.success[0];
-      if (reanalyzed) {
-        setShipmentUpdates(prev => ({
-          ...prev,
-          [reanalyzed.id]: {
-            newService: reanalyzed.newService || reanalyzed.bestService,
-            newRate: reanalyzed.newRate,
-            accountId: reanalyzed.accountId,
-            analyzedWithAccount: reanalyzed.analyzedWithAccount
-          }
-        }));
-      }
+      // Reanalyzed data is already applied to shipmentData above
       toast.success(`Successfully re-analyzed shipment`);
 
       toast.success(`Successfully re-analyzed shipment`);
@@ -753,7 +628,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         }));
 
         // Don't clear selections or exit edit mode - keep user in edit mode
-        setShipmentUpdates({});
         setIsReanalysisModalOpen(false);
         
         toast.success(`Successfully applied corrections and re-analyzed ${result.success.length} shipments`);
@@ -1022,12 +896,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
   }, [shipmentData]);
 
-  // Load account names when shipment updates change
-  useEffect(() => {
-    if (Object.keys(shipmentUpdates).length > 0) {
-      loadAccountNames();
-    }
-  }, [shipmentUpdates]);
 
   const loadFromDatabase = async (analysisId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1150,11 +1018,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         setMarkupData(data.markup_data as MarkupData);
       }
 
-      // Load saved shipment updates if they exist
-      if (data.account_assignments && typeof data.account_assignments === 'object') {
-        console.log('🔄 Loading saved shipment updates:', Object.keys(data.account_assignments).length, 'updates');
-        setShipmentUpdates(data.account_assignments as Record<number, any>);
-      }
+      // account_assignments removed - using processed_shipments as single source of truth
 
       // Load shipment rates first to determine best account
       const loadedRates = await loadShipmentRates(data.id);
@@ -2375,10 +2239,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                  </TableCell>
                                  <TableCell>
                                    {(() => {
-                                      // Get all accounts used for this service, applying field updates
-                                      const serviceShipments = shipmentData
-                                        .filter(item => item.service === service)
-                                        .map(item => ({ ...item, ...shipmentUpdates[item.id] }));
+                                       // Get all accounts used for this service
+                                       const serviceShipments = shipmentData
+                                         .filter(item => item.service === service);
                                       
                                       const accountCounts = serviceShipments.reduce((acc, item) => {
                                          // Use the same account resolution logic as the Shipment Data tab
@@ -2901,12 +2764,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                 : item.dimensions || '12×12×6'}
                             </TableCell>
                              <TableCell>
-                               {(() => {
-                                 // Check for updated residential status first, then fallback to original
-                                 const updates = shipmentUpdates[item.id] || {};
-                                 const isResidential = updates.isResidential !== undefined 
-                                   ? updates.isResidential === 'true' || updates.isResidential === true
-                                   : item.isResidential === 'true' || item.isResidential === true;
+                                {(() => {
+                                  // Check residential status from shipment data
+                                  const isResidential = item.isResidential === 'true' || item.isResidential === true;
                                  
                                  return (
                                    <Badge variant={isResidential ? "default" : "outline"} className="text-xs">

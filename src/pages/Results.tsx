@@ -452,7 +452,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     setShipmentData(prev => prev.map(shipment => {
       if (shipment.id === shipmentId) {
         // For Ship Pros Service field, always use 'newService' for consistency
-        const fieldToUpdate = field === 'shipProsService' ? 'newService' : field;
+        const fieldToUpdate = field === 'shipProsService' ? 'ShipPros_service' : field;
         
         console.log('🔄 Field update:', { shipmentId, field: fieldToUpdate, value });
         return { ...shipment, [fieldToUpdate]: value };
@@ -783,7 +783,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
               originZip: orphan.shipment?.originZip || '',
               destinationZip: orphan.shipment?.destZip || '',
               weight: parseFloat(orphan.shipment?.weight || '0'),
-              service: orphan.originalService || orphan.shipment?.service || '',
+              service: orphan.customer_service || orphan.shipment?.customer_service || '',
               error: orphan.error || 'Processing failed',
               errorType: orphan.errorType || 'Unknown'
             }));
@@ -1221,7 +1221,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           originZip: shipmentData?.originZip || '',
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
-          service: shipmentData?.service || rec.originalService || 'Unknown',
+          service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
           error: orphanReason,
           errorType: validation.errorType || 'Processing Error',
           missingFields: validation.missingFields
@@ -1237,7 +1237,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
-          service: rec.originalService || shipmentData?.service || 'Unknown',
+          service: rec.customer_service || shipmentData?.service || 'Unknown',
           // Try multiple field names for rates based on different data sources
           currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
           newRate: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.newRate || 0,

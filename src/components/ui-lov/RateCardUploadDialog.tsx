@@ -17,6 +17,8 @@ interface RateCardUploadDialogProps {
   onClose: () => void;
   onSuccess: () => void;
   editConfig?: any; // Rate card config to edit, if any
+  preSelectedCarrierType?: string;
+  preSelectedServiceCode?: string;
 }
 
 const CARRIER_TYPES = [
@@ -31,7 +33,9 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
   isOpen,
   onClose,
   onSuccess,
-  editConfig
+  editConfig,
+  preSelectedCarrierType,
+  preSelectedServiceCode
 }) => {
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -48,7 +52,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
 
   const isEditMode = !!editConfig;
 
-  // Pre-populate form when editing
+  // Pre-populate form when editing or with pre-selected values
   useEffect(() => {
     if (editConfig) {
       setFormData({
@@ -66,8 +70,14 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
       if (editConfig.is_rate_card) {
         fetchServiceTypeFromRates(editConfig.id);
       }
+    } else if (preSelectedCarrierType || preSelectedServiceCode) {
+      setFormData(prev => ({
+        ...prev,
+        carrier_type: preSelectedCarrierType as any || prev.carrier_type,
+        service_type: preSelectedServiceCode as any || prev.service_type
+      }));
     }
-  }, [editConfig]);
+  }, [editConfig, preSelectedCarrierType, preSelectedServiceCode]);
 
   const fetchServiceTypeFromRates = async (carrierConfigId: string) => {
     try {

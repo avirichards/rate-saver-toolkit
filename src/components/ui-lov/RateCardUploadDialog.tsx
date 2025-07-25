@@ -21,7 +21,8 @@ const CARRIER_TYPES = [
   { value: 'ups', label: 'UPS' },
   { value: 'fedex', label: 'FedEx' },
   { value: 'dhl', label: 'DHL' },
-  { value: 'usps', label: 'USPS' }
+  { value: 'usps', label: 'USPS' },
+  { value: 'amazon', label: 'Amazon' }
 ] as const;
 
 export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({

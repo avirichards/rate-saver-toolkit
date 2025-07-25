@@ -159,6 +159,14 @@ Deno.serve(async (req) => {
       const currentRate = rec.currentCost || 0;
       const savings = currentRate - newRate;
 
+      // Determine the recommended service from the best account rate
+      let recommendedService = rec.originalService || rec.shipment.service || 'Unknown';
+      if (bestAccountRate && bestAccountRate.serviceName) {
+        recommendedService = bestAccountRate.serviceName;
+      } else if (bestAccountRate && bestAccountRate.description) {
+        recommendedService = bestAccountRate.description;
+      }
+
       return {
         id: index + 1,
         trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
@@ -170,7 +178,8 @@ Deno.serve(async (req) => {
         height: parseFloat(rec.shipment.height || '0'),
         dimensions: rec.shipment.dimensions,
         carrier: rec.carrier || 'UPS',
-        service: rec.originalService || rec.shipment.service || 'Unknown',
+        service: rec.originalService || rec.shipment.service || 'Unknown', // Current Service
+        recommendedService: recommendedService, // Ship Pros Service  
         currentRate: currentRate,
         newRate: newRate,
         savings: savings,

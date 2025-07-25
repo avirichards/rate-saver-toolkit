@@ -82,6 +82,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const params = useParams();
   const [searchParams] = useSearchParams();
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [rawAnalysisData, setRawAnalysisData] = useState<any>(null); // Store raw database data
   const [shipmentData, setShipmentData] = useState<ProcessedShipmentData[]>([]);
   const [orphanedData, setOrphanedData] = useState<any[]>([]);
   const [shipmentRates, setShipmentRates] = useState<any[]>([]);
@@ -740,6 +741,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           
           const processedData = processAnalysisData(analysis, getMarkupWithData);
           
+          setRawAnalysisData(analysis); // Store raw data for access to processed_shipments
           setAnalysisData(processedData);
           setShipmentData(processedData.recommendations || []);
           setOrphanedData(processedData.orphanedShipments || []);
@@ -756,6 +758,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           await loadFromDatabase(analysisIdFromQuery);
         } else if (state?.analysisComplete && state.analysisData) {
           setAnalysisData(state.analysisData);
+          // For navigation state, create a mock raw structure with processed_shipments
+          const mockRawData = {
+            processed_shipments: state.analysisData.recommendations?.map((rec: any, index: number) => ({
+              id: index + 1,
+              recommendedService: rec.recommendedService || rec.bestService || rec.newService || 'UPS Ground'
+            })) || []
+          };
+          setRawAnalysisData(mockRawData);
           
           // Auto-save the analysis after a short delay
           setTimeout(() => {
@@ -1678,7 +1688,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
       acc[service].totalSavings += savings;
-      acc[service].bestServices.push(item.recommendedService || 'UPS Ground');
+      // Get the Ship Pros service from the raw processed shipment data
+      const processedShipment = rawAnalysisData?.processed_shipments?.find((p: any) => p.id === item.id);
+      acc[service].bestServices.push(processedShipment?.recommendedService || 'UPS Ground');
       return acc;
     }, {});
     
@@ -2183,9 +2195,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            const avgWeight = data.weight / data.count;
                            const volumePercent = (data.count / shipmentData.length) * 100;
                            const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
-                            // Determine the most common Ship Pros service for this current service
-                            const shipProsSample = shipmentData.filter(item => item.service === service);
-                            const upsServices = shipProsSample.map(item => item.recommendedService || 'UPS Ground');
+                             // Determine the most common Ship Pros service for this current service
+                             const shipProsSample = shipmentData.filter(item => item.service === service);
+                              const upsServices = shipProsSample.map(item => {
+                                const processedShipment = rawAnalysisData?.processed_shipments?.find((p: any) => p.id === item.id);
+                                return processedShipment?.recommendedService || 'UPS Ground';
+                              });
                             const mostCommonUpsService = upsServices.reduce((acc, srv) => {
                               acc[srv] = (acc[srv] || 0) + 1;
                               return acc;

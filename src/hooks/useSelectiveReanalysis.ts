@@ -15,7 +15,7 @@ interface ReanalysisShipment {
   trackingId?: string;
   isResidential?: string | boolean;
   accountId?: string;
-  recommendedService?: string;
+  ShipPros_service?: string;
 }
 
 interface ServiceMappingCorrection {
@@ -65,7 +65,7 @@ export function useSelectiveReanalysis() {
 
     // Prepare shipment data for UPS API - match the expected interface
     // Use the recommended service from the single source of truth
-    const targetService = shipment.recommendedService || 'UPS Ground';
+    const targetService = shipment.ShipPros_service || 'UPS Ground';
     const serviceCode = getServiceCode(targetService);
     
     const shipmentData = {
@@ -134,9 +134,9 @@ export function useSelectiveReanalysis() {
     return {
       shipment: shipment,
       originalRate: 0, // We don't know the original rate in re-analysis
-      newRate: bestRate.totalCharges,
+      ShipPros_cost: bestRate.totalCharges,
       savings: 0, // Will be calculated when we know the original rate
-      recommendedService: bestRate.serviceName,
+      ShipPros_service: bestRate.serviceName,
       upsRates: data.rates,
       accountUsed: {
         id: config.id,
@@ -165,8 +165,8 @@ export function useSelectiveReanalysis() {
           const result = await processShipment(shipment);
           updatedShipments.push({
             ...shipment,
-            newRate: result.newRate,
-            recommendedService: result.recommendedService,
+            ShipPros_cost: result.ShipPros_cost,
+            ShipPros_service: result.ShipPros_service,
             upsRates: result.upsRates,
             isResidential: shipment.isResidential, // Preserve residential status
             reanalyzed: true,
@@ -233,10 +233,10 @@ export function useSelectiveReanalysis() {
       let updatedShipment = { ...shipment };
       
       corrections.forEach(correction => {
-        const currentService = updatedShipment.service || updatedShipment.originalService || '';
+        const currentService = updatedShipment.customer_service || updatedShipment.service || '';
         if (currentService === correction.from) {
           // Update the Ship Pros service directly in the single source of truth
-          updatedShipment.recommendedService = correction.to;
+          updatedShipment.ShipPros_service = correction.to;
           updatedShipment.corrected = true;
           
           // Apply residential status if specified in the correction
@@ -273,8 +273,8 @@ export function useSelectiveReanalysis() {
       // Update the analysis to move this shipment from orphaned to processed
       await moveOrphanToProcessed(analysisId, shipment.id, {
         ...shipment,
-        newRate: result.newRate,
-        recommendedService: result.recommendedService,
+        ShipPros_cost: result.ShipPros_cost,
+        ShipPros_service: result.ShipPros_service,
         upsRates: result.upsRates,
         fixed: true,
         fixedAt: new Date().toISOString()

@@ -507,8 +507,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             ...item, 
             ...reanalyzed,
             // Ensure critical fields are updated
-            newRate: reanalyzed.newRate,
-            recommendedService: reanalyzed.recommendedService || 'UPS Ground',
+            ShipPros_cost: reanalyzed.ShipPros_cost,
+            ShipPros_service: reanalyzed.ShipPros_service || 'UPS Ground',
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.newRate) : 0
           };
         }
@@ -608,7 +608,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       // Apply corrections to ALL shipments with matching services, not just selected ones
       const allAffectedShipments = shipmentData.filter(shipment => {
         return corrections.some(correction => {
-          const currentService = shipment.service || shipment.originalService || '';
+          const currentService = shipment.customer_service || '';
           return currentService === correction.from;
         });
       });
@@ -797,7 +797,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           }
           
           // Initialize service data
-          const services = [...new Set(processedShipmentData.map(item => item.service).filter(Boolean))] as string[];
+          const services = [...new Set(processedShipmentData.map(item => item.customer_service).filter(Boolean))] as string[];
           setAvailableServices(services);
           setSelectedServicesOverview([]); // Default to unchecked
           
@@ -1434,7 +1434,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
     // Apply service filter
     if (selectedService !== 'all') {
-      filtered = filtered.filter(item => item.service === selectedService);
+      filtered = filtered.filter(item => item.customer_service === selectedService);
     }
 
     // Apply search filter
@@ -1443,7 +1443,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         item.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
         item.originZip.includes(searchTerm) ||
         item.destinationZip.includes(searchTerm) ||
-        item.service.toLowerCase().includes(searchTerm.toLowerCase())
+        item.customer_service.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -1486,7 +1486,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     if (selectedServicesOverview.length === 0) {
       return shipmentData; // Return all data if no services selected (treat as all selected)
     }
-    return shipmentData.filter(item => selectedServicesOverview.includes(item.service));
+    return shipmentData.filter(item => selectedServicesOverview.includes(item.customer_service));
   };
 
   // Get filtered statistics
@@ -1589,7 +1589,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const generateServiceChartData = () => {
     const dataToUse = getOverviewFilteredData();
     const serviceCount = dataToUse.reduce((acc, item) => {
-      const service = item.service || 'Unknown';
+      const service = item.customer_service || 'Unknown';
       acc[service] = (acc[service] || 0) + 1;
       return acc;
     }, {});
@@ -1660,7 +1660,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const generateServiceCostData = () => {
     const dataToUse = getOverviewFilteredData();
     const serviceStats = dataToUse.reduce((acc, item) => {
-      const service = item.service || 'Unknown';
+      const service = item.customer_service || 'Unknown';
       if (!acc[service]) {
         acc[service] = { 
           totalCurrent: 0, 
@@ -1678,7 +1678,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       acc[service].totalNew += markupInfo.markedUpPrice;
       acc[service].shipments += 1;
       acc[service].totalSavings += savings;
-      acc[service].bestServices.push(item.recommendedService || 'UPS Ground');
+      acc[service].bestServices.push(item.ShipPros_service || 'UPS Ground');
       return acc;
     }, {});
     
@@ -2157,7 +2157,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                        {(() => {
                          // Show ALL services in the table, not just selected ones
                          const serviceAnalysis = shipmentData.reduce((acc, item) => {
-                           const service = item.service || 'Unknown';
+                           const service = item.customer_service || 'Unknown';
                            if (!acc[service]) {
                              acc[service] = {
                                currentCost: 0,
@@ -2169,7 +2169,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              };
                            }
                            acc[service].currentCost += item.currentRate;
-                           acc[service].newCost += item.newRate;
+                           acc[service].newCost += item.ShipPros_cost;
                            acc[service].savings += item.savings;
                            acc[service].weight += item.weight;
                            acc[service].count += 1;
@@ -2184,8 +2184,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            const volumePercent = (data.count / shipmentData.length) * 100;
                            const avgSavingsPercent = avgCurrentCost > 0 ? (avgSavings / avgCurrentCost) * 100 : 0;
                             // Determine the most common Ship Pros service for this current service
-                            const shipProsSample = shipmentData.filter(item => item.service === service);
-                            const upsServices = shipProsSample.map(item => item.recommendedService || 'UPS Ground');
+                             const shipProsSample = shipmentData.filter(item => item.customer_service === service);
+                             const upsServices = shipProsSample.map(item => item.ShipPros_service || 'UPS Ground');
                             const mostCommonUpsService = upsServices.reduce((acc, srv) => {
                               acc[srv] = (acc[srv] || 0) + 1;
                               return acc;
@@ -2194,7 +2194,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                               .sort(([,a], [,b]) => (b as number) - (a as number))[0]?.[0] || 'UPS Ground';
                            
                             // Calculate markup info for this service
-                            const serviceShipments = shipmentData.filter(item => item.service === service);
+                            const serviceShipments = shipmentData.filter(item => item.customer_service === service);
                             const avgMarkedUpPrice = serviceShipments.reduce((sum, item) => {
                               const markupInfo = getShipmentMarkup(item);
                               return sum + markupInfo.markedUpPrice;
@@ -2243,7 +2243,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                    {(() => {
                                        // Get all accounts used for this service
                                        const serviceShipments = shipmentData
-                                         .filter(item => item.service === service);
+                                         .filter(item => item.customer_service === service);
                                       
                                       const accountCounts = serviceShipments.reduce((acc, item) => {
                                          // Use the same account resolution logic as the Shipment Data tab
@@ -2528,12 +2528,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 
                 // Apply the optimization by updating shipment data with selected accounts
                 const optimizedShipmentData = shipmentData.map(shipment => {
-                  const selectedAccount = selections[shipment.service];
+                  const selectedAccount = selections[shipment.customer_service];
                   if (selectedAccount) {
                     // Find the rate for this shipment with the selected account
                     const optimizedRate = shipmentRates.find(rate => 
                       rate.account_name === selectedAccount &&
-                      rate.service_name === shipment.service &&
+                      rate.service_name === shipment.customer_service &&
                       rate.shipment_data?.trackingId === shipment.trackingId
                     );
                     
@@ -2550,7 +2550,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                       
                       console.log('🔄 Optimizing shipment:', {
                         trackingId: shipment.trackingId,
-                        service: shipment.service,
+                        service: shipment.customer_service,
                         originalAccount: shipment.account || shipment.accountName,
                         newAccount: selectedAccount,
                         optimizedShipment

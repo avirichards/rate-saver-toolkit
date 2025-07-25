@@ -31,11 +31,10 @@ export interface ProcessedShipmentData {
   height?: number;
   dimensions?: string;
   carrier: string;
-  service: string;
-  originalService?: string;
-  recommendedService: string; // Single source of truth for Ship Pros Service
+  customer_service: string; // Customer's original service
+  ShipPros_service: string; // Ship Pros recommended service
   currentRate: number;
-  newRate: number;
+  ShipPros_cost: number; // Ship Pros recommended cost
   savings: number;
   savingsPercent: number;
   account?: string;
@@ -291,11 +290,10 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
       height: parseFloat(rec.shipment?.height || rec.height || '0'),
       dimensions: rec.shipment?.dimensions || rec.dimensions,
       carrier: rec.shipment?.carrier || rec.carrier || 'Unknown',
-      service: originalService, // This is the "Current Service" column
-      originalService: originalService,
-      recommendedService: recommendedService, // Single source of truth for Ship Pros Service
+      customer_service: originalService, // Customer's original service
+      ShipPros_service: recommendedService, // Ship Pros recommended service
       currentRate,
-      newRate,
+      ShipPros_cost: newRate, // Ship Pros recommended cost
       savings: calculatedSavings || 0,
       savingsPercent: currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0,
       // Ensure account fields are consistent and show the actual account used
@@ -330,8 +328,8 @@ export const generateExportData = (filteredData: any[], getShipmentMarkup: (ship
       'Destination ZIP': item.destinationZip,
       'Weight': item.weight,
       'Dimensions': item.dimensions || `${item.length || 0}x${item.width || 0}x${item.height || 0}`,
-      'Current Service': item.originalService || item.currentService || '',
-      'Ship Pros Service': item.service,
+      'Current Service': item.customer_service,
+      'Ship Pros Service': item.ShipPros_service,
       'Current Rate': `$${item.currentRate.toFixed(2)}`,
       'Ship Pros Cost': `$${markupInfo.markedUpPrice.toFixed(2)}`,
       'Savings': `$${savings.toFixed(2)}`,

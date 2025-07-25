@@ -170,9 +170,10 @@ Deno.serve(async (req) => {
         height: parseFloat(rec.shipment.height || '0'),
         dimensions: rec.shipment.dimensions,
         carrier: rec.carrier || 'UPS',
-        service: rec.originalService || rec.shipment.service || 'Unknown',
+        customer_service: rec.originalService || rec.shipment.service || 'Unknown',
+        ShipPros_service: bestAccountRate ? (bestAccountRate.serviceName || bestAccountRate.description || 'UPS Ground') : 'UPS Ground',
         currentRate: currentRate,
-        newRate: newRate,
+        ShipPros_cost: newRate,
         savings: savings,
         savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
         analyzedWithAccount: bestOverallAccount // Add the account information

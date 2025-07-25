@@ -27,9 +27,9 @@ interface ProcessedShipmentData {
   id: number;
   trackingId: string;
   currentRate: number;
-  newRate: number;
+  ShipPros_cost: number;
   savings: number;
-  service: string;
+  customer_service: string;
   weight: number;
   account?: string;
   accountName?: string;
@@ -255,7 +255,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     // Get all unique services
     const services = [...new Set([
       ...shipmentRates.map(rate => rate.service_name || rate.service_code),
-      ...shipmentData.map(shipment => shipment.service)
+      ...shipmentData.map(shipment => shipment.customer_service)
     ].filter(Boolean))];
 
     console.log('Service breakdown calculation:', { services });
@@ -268,7 +268,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       
       // Get shipment data for this service  
       const serviceShipments = shipmentData.filter(shipment => 
-        shipment.service === serviceName
+        shipment.customer_service === serviceName
       );
 
       console.log(`Service ${serviceName}:`, {
@@ -335,7 +335,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       const initialSelections: Record<string, string> = {};
       serviceBreakdowns.forEach(service => {
         // Check if shipments in this service have been optimized (have account property)
-        const serviceShipments = shipmentData.filter(s => s.service === service.serviceName);
+        const serviceShipments = shipmentData.filter(s => s.customer_service === service.serviceName);
         const optimizedShipments = serviceShipments.filter(s => s.account);
         
         if (optimizedShipments.length > 0) {

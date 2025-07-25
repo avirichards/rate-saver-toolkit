@@ -247,7 +247,7 @@ export function EditableShipmentRow({
       {/* Current Service - NOT editable */}
       <TableCell>
         <Badge variant="outline" className="text-xs truncate">
-          {getDisplayValue('service') || getDisplayValue('originalService')}
+          {getDisplayValue('customer_service') || shipment.customer_service}
         </Badge>
       </TableCell>
       
@@ -255,14 +255,14 @@ export function EditableShipmentRow({
       <TableCell>
         {editMode ? (
           <UpsServiceSelector
-            value={getDisplayValue('recommendedService') || shipment.recommendedService || 'UPS Ground'}
-            onValueChange={(value) => handleFieldSave('recommendedService', value)}
+            value={getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'UPS Ground'}
+            onValueChange={(value) => handleFieldSave('ShipPros_service', value)}
             placeholder="Select Service"
             className="w-24 text-xs"
           />
         ) : (
           <Badge variant="outline" className="text-xs text-primary truncate">
-            {getDisplayValue('recommendedService') || shipment.recommendedService || 'UPS Ground'}
+            {getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'UPS Ground'}
           </Badge>
         )}
       </TableCell>
@@ -287,7 +287,7 @@ export function EditableShipmentRow({
         {estimatedSavings.isPending ? (
           <span className="text-xs text-muted-foreground italic">Pending</span>
         ) : (
-          formatCurrency(estimatedSavings.newRate)
+          formatCurrency(shipment.ShipPros_cost)
         )}
       </TableCell>
       

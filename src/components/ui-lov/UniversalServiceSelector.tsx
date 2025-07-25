@@ -14,14 +14,36 @@ interface UniversalServiceSelectorProps {
 }
 
 export function UniversalServiceSelector(props: UniversalServiceSelectorProps) {
-  const selectedService = typeof props.value === 'string' 
-    ? Object.values(UNIVERSAL_SERVICES).find(s => s.displayName === props.value || s.category === props.value)
-    : UNIVERSAL_SERVICES[props.value];
+  // Normalize the value to ensure we're always working with the enum value
+  const normalizeValue = (value: UniversalServiceCategory | string): UniversalServiceCategory => {
+    if (!value) return UniversalServiceCategory.GROUND;
+    
+    // If it's already an enum value, return it
+    if (Object.values(UniversalServiceCategory).includes(value as UniversalServiceCategory)) {
+      return value as UniversalServiceCategory;
+    }
+    
+    // Try to find by display name
+    const serviceByDisplayName = Object.values(UNIVERSAL_SERVICES).find(
+      s => s.displayName.toLowerCase() === value.toString().toLowerCase()
+    );
+    if (serviceByDisplayName) {
+      return serviceByDisplayName.category;
+    }
+    
+    return UniversalServiceCategory.GROUND;
+  };
+
+  const normalizedValue = normalizeValue(props.value);
+  const selectedService = UNIVERSAL_SERVICES[normalizedValue];
 
   return (
     <Select 
-      value={props.value as string} 
-      onValueChange={(value) => props.onValueChange(value as UniversalServiceCategory)}
+      value={normalizedValue} 
+      onValueChange={(value) => {
+        console.log('UniversalServiceSelector value changed:', { from: normalizedValue, to: value });
+        props.onValueChange(value as UniversalServiceCategory);
+      }}
     >
       <SelectTrigger className={props.className}>
         <SelectValue placeholder={props.placeholder || "Select service type"}>

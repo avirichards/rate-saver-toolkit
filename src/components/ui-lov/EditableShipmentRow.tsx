@@ -10,6 +10,10 @@ import { RotateCw, AlertCircle } from 'lucide-react';
 import { formatCurrency, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 import { supabase } from '@/integrations/supabase/client';
+import { UniversalServiceCategory, UNIVERSAL_SERVICES } from '@/utils/universalServiceCategories';
+import { mapServiceToServiceCode } from '@/utils/serviceMapping';
+import { toast } from 'sonner';
+import { ReanalysisConfirmationDialog } from '@/components/ui-lov/ReanalysisConfirmationDialog';
 
 interface EditableShipmentRowProps {
   shipment: any;
@@ -34,6 +38,7 @@ export function EditableShipmentRow({
 }: EditableShipmentRowProps) {
   const [localChanges, setLocalChanges] = useState<Record<string, string>>({});
   const [accountNames, setAccountNames] = useState<Record<string, string>>({});
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // Clear local changes when shipment data is updated (after re-analysis)
   useEffect(() => {
@@ -67,22 +72,71 @@ export function EditableShipmentRow({
   }, [shipment.accountId, accountNames]);
 
   const handleFieldSave = async (field: string, value: string) => {
+    console.log('🔧 Field update:', { 
+      shipmentId: shipment.id, 
+      field, 
+      oldValue: shipment[field], 
+      newValue: value 
+    });
+    
+    // Validate key fields
+    if (field === 'weight' && value) {
+      const weightNum = parseFloat(value);
+      if (isNaN(weightNum) || weightNum <= 0) {
+        toast.error('Weight must be a positive number');
+        return;
+      }
+    }
+    
+    if ((field === 'length' || field === 'width' || field === 'height') && value) {
+      const dimNum = parseFloat(value);
+      if (isNaN(dimNum) || dimNum <= 0) {
+        toast.error('Dimensions must be positive numbers');
+        return;
+      }
+    }
+    
     setLocalChanges(prev => ({ ...prev, [field]: value }));
     onFieldUpdate(shipment.id, field, value);
   };
 
   const getDisplayValue = (field: string) => {
     const value = localChanges[field] ?? shipment[field] ?? '';
-    if (field === 'ShipPros_service' && shipment.trackingId === '1Z4W80R50338555042') {
-      console.log('🔍 getDisplayValue for ShipPros_service:', {
-        trackingId: shipment.trackingId,
-        localChanges: localChanges[field],
-        shipmentValue: shipment[field],
-        finalValue: value,
-        fullShipment: shipment
-      });
-    }
     return value;
+  };
+
+  // Convert string service names to UniversalServiceCategory and vice versa
+  const getServiceEnumValue = (serviceName: string): UniversalServiceCategory => {
+    if (!serviceName) return UniversalServiceCategory.GROUND;
+    
+    // If it's already an enum value, return it
+    if (Object.values(UniversalServiceCategory).includes(serviceName as UniversalServiceCategory)) {
+      return serviceName as UniversalServiceCategory;
+    }
+    
+    // Try to find by display name
+    const serviceByDisplayName = Object.values(UNIVERSAL_SERVICES).find(
+      s => s.displayName.toLowerCase() === serviceName.toLowerCase()
+    );
+    if (serviceByDisplayName) {
+      return serviceByDisplayName.category;
+    }
+    
+    // Use mapping utility as fallback
+    const mapping = mapServiceToServiceCode(serviceName);
+    return mapping.standardizedService;
+  };
+
+  const getServiceDisplayName = (serviceValue: string): string => {
+    if (!serviceValue) return 'Ground';
+    
+    // If it's an enum value, get the display name
+    if (Object.values(UniversalServiceCategory).includes(serviceValue as UniversalServiceCategory)) {
+      return UNIVERSAL_SERVICES[serviceValue as UniversalServiceCategory]?.displayName || serviceValue;
+    }
+    
+    // Otherwise return as-is (it's likely already a display name)
+    return serviceValue;
   };
 
   const hasChanges = Object.keys(localChanges).length > 0;
@@ -255,14 +309,17 @@ export function EditableShipmentRow({
       <TableCell>
         {editMode ? (
           <UniversalServiceSelector
-            value={getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'GROUND'}
-            onValueChange={(value) => handleFieldSave('ShipPros_service', value)}
+            value={getServiceEnumValue(getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'GROUND')}
+            onValueChange={(value) => {
+              console.log('Service changed:', { from: getDisplayValue('ShipPros_service'), to: value });
+              handleFieldSave('ShipPros_service', value);
+            }}
             placeholder="Select Service"
             className="w-24 text-xs"
           />
         ) : (
           <Badge variant="outline" className="text-xs text-primary truncate">
-            {getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'Ground'}
+            {getServiceDisplayName(getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'Ground')}
           </Badge>
         )}
       </TableCell>
@@ -271,8 +328,11 @@ export function EditableShipmentRow({
       {editMode && (
         <TableCell>
           <AccountSelector
-            value={getDisplayValue('accountId') || ''}
-            onValueChange={(value) => handleFieldSave('accountId', value)}
+            value={getDisplayValue('accountId') || shipment.accountId || ''}
+            onValueChange={(value) => {
+              console.log('Account changed:', { from: getDisplayValue('accountId'), to: value });
+              handleFieldSave('accountId', value);
+            }}
             placeholder="Select Account"
             className="w-32 text-xs"
           />
@@ -311,7 +371,7 @@ export function EditableShipmentRow({
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onReanalyze(shipment.id)}
+            onClick={() => setShowConfirmDialog(true)}
             disabled={isReanalyzing}
             className="h-8 text-xs"
           >
@@ -322,6 +382,21 @@ export function EditableShipmentRow({
             )}
             Re-analyze
           </Button>
+          
+          <ReanalysisConfirmationDialog
+            open={showConfirmDialog}
+            onOpenChange={setShowConfirmDialog}
+            onConfirm={() => {
+              setShowConfirmDialog(false);
+              onReanalyze(shipment.id);
+            }}
+            shipment={shipment}
+            pendingChanges={localChanges}
+            accountName={(() => {
+              const accountId = localChanges.accountId || shipment.accountId;
+              return accountId ? accountNames[accountId] : undefined;
+            })()}
+          />
         </TableCell>
       )}
       

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { mapServiceToServiceCode } from '@/utils/serviceMapping';
 import { getCarrierServiceCode, CarrierType } from '@/utils/carrierServiceRegistry';
+import { UniversalServiceCategory } from '@/utils/universalServiceCategories';
 
 interface ReanalysisShipment {
   id: number;
@@ -17,7 +18,7 @@ interface ReanalysisShipment {
   trackingId?: string;
   isResidential?: string | boolean;
   accountId?: string;
-  ShipPros_service?: string;
+  ShipPros_service?: string | UniversalServiceCategory;
 }
 
 interface ServiceMappingCorrection {
@@ -66,8 +67,13 @@ export function useSelectiveReanalysis() {
     console.log('Using carrier config:', config.account_name, 'for re-analysis');
 
     // Prepare shipment data for UPS API - match the expected interface
-    // Use the recommended service from the single source of truth
-    const targetService = shipment.ShipPros_service || 'Ground';
+    // Use the recommended service from the single source of truth - now it should be a UniversalServiceCategory
+    const targetService = shipment.ShipPros_service || UniversalServiceCategory.GROUND;
+    console.log('🔧 Processing re-analysis with target service:', { 
+      original: targetService, 
+      shipmentId: shipment.id,
+      accountId: shipment.accountId 
+    });
     const serviceCode = getServiceCode(targetService);
     
     const shipmentData = {
@@ -308,12 +314,29 @@ export function useSelectiveReanalysis() {
 }
 
 // Helper function to map service names to UPS service codes using universal categories
-function getServiceCode(serviceName: string): string {
-  // Map the service name to a universal category
-  const mapping = mapServiceToServiceCode(serviceName);
+function getServiceCode(serviceName: string | UniversalServiceCategory): string {
+  // If it's already a UniversalServiceCategory, use it directly
+  let universalCategory: UniversalServiceCategory;
+  
+  if (typeof serviceName === 'string') {
+    // If it's a string, check if it's a valid enum value first
+    if (Object.values(UniversalServiceCategory).includes(serviceName as UniversalServiceCategory)) {
+      universalCategory = serviceName as UniversalServiceCategory;
+    } else {
+      // Otherwise, map the service name to a universal category
+      const mapping = mapServiceToServiceCode(serviceName);
+      universalCategory = mapping.standardizedService;
+    }
+  } else {
+    universalCategory = serviceName;
+  }
+  
+  console.log('🔧 Service code mapping:', { input: serviceName, universalCategory });
   
   // Convert the universal category to UPS service code
-  const upsCode = getCarrierServiceCode(CarrierType.UPS, mapping.standardizedService);
+  const upsCode = getCarrierServiceCode(CarrierType.UPS, universalCategory);
+  
+  console.log('🔧 UPS service code result:', { universalCategory, upsCode });
   
   return upsCode || '03'; // Default to Ground if not found
 }

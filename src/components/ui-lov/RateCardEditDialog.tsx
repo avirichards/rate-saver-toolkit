@@ -133,7 +133,7 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
         let csvData = null;
         let fileName = '';
         if (rates.length > 0) {
-          fileName = `${serviceCode}_rates.csv`;
+          fileName = `${account.account_name}_${service?.name || serviceCode}.csv`;
           // Convert database rates to CSV format
           const zones = [...new Set(rates.map(r => r.zone))].sort();
           const weights = [...new Set(rates.map(r => r.weight_break))].sort((a, b) => a - b);

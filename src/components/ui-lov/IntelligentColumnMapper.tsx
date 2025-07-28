@@ -48,6 +48,9 @@ const ALL_FIELDS: Field[] = [
   { id: 'deliveryDate', label: 'Delivery Date', description: 'Date the package was delivered', required: false }
 ];
 
+// Ensure the constant is properly exported/accessible
+const REQUIRED_FIELDS = ALL_FIELDS.filter(f => f.required);
+
 export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = ({
   csvHeaders,
   csvData,

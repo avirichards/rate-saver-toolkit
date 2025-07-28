@@ -121,6 +121,12 @@ const FEDEX_SERVICE_MAPPINGS: CarrierServiceMapping[] = [
     isAvailable: true
   },
   {
+    universalCategory: UniversalServiceCategory.THREE_DAY,
+    carrierCode: 'FEDEX_EXPRESS_SAVER',
+    carrierServiceName: 'FedEx Express Saver',
+    isAvailable: true
+  },
+  {
     universalCategory: UniversalServiceCategory.GROUND,
     carrierCode: 'FEDEX_GROUND',
     carrierServiceName: 'FedEx Ground',

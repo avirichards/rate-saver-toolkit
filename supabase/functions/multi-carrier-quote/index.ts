@@ -148,54 +148,56 @@ serve(async (req) => {
         // Convert universal service categories to carrier-specific codes
         let servicesToRequest = shipment.serviceTypes || [];
         
-        // If universal service categories are provided, convert them to carrier-specific codes
+        // If service codes are provided, convert them to carrier-specific codes
         if (servicesToRequest.length > 0) {
           const carrierType = config.carrier_type.toUpperCase();
           
-          // Map universal categories to carrier-specific codes
+          // Map service codes to carrier-specific codes
           servicesToRequest = servicesToRequest.map(serviceType => {
-            // If it's already a carrier-specific code, use it
+            // If it's already a carrier-specific code for this carrier, use it
             if ((carrierType === 'UPS' && serviceType.length <= 3 && /^\d+$/.test(serviceType)) ||
                 (carrierType === 'FEDEX' && serviceType.includes('_')) ||
-                (carrierType === 'DHL' && serviceType.includes('_'))) {
+                (carrierType === 'DHL' && serviceType.includes('_')) ||
+                (carrierType === 'AMAZON' && serviceType === 'GROUND')) {
               return serviceType;
             }
             
-            // Convert from universal category to carrier-specific code
-            const universalToCarrierMap: Record<string, Record<string, string>> = {
+            // Convert UPS service codes to other carriers
+            const serviceCodeMapping: Record<string, Record<string, string>> = {
               'UPS': {
-                'OVERNIGHT': '01',
-                'OVERNIGHT_SAVER': '13', 
-                'OVERNIGHT_EARLY': '14',
-                'TWO_DAY': '02',
-                'TWO_DAY_MORNING': '59',
-                'THREE_DAY': '12',
-                'GROUND': '03',
-                'INTERNATIONAL_EXPRESS': '07',
-                'INTERNATIONAL_EXPEDITED': '08',
-                'INTERNATIONAL_STANDARD': '11',
-                'INTERNATIONAL_SAVER': '65'
+                '01': '01', '13': '13', '14': '14', '02': '02', '59': '59',
+                '12': '12', '03': '03', '07': '07', '08': '08', '11': '11', '65': '65'
               },
               'FEDEX': {
-                'OVERNIGHT': 'PRIORITY_OVERNIGHT',
-                'OVERNIGHT_SAVER': 'STANDARD_OVERNIGHT',
-                'OVERNIGHT_EARLY': 'FIRST_OVERNIGHT',
-                'TWO_DAY': 'FEDEX_2_DAY',
-                'TWO_DAY_MORNING': 'FEDEX_2_DAY_AM',
-                'GROUND': 'FEDEX_GROUND',
-                'INTERNATIONAL_EXPRESS': 'INTERNATIONAL_PRIORITY',
-                'INTERNATIONAL_EXPEDITED': 'INTERNATIONAL_ECONOMY'
+                '01': 'PRIORITY_OVERNIGHT',
+                '13': 'STANDARD_OVERNIGHT',
+                '14': 'FIRST_OVERNIGHT',
+                '02': 'FEDEX_2_DAY',
+                '59': 'FEDEX_2_DAY_AM',
+                '12': 'FEDEX_EXPRESS_SAVER',
+                '03': 'FEDEX_GROUND',
+                '07': 'INTERNATIONAL_PRIORITY',
+                '08': 'INTERNATIONAL_ECONOMY'
+              },
+              'AMAZON': {
+                '01': 'GROUND', // Map overnight to ground for Amazon
+                '13': 'GROUND', // Map overnight saver to ground for Amazon
+                '14': 'GROUND', // Map overnight early to ground for Amazon
+                '02': 'GROUND', // Map 2-day to ground for Amazon
+                '59': 'GROUND', // Map 2-day AM to ground for Amazon
+                '12': 'GROUND', // Map 3-day to ground for Amazon
+                '03': 'GROUND'  // Map ground to ground for Amazon
               },
               'DHL': {
-                'OVERNIGHT': 'EXPRESS_10_30',
-                'OVERNIGHT_EARLY': 'EXPRESS_9_00',
-                'TWO_DAY': 'EXPRESS_12_00',
-                'INTERNATIONAL_EXPRESS': 'EXPRESS_WORLDWIDE',
-                'INTERNATIONAL_EXPEDITED': 'EXPRESS_EASY'
+                '01': 'EXPRESS_10_30',
+                '14': 'EXPRESS_9_00',
+                '02': 'EXPRESS_12_00',
+                '07': 'EXPRESS_WORLDWIDE',
+                '08': 'EXPRESS_EASY'
               }
             };
             
-            return universalToCarrierMap[carrierType]?.[serviceType] || serviceType;
+            return serviceCodeMapping[carrierType]?.[serviceType] || serviceType;
           }).filter(Boolean);
         }
         

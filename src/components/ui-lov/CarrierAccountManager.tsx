@@ -419,6 +419,9 @@ const updateAccount = async (account: CarrierConfig) => {
       return acc;
     }, {} as Record<string, CarrierConfig[]>);
     
+    console.log('Grouped configs:', grouped);
+    console.log('Total configs loaded:', configs.length);
+    
     return grouped;
   };
 

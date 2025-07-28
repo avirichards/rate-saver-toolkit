@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
-import { Upload, Plus, Trash2, Download, Save, Eye } from 'lucide-react';
+import { Upload, Plus, Trash2, Download, Save, Eye, FileText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
 import { supabase } from '@/integrations/supabase/client';
@@ -84,6 +84,7 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
   const [rateCards, setRateCards] = useState<RateCard[]>([]);
   const [saving, setSaving] = useState(false);
   const [viewingRateCard, setViewingRateCard] = useState<RateCard | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (account && open) {
@@ -212,6 +213,32 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
     } catch (error) {
       console.error('Error uploading file:', error);
       toast.error('Failed to upload rate card');
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (!confirm(`Are you sure you want to delete the account "${accountName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      // Delete the carrier config (this will cascade delete rate card rates due to foreign key)
+      const { error: deleteError } = await supabase
+        .from('carrier_configs')
+        .delete()
+        .eq('id', account.id);
+
+      if (deleteError) throw deleteError;
+
+      toast.success('Rate card account deleted successfully');
+      onOpenChange(false);
+      onSuccess?.();
+    } catch (error: any) {
+      console.error('Error deleting rate card account:', error);
+      toast.error('Failed to delete rate card account: ' + error.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -420,18 +447,11 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
                           </div>
 
                            <div className="space-y-2">
-                             <Label>Update Rate Card CSV</Label>
-                             <div className="flex gap-2">
-                               <Input
-                                 type="file"
-                                 accept=".csv,.xlsx,.xls"
-                                 onChange={(e) => {
-                                   const file = e.target.files?.[0];
-                                   if (file) handleFileUpload(card.id, file);
-                                 }}
-                                 className="flex-1"
-                               />
-                               {card.data && (
+                             <Label>Rate Card CSV</Label>
+                             {card.data && card.fileName ? (
+                               <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/5">
+                                 <FileText className="h-4 w-4 text-muted-foreground" />
+                                 <span className="text-sm flex-1">{card.fileName}</span>
                                  <Button
                                    type="button"
                                    variant="outline"
@@ -441,12 +461,34 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
                                  >
                                    View
                                  </Button>
-                               )}
-                             </div>
-                             {card.fileName && (
-                               <Badge variant="outline" className="text-xs">
-                                 {card.fileName}
-                               </Badge>
+                                 <Button
+                                   type="button"
+                                   variant="outline"
+                                   size="sm"
+                                   onClick={() => {
+                                     updateRateCard(card.id, { 
+                                       file: null, 
+                                       fileName: '', 
+                                       data: null 
+                                     });
+                                   }}
+                                   iconLeft={<Trash2 className="h-4 w-4" />}
+                                 >
+                                   Remove
+                                 </Button>
+                               </div>
+                             ) : (
+                               <div className="flex gap-2">
+                                 <Input
+                                   type="file"
+                                   accept=".csv,.xlsx,.xls"
+                                   onChange={(e) => {
+                                     const file = e.target.files?.[0];
+                                     if (file) handleFileUpload(card.id, file);
+                                   }}
+                                   className="flex-1"
+                                 />
+                               </div>
                              )}
                            </div>
                         </div>
@@ -577,23 +619,36 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
           </Dialog>
         )}
 
-        <div className="flex justify-end gap-2 pt-4">
+        <div className="flex justify-between gap-2 pt-4">
           <Button
             type="button"
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={deleteAccount}
+            loading={deleting}
+            iconLeft={<Trash2 className="h-4 w-4" />}
+            className="text-destructive border-destructive hover:bg-destructive hover:text-destructive-foreground"
           >
-            Cancel
+            Delete Account
           </Button>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={saveRateCardAccount}
-            loading={saving}
-            iconLeft={<Save className="h-4 w-4" />}
-          >
-            Save Changes
-          </Button>
+          
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={saveRateCardAccount}
+              loading={saving}
+              iconLeft={<Save className="h-4 w-4" />}
+            >
+              Save Changes
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

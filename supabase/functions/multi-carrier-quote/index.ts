@@ -38,6 +38,7 @@ interface ShipmentRequest {
   isResidential?: boolean;
   analysisId?: string; // For saving individual rates
   shipmentIndex?: number; // For saving individual rates
+  zone?: string; // CSV-mapped zone data
 }
 
 interface CarrierConfig {
@@ -103,7 +104,8 @@ serve(async (req) => {
       shipFromZip: shipment.shipFrom.zipCode,
       shipToZip: shipment.shipTo.zipCode,
       weight: shipment.package.weight,
-      serviceTypes: shipment.serviceTypes
+      serviceTypes: shipment.serviceTypes,
+      csvMappedZone: shipment.zone
     });
 
     // API monitoring metrics for tracking performance issues
@@ -540,9 +542,15 @@ async function calculateRateCardRate(supabase: any, shipment: ShipmentRequest, c
       weight: shipment.package.weight
     });
 
-    // Calculate shipping zone
-    const zone = calculateShippingZone(shipment.shipFrom.zipCode, shipment.shipTo.zipCode);
-    console.log(`🗺️ Calculated zone: ${zone} (${shipment.shipFrom.zipCode} → ${shipment.shipTo.zipCode})`);
+    // Use CSV-mapped zone if available, otherwise calculate automatically
+    let zone: string;
+    if (shipment.zone) {
+      zone = shipment.zone;
+      console.log(`🗺️ Using CSV-mapped zone: ${zone} (${shipment.shipFrom.zipCode} → ${shipment.shipTo.zipCode})`);
+    } else {
+      zone = calculateShippingZone(shipment.shipFrom.zipCode, shipment.shipTo.zipCode);
+      console.log(`🗺️ Auto-calculated zone: ${zone} (${shipment.shipFrom.zipCode} → ${shipment.shipTo.zipCode})`);
+    }
 
     // Calculate billable weight (considering dimensional weight)
     let billableWeight = shipment.package.weight;

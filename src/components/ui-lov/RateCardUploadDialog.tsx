@@ -4,10 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Upload, FileText, Download } from 'lucide-react';
+import { Upload, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
+import { RateCardEntry, RateCardData } from './RateCardEntry';
 
 interface RateCardUploadDialogProps {
   open: boolean;
@@ -23,44 +24,35 @@ const CARRIER_TYPES = [
 ] as const;
 
 export const RateCardUploadDialog = ({ open, onOpenChange, onSuccess }: RateCardUploadDialogProps) => {
-  const [rateCard, setRateCard] = useState({
+  const [accountDetails, setAccountDetails] = useState({
     carrier_type: 'ups' as 'ups' | 'fedex' | 'dhl' | 'usps',
     account_name: '',
     account_group: '',
     dimensional_divisor: '166',
-    fuel_surcharge_percent: '0',
-    weight_unit: 'lbs' as 'lbs' | 'oz'
+    fuel_surcharge_percent: '0'
   });
-  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [rateCards, setRateCards] = useState<RateCardData[]>([]);
   const [uploading, setUploading] = useState(false);
 
-  const downloadSampleFile = () => {
-    const sampleCSV = `Service,B1,B2,B3,B4,B5,B6,B7,B8
-A2,10.50,11.25,12.00,13.75,15.50,17.25,19.00,20.75
-A3,11.00,11.75,12.50,14.25,16.00,17.75,19.50,21.25
-A4,11.50,12.25,13.00,14.75,16.50,18.25,20.00,21.75
-A5,12.00,12.75,13.50,15.25,17.00,18.75,20.50,22.25`;
-
-    const blob = new Blob([sampleCSV], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'rate-card-sample.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    toast.success('Sample file downloaded');
+  const addRateCard = () => {
+    const newRateCard: RateCardData = {
+      id: `rate-card-${Date.now()}`,
+      service_type: '',
+      weight_unit: 'lbs',
+      csv_file: null,
+      service_name: ''
+    };
+    setRateCards([...rateCards, newRateCard]);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && file.type === 'text/csv') {
-      setCsvFile(file);
-    } else {
-      toast.error('Please select a CSV file');
-      e.target.value = '';
-    }
+  const updateRateCard = (id: string, updates: Partial<RateCardData>) => {
+    setRateCards(prev => prev.map(card => 
+      card.id === id ? { ...card, ...updates } : card
+    ));
+  };
+
+  const deleteRateCard = (id: string) => {
+    setRateCards(prev => prev.filter(card => card.id !== id));
   };
 
   const parseCSVContent = (csvContent: string) => {
@@ -106,14 +98,26 @@ A5,12.00,12.75,13.50,15.25,17.00,18.75,20.50,22.25`;
   };
 
   const saveRateCard = async () => {
-    if (!rateCard.account_name.trim()) {
+    if (!accountDetails.account_name.trim()) {
       toast.error('Please enter an account name');
       return;
     }
 
-    if (!csvFile) {
-      toast.error('Please select a CSV file');
+    if (rateCards.length === 0) {
+      toast.error('Please add at least one rate card');
       return;
+    }
+
+    // Validate rate cards
+    for (const card of rateCards) {
+      if (!card.service_type) {
+        toast.error('Please select a service type for all rate cards');
+        return;
+      }
+      if (!card.csv_file) {
+        toast.error('Please upload a CSV file for all rate cards');
+        return;
+      }
     }
 
     setUploading(true);
@@ -121,25 +125,20 @@ A5,12.00,12.75,13.50,15.25,17.00,18.75,20.50,22.25`;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      // Read CSV file
-      const csvContent = await csvFile.text();
-      const rates = parseCSVContent(csvContent);
-
       // Create carrier config
       const carrierConfigData = {
         user_id: user.id,
-        carrier_type: rateCard.carrier_type,
-        account_name: rateCard.account_name,
-        account_group: rateCard.account_group || null,
+        carrier_type: accountDetails.carrier_type,
+        account_name: accountDetails.account_name,
+        account_group: accountDetails.account_group || null,
         is_rate_card: true,
         is_active: true,
         is_sandbox: false,
-        dimensional_divisor: parseFloat(rateCard.dimensional_divisor),
-        fuel_surcharge_percent: parseFloat(rateCard.fuel_surcharge_percent),
-        rate_card_filename: csvFile.name,
+        dimensional_divisor: parseFloat(accountDetails.dimensional_divisor),
+        fuel_surcharge_percent: parseFloat(accountDetails.fuel_surcharge_percent),
+        rate_card_filename: rateCards.map(c => c.csv_file?.name).join(', '),
         rate_card_uploaded_at: new Date().toISOString(),
-        weight_unit: rateCard.weight_unit,
-        enabled_services: ['GROUND'] // Default service
+        enabled_services: rateCards.map(c => c.service_type.toUpperCase())
       };
 
       const { data: configData, error: configError } = await supabase
@@ -150,169 +149,183 @@ A5,12.00,12.75,13.50,15.25,17.00,18.75,20.50,22.25`;
 
       if (configError) throw configError;
 
-      // Save rate data
-      const rateRecords = rates.map(rate => ({
-        carrier_config_id: configData.id,
-        ...rate,
-        weight_unit: rateCard.weight_unit
-      }));
+      // Process each rate card
+      for (const rateCard of rateCards) {
+        if (!rateCard.csv_file) continue;
+        
+        const csvContent = await rateCard.csv_file.text();
+        const rates = parseCSVContent(csvContent);
 
-      const { error: rateError } = await supabase
-        .from('rate_card_rates')
-        .insert(rateRecords);
+        // Save rate data with service-specific details
+        const rateRecords = rates.map(rate => ({
+          carrier_config_id: configData.id,
+          ...rate,
+          service_code: rateCard.service_type.toUpperCase(),
+          service_name: rateCard.service_name,
+          weight_unit: rateCard.weight_unit
+        }));
 
-      if (rateError) throw rateError;
+        const { error: rateError } = await supabase
+          .from('rate_card_rates')
+          .insert(rateRecords);
 
-      toast.success('Rate card uploaded successfully');
+        if (rateError) throw rateError;
+      }
+
+      toast.success('Rate cards uploaded successfully');
       onSuccess();
       onOpenChange(false);
       resetForm();
     } catch (error: any) {
-      console.error('Error uploading rate card:', error);
-      toast.error(error.message || 'Failed to upload rate card');
+      console.error('Error uploading rate cards:', error);
+      toast.error(error.message || 'Failed to upload rate cards');
     } finally {
       setUploading(false);
     }
   };
 
   const resetForm = () => {
-    setRateCard({
+    setAccountDetails({
       carrier_type: 'ups',
       account_name: '',
       account_group: '',
       dimensional_divisor: '166',
-      fuel_surcharge_percent: '0',
-      weight_unit: 'lbs'
+      fuel_surcharge_percent: '0'
     });
-    setCsvFile(null);
+    setRateCards([]);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Upload Rate Card</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="carrier_type">Carrier Type *</Label>
-            <Select 
-              value={rateCard.carrier_type} 
-              onValueChange={(value: any) => setRateCard({ ...rateCard, carrier_type: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CARRIER_TYPES.map(carrier => (
-                  <SelectItem key={carrier.value} value={carrier.value}>
-                    <span className="flex items-center gap-2">
-                      <span>{carrier.icon}</span>
-                      <span>{carrier.label}</span>
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="account_name">Rate Card Name *</Label>
-            <Input
-              id="account_name"
-              value={rateCard.account_name}
-              onChange={(e) => setRateCard({ ...rateCard, account_name: e.target.value })}
-              placeholder="e.g., DHL 2025"
-            />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="account_group">Account Group</Label>
-            <CarrierGroupCombobox
-              value={rateCard.account_group}
-              onValueChange={(value) => setRateCard({ ...rateCard, account_group: value })}
-              placeholder="Select or create group"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="dimensional_divisor">Dimensional Divisor</Label>
-              <Input
-                id="dimensional_divisor"
-                type="number"
-                value={rateCard.dimensional_divisor}
-                onChange={(e) => setRateCard({ ...rateCard, dimensional_divisor: e.target.value })}
-                placeholder="166"
-              />
+        <div className="space-y-6">
+          {/* Account Details Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Account Details</h3>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="carrier_type">Carrier Type *</Label>
+                <Select 
+                  value={accountDetails.carrier_type} 
+                  onValueChange={(value: any) => setAccountDetails({ ...accountDetails, carrier_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CARRIER_TYPES.map(carrier => (
+                      <SelectItem key={carrier.value} value={carrier.value}>
+                        <span className="flex items-center gap-2">
+                          <span>{carrier.icon}</span>
+                          <span>{carrier.label}</span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="account_name">Rate Card Name *</Label>
+                <Input
+                  id="account_name"
+                  value={accountDetails.account_name}
+                  onChange={(e) => setAccountDetails({ ...accountDetails, account_name: e.target.value })}
+                  placeholder="e.g., DHL 2025"
+                />
+              </div>
             </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="fuel_surcharge">Fuel Surcharge (%)</Label>
-              <Input
-                id="fuel_surcharge"
-                type="number"
-                step="0.01"
-                value={rateCard.fuel_surcharge_percent}
-                onChange={(e) => setRateCard({ ...rateCard, fuel_surcharge_percent: e.target.value })}
-                placeholder="0.00"
+              <Label htmlFor="account_group">Account Group</Label>
+              <CarrierGroupCombobox
+                value={accountDetails.account_group}
+                onValueChange={(value) => setAccountDetails({ ...accountDetails, account_group: value })}
+                placeholder="Select or create group"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="weight_unit">Weight Unit</Label>
-            <Select 
-              value={rateCard.weight_unit} 
-              onValueChange={(value: 'lbs' | 'oz') => setRateCard({ ...rateCard, weight_unit: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="lbs">Pounds (lbs)</SelectItem>
-                <SelectItem value="oz">Ounces (oz)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
+          {/* Account Services Section */}
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <Label htmlFor="csv_file">Rate Card CSV *</Label>
+              <h3 className="text-lg font-semibold">Account Services</h3>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={downloadSampleFile}
-                iconLeft={<Download className="h-4 w-4" />}
+                onClick={addRateCard}
+                iconLeft={<Plus className="h-4 w-4" />}
               >
-                Download Sample
+                Upload New Rate Card
               </Button>
             </div>
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6">
-              <input
-                id="csv_file"
-                type="file"
-                accept=".csv"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-              <label htmlFor="csv_file" className="cursor-pointer">
-                <div className="flex flex-col items-center space-y-2">
-                  {csvFile ? (
-                    <>
-                      <FileText className="h-8 w-8 text-success" />
-                      <span className="text-sm font-medium">{csvFile.name}</span>
-                      <span className="text-xs text-muted-foreground">Click to change file</span>
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-8 w-8 text-muted-foreground" />
-                      <span className="text-sm font-medium">Upload CSV File</span>
-                      <span className="text-xs text-muted-foreground">Zones: B1-B20, Weights: A2-A200</span>
-                    </>
-                  )}
-                </div>
-              </label>
+            
+            {rateCards.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No rate cards added yet. Click "Upload New Rate Card" to get started.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {rateCards.map((rateCard, index) => (
+                  <RateCardEntry
+                    key={rateCard.id}
+                    index={index}
+                    rateCard={rateCard}
+                    onUpdate={updateRateCard}
+                    onDelete={deleteRateCard}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Rate Card Configuration Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold">Rate Card Configuration</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dimensional_divisor">Dimensional Divisor</Label>
+                <Input
+                  id="dimensional_divisor"
+                  type="number"
+                  value={accountDetails.dimensional_divisor}
+                  onChange={(e) => setAccountDetails({ ...accountDetails, dimensional_divisor: e.target.value })}
+                  placeholder="166"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fuel_surcharge">Fuel Surcharge (%)</Label>
+                <Input
+                  id="fuel_surcharge"
+                  type="number"
+                  step="0.01"
+                  value={accountDetails.fuel_surcharge_percent}
+                  onChange={(e) => setAccountDetails({ ...accountDetails, fuel_surcharge_percent: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Required Format Section */}
+          <div className="space-y-2">
+            <h3 className="text-lg font-semibold">Required Format</h3>
+            <div className="bg-muted p-4 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-2">
+                CSV files must follow this format:
+              </p>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• First column: Weight breaks (A2, A3, A4, etc.)</li>
+                <li>• Remaining columns: Zone rates (B1, B2, B3, etc.)</li>
+                <li>• Numeric values only for rates</li>
+                <li>• Maximum zones: B1-B20</li>
+                <li>• Maximum weight breaks: A2-A200</li>
+              </ul>
             </div>
           </div>
 
@@ -326,7 +339,7 @@ A5,12.00,12.75,13.50,15.25,17.00,18.75,20.50,22.25`;
               disabled={uploading}
               iconLeft={uploading ? undefined : <Upload className="h-4 w-4" />}
             >
-              {uploading ? 'Uploading...' : 'Upload Rate Card'}
+              {uploading ? 'Uploading Rate Cards...' : 'Upload Rate Cards'}
             </Button>
           </div>
         </div>

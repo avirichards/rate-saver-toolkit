@@ -255,7 +255,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
                       <span>Required field</span>
                     </div>
                   </SelectItem>
-                  {csvHeaders.map((header) => (
+                  {csvHeaders.filter(header => header && header.trim()).map((header) => (
                     <SelectItem key={header} value={header}>
                       {header}
                     </SelectItem>
@@ -308,7 +308,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
                   <span>{field.required ? 'Required field' : 'Skip this field'}</span>
                 </div>
               </SelectItem>
-              {csvHeaders.map((header) => (
+              {csvHeaders.filter(header => header && header.trim()).map((header) => (
                 <SelectItem key={header} value={header}>
                   {header}
                 </SelectItem>

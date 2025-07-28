@@ -1121,16 +1121,65 @@ const Analysis = () => {
       setTotalSavings(prev => prev + savings);
       
       // Validation that the comparison rate matches expected service mapping
+      // Convert carrier-specific service code back to universal category for comparison
+      const getUniversalCategoryFromCarrierCode = (carrierType: string, serviceCode: string): string | null => {
+        // Import the carrier service registry mappings
+        const carrierMappings: Record<string, Record<string, string>> = {
+          'ups': {
+            '01': 'OVERNIGHT',
+            '13': 'OVERNIGHT_SAVER', 
+            '14': 'OVERNIGHT_EARLY',
+            '02': 'TWO_DAY',
+            '59': 'TWO_DAY_MORNING',
+            '12': 'THREE_DAY',
+            '03': 'GROUND',
+            '07': 'INTERNATIONAL_EXPRESS',
+            '08': 'INTERNATIONAL_EXPEDITED',
+            '11': 'INTERNATIONAL_SAVER',
+            '65': 'INTERNATIONAL_STANDARD'
+          },
+          'fedex': {
+            'PRIORITY_OVERNIGHT': 'OVERNIGHT',
+            'STANDARD_OVERNIGHT': 'OVERNIGHT_SAVER',
+            'FIRST_OVERNIGHT': 'OVERNIGHT_EARLY', 
+            'FEDEX_2_DAY': 'TWO_DAY',
+            'FEDEX_2_DAY_AM': 'TWO_DAY_MORNING',
+            'FEDEX_EXPRESS_SAVER': 'THREE_DAY',
+            'FEDEX_GROUND': 'GROUND',
+            'INTERNATIONAL_PRIORITY': 'INTERNATIONAL_EXPRESS',
+            'INTERNATIONAL_ECONOMY': 'INTERNATIONAL_EXPEDITED'
+          },
+          'amazon': {
+            'GROUND': 'GROUND'
+          },
+          'dhl': {
+            'EXPRESS_10_30': 'OVERNIGHT',
+            'EXPRESS_9_00': 'OVERNIGHT_EARLY',
+            'EXPRESS_12_00': 'TWO_DAY',
+            'EXPRESS_WORLDWIDE': 'INTERNATIONAL_EXPRESS',
+            'EXPRESS_EASY': 'INTERNATIONAL_EXPEDITED'
+          }
+        };
+        
+        return carrierMappings[carrierType?.toLowerCase()]?.[serviceCode] || null;
+      };
+
+      const actualUniversalCategory = getUniversalCategoryFromCarrierCode(
+        comparisonRate.carrierType, 
+        comparisonRate.serviceCode
+      );
+      
       const mappingValidation = {
-        isValid: isConfirmedMapping ? comparisonRate.serviceCode === equivalentServiceCode : true,
+        isValid: isConfirmedMapping ? actualUniversalCategory === equivalentServiceCode : true,
         expectedService: serviceMapping.serviceName,
         actualService: comparisonRate.serviceName || comparisonRate.Service?.Description || 'Unknown',
         expectedServiceCode: equivalentServiceCode,
         actualServiceCode: comparisonRate.serviceCode,
+        actualUniversalCategory,
         message: isConfirmedMapping 
-          ? (comparisonRate.serviceCode === equivalentServiceCode 
+          ? (actualUniversalCategory === equivalentServiceCode 
               ? 'Service mapping is correct' 
-              : `Expected service code ${equivalentServiceCode}, got ${comparisonRate.serviceCode}`)
+              : `Expected universal service ${equivalentServiceCode}, got ${actualUniversalCategory} (carrier code: ${comparisonRate.serviceCode})`)
           : 'No confirmed mapping validation'
       };
 

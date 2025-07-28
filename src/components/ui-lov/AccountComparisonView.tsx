@@ -123,15 +123,17 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     const shipmentBestRates: Record<string, { account: string; rate: number; currentRate: number }> = {};
     
     shipmentRates.forEach(rate => {
-      // Get tracking ID from the shipment data in the rate
-      const trackingId = rate.shipment_data?.trackingId;
-      if (!trackingId) return;
+      // Use shipment_index for matching instead of trackingId for more reliable matching
+      const shipmentIndex = rate.shipment_index;
+      if (shipmentIndex === null || shipmentIndex === undefined) return;
       
-      const currentShipment = shipmentData.find(s => s.trackingId === trackingId);
+      // Find shipment by index (id - 1, since shipment.id is 1-based while array is 0-based)
+      const currentShipment = shipmentData.find(s => s.id === shipmentIndex + 1);
       
       if (currentShipment) {
-        if (!shipmentBestRates[trackingId] || rate.rate_amount < shipmentBestRates[trackingId].rate) {
-          shipmentBestRates[trackingId] = {
+        const shipmentKey = `${shipmentIndex}`;
+        if (!shipmentBestRates[shipmentKey] || rate.rate_amount < shipmentBestRates[shipmentKey].rate) {
+          shipmentBestRates[shipmentKey] = {
             account: rate.account_name,
             rate: rate.rate_amount,
             currentRate: currentShipment.currentRate
@@ -177,11 +179,11 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
     // Group rates by account and calculate metrics
     shipmentRates.forEach(rate => {
-      // Get tracking ID from the shipment data in the rate
-      const trackingId = rate.shipment_data?.trackingId;
-      if (!trackingId) return;
+      // Use shipment_index for more reliable matching
+      const shipmentIndex = rate.shipment_index;
+      if (shipmentIndex === null || shipmentIndex === undefined) return;
       
-      const shipment = shipmentData.find(s => s.trackingId === trackingId);
+      const shipment = shipmentData.find(s => s.id === shipmentIndex + 1);
       if (!shipment) return;
 
       if (!accounts[rate.account_name]) {
@@ -286,9 +288,9 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       // Get rates for the UPS equivalent service
       const serviceRates = shipmentRates.filter(rate => {
-        // Check if any shipment with this customer service has rates
+        // Check if any shipment with this customer service has rates using shipment_index
         return serviceShipments.some(shipment => 
-          rate.shipment_data?.trackingId === shipment.trackingId
+          rate.shipment_index === shipment.id - 1 // Convert 1-based id to 0-based index
         );
       });
 

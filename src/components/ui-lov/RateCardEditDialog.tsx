@@ -101,18 +101,54 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
     if (!account) return;
 
     try {
-      // TODO: Load rate card data from database once rate_card_rates table exists
-      // For now, just load the services without CSV data
+      // Load rate card data from database
+      const { data: rateCardData } = await supabase
+        .from('rate_card_rates')
+        .select('*')
+        .eq('carrier_config_id', account.id);
+
+      // Group by service code
+      const serviceGroups = rateCardData?.reduce((acc, rate) => {
+        if (!acc[rate.service_code]) {
+          acc[rate.service_code] = [];
+        }
+        acc[rate.service_code].push(rate);
+        return acc;
+      }, {} as Record<string, any[]>) || {};
+
       const existingCards: RateCard[] = (account.enabled_services || []).map((serviceCode: string) => {
         const service = SERVICE_TYPES[account.carrier_type as keyof typeof SERVICE_TYPES]?.find(s => s.code === serviceCode);
+        const rates = serviceGroups[serviceCode] || [];
+        
+        // Convert rates back to CSV format if they exist
+        let csvData = null;
+        let fileName = '';
+        if (rates.length > 0) {
+          fileName = `${serviceCode}_rates.csv`;
+          // Convert database rates to CSV format
+          const zones = [...new Set(rates.map(r => r.zone))].sort();
+          const weights = [...new Set(rates.map(r => r.weight_break))].sort((a, b) => a - b);
+          
+          csvData = [
+            ['Weight', ...zones],
+            ...weights.map(weight => [
+              weight,
+              ...zones.map(zone => {
+                const rate = rates.find(r => r.weight_break === weight && r.zone === zone);
+                return rate ? rate.rate_amount : '';
+              })
+            ])
+          ];
+        }
+
         return {
           id: serviceCode,
           serviceCode: serviceCode,
           serviceName: service?.name || serviceCode,
           weightUnit: account.weight_unit || 'lbs',
           file: null,
-          fileName: '',
-          data: null
+          fileName: fileName,
+          data: csvData
         };
       });
       setRateCards(existingCards);
@@ -187,6 +223,50 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
 
     setSaving(true);
     try {
+      // Save rate card data to database first
+      for (const card of rateCards) {
+        if (card.data && card.serviceCode) {
+          // Delete existing rates for this service
+          await supabase
+            .from('rate_card_rates')
+            .delete()
+            .eq('carrier_config_id', account.id)
+            .eq('service_code', card.serviceCode);
+
+          // Insert new rates
+          const rateCardRates = [];
+          const zones = card.data[0].slice(1); // Get zone headers
+          for (let rowIndex = 1; rowIndex < card.data.length; rowIndex++) {
+            const row = card.data[rowIndex];
+            const weightBreak = parseFloat(row[0]);
+            if (isNaN(weightBreak)) continue;
+
+            for (let colIndex = 1; colIndex < row.length && colIndex <= zones.length; colIndex++) {
+              const rate = parseFloat(row[colIndex]);
+              if (isNaN(rate)) continue;
+
+              rateCardRates.push({
+                carrier_config_id: account.id,
+                service_code: card.serviceCode,
+                service_name: card.serviceName,
+                weight_break: weightBreak,
+                weight_unit: card.weightUnit,
+                zone: zones[colIndex - 1]?.toString(),
+                rate_amount: rate
+              });
+            }
+          }
+
+          if (rateCardRates.length > 0) {
+            const { error: ratesError } = await supabase
+              .from('rate_card_rates')
+              .insert(rateCardRates);
+
+            if (ratesError) throw ratesError;
+          }
+        }
+      }
+
       // Update the carrier config
       const { error: configError } = await supabase
         .from('carrier_configs')
@@ -458,24 +538,39 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
               </DialogHeader>
               <div className="overflow-x-auto">
                 {viewingRateCard.data && (
-                  <table className="w-full border-collapse border border-border">
-                    <tbody>
-                      {viewingRateCard.data.map((row: any[], rowIndex: number) => (
-                        <tr key={rowIndex} className={rowIndex === 0 ? 'bg-muted/20' : ''}>
-                          {row.map((cell: any, cellIndex: number) => (
-                            <td
-                              key={cellIndex}
-                              className={`border border-border p-2 text-sm ${
-                                rowIndex === 0 || cellIndex === 0 ? 'font-medium bg-muted/10' : ''
-                              }`}
-                            >
-                              {cell}
-                            </td>
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      Showing rates for {viewingRateCard.serviceName} ({viewingRateCard.weightUnit})
+                    </div>
+                    <table className="w-full border-collapse border border-border">
+                      <thead>
+                        <tr className="bg-muted/20">
+                          <th className="border border-border p-2 text-sm font-medium text-left">
+                            Weight ({viewingRateCard.weightUnit})
+                          </th>
+                          {viewingRateCard.data[0].slice(1).map((zone: any, index: number) => (
+                            <th key={index} className="border border-border p-2 text-sm font-medium text-center">
+                              Zone {zone}
+                            </th>
                           ))}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {viewingRateCard.data.slice(1).map((row: any[], rowIndex: number) => (
+                          <tr key={rowIndex} className="hover:bg-muted/10">
+                            <td className="border border-border p-2 text-sm font-medium bg-muted/5">
+                              {row[0]}
+                            </td>
+                            {row.slice(1).map((rate: any, cellIndex: number) => (
+                              <td key={cellIndex} className="border border-border p-2 text-sm text-center">
+                                ${parseFloat(rate).toFixed(2)}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </DialogContent>

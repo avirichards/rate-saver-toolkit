@@ -7,7 +7,8 @@ import { UniversalServiceCategory } from './universalServiceCategories';
 export enum CarrierType {
   UPS = 'UPS',
   FEDEX = 'FEDEX',
-  DHL = 'DHL'
+  DHL = 'DHL',
+  AMAZON = 'AMAZON'
 }
 
 export interface CarrierServiceMapping {
@@ -173,10 +174,21 @@ const DHL_SERVICE_MAPPINGS: CarrierServiceMapping[] = [
   }
 ];
 
+// Amazon Service Mappings
+const AMAZON_SERVICE_MAPPINGS: CarrierServiceMapping[] = [
+  {
+    universalCategory: UniversalServiceCategory.GROUND,
+    carrierCode: 'GROUND',
+    carrierServiceName: 'Amazon Ground',
+    isAvailable: true
+  }
+];
+
 const CARRIER_MAPPINGS = {
   [CarrierType.UPS]: UPS_SERVICE_MAPPINGS,
   [CarrierType.FEDEX]: FEDEX_SERVICE_MAPPINGS,
-  [CarrierType.DHL]: DHL_SERVICE_MAPPINGS
+  [CarrierType.DHL]: DHL_SERVICE_MAPPINGS,
+  [CarrierType.AMAZON]: AMAZON_SERVICE_MAPPINGS
 };
 
 /**

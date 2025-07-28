@@ -242,9 +242,14 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
         }
       }
 
-      // Note: We would save to rate_card_rates table here, but it's not in the types yet
-      // This will be handled when the database migration is approved
-      console.log('Rate card rates to save:', rateCardRates.length);
+      // Save to rate_card_rates table
+      if (rateCardRates.length > 0) {
+        const { error: ratesError } = await supabase
+          .from('rate_card_rates')
+          .insert(rateCardRates);
+
+        if (ratesError) throw ratesError;
+      }
 
       toast.success('Rate card account created successfully');
       onOpenChange(false);

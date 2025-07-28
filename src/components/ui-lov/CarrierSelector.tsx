@@ -168,7 +168,7 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
 
         <div className="space-y-3">
           {carrierConfigs.map((config) => {
-            const carrierInfo = CARRIER_INFO[config.carrier_type];
+            const carrierInfo = CARRIER_INFO[config.carrier_type] || { label: config.carrier_type.toUpperCase(), icon: '📋', color: 'bg-gray-100 text-gray-800' };
             const isSelected = selectedCarriers.includes(config.id);
             
             return (

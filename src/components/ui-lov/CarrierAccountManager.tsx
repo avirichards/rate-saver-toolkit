@@ -66,11 +66,12 @@ const CARRIER_TYPES = [
 export const CarrierAccountManager = () => {
   const [configs, setConfigs] = useState<CarrierConfig[]>([]);
   const [availableServices, setAvailableServices] = useState<CarrierService[]>([]);
+  const [rateCardRates, setRateCardRates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [isAddingRateCard, setIsAddingRateCard] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CarrierConfig | null>(null);
-  const [editingRateCard, setEditingRateCard] = useState<CarrierConfig | null>(null);
+  const [editingRateCard, setEditingRateCard] = useState<any>(null);
   const [testingAccount, setTestingAccount] = useState<string | null>(null);
   const [viewingRateCard, setViewingRateCard] = useState<{ id: string; name: string } | null>(null);
 
@@ -118,6 +119,7 @@ export const CarrierAccountManager = () => {
   useEffect(() => {
     loadCarrierConfigs();
     loadAvailableServices();
+    loadRateCardRates();
   }, []);
 
   // Update enabled services when carrier type changes
@@ -166,6 +168,46 @@ export const CarrierAccountManager = () => {
     } catch (error) {
       console.error('Error loading available services:', error);
       toast.error('Failed to load carrier services');
+    }
+  };
+
+  const loadRateCardRates = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('rate_card_rates')
+        .select(`
+          *,
+          carrier_configs!inner(user_id)
+        `)
+        .eq('carrier_configs.user_id', user.id);
+
+      if (error) throw error;
+      setRateCardRates(data || []);
+    } catch (error) {
+      console.error('Error loading rate card rates:', error);
+    }
+  };
+
+  const handleRemoveRateCard = async (configId: string, serviceCode: string) => {
+    if (!confirm('Are you sure you want to remove this rate card?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('rate_card_rates')
+        .delete()
+        .eq('carrier_config_id', configId)
+        .eq('service_code', serviceCode);
+
+      if (error) throw error;
+
+      toast.success('Rate card removed successfully');
+      loadRateCardRates();
+    } catch (error) {
+      console.error('Error removing rate card:', error);
+      toast.error('Failed to remove rate card');
     }
   };
 
@@ -489,6 +531,88 @@ const updateAccount = async (account: CarrierConfig) => {
               </Badge>
             </div>
           ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderRateCardServices = (config: CarrierConfig, rateCardRates: any[]) => {
+    const carrierServices = availableServices.filter(s => s.carrier_type === config.carrier_type);
+    
+    if (carrierServices.length === 0) return null;
+
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>Rate Card Services</Label>
+          <div className="text-xs text-muted-foreground">
+            Upload rate cards for each service
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-3 border rounded-lg bg-muted/20">
+          {carrierServices.map(service => {
+            const hasRateCard = rateCardRates.some(rate => rate.service_code === service.service_code);
+            
+            return (
+              <div key={service.service_code} className="flex items-center justify-between space-x-2">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-3 h-3 rounded-full ${hasRateCard ? 'bg-green-500' : 'bg-gray-300'}`} />
+                    <div>
+                      <Label className="text-sm font-medium">{service.service_name}</Label>
+                      {service.description && (
+                        <p className="text-xs text-muted-foreground">{service.description}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Badge variant="outline" className="text-xs mr-2">
+                    {service.service_code}
+                  </Badge>
+                  {hasRateCard ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingRateCard({ 
+                          id: config.id,
+                          carrier_type: config.carrier_type,
+                          account_name: config.account_name,
+                          preSelectedServiceCode: service.service_code 
+                        })}
+                        className="text-xs px-2 py-1 h-7"
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRemoveRateCard(config.id, service.service_code)}
+                        className="text-xs px-2 py-1 h-7 text-destructive hover:text-destructive"
+                      >
+                        Remove
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setEditingRateCard({ 
+                        id: config.id,
+                        carrier_type: config.carrier_type,
+                        account_name: config.account_name,
+                        preSelectedServiceCode: service.service_code 
+                      })}
+                      className="text-xs px-2 py-1 h-7"
+                    >
+                      Upload
+                    </Button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -900,9 +1024,12 @@ const updateAccount = async (account: CarrierConfig) => {
                   />
                 </div>
 
-                {renderCarrierFields(editingAccount as any, setEditingAccount as any, true)}
-                
-                {renderServiceToggles(editingAccount as any, setEditingAccount as any)}
+                 {renderCarrierFields(editingAccount as any, setEditingAccount as any, true)}
+                 
+                 {editingAccount.is_rate_card ? 
+                   renderRateCardServices(editingAccount, rateCardRates.filter(rate => rate.carrier_config_id === editingAccount.id))
+                   : renderServiceToggles(editingAccount as any, setEditingAccount as any)
+                 }
 
                 <div className="flex items-center justify-between py-2">
                   <div>
@@ -957,6 +1084,7 @@ const updateAccount = async (account: CarrierConfig) => {
           onClose={() => setEditingRateCard(null)}
           onSuccess={() => {
             loadCarrierConfigs();
+            loadRateCardRates();
             setEditingRateCard(null);
           }}
           editConfig={editingRateCard}

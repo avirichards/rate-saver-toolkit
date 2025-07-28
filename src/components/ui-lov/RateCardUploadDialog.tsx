@@ -77,6 +77,16 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
         service_type: preSelectedServiceCode as any || prev.service_type
       }));
     }
+    
+    // Handle editConfig with preSelectedServiceCode
+    if (editConfig?.preSelectedServiceCode) {
+      setFormData(prev => ({
+        ...prev,
+        service_type: editConfig.preSelectedServiceCode,
+        carrier_type: editConfig.carrier_type,
+        account_name: editConfig.account_name
+      }));
+    }
   }, [editConfig, preSelectedCarrierType, preSelectedServiceCode]);
 
   const fetchServiceTypeFromRates = async (carrierConfigId: string) => {

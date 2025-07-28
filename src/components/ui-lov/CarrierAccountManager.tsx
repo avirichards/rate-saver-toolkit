@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
 import { RateCardUploadDialog } from './RateCardUploadDialog';
+import { RateCardEditDialog } from './RateCardEditDialog';
 
 interface CarrierConfig {
   id: string;
@@ -797,14 +798,14 @@ const updateAccount = async (account: CarrierConfig) => {
                                {testingAccount === config.id ? 'Testing...' : 'Test'}
                              </Button>
                            )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingAccount({ ...config })}
-                            iconLeft={<Edit2 className="h-4 w-4" />}
-                          >
-                            Edit
-                          </Button>
+                           <Button
+                             variant="ghost"
+                             size="sm"
+                             onClick={() => setEditingAccount({ ...config })}
+                             iconLeft={<Edit2 className="h-4 w-4" />}
+                           >
+                             Edit
+                           </Button>
                         </div>
                       </div>
                     </div>
@@ -822,8 +823,16 @@ const updateAccount = async (account: CarrierConfig) => {
           onSuccess={loadCarrierConfigs}
         />
 
-        {/* Edit Account Dialog */}
-        <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
+        {/* Rate Card Edit Dialog */}
+        <RateCardEditDialog
+          open={!!editingAccount?.is_rate_card}
+          onOpenChange={() => setEditingAccount(null)}
+          account={editingAccount}
+          onSuccess={loadCarrierConfigs}
+        />
+
+        {/* Regular Edit Account Dialog */}
+        <Dialog open={!!editingAccount && !editingAccount.is_rate_card} onOpenChange={() => setEditingAccount(null)}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Carrier Account</DialogTitle>

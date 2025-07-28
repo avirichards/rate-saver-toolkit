@@ -185,6 +185,7 @@ export const CarrierAccountManager = () => {
         .eq('carrier_configs.user_id', user.id);
 
       if (error) throw error;
+      console.log('Loaded rate card rates:', data);
       setRateCardRates(data || []);
     } catch (error) {
       console.error('Error loading rate card rates:', error);
@@ -537,6 +538,7 @@ const updateAccount = async (account: CarrierConfig) => {
   };
 
   const renderRateCardServices = (config: CarrierConfig, rateCardRates: any[]) => {
+    console.log('Rendering rate card services for:', config.account_name, 'with rates:', rateCardRates);
     const carrierServices = availableServices.filter(s => s.carrier_type === config.carrier_type);
     
     if (carrierServices.length === 0) return null;

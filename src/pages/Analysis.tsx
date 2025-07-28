@@ -38,6 +38,7 @@ interface ProcessedShipment {
   recipientAddress?: string;
   recipientCity?: string;
   recipientState?: string;
+  zone?: string;
 }
 
 interface AnalysisResult {
@@ -892,7 +893,8 @@ const Analysis = () => {
         equivalentServiceCode: equivalentServiceCode,
         isResidential: residentialStatus.isResidential,
         residentialSource: residentialStatus.source,
-        originalCarrier: shipment.carrier || 'Unknown'
+        originalCarrier: shipment.carrier || 'Unknown',
+        zone: shipment.zone // Include CSV-mapped zone if available
       };
       
       // Fetch UPS rates with enhanced error handling and retry logic

@@ -8,9 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, User, Shield, BellRing, Truck, Cog, MapPin } from 'lucide-react';
+import { Save, User, Shield, BellRing, Truck, Cog } from 'lucide-react';
 import { CarrierAccountManager } from '@/components/ui-lov/CarrierAccountManager';
-import ServiceMappingManager from '@/components/ui-lov/ServiceMappingManager';
 
 const SettingsPage = () => {
   return (
@@ -24,7 +23,7 @@ const SettingsPage = () => {
         </div>
 
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid grid-cols-3 lg:grid-cols-6 w-full h-auto md:w-auto">
+          <TabsList className="grid grid-cols-3 lg:grid-cols-5 w-full h-auto md:w-auto">
             <TabsTrigger value="account" className="flex gap-2 items-center">
               <User className="h-4 w-4" />
               <span className="hidden md:inline">Account</span>
@@ -32,10 +31,6 @@ const SettingsPage = () => {
             <TabsTrigger value="carriers" className="flex gap-2 items-center">
               <Truck className="h-4 w-4" />
               <span className="hidden md:inline">Carriers</span>
-            </TabsTrigger>
-            <TabsTrigger value="services" className="flex gap-2 items-center">
-              <MapPin className="h-4 w-4" />
-              <span className="hidden md:inline">Services</span>
             </TabsTrigger>
             <TabsTrigger value="notifications" className="flex gap-2 items-center">
               <BellRing className="h-4 w-4" />
@@ -91,10 +86,6 @@ const SettingsPage = () => {
           
           <TabsContent value="carriers">
             <CarrierAccountManager />
-          </TabsContent>
-          
-          <TabsContent value="services">
-            <ServiceMappingManager />
           </TabsContent>
           
           <TabsContent value="notifications">

@@ -1651,9 +1651,9 @@ const Analysis = () => {
                      {result.status === 'completed' && (
                        <div className="flex items-center gap-2">
                          <div className="text-right">
-                           <p className="text-sm font-medium">
-                             ${result.currentCost?.toFixed(2)} → ${result.bestRate?.totalCharges?.toFixed(2)}
-                           </p>
+                            <p className="text-sm font-medium">
+                              ${result.currentCost?.toFixed(2)} → ${Number(result.bestRate?.totalCharges || 0).toFixed(2)}
+                            </p>
                             <div className="text-xs text-muted-foreground mb-1">
                               via {result.bestRate?.serviceName || 'UPS Service'}
                               {result.expectedServiceCode && (

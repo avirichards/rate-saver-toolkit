@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
         dimensions: rec.shipment.dimensions,
         carrier: rec.carrier || 'UPS',
         customer_service: rec.customer_service || rec.shipment.service || 'Unknown',
-        ShipPros_service: bestAccountRate ? (bestAccountRate.serviceName || bestAccountRate.description || 'UPS Ground') : 'UPS Ground',
+        ShipPros_service: bestAccountRate ? (bestAccountRate.serviceName || bestAccountRate.description || 'Ground') : 'Ground',
         currentRate: currentRate,
         ShipPros_cost: newRate,
         savings: savings,

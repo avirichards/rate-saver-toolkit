@@ -947,20 +947,16 @@ const updateAccount = async (account: CarrierConfig) => {
                             </div>
                          </div>
                          <div className="flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                if (config.is_rate_card) {
-                                  setEditingRateCard(config);
-                                } else {
-                                  setEditingAccount(config);
-                                }
-                              }}
-                              iconLeft={<Edit2 className="h-3 w-3" />}
-                            >
-                              Edit
-                            </Button>
+                             <Button
+                               size="sm"
+                               variant="outline"
+                               onClick={() => {
+                                 setEditingAccount(config);
+                               }}
+                               iconLeft={<Edit2 className="h-3 w-3" />}
+                             >
+                               Edit
+                             </Button>
                            {config.is_rate_card && (
                              <Button
                                size="sm"
@@ -1080,17 +1076,21 @@ const updateAccount = async (account: CarrierConfig) => {
           onSuccess={loadCarrierConfigs}
         />
 
-        {/* Rate Card Edit Dialog */}
-        <RateCardUploadDialog
-          isOpen={!!editingRateCard}
-          onClose={() => setEditingRateCard(null)}
-          onSuccess={() => {
-            loadCarrierConfigs();
-            loadRateCardRates();
-            setEditingRateCard(null);
-          }}
-          editConfig={editingRateCard}
-        />
+        {/* Rate Card Edit Dialog - for service-specific uploads */}
+        {editingRateCard && (
+          <RateCardUploadDialog
+            isOpen={!!editingRateCard}
+            onClose={() => setEditingRateCard(null)}
+            onSuccess={() => {
+              loadCarrierConfigs();
+              loadRateCardRates();
+              setEditingRateCard(null);
+            }}
+            editConfig={editingRateCard}
+            preSelectedCarrierType={editingRateCard.carrier_type}
+            preSelectedServiceCode={editingRateCard.preSelectedServiceCode}
+          />
+        )}
 
         {/* View Rate Card Dialog */}
         {viewingRateCard && (

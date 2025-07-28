@@ -70,12 +70,12 @@ export const ServiceMappingManager = () => {
   const loadCustomMappings = async () => {
     try {
       const { data, error } = await supabase
-        .from('custom_service_mappings')
+        .from('custom_service_mappings' as any)
         .select('*')
         .order('service_name');
 
       if (error) throw error;
-      setCustomMappings(data || []);
+      setCustomMappings((data as unknown as CustomServiceMapping[]) || []);
     } catch (error) {
       console.error('Error loading custom mappings:', error);
       toast({
@@ -89,12 +89,12 @@ export const ServiceMappingManager = () => {
   const loadCustomCodes = async () => {
     try {
       const { data, error } = await supabase
-        .from('custom_carrier_service_codes')
+        .from('custom_carrier_service_codes' as any)
         .select('*')
         .order('carrier_type, service_name');
 
       if (error) throw error;
-      setCustomCodes(data || []);
+      setCustomCodes((data as unknown as CustomCarrierServiceCode[]) || []);
     } catch (error) {
       console.error('Error loading custom codes:', error);
       toast({
@@ -118,13 +118,13 @@ export const ServiceMappingManager = () => {
 
       if (editingMapping) {
         const { error } = await supabase
-          .from('custom_service_mappings')
+          .from('custom_service_mappings' as any)
           .update(mappingData)
           .eq('id', editingMapping.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('custom_service_mappings')
+          .from('custom_service_mappings' as any)
           .insert([mappingData]);
         if (error) throw error;
       }
@@ -160,13 +160,13 @@ export const ServiceMappingManager = () => {
 
       if (editingCode) {
         const { error } = await supabase
-          .from('custom_carrier_service_codes')
+          .from('custom_carrier_service_codes' as any)
           .update(codeData)
           .eq('id', editingCode.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
-          .from('custom_carrier_service_codes')
+          .from('custom_carrier_service_codes' as any)
           .insert([codeData]);
         if (error) throw error;
       }
@@ -192,7 +192,7 @@ export const ServiceMappingManager = () => {
   const deleteMapping = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('custom_service_mappings')
+        .from('custom_service_mappings' as any)
         .delete()
         .eq('id', id);
 
@@ -215,7 +215,7 @@ export const ServiceMappingManager = () => {
   const deleteCode = async (id: string) => {
     try {
       const { error } = await supabase
-        .from('custom_carrier_service_codes')
+        .from('custom_carrier_service_codes' as any)
         .delete()
         .eq('id', id);
 
@@ -479,9 +479,10 @@ export const ServiceMappingManager = () => {
                             <Edit className="h-3 w-3" />
                           </Button>
                           <Button
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
                             onClick={() => deleteMapping(mapping.id)}
+                            className="text-destructive hover:text-destructive"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
@@ -649,9 +650,10 @@ export const ServiceMappingManager = () => {
                             <Edit className="h-3 w-3" />
                           </Button>
                           <Button
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
                             onClick={() => deleteCode(code.id)}
+                            className="text-destructive hover:text-destructive"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>

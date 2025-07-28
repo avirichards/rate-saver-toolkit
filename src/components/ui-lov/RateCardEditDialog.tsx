@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
-import { Upload, Plus, Trash2, Download, Save } from 'lucide-react';
+import { Upload, Plus, Trash2, Download, Save, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,7 +33,8 @@ const CARRIER_TYPES = [
   { value: 'ups', label: 'UPS', icon: '📦' },
   { value: 'fedex', label: 'FedEx', icon: '🚚' },
   { value: 'dhl', label: 'DHL', icon: '✈️' },
-  { value: 'usps', label: 'USPS', icon: '📮' }
+  { value: 'usps', label: 'USPS', icon: '📮' },
+  { value: 'amazon', label: 'Amazon', icon: '📋' }
 ] as const;
 
 const SERVICE_TYPES = {
@@ -64,6 +65,9 @@ const SERVICE_TYPES = {
     { code: 'GROUND_ADVANTAGE', name: 'USPS Ground Advantage' },
     { code: 'PRIORITY', name: 'USPS Priority Mail' },
     { code: 'PRIORITY_EXPRESS', name: 'USPS Priority Mail Express' }
+  ],
+  amazon: [
+    { code: 'GROUND', name: 'Amazon Ground' }
   ]
 };
 
@@ -79,6 +83,7 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
   const [fuelSurcharge, setFuelSurcharge] = useState('0');
   const [rateCards, setRateCards] = useState<RateCard[]>([]);
   const [saving, setSaving] = useState(false);
+  const [viewingRateCard, setViewingRateCard] = useState<RateCard | null>(null);
 
   useEffect(() => {
     if (account && open) {
@@ -87,7 +92,33 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
       setDimensionalDivisor(account.dimensional_divisor?.toString() || '166');
       setFuelSurcharge(account.fuel_surcharge_percent?.toString() || '0');
       
-      // Load existing rate cards from enabled services
+      // Load existing rate cards from enabled services and database
+      loadExistingRateCards();
+    }
+  }, [account, open]);
+
+  const loadExistingRateCards = async () => {
+    if (!account) return;
+
+    try {
+      // TODO: Load rate card data from database once rate_card_rates table exists
+      // For now, just load the services without CSV data
+      const existingCards: RateCard[] = (account.enabled_services || []).map((serviceCode: string) => {
+        const service = SERVICE_TYPES[account.carrier_type as keyof typeof SERVICE_TYPES]?.find(s => s.code === serviceCode);
+        return {
+          id: serviceCode,
+          serviceCode: serviceCode,
+          serviceName: service?.name || serviceCode,
+          weightUnit: account.weight_unit || 'lbs',
+          file: null,
+          fileName: '',
+          data: null
+        };
+      });
+      setRateCards(existingCards);
+    } catch (error) {
+      console.error('Error loading rate cards:', error);
+      // Fallback to just loading services without data
       const existingCards: RateCard[] = (account.enabled_services || []).map((serviceCode: string) => {
         const service = SERVICE_TYPES[account.carrier_type as keyof typeof SERVICE_TYPES]?.find(s => s.code === serviceCode);
         return {
@@ -102,7 +133,7 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
       });
       setRateCards(existingCards);
     }
-  }, [account, open]);
+  };
 
   const addNewRateCard = () => {
     const newRateCard: RateCard = {
@@ -308,22 +339,36 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
                             </Select>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label>Update Rate Card CSV</Label>
-                            <Input
-                              type="file"
-                              accept=".csv,.xlsx,.xls"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (file) handleFileUpload(card.id, file);
-                              }}
-                            />
-                            {card.fileName && (
-                              <Badge variant="outline" className="text-xs">
-                                {card.fileName}
-                              </Badge>
-                            )}
-                          </div>
+                           <div className="space-y-2">
+                             <Label>Update Rate Card CSV</Label>
+                             <div className="flex gap-2">
+                               <Input
+                                 type="file"
+                                 accept=".csv,.xlsx,.xls"
+                                 onChange={(e) => {
+                                   const file = e.target.files?.[0];
+                                   if (file) handleFileUpload(card.id, file);
+                                 }}
+                                 className="flex-1"
+                               />
+                               {card.data && (
+                                 <Button
+                                   type="button"
+                                   variant="outline"
+                                   size="sm"
+                                   onClick={() => setViewingRateCard(card)}
+                                   iconLeft={<Eye className="h-4 w-4" />}
+                                 >
+                                   View
+                                 </Button>
+                               )}
+                             </div>
+                             {card.fileName && (
+                               <Badge variant="outline" className="text-xs">
+                                 {card.fileName}
+                               </Badge>
+                             )}
+                           </div>
                         </div>
 
                         <Button
@@ -403,6 +448,39 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
             </CardContent>
           </Card>
         </div>
+
+        {/* CSV Viewer Modal */}
+        {viewingRateCard && (
+          <Dialog open={!!viewingRateCard} onOpenChange={() => setViewingRateCard(null)}>
+            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Rate Card Data - {viewingRateCard.serviceName}</DialogTitle>
+              </DialogHeader>
+              <div className="overflow-x-auto">
+                {viewingRateCard.data && (
+                  <table className="w-full border-collapse border border-border">
+                    <tbody>
+                      {viewingRateCard.data.map((row: any[], rowIndex: number) => (
+                        <tr key={rowIndex} className={rowIndex === 0 ? 'bg-muted/20' : ''}>
+                          {row.map((cell: any, cellIndex: number) => (
+                            <td
+                              key={cellIndex}
+                              className={`border border-border p-2 text-sm ${
+                                rowIndex === 0 || cellIndex === 0 ? 'font-medium bg-muted/10' : ''
+                              }`}
+                            >
+                              {cell}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
 
         <div className="flex justify-end gap-2 pt-4">
           <Button

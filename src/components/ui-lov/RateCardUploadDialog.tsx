@@ -33,7 +33,8 @@ const CARRIER_TYPES = [
   { value: 'ups', label: 'UPS', icon: '📦' },
   { value: 'fedex', label: 'FedEx', icon: '🚚' },
   { value: 'dhl', label: 'DHL', icon: '✈️' },
-  { value: 'usps', label: 'USPS', icon: '📮' }
+  { value: 'usps', label: 'USPS', icon: '📮' },
+  { value: 'amazon', label: 'Amazon', icon: '📋' }
 ] as const;
 
 const SERVICE_TYPES = {
@@ -64,6 +65,9 @@ const SERVICE_TYPES = {
     { code: 'GROUND_ADVANTAGE', name: 'USPS Ground Advantage' },
     { code: 'PRIORITY', name: 'USPS Priority Mail' },
     { code: 'PRIORITY_EXPRESS', name: 'USPS Priority Mail Express' }
+  ],
+  amazon: [
+    { code: 'GROUND', name: 'Amazon Ground' }
   ]
 };
 
@@ -72,7 +76,7 @@ export const RateCardUploadDialog: React.FC<RateCardUploadDialogProps> = ({
   onOpenChange,
   onSuccess
 }) => {
-  const [carrierType, setCarrierType] = useState<'ups' | 'fedex' | 'dhl' | 'usps'>('ups');
+  const [carrierType, setCarrierType] = useState<'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon'>('ups');
   const [accountName, setAccountName] = useState('');
   const [accountGroup, setAccountGroup] = useState('');
   const [dimensionalDivisor, setDimensionalDivisor] = useState('166');

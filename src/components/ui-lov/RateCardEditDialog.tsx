@@ -133,7 +133,7 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
         let csvData = null;
         let fileName = '';
         if (rates.length > 0) {
-          fileName = `${account.account_name}_${service?.name || serviceCode}.csv`;
+          fileName = account.rate_card_filename || `${serviceCode}_rates.csv`;
           // Convert database rates to CSV format
           const zones = [...new Set(rates.map(r => r.zone))].sort();
           const weights = [...new Set(rates.map(r => r.weight_break))].sort((a, b) => a - b);
@@ -311,6 +311,7 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
           dimensional_divisor: parseFloat(dimensionalDivisor),
           fuel_surcharge_percent: parseFloat(fuelSurcharge),
           enabled_services: rateCards.map(card => card.serviceCode).filter(code => code),
+          rate_card_filename: rateCards.find(card => card.fileName)?.fileName || null,
           updated_at: new Date().toISOString()
         })
         .eq('id', account.id);

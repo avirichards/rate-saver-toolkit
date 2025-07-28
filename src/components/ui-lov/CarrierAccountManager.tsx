@@ -11,6 +11,7 @@ import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck } from
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
+import { RateCardUploadDialog } from './RateCardUploadDialog';
 
 interface CarrierConfig {
   id: string;
@@ -34,6 +35,13 @@ interface CarrierConfig {
   dhl_password?: string;
   usps_user_id?: string;
   usps_password?: string;
+  is_rate_card?: boolean;
+  dimensional_divisor?: number;
+  fuel_surcharge_percent?: number;
+  fuel_auto_lookup?: boolean;
+  weight_unit?: string;
+  rate_card_filename?: string;
+  rate_card_uploaded_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -61,6 +69,7 @@ export const CarrierAccountManager = () => {
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CarrierConfig | null>(null);
   const [testingAccount, setTestingAccount] = useState<string | null>(null);
+  const [isAddingRateCard, setIsAddingRateCard] = useState(false);
 
   const [newAccount, setNewAccount] = useState<{
     carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
@@ -640,13 +649,14 @@ const updateAccount = async (account: CarrierConfig) => {
               Manage multiple carrier accounts for rate shopping and analysis
             </p>
           </div>
-          <Dialog open={isAddingAccount} onOpenChange={setIsAddingAccount}>
-            <DialogTrigger asChild>
-              <Button variant="primary" iconLeft={<Plus className="h-4 w-4" />}>
-                Add Account
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="flex gap-2">
+            <Dialog open={isAddingAccount} onOpenChange={setIsAddingAccount}>
+               <DialogTrigger asChild>
+                 <Button variant="primary" iconLeft={<Plus className="h-4 w-4" />}>
+                   Add Account
+                 </Button>
+               </DialogTrigger>
+               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Carrier Account</DialogTitle>
               </DialogHeader>
@@ -718,6 +728,15 @@ const updateAccount = async (account: CarrierConfig) => {
               </div>
             </DialogContent>
           </Dialog>
+          
+            <Button 
+              variant="outline" 
+              iconLeft={<Truck className="h-4 w-4" />}
+              onClick={() => setIsAddingRateCard(true)}
+            >
+              Add Rate Card Account
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -755,9 +774,9 @@ const updateAccount = async (account: CarrierConfig) => {
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <span>{getCarrierLabel(config.carrier_type)}</span>
                               <span>•</span>
-                              <span>{config.is_sandbox ? 'Sandbox' : 'Production'}</span>
-                              <span>•</span>
-                              <span>{config.enabled_services?.length || 0} services</span>
+                              <span>{config.is_rate_card ? 'Rate Card' : (config.is_sandbox ? 'Sandbox' : 'Production')}</span>
+                               <span>•</span>
+                               <span>{config.enabled_services?.length || 0} services</span>
                             </div>
                           </div>
                         </div>
@@ -767,15 +786,17 @@ const updateAccount = async (account: CarrierConfig) => {
                           ) : (
                             <Badge variant="secondary">Inactive</Badge>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => testConnection(config)}
-                            disabled={testingAccount === config.id}
-                            iconLeft={<TestTube className="h-4 w-4" />}
-                          >
-                            {testingAccount === config.id ? 'Testing...' : 'Test'}
-                          </Button>
+                           {!config.is_rate_card && (
+                             <Button
+                               variant="ghost"
+                               size="sm"
+                               onClick={() => testConnection(config)}
+                               disabled={testingAccount === config.id}
+                               iconLeft={<TestTube className="h-4 w-4" />}
+                             >
+                               {testingAccount === config.id ? 'Testing...' : 'Test'}
+                             </Button>
+                           )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -793,6 +814,13 @@ const updateAccount = async (account: CarrierConfig) => {
             ))}
           </div>
         )}
+
+        {/* Rate Card Upload Dialog */}
+        <RateCardUploadDialog
+          open={isAddingRateCard}
+          onOpenChange={setIsAddingRateCard}
+          onSuccess={loadCarrierConfigs}
+        />
 
         {/* Edit Account Dialog */}
         <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>

@@ -95,6 +95,14 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
       
       // Load existing rate cards from enabled services and database
       loadExistingRateCards();
+    } else if (!open) {
+      // Reset state when dialog closes
+      setAccountName('');
+      setAccountGroup('');
+      setDimensionalDivisor('166');
+      setFuelSurcharge('0');
+      setRateCards([]);
+      setViewingRateCard(null);
     }
   }, [account, open]);
 
@@ -311,7 +319,10 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
 
       toast.success('Rate card account updated successfully');
       onOpenChange(false);
-      onSuccess?.();
+      // Call onSuccess after a brief delay to ensure the dialog closes first
+      setTimeout(() => {
+        onSuccess?.();
+      }, 100);
     } catch (error: any) {
       console.error('Error updating rate card account:', error);
       toast.error('Failed to update rate card account: ' + error.message);

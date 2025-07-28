@@ -7,16 +7,14 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck, FileText, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
-import { RateCardUploadDialog } from './RateCardUploadDialog';
-import { ViewRateCardDialog } from './ViewRateCardDialog';
 
 interface CarrierConfig {
   id: string;
-  carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon';
+  carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
   account_name: string;
   account_group?: string;
   enabled_services: string[];
@@ -36,12 +34,6 @@ interface CarrierConfig {
   dhl_password?: string;
   usps_user_id?: string;
   usps_password?: string;
-  is_rate_card?: boolean;
-  rate_card_filename?: string;
-  rate_card_uploaded_at?: string;
-  dimensional_divisor?: number;
-  fuel_surcharge_percent?: number;
-  fuel_auto_lookup?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -59,24 +51,19 @@ const CARRIER_TYPES = [
   { value: 'ups', label: 'UPS', icon: '📦' },
   { value: 'fedex', label: 'FedEx', icon: '🚚' },
   { value: 'dhl', label: 'DHL', icon: '✈️' },
-  { value: 'usps', label: 'USPS', icon: '📮' },
-  { value: 'amazon', label: 'Amazon', icon: '📱' }
+  { value: 'usps', label: 'USPS', icon: '📮' }
 ] as const;
 
 export const CarrierAccountManager = () => {
   const [configs, setConfigs] = useState<CarrierConfig[]>([]);
   const [availableServices, setAvailableServices] = useState<CarrierService[]>([]);
-  const [rateCardRates, setRateCardRates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
-  const [isAddingRateCard, setIsAddingRateCard] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CarrierConfig | null>(null);
-  const [editingRateCard, setEditingRateCard] = useState<any>(null);
   const [testingAccount, setTestingAccount] = useState<string | null>(null);
-  const [viewingRateCard, setViewingRateCard] = useState<{ id: string; name: string } | null>(null);
 
   const [newAccount, setNewAccount] = useState<{
-    carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon';
+    carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
     account_name: string;
     account_group: string;
     enabled_services: string[];
@@ -119,7 +106,6 @@ export const CarrierAccountManager = () => {
   useEffect(() => {
     loadCarrierConfigs();
     loadAvailableServices();
-    loadRateCardRates();
   }, []);
 
   // Update enabled services when carrier type changes
@@ -171,49 +157,8 @@ export const CarrierAccountManager = () => {
     }
   };
 
-  const loadRateCardRates = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('rate_card_rates')
-        .select(`
-          *,
-          carrier_configs!inner(user_id)
-        `)
-        .eq('carrier_configs.user_id', user.id);
-
-      if (error) throw error;
-      console.log('Loaded rate card rates:', data);
-      setRateCardRates(data || []);
-    } catch (error) {
-      console.error('Error loading rate card rates:', error);
-    }
-  };
-
-  const handleRemoveRateCard = async (configId: string, serviceCode: string) => {
-    if (!confirm('Are you sure you want to remove this rate card?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('rate_card_rates')
-        .delete()
-        .eq('carrier_config_id', configId)
-        .eq('service_code', serviceCode);
-
-      if (error) throw error;
-
-      toast.success('Rate card removed successfully');
-      loadRateCardRates();
-    } catch (error) {
-      console.error('Error removing rate card:', error);
-      toast.error('Failed to remove rate card');
-    }
-  };
-
   const validateAccountData = (account: {
-    carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon';
+    carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
     account_name: string;
     [key: string]: any;
   }) => {
@@ -244,12 +189,6 @@ export const CarrierAccountManager = () => {
       case 'usps':
         if (!account.usps_user_id) {
           toast.error('USPS requires User ID');
-          return false;
-        }
-        break;
-      case 'amazon':
-        if (!account.account_name) {
-          toast.error('Amazon requires Account Name');
           return false;
         }
         break;
@@ -364,11 +303,6 @@ const updateAccount = async (account: CarrierConfig) => {
   };
 
   const testConnection = async (config: CarrierConfig) => {
-    if (config.is_rate_card) {
-      toast.info('Rate cards don\'t require connection testing');
-      return;
-    }
-
     setTestingAccount(config.id);
     try {
       if (config.carrier_type === 'ups') {
@@ -537,91 +471,8 @@ const updateAccount = async (account: CarrierConfig) => {
     );
   };
 
-  const renderRateCardServices = (config: CarrierConfig, rateCardRates: any[]) => {
-    console.log('Rendering rate card services for:', config.account_name, 'with rates:', rateCardRates);
-    const carrierServices = availableServices.filter(s => s.carrier_type === config.carrier_type);
-    
-    if (carrierServices.length === 0) return null;
-
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label>Rate Card Services</Label>
-          <div className="text-xs text-muted-foreground">
-            Upload rate cards for each service
-          </div>
-        </div>
-        <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-3 border rounded-lg bg-muted/20">
-          {carrierServices.map(service => {
-            const hasRateCard = rateCardRates.some(rate => rate.service_code === service.service_code);
-            
-            return (
-              <div key={service.service_code} className="flex items-center justify-between space-x-2">
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-3 h-3 rounded-full ${hasRateCard ? 'bg-green-500' : 'bg-gray-300'}`} />
-                    <div>
-                      <Label className="text-sm font-medium">{service.service_name}</Label>
-                      {service.description && (
-                        <p className="text-xs text-muted-foreground">{service.description}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Badge variant="outline" className="text-xs mr-2">
-                    {service.service_code}
-                  </Badge>
-                  {hasRateCard ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setEditingRateCard({ 
-                          id: config.id,
-                          carrier_type: config.carrier_type,
-                          account_name: config.account_name,
-                          preSelectedServiceCode: service.service_code 
-                        })}
-                        className="text-xs px-2 py-1 h-7"
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleRemoveRateCard(config.id, service.service_code)}
-                        className="text-xs px-2 py-1 h-7 text-destructive hover:text-destructive"
-                      >
-                        Remove
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setEditingRateCard({ 
-                        id: config.id,
-                        carrier_type: config.carrier_type,
-                        account_name: config.account_name,
-                        preSelectedServiceCode: service.service_code 
-                      })}
-                      className="text-xs px-2 py-1 h-7"
-                    >
-                      Upload
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
   const renderCarrierFields = (
-    account: { carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps' | 'amazon'; [key: string]: any }, 
+    account: { carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps'; [key: string]: any }, 
     setAccount: (account: any) => void, 
     isEdit = false
   ) => {
@@ -759,14 +610,6 @@ const updateAccount = async (account: CarrierConfig) => {
             </div>
           </>
         );
-      case 'amazon':
-        return (
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <p className="text-sm text-muted-foreground">
-              Amazon integration will be available soon. For now, use rate cards for Amazon shipping rates.
-            </p>
-          </div>
-        );
       default:
         return null;
     }
@@ -794,16 +637,15 @@ const updateAccount = async (account: CarrierConfig) => {
               Carrier Accounts
             </CardTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              Manage carrier accounts and rate cards for rate shopping and analysis
+              Manage multiple carrier accounts for rate shopping and analysis
             </p>
           </div>
-          <div className="flex gap-2">
-            <Dialog open={isAddingAccount} onOpenChange={setIsAddingAccount}>
-              <DialogTrigger asChild>
-                <Button variant="primary" iconLeft={<Plus className="h-4 w-4" />}>
-                  Add Account
-                </Button>
-              </DialogTrigger>
+          <Dialog open={isAddingAccount} onOpenChange={setIsAddingAccount}>
+            <DialogTrigger asChild>
+              <Button variant="primary" iconLeft={<Plus className="h-4 w-4" />}>
+                Add Account
+              </Button>
+            </DialogTrigger>
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add Carrier Account</DialogTitle>
@@ -876,15 +718,6 @@ const updateAccount = async (account: CarrierConfig) => {
               </div>
             </DialogContent>
           </Dialog>
-          
-          <Button 
-            variant="outline" 
-            iconLeft={<FileText className="h-4 w-4" />}
-            onClick={() => setIsAddingRateCard(true)}
-          >
-            Add Rate Card
-          </Button>
-        </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -917,76 +750,41 @@ const updateAccount = async (account: CarrierConfig) => {
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <span className="text-2xl">{getCarrierIcon(config.carrier_type)}</span>
-                           <div>
-                             <div className="flex items-center gap-2">
-                               <h3 className="font-medium">{config.account_name}</h3>
-                               {config.is_rate_card && (
-                                 <Badge variant="secondary" className="text-xs">
-                                   <FileText className="h-3 w-3 mr-1" />
-                                   Rate Card
-                                 </Badge>
-                               )}
-                             </div>
-                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                               <span>{getCarrierLabel(config.carrier_type)}</span>
-                               <span>•</span>
-                               <span>{config.is_sandbox ? 'Sandbox' : 'Production'}</span>
-                               {!config.is_rate_card && (
-                                 <>
-                                   <span>•</span>
-                                   <span>{config.enabled_services?.length || 0} services</span>
-                                 </>
-                               )}
-                               {config.is_rate_card && config.rate_card_filename && (
-                                 <>
-                                   <span>•</span>
-                                   <span>File: {config.rate_card_filename}</span>
-                                 </>
-                               )}
-                             </div>
+                          <div>
+                            <h3 className="font-medium">{config.account_name}</h3>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <span>{getCarrierLabel(config.carrier_type)}</span>
+                              <span>•</span>
+                              <span>{config.is_sandbox ? 'Sandbox' : 'Production'}</span>
+                              <span>•</span>
+                              <span>{config.enabled_services?.length || 0} services</span>
                             </div>
-                         </div>
-                         <div className="flex items-center gap-2">
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               onClick={() => {
-                                 setEditingAccount(config);
-                               }}
-                               iconLeft={<Edit2 className="h-3 w-3" />}
-                             >
-                               Edit
-                             </Button>
-                           {config.is_rate_card && (
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               onClick={() => setViewingRateCard({ id: config.id, name: config.account_name })}
-                               iconLeft={<Eye className="h-3 w-3" />}
-                             >
-                               View
-                             </Button>
-                           )}
-                           {!config.is_rate_card && (
-                             <Button
-                               size="sm"
-                               variant="outline"
-                               onClick={() => testConnection(config)}
-                               disabled={testingAccount === config.id}
-                               iconLeft={testingAccount === config.id ? <div className="animate-spin rounded-full h-3 w-3 border-b border-current" /> : <TestTube className="h-3 w-3" />}
-                             >
-                               {testingAccount === config.id ? 'Testing...' : 'Test'}
-                             </Button>
-                           )}
-                           <Button
-                             size="sm"
-                             variant="outline"
-                             onClick={() => deleteAccount(config.id)}
-                             iconLeft={<Trash2 className="h-3 w-3" />}
-                           >
-                             Delete
-                           </Button>
-                         </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {config.is_active ? (
+                            <Badge variant="default">Active</Badge>
+                          ) : (
+                            <Badge variant="secondary">Inactive</Badge>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => testConnection(config)}
+                            disabled={testingAccount === config.id}
+                            iconLeft={<TestTube className="h-4 w-4" />}
+                          >
+                            {testingAccount === config.id ? 'Testing...' : 'Test'}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingAccount({ ...config })}
+                            iconLeft={<Edit2 className="h-4 w-4" />}
+                          >
+                            Edit
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1022,12 +820,9 @@ const updateAccount = async (account: CarrierConfig) => {
                   />
                 </div>
 
-                 {renderCarrierFields(editingAccount as any, setEditingAccount as any, true)}
-                 
-                 {editingAccount.is_rate_card ? 
-                   renderRateCardServices(editingAccount, rateCardRates.filter(rate => rate.carrier_config_id === editingAccount.id))
-                   : renderServiceToggles(editingAccount as any, setEditingAccount as any)
-                 }
+                {renderCarrierFields(editingAccount as any, setEditingAccount as any, true)}
+                
+                {renderServiceToggles(editingAccount as any, setEditingAccount as any)}
 
                 <div className="flex items-center justify-between py-2">
                   <div>
@@ -1068,39 +863,6 @@ const updateAccount = async (account: CarrierConfig) => {
             )}
           </DialogContent>
         </Dialog>
-
-        {/* Rate Card Upload Dialog */}
-        <RateCardUploadDialog
-          isOpen={isAddingRateCard}
-          onClose={() => setIsAddingRateCard(false)}
-          onSuccess={loadCarrierConfigs}
-        />
-
-        {/* Rate Card Edit Dialog - for service-specific uploads */}
-        {editingRateCard && (
-          <RateCardUploadDialog
-            isOpen={!!editingRateCard}
-            onClose={() => setEditingRateCard(null)}
-            onSuccess={() => {
-              loadCarrierConfigs();
-              loadRateCardRates();
-              setEditingRateCard(null);
-            }}
-            editConfig={editingRateCard}
-            preSelectedCarrierType={editingRateCard.carrier_type}
-            preSelectedServiceCode={editingRateCard.preSelectedServiceCode}
-          />
-        )}
-
-        {/* View Rate Card Dialog */}
-        {viewingRateCard && (
-          <ViewRateCardDialog
-            isOpen={!!viewingRateCard}
-            onClose={() => setViewingRateCard(null)}
-            carrierConfigId={viewingRateCard.id}
-            accountName={viewingRateCard.name}
-          />
-        )}
       </CardContent>
     </Card>
   );

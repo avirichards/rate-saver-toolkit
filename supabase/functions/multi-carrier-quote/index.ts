@@ -53,11 +53,6 @@ interface CarrierConfig {
   fedex_key?: string;
   fedex_password?: string;
   enabled_services?: string[]; // For service filtering
-  is_rate_card?: boolean;
-  rate_card_filename?: string;
-  dimensional_divisor?: number;
-  fuel_surcharge_percent?: number;
-  fuel_auto_lookup?: boolean;
 }
 
 serve(async (req) => {
@@ -227,21 +222,14 @@ serve(async (req) => {
         
         let rates: any[] = [];
         
-        if (config.is_rate_card) {
-          // Handle rate card quotes
-          console.log(`📋 Getting rate card rates for ${config.account_name}...`);
-          rates = await getRateCardRates(supabase, shipment, config, servicesToRequest);
-        } else {
-          // Handle API-based carrier quotes
-          if (config.carrier_type === 'ups') {
-            rates = await getUpsRates(supabase, shipment, config, servicesToRequest);
-          } else if (config.carrier_type === 'fedex') {
-            rates = await getFedexRates(supabase, shipment, config, servicesToRequest);
-          } else if (config.carrier_type === 'dhl') {
-            rates = await getDhlRates(supabase, shipment, config, servicesToRequest);
-          } else if (config.carrier_type === 'usps') {
-            rates = await getUspsRates(supabase, shipment, config, servicesToRequest);
-          }
+        if (config.carrier_type === 'ups') {
+          rates = await getUpsRates(supabase, shipment, config, servicesToRequest);
+        } else if (config.carrier_type === 'fedex') {
+          rates = await getFedexRates(supabase, shipment, config, servicesToRequest);
+        } else if (config.carrier_type === 'dhl') {
+          rates = await getDhlRates(supabase, shipment, config, servicesToRequest);
+        } else if (config.carrier_type === 'usps') {
+          rates = await getUspsRates(supabase, shipment, config, servicesToRequest);
         }
 
         if (rates.length > 0) {
@@ -251,8 +239,7 @@ serve(async (req) => {
             carrierId: config.id,
             carrierName: config.account_name,
             carrierType: config.carrier_type,
-            isSandbox: config.is_sandbox,
-            isRateCard: config.is_rate_card || false
+            isSandbox: config.is_sandbox
           }));
 
           // Save individual rates to database if analysisId and shipmentIndex provided
@@ -411,68 +398,6 @@ async function getUspsRates(supabase: any, shipment: ShipmentRequest, config: Ca
   // TODO: Implement USPS API integration
   // For now, return empty array
   return [];
-}
-
-async function getRateCardRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, serviceTypes?: string[]) {
-  console.log('📋 Getting Rate Card rates...');
-  
-  // Convert shipment format to the format expected by rate-card-quote function
-  const rateCardShipment = {
-    from: {
-      postal_code: shipment.shipFrom.zipCode,
-      country_code: shipment.shipFrom.country || 'US',
-      state_province_code: shipment.shipFrom.state
-    },
-    to: {
-      postal_code: shipment.shipTo.zipCode,
-      country_code: shipment.shipTo.country || 'US',
-      state_province_code: shipment.shipTo.state
-    },
-    packages: [{
-      weight: shipment.package.weight,
-      dimensions: shipment.package.length && shipment.package.width && shipment.package.height ? {
-        length: shipment.package.length,
-        width: shipment.package.width,
-        height: shipment.package.height
-      } : undefined
-    }],
-    serviceTypes: serviceTypes || shipment.serviceTypes || [],
-    isResidential: shipment.isResidential
-  };
-
-  // Call rate card quote function
-  const { data, error } = await supabase.functions.invoke('rate-card-quote', {
-    body: { 
-      shipment: rateCardShipment,
-      configId: config.id
-    }
-  });
-
-  if (error) {
-    console.error('Rate card quote error:', error);
-    throw new Error(`Rate card quote error: ${error.message}`);
-  }
-
-  // Convert response format to match other carriers
-  const rates = (data?.rates || []).map((rate: any) => ({
-    serviceCode: rate.service_code,
-    serviceName: rate.service_name,
-    totalCharges: rate.total_charges,
-    currency: rate.currency,
-    transitDays: null, // Rate cards typically don't include transit time
-    description: rate.service_name,
-    cost: rate.total_charges,
-    isRateCard: true,
-    baseCharges: rate.base_charges,
-    fuelSurcharge: rate.fuel_surcharge,
-    fuelSurchargePercent: rate.fuel_surcharge_percent,
-    billableWeight: rate.billable_weight,
-    zone: rate.zone,
-    ratePerLb: rate.rate_per_lb,
-    rawResponse: rate.raw_response
-  }));
-
-  return rates;
 }
 
 async function saveShipmentRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, rates: any[]) {

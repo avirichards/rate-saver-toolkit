@@ -34,9 +34,28 @@ interface CustomCarrierServiceCode {
   is_active: boolean;
 }
 
+interface ExistingCarrierConfig {
+  id: string;
+  carrier_type: string;
+  account_name: string;
+  is_active: boolean;
+  account_group: string;
+}
+
+interface ExistingServiceCode {
+  id: string;
+  carrier_type: string;
+  service_code: string;
+  service_name: string;
+  description: string;
+  is_active: boolean;
+}
+
 export const ServiceMappingManager = () => {
   const [customMappings, setCustomMappings] = useState<CustomServiceMapping[]>([]);
   const [customCodes, setCustomCodes] = useState<CustomCarrierServiceCode[]>([]);
+  const [existingCarriers, setExistingCarriers] = useState<ExistingCarrierConfig[]>([]);
+  const [existingServiceCodes, setExistingServiceCodes] = useState<ExistingServiceCode[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [testServiceName, setTestServiceName] = useState('');
   const [testResult, setTestResult] = useState<any>(null);
@@ -65,6 +84,8 @@ export const ServiceMappingManager = () => {
   useEffect(() => {
     loadCustomMappings();
     loadCustomCodes();
+    loadExistingCarriers();
+    loadExistingServiceCodes();
   }, []);
 
   const loadCustomMappings = async () => {
@@ -102,6 +123,36 @@ export const ServiceMappingManager = () => {
         description: "Failed to load custom carrier service codes",
         variant: "destructive"
       });
+    }
+  };
+
+  const loadExistingCarriers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('carrier_configs')
+        .select('id, carrier_type, account_name, is_active, account_group')
+        .eq('is_active', true)
+        .order('account_group, account_name');
+
+      if (error) throw error;
+      setExistingCarriers(data || []);
+    } catch (error) {
+      console.error('Error loading existing carriers:', error);
+    }
+  };
+
+  const loadExistingServiceCodes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('carrier_services')
+        .select('id, carrier_type, service_code, service_name, description, is_active')
+        .eq('is_active', true)
+        .order('carrier_type, service_name');
+
+      if (error) throw error;
+      setExistingServiceCodes(data || []);
+    } catch (error) {
+      console.error('Error loading existing service codes:', error);
     }
   };
 
@@ -295,6 +346,12 @@ export const ServiceMappingManager = () => {
     code.service_code.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredExistingCodes = existingServiceCodes.filter(code =>
+    code.service_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    code.carrier_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    code.service_code.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       {/* Service Name Testing */}
@@ -338,6 +395,7 @@ export const ServiceMappingManager = () => {
         <TabsList>
           <TabsTrigger value="mappings">Service Mappings</TabsTrigger>
           <TabsTrigger value="codes">Carrier Service Codes</TabsTrigger>
+          <TabsTrigger value="carriers">Existing Carriers</TabsTrigger>
         </TabsList>
 
         {/* Custom Service Mappings Tab */}
@@ -502,9 +560,9 @@ export const ServiceMappingManager = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Carrier Service Codes</CardTitle>
+                  <CardTitle>Service Code Mappings</CardTitle>
                   <CardDescription>
-                    Define carrier-specific service codes and their universal category mappings
+                    View existing service codes and create custom universal category mappings
                   </CardDescription>
                 </div>
                 <Dialog open={isAddCodeOpen} onOpenChange={setIsAddCodeOpen}>
@@ -609,59 +667,158 @@ export const ServiceMappingManager = () => {
                   />
                 </div>
                 
-                <div className="border rounded-lg">
-                  <div className="grid grid-cols-6 gap-4 p-4 font-medium border-b bg-muted/50">
-                    <div>Carrier</div>
-                    <div>Service Code</div>
-                    <div>Service Name</div>
-                    <div>Universal Category</div>
-                    <div>Available</div>
-                    <div>Actions</div>
-                  </div>
-                  {filteredCodes.length === 0 ? (
-                    <div className="p-8 text-center text-muted-foreground">
-                      No custom carrier service codes found
-                    </div>
-                  ) : (
-                    filteredCodes.map((code) => (
-                      <div key={code.id} className="grid grid-cols-6 gap-4 p-4 border-b last:border-b-0">
-                        <div className="flex items-center gap-2">
-                          <Truck className="h-4 w-4" />
-                          {code.carrier_type}
-                        </div>
-                        <div className="font-mono">{code.service_code}</div>
-                        <div>{code.service_name}</div>
-                        <div>
-                          <Badge variant="secondary">
-                            {UNIVERSAL_SERVICES[code.universal_category as UniversalServiceCategory]?.displayName || code.universal_category}
-                          </Badge>
-                        </div>
-                        <div>
-                          <Badge variant={code.is_available ? "default" : "secondary"}>
-                            {code.is_available ? "Yes" : "No"}
-                          </Badge>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => startEditCode(code)}
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => deleteCode(code.id)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                <Tabs defaultValue="existing" className="space-y-4">
+                  <TabsList>
+                    <TabsTrigger value="existing">Existing Service Codes</TabsTrigger>
+                    <TabsTrigger value="custom">Custom Mappings ({filteredCodes.length})</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="existing">
+                    <div className="border rounded-lg">
+                      <div className="grid grid-cols-5 gap-4 p-4 font-medium border-b bg-muted/50">
+                        <div>Carrier</div>
+                        <div>Service Code</div>
+                        <div>Service Name</div>
+                        <div>Description</div>
+                        <div>Actions</div>
                       </div>
-                    ))
-                  )}
+                      {filteredExistingCodes.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground">
+                          No existing service codes found
+                        </div>
+                      ) : (
+                        filteredExistingCodes.map((code) => (
+                          <div key={code.id} className="grid grid-cols-5 gap-4 p-4 border-b last:border-b-0">
+                            <div className="flex items-center gap-2">
+                              <Truck className="h-4 w-4" />
+                              {code.carrier_type.toUpperCase()}
+                            </div>
+                            <div className="font-mono">{code.service_code}</div>
+                            <div>{code.service_name}</div>
+                            <div className="text-sm text-muted-foreground">{code.description}</div>
+                            <div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setCodeForm({
+                                    carrier_type: code.carrier_type.toUpperCase(),
+                                    service_code: code.service_code,
+                                    service_name: code.service_name,
+                                    universal_category: '',
+                                    is_available: true
+                                  });
+                                  setIsAddCodeOpen(true);
+                                }}
+                              >
+                                Map to Universal
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="custom">
+                    <div className="border rounded-lg">
+                      <div className="grid grid-cols-6 gap-4 p-4 font-medium border-b bg-muted/50">
+                        <div>Carrier</div>
+                        <div>Service Code</div>
+                        <div>Service Name</div>
+                        <div>Universal Category</div>
+                        <div>Available</div>
+                        <div>Actions</div>
+                      </div>
+                      {filteredCodes.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground">
+                          No custom carrier service codes found
+                        </div>
+                      ) : (
+                        filteredCodes.map((code) => (
+                          <div key={code.id} className="grid grid-cols-6 gap-4 p-4 border-b last:border-b-0">
+                            <div className="flex items-center gap-2">
+                              <Truck className="h-4 w-4" />
+                              {code.carrier_type}
+                            </div>
+                            <div className="font-mono">{code.service_code}</div>
+                            <div>{code.service_name}</div>
+                            <div>
+                              <Badge variant="secondary">
+                                {UNIVERSAL_SERVICES[code.universal_category as UniversalServiceCategory]?.displayName || code.universal_category}
+                              </Badge>
+                            </div>
+                            <div>
+                              <Badge variant={code.is_available ? "default" : "secondary"}>
+                                {code.is_available ? "Yes" : "No"}
+                              </Badge>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => startEditCode(code)}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteCode(code.id)}
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Existing Carriers Tab */}
+        <TabsContent value="carriers" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Existing Carriers</CardTitle>
+              <CardDescription>
+                View your configured carrier accounts
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg">
+                <div className="grid grid-cols-4 gap-4 p-4 font-medium border-b bg-muted/50">
+                  <div>Carrier Type</div>
+                  <div>Account Name</div>
+                  <div>Account Group</div>
+                  <div>Status</div>
                 </div>
+                {existingCarriers.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    No carrier accounts found
+                  </div>
+                ) : (
+                  existingCarriers.map((carrier) => (
+                    <div key={carrier.id} className="grid grid-cols-4 gap-4 p-4 border-b last:border-b-0">
+                      <div className="flex items-center gap-2">
+                        <Truck className="h-4 w-4" />
+                        {carrier.carrier_type.toUpperCase()}
+                      </div>
+                      <div className="font-medium">{carrier.account_name}</div>
+                      <div>{carrier.account_group || 'No Group'}</div>
+                      <div>
+                        <Badge variant={carrier.is_active ? "default" : "secondary"}>
+                          {carrier.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </CardContent>
           </Card>

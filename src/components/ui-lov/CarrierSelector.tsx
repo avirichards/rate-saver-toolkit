@@ -4,6 +4,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Truck, Settings, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -15,12 +16,14 @@ interface CarrierConfig {
   account_name: string;
   is_active: boolean;
   is_sandbox: boolean;
+  is_rate_card?: boolean;
 }
 
 interface CarrierSelectorProps {
   selectedCarriers: string[];
   onCarrierChange: (selectedCarriers: string[]) => void;
   showAllOption?: boolean;
+  hasZoneMapping?: boolean;
 }
 
 const CARRIER_INFO = {
@@ -33,7 +36,8 @@ const CARRIER_INFO = {
 export const CarrierSelector: React.FC<CarrierSelectorProps> = ({ 
   selectedCarriers, 
   onCarrierChange, 
-  showAllOption = true 
+  showAllOption = true,
+  hasZoneMapping = true
 }) => {
   const [carrierConfigs, setCarrierConfigs] = useState<CarrierConfig[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,7 +54,7 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
 
       const { data, error } = await supabase
         .from('carrier_configs')
-        .select('id, carrier_type, account_name, is_active, is_sandbox')
+        .select('id, carrier_type, account_name, is_active, is_sandbox, is_rate_card')
         .eq('user_id', user.id)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -170,12 +174,19 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
           {carrierConfigs.map((config) => {
             const carrierInfo = CARRIER_INFO[config.carrier_type] || { label: config.carrier_type.toUpperCase(), icon: '📋', color: 'bg-gray-100 text-gray-800' };
             const isSelected = selectedCarriers.includes(config.id);
+            const isRateCard = config.is_rate_card;
+            const isDisabled = isRateCard && !hasZoneMapping;
             
-            return (
+            const carrierElement = (
               <div 
                 key={config.id} 
-                className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                className={`flex items-center space-x-3 p-3 border rounded-lg transition-colors ${
+                  isDisabled 
+                    ? 'opacity-50 cursor-not-allowed bg-muted/30' 
+                    : 'hover:bg-muted/50 cursor-pointer'
+                }`}
                 onClick={(e) => {
+                  if (isDisabled) return;
                   // Only handle click if it's not on the checkbox itself
                   if (e.target !== e.currentTarget.querySelector('button')) {
                     handleCarrierToggle(config.id, !isSelected);
@@ -185,8 +196,12 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
                 <Checkbox
                   id={config.id}
                   checked={isSelected}
-                  onCheckedChange={(checked) => handleCarrierToggle(config.id, !!checked)}
+                  onCheckedChange={(checked) => {
+                    if (isDisabled) return;
+                    handleCarrierToggle(config.id, !!checked);
+                  }}
                   onClick={(e) => e.stopPropagation()}
+                  disabled={isDisabled}
                 />
                 
                 <div className="flex items-center gap-3 flex-1 pointer-events-none">
@@ -204,6 +219,11 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
                           Sandbox
                         </Badge>
                       )}
+                      {isRateCard && (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                          Rate Card
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {carrierInfo.label} Account • Active
@@ -212,6 +232,23 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
                 </div>
               </div>
             );
+
+            if (isDisabled) {
+              return (
+                <TooltipProvider key={config.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {carrierElement}
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Rate card accounts require zone mapping in your CSV data</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            }
+
+            return carrierElement;
           })}
         </div>
 

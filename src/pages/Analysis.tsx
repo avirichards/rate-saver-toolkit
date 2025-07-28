@@ -1434,6 +1434,7 @@ const Analysis = () => {
               selectedCarriers={selectedCarriers}
               onCarrierChange={setSelectedCarriers}
               showAllOption={true}
+              hasZoneMapping={!!(location.state as { mappings?: Record<string, string> } | null)?.mappings?.zone}
             />
             {selectedCarriers.length > 0 && (
               <div className="mt-4 flex justify-end">

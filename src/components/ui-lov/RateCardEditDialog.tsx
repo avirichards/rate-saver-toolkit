@@ -449,9 +449,11 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
                            <div className="space-y-2">
                              <Label>Rate Card CSV</Label>
                              {card.data && card.fileName ? (
-                               <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/5">
-                                 <FileText className="h-4 w-4 text-muted-foreground" />
-                                 <span className="text-sm flex-1">{card.fileName}</span>
+                               <div className="flex items-center gap-2">
+                                 <div className="flex items-center gap-2 p-3 border rounded-lg bg-muted/5 flex-1">
+                                   <FileText className="h-4 w-4 text-muted-foreground" />
+                                   <span className="text-sm">{card.fileName}</span>
+                                 </div>
                                  <Button
                                    type="button"
                                    variant="outline"
@@ -461,34 +463,16 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
                                  >
                                    View
                                  </Button>
-                                 <Button
-                                   type="button"
-                                   variant="outline"
-                                   size="sm"
-                                   onClick={() => {
-                                     updateRateCard(card.id, { 
-                                       file: null, 
-                                       fileName: '', 
-                                       data: null 
-                                     });
-                                   }}
-                                   iconLeft={<Trash2 className="h-4 w-4" />}
-                                 >
-                                   Remove
-                                 </Button>
                                </div>
                              ) : (
-                               <div className="flex gap-2">
-                                 <Input
-                                   type="file"
-                                   accept=".csv,.xlsx,.xls"
-                                   onChange={(e) => {
-                                     const file = e.target.files?.[0];
-                                     if (file) handleFileUpload(card.id, file);
-                                   }}
-                                   className="flex-1"
-                                 />
-                               </div>
+                               <Input
+                                 type="file"
+                                 accept=".csv,.xlsx,.xls"
+                                 onChange={(e) => {
+                                   const file = e.target.files?.[0];
+                                   if (file) handleFileUpload(card.id, file);
+                                 }}
+                               />
                              )}
                            </div>
                         </div>

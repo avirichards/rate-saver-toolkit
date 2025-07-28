@@ -780,30 +780,25 @@ const Analysis = () => {
           standardized: confirmedMapping.standardized
         });
         
-        // Use the user-confirmed mapping - get UPS service code from the universal service
+        // Use the user-confirmed mapping - pass universal service category directly
         isConfirmedMapping = true;
         
-        // Convert universal service to UPS service code
-        equivalentServiceCode = getCarrierServiceCode(CarrierType.UPS, confirmedMapping.standardizedService);
-        
-        if (!equivalentServiceCode) {
-          throw new Error(`Unable to find UPS service code for universal service "${confirmedMapping.standardizedService}". Please check carrier service registry.`);
-        }
-        
-        serviceCodesToRequest = [equivalentServiceCode]; // ONLY request the confirmed service code
+        // Pass the universal service category directly to let each carrier convert to their specific codes
+        serviceCodesToRequest = [confirmedMapping.standardizedService]; // Pass universal category
+        equivalentServiceCode = confirmedMapping.standardizedService; // Store universal category
         serviceMapping = {
-          serviceCode: equivalentServiceCode,
+          serviceCode: confirmedMapping.standardizedService, // Use universal category, not carrier-specific code
           serviceName: confirmedMapping.standardized,
-          standardizedService: confirmedMapping.standardizedService, // Use the enum value
+          standardizedService: confirmedMapping.standardizedService,
           confidence: confirmedMapping.confidence
         };
         
-        console.log(`✅ Using confirmed mapping for ${shipment.service} → UPS Service Code ${equivalentServiceCode}:`, {
+        console.log(`✅ Using confirmed mapping for ${shipment.service} → Universal Service ${equivalentServiceCode}:`, {
           originalService: shipment.service,
           universalService: confirmedMapping.standardizedService,
-          mappedServiceCode: equivalentServiceCode,
+          mappedServiceCategory: equivalentServiceCode,
           mappedServiceName: confirmedMapping.standardized,
-          requestingOnlyMappedService: true
+          requestingUniversalService: true
         });
       } else {
         // NO FALLBACKS - if no confirmed mapping, this shipment is invalid

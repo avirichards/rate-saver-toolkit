@@ -13,7 +13,7 @@ import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/serviceMapping';
-import { getCarrierServiceCode, CarrierType } from '@/utils/carrierServiceRegistry';
+import { getCarrierServiceCode, CarrierType, getUniversalCategoryFromCarrierCode } from '@/utils/carrierServiceRegistry';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
 
@@ -1015,10 +1015,10 @@ const Analysis = () => {
       // Find the best rate from all carriers for this service
       if (isConfirmedMapping) {
         // User confirmed this mapping - find the best rate for the mapped service across all carriers
-        const serviceRates = data.allRates.filter((rate: any) => 
-          rate.serviceCode === equivalentServiceCode || 
-          rate.serviceName?.toLowerCase().includes(serviceMapping.serviceName?.toLowerCase())
-        );
+        const serviceRates = data.allRates.filter((rate: any) => {
+          const rateUniversalCategory = getUniversalCategoryFromCarrierCode(rate.carrier as CarrierType, rate.serviceCode);
+          return rateUniversalCategory === serviceMapping.standardizedService;
+        });
         
         if (serviceRates.length > 0) {
           comparisonRate = serviceRates.reduce((best: any, current: any) => 

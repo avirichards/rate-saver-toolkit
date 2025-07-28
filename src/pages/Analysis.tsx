@@ -695,10 +695,19 @@ const Analysis = () => {
         throw new Error(`Invalid destination ZIP code format: "${shipment.destZip}" (expected format: 12345 or 12345-6789)`);
       }
       
-      const currentCost = parseFloat(shipment.cost || '0');
+      // Parse cost and handle different formats ($4.41, 4.41, $1,234.56, etc.)
+      const costString = (shipment.cost || '0').toString().replace(/[$,]/g, '').trim();
+      const currentCost = parseFloat(costString);
       
       // Add validation for zero or invalid costs - move to orphans
       if (isNaN(currentCost) || currentCost <= 0) {
+        console.log(`💰 Cost parsing debug:`, {
+          original: shipment.cost,
+          cleaned: costString,
+          parsed: currentCost,
+          isNaN: isNaN(currentCost),
+          isLessOrEqual: currentCost <= 0
+        });
         missingFields.push('Valid Cost (greater than $0)');
       }
       

@@ -425,8 +425,9 @@ const Analysis = () => {
     });
     
     try {
-      // Validate carrier configuration first
-      await validateCarrierConfiguration();
+      // Validate carrier configuration first and get filtered carriers
+      const validCarrierIds = await validateCarrierConfiguration();
+      setSelectedCarriers(validCarrierIds);
       
       // Create analysis record first to get ID for saving individual rates
       const analysisId = await createAnalysisRecord(shipmentsToAnalyze);
@@ -501,16 +502,43 @@ const Analysis = () => {
       .eq('user_id', user.id)
       .in('id', selectedCarriers)
       .eq('is_active', true);
+    
+    // Filter out rate card accounts if no zone mapping exists
+    const state = location.state as { mappings?: Record<string, string> } | null;
+    const hasZoneMapping = state?.mappings?.zone;
+    const filteredConfigs = configs?.filter(config => {
+      // Keep non-rate-card accounts
+      if (!config.is_rate_card) return true;
+      // For rate card accounts, only include if zone mapping exists
+      return hasZoneMapping;
+    }) || [];
 
-    if (error || !configs || configs.length === 0) {
-      throw new Error('No valid carrier configurations found. Please check your carrier accounts in Settings.');
+    if (error || !filteredConfigs || filteredConfigs.length === 0) {
+      const errorMsg = !hasZoneMapping 
+        ? 'No carrier configurations available. Rate card accounts require zone mapping - please map a Zone column in your CSV data.'
+        : 'No valid carrier configurations found. Please check your carrier accounts in Settings.';
+      throw new Error(errorMsg);
+    }
+
+    // Update selectedCarriers to only include filtered configs
+    const filteredCarrierIds = filteredConfigs.map(config => config.id);
+    const validSelectedCarriers = selectedCarriers.filter(id => filteredCarrierIds.includes(id));
+    
+    if (validSelectedCarriers.length !== selectedCarriers.length) {
+      console.log('🚫 Filtered out rate card accounts without zone mapping:', {
+        original: selectedCarriers.length,
+        filtered: validSelectedCarriers.length,
+        hasZoneMapping
+      });
     }
 
     console.log('✅ Carrier validation passed:', {
       selectedCarriers: selectedCarriers.length,
-      validConfigs: configs.length,
-      carriers: configs.map(c => ({ type: c.carrier_type, name: c.account_name }))
+      validConfigs: filteredConfigs.length,
+      carriers: filteredConfigs.map(c => ({ type: c.carrier_type, name: c.account_name }))
     });
+
+    return validSelectedCarriers;
   };
 
   const createAnalysisRecord = async (shipmentsToAnalyze: ProcessedShipment[]) => {

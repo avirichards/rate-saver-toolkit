@@ -24,7 +24,7 @@ interface IntelligentColumnMapperProps {
   className?: string;
 }
 
-const REQUIRED_FIELDS: Field[] = [
+const ALL_FIELDS: Field[] = [
   { id: 'trackingId', label: 'Tracking ID', description: 'Shipment tracking number', required: false },
   { id: 'service', label: 'Service Type', description: 'Shipping service used', required: false },
   { id: 'carrier', label: 'Carrier (optional)', description: 'Shipping carrier (UPS, FedEx, etc.)', required: false },
@@ -32,6 +32,7 @@ const REQUIRED_FIELDS: Field[] = [
   { id: 'cost', label: 'Current Cost', description: 'Current shipping cost ($)', required: false },
   { id: 'originZip', label: 'Origin ZIP', description: 'Pickup ZIP code', required: true },
   { id: 'destZip', label: 'Destination ZIP', description: 'Delivery ZIP code', required: true },
+  { id: 'zone', label: 'Shipping Zone', description: 'Carrier shipping zone (required for rate card analysis)', required: false },
   { id: 'length', label: 'Length', description: 'Package length (inches) - optional, defaults to 12"', required: false },
   { id: 'width', label: 'Width', description: 'Package width (inches) - optional, defaults to 12"', required: false },
   { id: 'height', label: 'Height', description: 'Package height (inches) - optional, defaults to 6"', required: false },
@@ -42,11 +43,7 @@ const REQUIRED_FIELDS: Field[] = [
   { id: 'recipientName', label: 'Recipient Name', description: 'Receiver company/person name', required: false },
   { id: 'recipientAddress', label: 'Recipient Address', description: 'Receiver street address', required: false },
   { id: 'recipientCity', label: 'Recipient City', description: 'Receiver city', required: false },
-  { id: 'recipientState', label: 'Recipient State', description: 'Receiver state/province', required: false }
-];
-
-const OPTIONAL_FIELDS: Field[] = [
-  { id: 'zone', label: 'Shipping Zone', description: 'Carrier shipping zone', required: false },
+  { id: 'recipientState', label: 'Recipient State', description: 'Receiver state/province', required: false },
   { id: 'shipDate', label: 'Ship Date', description: 'Date the package was shipped', required: false },
   { id: 'deliveryDate', label: 'Delivery Date', description: 'Date the package was delivered', required: false }
 ];
@@ -62,7 +59,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showOptionalFields, setShowOptionalFields] = useState(false);
+  
   const [useManualOriginZip, setUseManualOriginZip] = useState(false);
   const [manualOriginZip, setManualOriginZip] = useState('');
 
@@ -116,7 +113,7 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
     const errors: Record<string, string> = {};
     
     // Check required fields
-    REQUIRED_FIELDS.forEach(field => {
+    ALL_FIELDS.forEach(field => {
       if (field.required && field.id !== 'originZip' && (!mappings[field.id] || mappings[field.id] === "__NONE__")) {
         errors[field.id] = `${field.label} is required for UPS rate calculations`;
       }
@@ -342,8 +339,8 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
   };
 
   const mappedCount = Object.keys(mappings).filter(key => mappings[key] && mappings[key] !== "__NONE__").length;
-  const requiredCount = REQUIRED_FIELDS.filter(f => f.required).length;
-  const requiredMappedCount = REQUIRED_FIELDS.filter(f => {
+  const requiredCount = ALL_FIELDS.filter(f => f.required).length;
+  const requiredMappedCount = ALL_FIELDS.filter(f => {
     if (!f.required) return false;
     if (f.id === 'originZip') {
       // Count Origin ZIP as mapped if either CSV mapping exists or manual override is valid
@@ -396,37 +393,16 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
             </div>
           </div>
           
-          {/* Required Fields */}
+          {/* All Fields */}
           <div className="mb-6">
             <h3 className="font-semibold mb-3 flex items-center gap-2">
               <AlertCircle className="h-4 w-4 text-orange-500" />
-              Required Fields for UPS Analysis
+              Field Mapping
             </h3>
             <div className="space-y-1">
-              {REQUIRED_FIELDS.map(renderFieldMapping)}
+              {ALL_FIELDS.map(renderFieldMapping)}
             </div>
           </div>
-          
-          {/* Optional Fields Toggle */}
-          <div className="mb-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowOptionalFields(!showOptionalFields)}
-            >
-              {showOptionalFields ? 'Hide' : 'Show'} Optional Fields ({OPTIONAL_FIELDS.length})
-            </Button>
-          </div>
-          
-          {/* Optional Fields */}
-          {showOptionalFields && (
-            <div className="mb-6">
-              <h3 className="font-semibold mb-3 text-muted-foreground">Optional Fields</h3>
-              <div className="space-y-1">
-                {OPTIONAL_FIELDS.map(renderFieldMapping)}
-              </div>
-            </div>
-          )}
           
           {/* Service Mapping Preview */}
           {mappings.service && serviceMappings.length > 0 && (

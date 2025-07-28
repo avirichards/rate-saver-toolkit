@@ -1016,10 +1016,8 @@ const Analysis = () => {
       if (isConfirmedMapping) {
         // User confirmed this mapping - find the best rate for the mapped service across all carriers
         const serviceRates = data.allRates.filter((rate: any) => {
-          // Convert carrier-specific service code back to universal category for comparison
-          const carrierType = rate.carrierType?.toUpperCase() as CarrierType;
-          const rateUniversalCategory = getUniversalCategoryFromCarrierCode(carrierType, rate.serviceCode);
-          return rateUniversalCategory === serviceMapping.standardizedService;
+          // Since rate cards now use universal categories, we can do direct comparison
+          return rate.serviceCode === serviceMapping.standardizedService;
         });
         
         if (serviceRates.length > 0) {

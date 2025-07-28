@@ -11,6 +11,7 @@ import { CarrierGroupCombobox } from './CarrierGroupCombobox';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
+import { UNIVERSAL_SERVICES, UniversalServiceCategory } from '@/utils/universalServiceCategories';
 
 interface RateCard {
   id: string;
@@ -37,39 +38,6 @@ const CARRIER_TYPES = [
   { value: 'amazon', label: 'Amazon', icon: '📋' }
 ] as const;
 
-const SERVICE_TYPES = {
-  ups: [
-    { code: '03', name: 'UPS Ground' },
-    { code: '12', name: 'UPS 3 Day Select' },
-    { code: '02', name: 'UPS 2nd Day Air' },
-    { code: '59', name: 'UPS 2nd Day Air A.M.' },
-    { code: '01', name: 'UPS Next Day Air' },
-    { code: '14', name: 'UPS Next Day Air Early' },
-    { code: '13', name: 'UPS Next Day Air Saver' }
-  ],
-  fedex: [
-    { code: 'FEDEX_GROUND', name: 'FedEx Ground' },
-    { code: 'FEDEX_EXPRESS_SAVER', name: 'FedEx Express Saver' },
-    { code: 'FEDEX_2_DAY', name: 'FedEx 2Day' },
-    { code: 'FEDEX_2_DAY_AM', name: 'FedEx 2Day A.M.' },
-    { code: 'STANDARD_OVERNIGHT', name: 'FedEx Standard Overnight' },
-    { code: 'PRIORITY_OVERNIGHT', name: 'FedEx Priority Overnight' },
-    { code: 'FIRST_OVERNIGHT', name: 'FedEx First Overnight' }
-  ],
-  dhl: [
-    { code: 'N', name: 'DHL Next Afternoon' },
-    { code: 'S', name: 'DHL Second Day Service' },
-    { code: 'G', name: 'DHL Ground' }
-  ],
-  usps: [
-    { code: 'GROUND_ADVANTAGE', name: 'USPS Ground Advantage' },
-    { code: 'PRIORITY', name: 'USPS Priority Mail' },
-    { code: 'PRIORITY_EXPRESS', name: 'USPS Priority Mail Express' }
-  ],
-  amazon: [
-    { code: 'GROUND', name: 'Amazon Ground' }
-  ]
-};
 
 export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
   open,
@@ -126,7 +94,7 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
       }, {} as Record<string, any[]>) || {};
 
       const existingCards: RateCard[] = (account.enabled_services || []).map((serviceCode: string) => {
-        const service = SERVICE_TYPES[account.carrier_type as keyof typeof SERVICE_TYPES]?.find(s => s.code === serviceCode);
+        const service = UNIVERSAL_SERVICES[serviceCode as UniversalServiceCategory];
         const rates = serviceGroups[serviceCode] || [];
         
         // Convert rates back to CSV format if they exist
@@ -153,7 +121,7 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
         return {
           id: serviceCode,
           serviceCode: serviceCode,
-          serviceName: service?.name || serviceCode,
+          serviceName: service?.displayName || serviceCode,
           weightUnit: account.weight_unit || 'lbs',
           file: null,
           fileName: fileName,
@@ -165,11 +133,11 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
       console.error('Error loading rate cards:', error);
       // Fallback to just loading services without data
       const existingCards: RateCard[] = (account.enabled_services || []).map((serviceCode: string) => {
-        const service = SERVICE_TYPES[account.carrier_type as keyof typeof SERVICE_TYPES]?.find(s => s.code === serviceCode);
+        const service = UNIVERSAL_SERVICES[serviceCode as UniversalServiceCategory];
         return {
           id: serviceCode,
           serviceCode: serviceCode,
-          serviceName: service?.name || serviceCode,
+          serviceName: service?.displayName || serviceCode,
           weightUnit: account.weight_unit || 'lbs',
           file: null,
           fileName: '',
@@ -422,10 +390,10 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
                             <Select
                               value={card.serviceCode}
                               onValueChange={(value) => {
-                                const service = SERVICE_TYPES[account.carrier_type as keyof typeof SERVICE_TYPES]?.find(s => s.code === value);
+                                const service = UNIVERSAL_SERVICES[value as UniversalServiceCategory];
                                 updateRateCard(card.id, {
                                   serviceCode: value,
-                                  serviceName: service?.name || ''
+                                  serviceName: service?.displayName || ''
                                 });
                               }}
                             >
@@ -433,9 +401,9 @@ export const RateCardEditDialog: React.FC<RateCardEditDialogProps> = ({
                                 <SelectValue placeholder="Select service" />
                               </SelectTrigger>
                               <SelectContent>
-                                {SERVICE_TYPES[account.carrier_type as keyof typeof SERVICE_TYPES]?.map(service => (
-                                  <SelectItem key={service.code} value={service.code}>
-                                    {service.name}
+                                {Object.entries(UNIVERSAL_SERVICES).map(([category, service]) => (
+                                  <SelectItem key={category} value={category}>
+                                    {service.displayName}
                                   </SelectItem>
                                 ))}
                               </SelectContent>

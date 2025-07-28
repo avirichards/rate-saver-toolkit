@@ -3,7 +3,6 @@
  */
 
 import { UniversalServiceCategory, DEFAULT_SERVICE_CATEGORIES } from './universalServiceCategories';
-import { supabase } from '@/integrations/supabase/client';
 
 export interface ServiceMapping {
   standardizedService: UniversalServiceCategory;
@@ -12,35 +11,17 @@ export interface ServiceMapping {
 }
 
 /**
- * Check for custom service mappings in the database first
+ * Maps a service name to the most appropriate universal service category
  */
-async function getCustomServiceMapping(serviceName: string): Promise<ServiceMapping | null> {
-  try {
-    const { data, error } = await supabase
-      .from('custom_service_mappings' as any)
-      .select('*')
-      .eq('service_name', serviceName)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !data) return null;
-
-    const mappingData = data as any;
+export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
+  if (!serviceName) {
     return {
-      standardizedService: mappingData.universal_category as UniversalServiceCategory,
-      serviceName: mappingData.normalized_service_name,
-      confidence: mappingData.confidence
+      standardizedService: UniversalServiceCategory.GROUND,
+      serviceName: 'Ground',
+      confidence: 0.5
     };
-  } catch (error) {
-    console.error('Error fetching custom service mapping:', error);
-    return null;
   }
-}
 
-/**
- * Built-in pattern matching for service names
- */
-function getBuiltInServiceMapping(serviceName: string): ServiceMapping {
   const service = serviceName.toLowerCase().trim();
 
   // Next Day Air / Overnight patterns
@@ -194,45 +175,6 @@ function getBuiltInServiceMapping(serviceName: string): ServiceMapping {
     serviceName: 'Ground',
     confidence: 0.3
   };
-}
-
-/**
- * Maps a service name to the most appropriate universal service category
- * First checks custom mappings, then falls back to built-in patterns
- */
-export async function mapServiceToServiceCodeAsync(serviceName: string): Promise<ServiceMapping> {
-  if (!serviceName) {
-    return {
-      standardizedService: UniversalServiceCategory.GROUND,
-      serviceName: 'Ground',
-      confidence: 0.5
-    };
-  }
-
-  // First check for custom mappings
-  const customMapping = await getCustomServiceMapping(serviceName);
-  if (customMapping) {
-    return customMapping;
-  }
-
-  // Fall back to built-in patterns
-  return getBuiltInServiceMapping(serviceName);
-}
-
-/**
- * Synchronous version for backwards compatibility
- * Uses built-in patterns only
- */
-export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
-  if (!serviceName) {
-    return {
-      standardizedService: UniversalServiceCategory.GROUND,
-      serviceName: 'Ground',
-      confidence: 0.5
-    };
-  }
-
-  return getBuiltInServiceMapping(serviceName);
 }
 
 /**

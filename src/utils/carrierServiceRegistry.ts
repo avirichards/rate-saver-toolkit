@@ -3,7 +3,6 @@
  */
 
 import { UniversalServiceCategory } from './universalServiceCategories';
-import { supabase } from '@/integrations/supabase/client';
 
 export enum CarrierType {
   UPS = 'UPS',
@@ -199,53 +198,7 @@ const CARRIER_MAPPINGS = {
 };
 
 /**
- * Get custom carrier service code from database
- */
-async function getCustomCarrierServiceCode(
-  carrierType: CarrierType,
-  universalCategory: UniversalServiceCategory
-): Promise<string | null> {
-  try {
-    const { data, error } = await supabase
-      .from('custom_carrier_service_codes' as any)
-      .select('service_code')
-      .eq('carrier_type', carrierType)
-      .eq('universal_category', universalCategory)
-      .eq('is_available', true)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !data) return null;
-    
-    const serviceData = data as any;
-    return serviceData.service_code;
-  } catch (error) {
-    console.error('Error fetching custom carrier service code:', error);
-    return null;
-  }
-}
-
-/**
  * Get carrier-specific service code for a universal service category
- * First checks custom codes, then falls back to built-in mappings
- */
-export async function getCarrierServiceCodeAsync(
-  carrierType: CarrierType, 
-  universalCategory: UniversalServiceCategory
-): Promise<string | null> {
-  // First check for custom service codes
-  const customCode = await getCustomCarrierServiceCode(carrierType, universalCategory);
-  if (customCode) {
-    return customCode;
-  }
-
-  // Fall back to built-in mappings
-  return getCarrierServiceCode(carrierType, universalCategory);
-}
-
-/**
- * Synchronous version for backwards compatibility
- * Uses built-in mappings only
  */
 export function getCarrierServiceCode(
   carrierType: CarrierType, 

@@ -7,12 +7,10 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck, FileSpreadsheet, Upload } from 'lucide-react';
+import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
-import { RateCardUploadDialog } from './RateCardUploadDialog';
-import { ServiceRateCardDialog } from './ServiceRateCardDialog';
 
 interface CarrierConfig {
   id: string;
@@ -22,13 +20,8 @@ interface CarrierConfig {
   enabled_services: string[];
   is_active: boolean;
   is_sandbox: boolean;
-  is_rate_card?: boolean;
   connection_status?: string;
   last_test_at?: string;
-  dimensional_divisor?: number;
-  fuel_surcharge_percent?: number;
-  weight_unit?: string;
-  rate_card_filename?: string;
   ups_client_id?: string;
   ups_client_secret?: string;
   ups_account_number?: string;
@@ -66,21 +59,8 @@ export const CarrierAccountManager = () => {
   const [availableServices, setAvailableServices] = useState<CarrierService[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddingAccount, setIsAddingAccount] = useState(false);
-  const [isAddingRateCard, setIsAddingRateCard] = useState(false);
   const [editingAccount, setEditingAccount] = useState<CarrierConfig | null>(null);
   const [testingAccount, setTestingAccount] = useState<string | null>(null);
-  const [serviceRateCardDialog, setServiceRateCardDialog] = useState<{
-    open: boolean;
-    carrierId: string;
-    serviceCode: string;
-    serviceName: string;
-    existingRateCard?: any;
-  }>({
-    open: false,
-    carrierId: '',
-    serviceCode: '',
-    serviceName: ''
-  });
 
   const [newAccount, setNewAccount] = useState<{
     carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
@@ -419,9 +399,6 @@ const updateAccount = async (account: CarrierConfig) => {
       return acc;
     }, {} as Record<string, CarrierConfig[]>);
     
-    console.log('Grouped configs:', grouped);
-    console.log('Total configs loaded:', configs.length);
-    
     return grouped;
   };
 
@@ -663,94 +640,84 @@ const updateAccount = async (account: CarrierConfig) => {
               Manage multiple carrier accounts for rate shopping and analysis
             </p>
           </div>
-          <div className="flex gap-2">
-            <Dialog open={isAddingAccount} onOpenChange={setIsAddingAccount}>
-              <DialogTrigger asChild>
-                <Button variant="primary" iconLeft={<Plus className="h-4 w-4" />}>
-                  Add Account
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add Carrier Account</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="carrier_type">Carrier Type *</Label>
-                    <Select 
-                      value={newAccount.carrier_type} 
-                      onValueChange={(value: any) => setNewAccount({ ...newAccount, carrier_type: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CARRIER_TYPES.map(carrier => (
-                          <SelectItem key={carrier.value} value={carrier.value}>
-                            <span className="flex items-center gap-2">
-                              <span>{carrier.icon}</span>
-                              <span>{carrier.label}</span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="account_name">Account Name *</Label>
-                    <Input
-                      id="account_name"
-                      value={newAccount.account_name}
-                      onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })}
-                      placeholder="e.g., UPS West Coast Account"
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="account_group">Account Group</Label>
-                    <CarrierGroupCombobox
-                      value={newAccount.account_group}
-                      onValueChange={(value) => setNewAccount({ ...newAccount, account_group: value })}
-                      placeholder="Select or create group"
-                    />
-                  </div>
-
-                  {renderCarrierFields(newAccount, setNewAccount)}
-                  
-                  {renderServiceToggles(newAccount, setNewAccount)}
-
-                  <div className="flex items-center justify-between py-2">
-                    <div>
-                      <div className="font-medium">Sandbox Mode</div>
-                      <div className="text-sm text-muted-foreground">Use testing environment</div>
-                    </div>
-                    <Switch 
-                      checked={newAccount.is_sandbox}
-                      onCheckedChange={(checked) => setNewAccount({ ...newAccount, is_sandbox: checked })}
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setIsAddingAccount(false)}>
-                      Cancel
-                    </Button>
-                    <Button variant="primary" onClick={saveAccount}>
-                      Add Account
-                    </Button>
-                  </div>
+          <Dialog open={isAddingAccount} onOpenChange={setIsAddingAccount}>
+            <DialogTrigger asChild>
+              <Button variant="primary" iconLeft={<Plus className="h-4 w-4" />}>
+                Add Account
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Add Carrier Account</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="carrier_type">Carrier Type *</Label>
+                  <Select 
+                    value={newAccount.carrier_type} 
+                    onValueChange={(value: any) => setNewAccount({ ...newAccount, carrier_type: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CARRIER_TYPES.map(carrier => (
+                        <SelectItem key={carrier.value} value={carrier.value}>
+                          <span className="flex items-center gap-2">
+                            <span>{carrier.icon}</span>
+                            <span>{carrier.label}</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </DialogContent>
-            </Dialog>
-            
-            <Button 
-              variant="outline" 
-              iconLeft={<FileSpreadsheet className="h-4 w-4" />}
-              onClick={() => setIsAddingRateCard(true)}
-            >
-              Rate Card
-            </Button>
-          </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="account_name">Account Name *</Label>
+                  <Input
+                    id="account_name"
+                    value={newAccount.account_name}
+                    onChange={(e) => setNewAccount({ ...newAccount, account_name: e.target.value })}
+                    placeholder="e.g., UPS West Coast Account"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="account_group">Account Group</Label>
+                  <CarrierGroupCombobox
+                    value={newAccount.account_group}
+                    onValueChange={(value) => setNewAccount({ ...newAccount, account_group: value })}
+                    placeholder="Select or create group"
+                  />
+                </div>
+
+                {renderCarrierFields(newAccount, setNewAccount)}
+                
+                {renderServiceToggles(newAccount, setNewAccount)}
+
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <div className="font-medium">Sandbox Mode</div>
+                    <div className="text-sm text-muted-foreground">Use testing environment</div>
+                  </div>
+                  <Switch 
+                    checked={newAccount.is_sandbox}
+                    onCheckedChange={(checked) => setNewAccount({ ...newAccount, is_sandbox: checked })}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setIsAddingAccount(false)}>
+                    Cancel
+                  </Button>
+                  <Button variant="primary" onClick={saveAccount}>
+                    Add Account
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </CardHeader>
       <CardContent>
@@ -827,24 +794,6 @@ const updateAccount = async (account: CarrierConfig) => {
           </div>
         )}
 
-        {/* Rate Card Upload Dialog */}
-        <RateCardUploadDialog
-          open={isAddingRateCard}
-          onOpenChange={setIsAddingRateCard}
-          onSuccess={loadCarrierConfigs}
-        />
-
-        {/* Service Rate Card Dialog */}
-        <ServiceRateCardDialog
-          open={serviceRateCardDialog.open}
-          onOpenChange={(open) => setServiceRateCardDialog(prev => ({ ...prev, open }))}
-          carrierId={serviceRateCardDialog.carrierId}
-          serviceCode={serviceRateCardDialog.serviceCode}
-          serviceName={serviceRateCardDialog.serviceName}
-          existingRateCard={serviceRateCardDialog.existingRateCard}
-          onSuccess={loadCarrierConfigs}
-        />
-
         {/* Edit Account Dialog */}
         <Dialog open={!!editingAccount} onOpenChange={() => setEditingAccount(null)}>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -871,74 +820,9 @@ const updateAccount = async (account: CarrierConfig) => {
                   />
                 </div>
 
-                {editingAccount.is_rate_card ? (
-                  // Rate Card specific fields
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="dimensional_divisor">Dimensional Divisor</Label>
-                        <Input
-                          id="dimensional_divisor"
-                          type="number"
-                          value={editingAccount.dimensional_divisor || 166}
-                          onChange={(e) => setEditingAccount({ 
-                            ...editingAccount, 
-                            dimensional_divisor: parseFloat(e.target.value) 
-                          })}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="fuel_surcharge">Fuel Surcharge (%)</Label>
-                        <Input
-                          id="fuel_surcharge"
-                          type="number"
-                          step="0.01"
-                          value={editingAccount.fuel_surcharge_percent || 0}
-                          onChange={(e) => setEditingAccount({ 
-                            ...editingAccount, 
-                            fuel_surcharge_percent: parseFloat(e.target.value) 
-                          })}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <Label>Rate Card Services</Label>
-                      <div className="space-y-2">
-                        {availableServices
-                          .filter(s => s.carrier_type === editingAccount.carrier_type)
-                          .map(service => (
-                            <div key={service.service_code} className="flex items-center justify-between p-3 border rounded-lg">
-                              <div>
-                                <span className="font-medium">{service.service_name}</span>
-                                <span className="text-sm text-muted-foreground ml-2">({service.service_code})</span>
-                              </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setServiceRateCardDialog({
-                                  open: true,
-                                  carrierId: editingAccount.id,
-                                  serviceCode: service.service_code,
-                                  serviceName: service.service_name,
-                                  existingRateCard: null // TODO: Check if rate card exists
-                                })}
-                                iconLeft={<Upload className="h-4 w-4" />}
-                              >
-                                Upload Rate Card
-                              </Button>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  // Regular account fields
-                  <>
-                    {renderCarrierFields(editingAccount as any, setEditingAccount as any, true)}
-                    {renderServiceToggles(editingAccount as any, setEditingAccount as any)}
-                  </>
-                )}
+                {renderCarrierFields(editingAccount as any, setEditingAccount as any, true)}
+                
+                {renderServiceToggles(editingAccount as any, setEditingAccount as any)}
 
                 <div className="flex items-center justify-between py-2">
                   <div>
@@ -951,18 +835,16 @@ const updateAccount = async (account: CarrierConfig) => {
                   />
                 </div>
 
-                {!editingAccount.is_rate_card && (
-                  <div className="flex items-center justify-between py-2">
-                    <div>
-                      <div className="font-medium">Sandbox Mode</div>
-                      <div className="text-sm text-muted-foreground">Use testing environment</div>
-                    </div>
-                    <Switch 
-                      checked={editingAccount.is_sandbox}
-                      onCheckedChange={(checked) => setEditingAccount({ ...editingAccount, is_sandbox: checked })}
-                    />
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <div className="font-medium">Sandbox Mode</div>
+                    <div className="text-sm text-muted-foreground">Use testing environment</div>
                   </div>
-                )}
+                  <Switch 
+                    checked={editingAccount.is_sandbox}
+                    onCheckedChange={(checked) => setEditingAccount({ ...editingAccount, is_sandbox: checked })}
+                  />
+                </div>
 
                 <div className="flex justify-between pt-4">
                   <Button variant="secondary" onClick={() => deleteAccount(editingAccount.id)}>

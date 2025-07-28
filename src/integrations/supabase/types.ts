@@ -24,21 +24,15 @@ export type Database = {
           dhl_account_number: string | null
           dhl_password: string | null
           dhl_site_id: string | null
-          dimensional_divisor: number | null
           enabled_services: Json | null
           fedex_account_number: string | null
           fedex_key: string | null
           fedex_meter_number: string | null
           fedex_password: string | null
-          fuel_auto_lookup: boolean | null
-          fuel_surcharge_percent: number | null
           id: string
           is_active: boolean
-          is_rate_card: boolean | null
           is_sandbox: boolean
           last_test_at: string | null
-          rate_card_filename: string | null
-          rate_card_uploaded_at: string | null
           updated_at: string
           ups_account_number: string | null
           ups_client_id: string | null
@@ -46,7 +40,6 @@ export type Database = {
           user_id: string
           usps_password: string | null
           usps_user_id: string | null
-          weight_unit: string | null
         }
         Insert: {
           account_group?: string | null
@@ -57,21 +50,15 @@ export type Database = {
           dhl_account_number?: string | null
           dhl_password?: string | null
           dhl_site_id?: string | null
-          dimensional_divisor?: number | null
           enabled_services?: Json | null
           fedex_account_number?: string | null
           fedex_key?: string | null
           fedex_meter_number?: string | null
           fedex_password?: string | null
-          fuel_auto_lookup?: boolean | null
-          fuel_surcharge_percent?: number | null
           id?: string
           is_active?: boolean
-          is_rate_card?: boolean | null
           is_sandbox?: boolean
           last_test_at?: string | null
-          rate_card_filename?: string | null
-          rate_card_uploaded_at?: string | null
           updated_at?: string
           ups_account_number?: string | null
           ups_client_id?: string | null
@@ -79,7 +66,6 @@ export type Database = {
           user_id: string
           usps_password?: string | null
           usps_user_id?: string | null
-          weight_unit?: string | null
         }
         Update: {
           account_group?: string | null
@@ -90,21 +76,15 @@ export type Database = {
           dhl_account_number?: string | null
           dhl_password?: string | null
           dhl_site_id?: string | null
-          dimensional_divisor?: number | null
           enabled_services?: Json | null
           fedex_account_number?: string | null
           fedex_key?: string | null
           fedex_meter_number?: string | null
           fedex_password?: string | null
-          fuel_auto_lookup?: boolean | null
-          fuel_surcharge_percent?: number | null
           id?: string
           is_active?: boolean
-          is_rate_card?: boolean | null
           is_sandbox?: boolean
           last_test_at?: string | null
-          rate_card_filename?: string | null
-          rate_card_uploaded_at?: string | null
           updated_at?: string
           ups_account_number?: string | null
           ups_client_id?: string | null
@@ -112,7 +92,6 @@ export type Database = {
           user_id?: string
           usps_password?: string | null
           usps_user_id?: string | null
-          weight_unit?: string | null
         }
         Relationships: []
       }
@@ -306,53 +285,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      rate_card_rates: {
-        Row: {
-          carrier_config_id: string
-          created_at: string
-          id: string
-          rate_amount: number
-          service_code: string
-          service_name: string | null
-          updated_at: string
-          weight_break: number
-          weight_unit: string
-          zone: string | null
-        }
-        Insert: {
-          carrier_config_id: string
-          created_at?: string
-          id?: string
-          rate_amount: number
-          service_code: string
-          service_name?: string | null
-          updated_at?: string
-          weight_break: number
-          weight_unit?: string
-          zone?: string | null
-        }
-        Update: {
-          carrier_config_id?: string
-          created_at?: string
-          id?: string
-          rate_amount?: number
-          service_code?: string
-          service_name?: string | null
-          updated_at?: string
-          weight_break?: number
-          weight_unit?: string
-          zone?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "rate_card_rates_carrier_config_id_fkey"
-            columns: ["carrier_config_id"]
-            isOneToOne: false
-            referencedRelation: "carrier_configs"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       rate_quotes: {
         Row: {

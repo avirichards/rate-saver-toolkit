@@ -125,6 +125,20 @@ export const RateCardUploadDialog = ({ open, onOpenChange, onSuccess }: RateCard
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      // Check if account name already exists for this user
+      const { data: existingConfig } = await supabase
+        .from('carrier_configs')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('account_name', accountDetails.account_name.trim())
+        .maybeSingle();
+
+      if (existingConfig) {
+        toast.error('An account with this name already exists. Please choose a different account name.');
+        setUploading(false);
+        return;
+      }
+
       // Create carrier config
       const carrierConfigData = {
         user_id: user.id,
@@ -230,7 +244,7 @@ export const RateCardUploadDialog = ({ open, onOpenChange, onSuccess }: RateCard
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="account_name">Rate Card Name *</Label>
+                <Label htmlFor="account_name">Account Name *</Label>
                 <Input
                   id="account_name"
                   value={accountDetails.account_name}

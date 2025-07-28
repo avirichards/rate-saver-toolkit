@@ -123,7 +123,8 @@ Deno.serve(async (req) => {
           if (!accountTotals[accountName]) {
             accountTotals[accountName] = { totalCost: 0, shipmentCount: 0 };
           }
-          accountTotals[accountName].totalCost += rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0;
+          const rateAmount = parseFloat(rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0);
+          accountTotals[accountName].totalCost += rateAmount;
           accountTotals[accountName].shipmentCount += 1;
         });
       }
@@ -155,8 +156,8 @@ Deno.serve(async (req) => {
       }
 
       // Use the best account rate or fallback to the original recommendation
-      const newRate = bestAccountRate ? (bestAccountRate.totalCharges || bestAccountRate.negotiatedRate || bestAccountRate.rate_amount || 0) : (rec.recommendedCost || 0);
-      const currentRate = rec.currentCost || 0;
+      const newRate = bestAccountRate ? parseFloat(bestAccountRate.totalCharges || bestAccountRate.negotiatedRate || bestAccountRate.rate_amount || 0) : parseFloat(rec.recommendedCost || 0);
+      const currentRate = parseFloat(rec.currentCost || 0);
       const savings = currentRate - newRate;
 
       return {

@@ -313,10 +313,9 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           let validRatesCount = 0;
           
           accountRates.forEach(rate => {
-            // Find the corresponding shipment data by tracking ID
-            const trackingId = rate.shipment_data?.trackingId;
+            // Find the corresponding shipment data by shipment_index (more reliable than trackingId)
             const correspondingShipment = serviceShipments.find(shipment => 
-              shipment.trackingId === trackingId
+              shipment.id === rate.shipment_index + 1 // Convert 0-based index to 1-based id
             );
             
             if (correspondingShipment) {

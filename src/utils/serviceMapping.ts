@@ -3,7 +3,6 @@
  */
 
 import { UniversalServiceCategory, DEFAULT_SERVICE_CATEGORIES } from './universalServiceCategories';
-import { supabase } from '@/integrations/supabase/client';
 
 export interface ServiceMapping {
   standardizedService: UniversalServiceCategory;
@@ -12,70 +11,9 @@ export interface ServiceMapping {
 }
 
 /**
- * Normalize service name for consistent matching
- */
-const normalizeServiceName = (serviceName: string): string => {
-  return serviceName?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
-};
-
-/**
- * Check for custom user service mappings first
- */
-async function getCustomServiceMapping(serviceName: string): Promise<ServiceMapping | null> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-
-    const normalizedName = normalizeServiceName(serviceName);
-    
-    const { data, error } = await supabase
-      .from('custom_service_mappings')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('normalized_service_name', normalizedName)
-      .eq('is_active', true)
-      .single();
-
-    if (error || !data) return null;
-
-    return {
-      standardizedService: data.universal_category as UniversalServiceCategory,
-      serviceName: data.service_name,
-      confidence: data.confidence
-    };
-  } catch (error) {
-    console.warn('Error fetching custom service mapping:', error);
-    return null;
-  }
-}
-
-/**
  * Maps a service name to the most appropriate universal service category
- * Checks custom user mappings first, then falls back to built-in logic
- */
-export async function mapServiceToServiceCodeAsync(serviceName: string): Promise<ServiceMapping> {
-  // First, check for custom user mappings
-  const customMapping = await getCustomServiceMapping(serviceName);
-  if (customMapping) {
-    return customMapping;
-  }
-
-  // Fall back to built-in mapping logic
-  return mapServiceToServiceCodeSync(serviceName);
-}
-
-/**
- * Synchronous version of service mapping (original logic)
- * Used for backward compatibility and when async is not available
  */
 export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
-  return mapServiceToServiceCodeSync(serviceName);
-}
-
-/**
- * Internal synchronous mapping function with the original logic
- */
-function mapServiceToServiceCodeSync(serviceName: string): ServiceMapping {
   if (!serviceName) {
     return {
       standardizedService: UniversalServiceCategory.GROUND,

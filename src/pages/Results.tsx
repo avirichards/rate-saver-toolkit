@@ -107,6 +107,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [selectedShipments, setSelectedShipments] = useState<Set<number>>(new Set());
   const [isReanalysisModalOpen, setIsReanalysisModalOpen] = useState(false);
   
+  // Orphaned shipments edit mode state
+  const [orphanedEditMode, setOrphanedEditMode] = useState(false);
+  const [selectedOrphanedShipments, setSelectedOrphanedShipments] = useState<Set<number>>(new Set());
+  
   // Defensive declaration to prevent runtime errors during cleanup transition
   const shipmentUpdates = {};
   
@@ -476,6 +480,89 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     });
 
     toast.success(`Marked ${selectedShipments.size} shipments as ${isResidential ? 'residential' : 'commercial'}`);
+  };
+
+  // Orphaned shipment handlers
+  const handleSelectOrphanedShipment = (shipmentId: number, selected: boolean) => {
+    setSelectedOrphanedShipments(prev => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(shipmentId);
+      } else {
+        next.delete(shipmentId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllOrphanedShipments = (selected: boolean) => {
+    if (selected) {
+      setSelectedOrphanedShipments(new Set(orphanedData.map(item => item.id)));
+    } else {
+      setSelectedOrphanedShipments(new Set());
+    }
+  };
+
+  const handleOrphanedFieldUpdate = (shipmentId: number, field: string, value: string) => {
+    // Auto-select the orphaned shipment when any field is edited
+    setSelectedOrphanedShipments(prev => new Set([...prev, shipmentId]));
+    
+    // Update orphaned data directly
+    setOrphanedData(prev => prev.map(shipment => {
+      if (shipment.id === shipmentId) {
+        console.log('🔄 Orphaned field update:', { shipmentId, field, value });
+        return { ...shipment, [field]: value };
+      }
+      return shipment;
+    }));
+  };
+
+  const handleFixAndAnalyzeShipment = async (shipmentId: number, updatedData: any) => {
+    if (!currentAnalysisId) {
+      toast.error('No analysis ID found');
+      return;
+    }
+
+    try {
+      await fixOrphanedShipment(updatedData, currentAnalysisId);
+      
+      // Remove from orphaned data
+      setOrphanedData(prev => prev.filter(shipment => shipment.id !== shipmentId));
+      
+      // Remove from selection
+      setSelectedOrphanedShipments(prev => {
+        const next = new Set(prev);
+        next.delete(shipmentId);
+        return next;
+      });
+      
+      // Reload shipment data to include the fixed shipment
+      if (currentAnalysisId) {
+        const { data: analysis } = await supabase
+          .from('shipping_analyses')
+          .select('processed_shipments')
+          .eq('id', currentAnalysisId)
+          .single();
+        
+        if (analysis?.processed_shipments) {
+          const processedShipments = Array.isArray(analysis.processed_shipments) 
+            ? analysis.processed_shipments 
+            : [];
+          const formattedData = formatShipmentData(
+            processedShipments,
+            shipmentRates,
+            analysisData?.bestAccount,
+            analysisData?.serviceMappings
+          );
+          setShipmentData(formattedData);
+        }
+      }
+      
+      toast.success('Shipment fixed and moved to processed data!');
+    } catch (error) {
+      console.error('Error fixing orphaned shipment:', error);
+      toast.error('Failed to fix shipment');
+    }
   };
 
   const handleReanalyzeSelected = async () => {
@@ -2821,12 +2908,49 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
           <TabsContent value="orphaned-data" className="space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Orphaned Shipments</CardTitle>
-                <CardDescription>
-                  Shipments that encountered errors during processing
-                </CardDescription>
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Orphaned Shipments</CardTitle>
+                    <CardDescription>
+                      Shipments that encountered errors during processing - edit and fix them to move to shipment data
+                    </CardDescription>
+                  </div>
+                  <Badge variant="outline" className="text-sm">
+                    {orphanedData.length} orphaned shipments
+                  </Badge>
+                </div>
+
+                {/* Edit Mode Controls for Orphaned Shipments */}
+                {!isClientView && orphanedData.length > 0 && (
+                  <div className="flex items-center justify-between p-4 bg-muted/20 rounded-lg border border-dashed">
+                    <div className="flex items-center gap-4">
+                      <Button
+                        variant={orphanedEditMode ? "secondary" : "outline"}
+                        onClick={() => setOrphanedEditMode(!orphanedEditMode)}
+                        className="h-9"
+                      >
+                        {orphanedEditMode ? 'Exit Edit Mode' : 'Edit Mode'}
+                      </Button>
+                      
+                      {orphanedEditMode && (
+                        <div className="text-sm text-muted-foreground">
+                          Select and fix orphaned shipments to move them to processed data
+                        </div>
+                      )}
+                    </div>
+
+                    {orphanedEditMode && selectedOrphanedShipments.size > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary">
+                          {selectedOrphanedShipments.size} selected
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardHeader>
+              
               <CardContent>
                 {orphanedData.length === 0 ? (
                   <div className="text-center py-12">
@@ -2841,55 +2965,38 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     <Table>
                       <TableHeader className="bg-muted/50">
                         <TableRow className="border-b border-border">
-                           <TableHead className="text-foreground">Tracking ID</TableHead>
-                           <TableHead className="text-foreground">Origin Zip</TableHead>
-                           <TableHead className="text-foreground">Destination Zip</TableHead>
-                           <TableHead className="text-right text-foreground">Weight</TableHead>
-                           <TableHead className="text-foreground">Service Type</TableHead>
-                           <TableHead className="text-foreground">Missing Fields</TableHead>
-                           <TableHead className="text-foreground">Error Type</TableHead>
-                           <TableHead className="text-foreground">Error Details</TableHead>
+                          {orphanedEditMode && (
+                            <TableHead className="w-12">
+                              <Checkbox
+                                checked={selectedOrphanedShipments.size === orphanedData.length && orphanedData.length > 0}
+                                onCheckedChange={handleSelectAllOrphanedShipments}
+                              />
+                            </TableHead>
+                          )}
+                          <TableHead className="text-foreground">Tracking ID</TableHead>
+                          <TableHead className="text-foreground">Origin Zip</TableHead>
+                          <TableHead className="text-foreground">Destination Zip</TableHead>
+                          <TableHead className="text-right text-foreground">Weight</TableHead>
+                          <TableHead className="text-foreground">Dimensions (L×W×H)</TableHead>
+                          <TableHead className="text-foreground">Service Type</TableHead>
+                          {orphanedEditMode && <TableHead className="text-foreground">Account</TableHead>}
+                          <TableHead className="text-foreground">Status</TableHead>
+                          <TableHead className="text-foreground">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                         {orphanedData.map((row, index) => (
-                           <TableRow key={index} className="border-b border-border hover:bg-muted/50">
-                             <TableCell className="font-medium text-foreground">{row.trackingId}</TableCell>
-                             <TableCell className="text-foreground">
-                               {row.originZip || <span className="text-muted-foreground italic">Missing</span>}
-                             </TableCell>
-                             <TableCell className="text-foreground">
-                               {row.destinationZip || <span className="text-muted-foreground italic">Missing</span>}
-                             </TableCell>
-                               <TableCell className="text-right text-foreground">
-                                 {(row.weight && parseFloat(row.weight) > 0) ? parseFloat(row.weight).toFixed(1) : <span className="text-muted-foreground italic">Missing</span>}
-                               </TableCell>
-                             <TableCell className="text-foreground">
-                               {row.service || <span className="text-muted-foreground italic">Missing</span>}
-                             </TableCell>
-                             <TableCell>
-                               {row.missingFields && row.missingFields.length > 0 ? (
-                                 <div className="flex flex-wrap gap-1">
-                                   {row.missingFields.map((field: string, idx: number) => (
-                                     <Badge key={idx} variant="outline" className="text-xs text-orange-600 border-orange-300">
-                                       {field}
-                                     </Badge>
-                                   ))}
-                                 </div>
-                               ) : (
-                                 <span className="text-muted-foreground">-</span>
-                               )}
-                             </TableCell>
-                             <TableCell>
-                               <Badge variant="destructive">{row.errorType}</Badge>
-                             </TableCell>
-                             <TableCell>
-                               <div className="max-w-xs truncate text-muted-foreground" title={row.error}>
-                                 {row.error}
-                               </div>
-                             </TableCell>
-                           </TableRow>
-                         ))}
+                        {orphanedData.map((row, index) => (
+                          <OrphanedShipmentRow
+                            key={row.id || index}
+                            shipment={row}
+                            onFixAndAnalyze={handleFixAndAnalyzeShipment}
+                            isFixing={isReanalyzing && reanalyzingShipments.has(row.id)}
+                            editMode={orphanedEditMode}
+                            isSelected={selectedOrphanedShipments.has(row.id)}
+                            onSelect={(selected) => handleSelectOrphanedShipment(row.id, selected)}
+                            onFieldUpdate={handleOrphanedFieldUpdate}
+                          />
+                        ))}
                       </TableBody>
                     </Table>
                   </div>

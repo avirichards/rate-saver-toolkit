@@ -2,26 +2,40 @@ import React, { useState } from 'react';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { UniversalServiceSelector } from '@/components/ui-lov/UniversalServiceSelector';
-import { CheckCircle, AlertTriangle } from 'lucide-react';
+import { CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 
 interface OrphanedShipmentRowProps {
   shipment: any;
   onFixAndAnalyze: (shipmentId: number, updatedData: any) => void;
   isFixing: boolean;
+  editMode?: boolean;
+  isSelected?: boolean;
+  onSelect?: (selected: boolean) => void;
+  onFieldUpdate?: (shipmentId: number, field: string, value: string) => void;
 }
 
 export function OrphanedShipmentRow({
   shipment,
   onFixAndAnalyze,
-  isFixing
+  isFixing,
+  editMode = false,
+  isSelected = false,
+  onSelect,
+  onFieldUpdate
 }: OrphanedShipmentRowProps) {
   const [updatedData, setUpdatedData] = useState<Record<string, string>>({});
 
   const handleFieldUpdate = (field: string, value: string) => {
     setUpdatedData(prev => ({ ...prev, [field]: value }));
+    
+    // Call parent handler if provided (for edit mode)
+    if (onFieldUpdate && editMode) {
+      onFieldUpdate(shipment.id, field, value);
+    }
   };
 
   const getDisplayValue = (field: string) => {
@@ -46,6 +60,21 @@ export function OrphanedShipmentRow({
 
   return (
     <TableRow className="border-l-4 border-l-amber-500/50">
+      {editMode && (
+        <TableCell>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onSelect}
+            />
+            {Object.keys(updatedData).length > 0 && (
+              <div title="Unsaved changes">
+                <AlertCircle className="h-4 w-4 text-orange-500" />
+              </div>
+            )}
+          </div>
+        </TableCell>
+      )}
       <TableCell>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -125,6 +154,17 @@ export function OrphanedShipmentRow({
           className="min-w-[120px]"
         />
       </TableCell>
+      
+      {editMode && (
+        <TableCell>
+          <InlineEditableField
+            value={getDisplayValue('accountId') || getDisplayValue('account')}
+            onSave={(value) => handleFieldUpdate('accountId', value)}
+            placeholder="Account ID"
+            className="min-w-[100px]"
+          />
+        </TableCell>
+      )}
       
       <TableCell>
         <div className="space-y-1">

@@ -281,6 +281,94 @@ serve(async (req) => {
             error: errorText,
             configId: configId
           });
+          
+          // Check if this is a Ground -> Home Delivery error for residential addresses
+          if (serviceCode === 'FEDEX_GROUND' && errorText.includes('FedEx Home Delivery')) {
+            console.log('🏠 Retrying Ground shipment as Home Delivery for residential address...');
+            
+            // Retry with FEDEX_HOME_DELIVERY
+            const homeDeliveryRequest = {
+              ...ratingRequest,
+              requestedShipment: {
+                ...ratingRequest.requestedShipment,
+                serviceType: 'FEDEX_HOME_DELIVERY'
+              }
+            };
+            
+            try {
+              const homeDeliveryResponse = await fetch(ratingEndpoint, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${access_token}`,
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json',
+                  'X-locale': 'en_US'
+                },
+                body: JSON.stringify(homeDeliveryRequest)
+              });
+              
+              if (homeDeliveryResponse.ok) {
+                const homeDeliveryData = await homeDeliveryResponse.json();
+                console.log(`✅ FedEx Home Delivery Response (config ${configId}):`, JSON.stringify(homeDeliveryData, null, 2));
+                
+                // Process the home delivery response
+                if (homeDeliveryData.output?.rateReplyDetails) {
+                  const rateReplyDetails = Array.isArray(homeDeliveryData.output.rateReplyDetails) 
+                    ? homeDeliveryData.output.rateReplyDetails[0] 
+                    : homeDeliveryData.output.rateReplyDetails;
+                  
+                  // Get service name for Home Delivery
+                  const { data: service } = await supabase
+                    .from('carrier_services')
+                    .select('service_name, description')
+                    .eq('service_code', 'FEDEX_HOME_DELIVERY')
+                    .eq('carrier_type', 'fedex')
+                    .maybeSingle();
+
+                  const ratedShipmentDetails = rateReplyDetails.ratedShipmentDetails || [];
+                  
+                  if (ratedShipmentDetails.length > 0) {
+                    const accountRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'ACCOUNT');
+                    const listRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'LIST');
+                    
+                    const accountRate = accountRateDetail?.totalNetCharge || 0;
+                    const listRate = listRateDetail?.totalNetCharge || 0;
+                    
+                    const hasAccountRates = accountRate > 0 && config?.fedex_account_number;
+                    const finalCharges = hasAccountRates ? accountRate : listRate;
+                    const rateType = hasAccountRates ? 'account' : 'list';
+                    
+                    const savingsAmount = hasAccountRates && listRate > 0 ? listRate - accountRate : 0;
+                    const savingsPercentage = savingsAmount > 0 ? ((savingsAmount / listRate) * 100) : 0;
+
+                    if (finalCharges > 0) {
+                      rates.push({
+                        serviceCode: 'FEDEX_HOME_DELIVERY',
+                        serviceName: service?.service_name || 'FedEx Home Delivery®',
+                        description: service?.description || '',
+                        totalCharges: finalCharges,
+                        currency: (hasAccountRates ? accountRateDetail : listRateDetail)?.currency || 'USD',
+                        baseCharges: (hasAccountRates ? accountRateDetail : listRateDetail)?.totalBaseCharge || 0,
+                        transitTime: rateReplyDetails.operationalDetail?.transitTime || null,
+                        deliveryDate: rateReplyDetails.operationalDetail?.deliveryDate || null,
+                        rateType,
+                        hasAccountRates,
+                        listRate: listRate,
+                        accountRate: accountRate,
+                        savingsAmount,
+                        savingsPercentage,
+                        isEquivalentService: serviceCode === equivalentServiceCode // Keep original service equivalency
+                      });
+                    }
+                  }
+                }
+              } else {
+                console.error('Failed to get Home Delivery rate after Ground failure');
+              }
+            } catch (homeDeliveryError) {
+              console.error('Error retrying with Home Delivery:', homeDeliveryError);
+            }
+          }
           continue;
         }
       } catch (error) {

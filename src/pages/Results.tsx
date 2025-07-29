@@ -1127,37 +1127,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }
 
       setShipmentData(formattedShipmentData);
-      
-      // Enhance orphaned data with original CSV rate information
-      const orphanedWithRates = (processedData.orphanedShipments || []).map((orphan: any) => {
-        // Try to find the corresponding original data entry
-        const originalEntry = data.original_data?.find((orig: any) => 
-          orig.trackingId === orphan.trackingId || 
-          orig.tracking_id === orphan.trackingId ||
-          orig.shipment?.trackingId === orphan.trackingId
-        );
-        
-        if (originalEntry) {
-          const originalRate = originalEntry.currentRate || 
-                             originalEntry.current_rate || 
-                             originalEntry.rate || 
-                             originalEntry.cost || 
-                             originalEntry.amount || 
-                             originalEntry.price || 
-                             originalEntry.shipment?.currentRate ||
-                             originalEntry.shipment?.current_rate ||
-                             originalEntry.shipment?.rate ||
-                             originalEntry.shipment?.cost;
-          
-          if (originalRate && originalRate !== 0) {
-            return { ...orphan, currentRate: parseFloat(originalRate) };
-          }
-        }
-        
-        return orphan;
-      });
-      
-      setOrphanedData(orphanedWithRates);
+      setOrphanedData(processedData.orphanedShipments || []);
       
       // Initialize services from the processed data
       const services = [...new Set((processedData.recommendations || []).map((item: any) => item.customer_service).filter(Boolean))] as string[];
@@ -1330,7 +1300,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           height: shipmentData?.height || rec.height || 6,
           service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
           customer_service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
-          currentRate: shipmentData?.currentRate || shipmentData?.current_rate || shipmentData?.rate || shipmentData?.cost || rec.currentRate || rec.current_rate || rec.rate || rec.cost || rec.amount || rec.price || 0,
+          currentRate: shipmentData?.currentRate || rec.currentRate || 0,
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
           error: orphanReason,
           errorType: validation.errorType || 'Processing Error',
@@ -1392,7 +1362,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           height: shipmentData.height || 6,
           service: originalShipment?.customer_service || shipmentData.customer_service || '',
           customer_service: originalShipment?.customer_service || shipmentData.customer_service || '',
-          currentRate: originalShipment?.currentRate || originalShipment?.current_rate || originalShipment?.rate || originalShipment?.cost || originalShipment?.amount || originalShipment?.price || shipmentData.currentRate || shipmentData.current_rate || shipmentData.rate || shipmentData.cost || 0,
+          currentRate: originalShipment?.currentRate || shipmentData.currentRate || 0,
           carrier: shipmentData.carrier || 'UPS',
           error: 'Missing from analysis data - shipment was not processed during analysis',
           errorType: 'Missing Data',

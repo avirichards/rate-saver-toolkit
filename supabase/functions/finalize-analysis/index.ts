@@ -262,21 +262,38 @@ Deno.serve(async (req) => {
     })
 
     // Format orphaned shipments for centralized storage
-    const orphanedShipmentsFormatted = payload.orphanedShipments.map((orphan, index) => ({
-      id: payload.completedShipments + index + 1,
-      trackingId: orphan.shipment.trackingId || `Orphan-${index + 1}`,
-      originZip: orphan.shipment.originZip || '',
-      destinationZip: orphan.shipment.destZip || '',
-      weight: parseFloat(orphan.shipment.weight || '0'),
-      length: parseFloat(orphan.shipment.length || '0'),
-      width: parseFloat(orphan.shipment.width || '0'),
-      height: parseFloat(orphan.shipment.height || '0'),
-      dimensions: orphan.shipment.dimensions,
-      service: orphan.customer_service || orphan.shipment.service || 'Unknown',
-      error: orphan.error || 'Processing failed',
-      errorType: orphan.errorType || 'Unknown',
-      errorCategory: 'Processing Error'
-    }))
+    const orphanedShipmentsFormatted = payload.orphanedShipments.map((orphan, index) => {
+      // Extract currentRate from original data
+      const originalEntry = payload.originalData?.find((orig: any) => 
+        orig.trackingId === orphan.shipment.trackingId || 
+        orig.tracking_id === orphan.shipment.trackingId
+      );
+      
+      const currentRate = originalEntry ? 
+        originalEntry.currentRate || 
+        originalEntry.current_rate || 
+        originalEntry.cost || 
+        originalEntry.rate || 
+        originalEntry.amount || 
+        originalEntry.price || 0 : 0;
+
+      return {
+        id: payload.completedShipments + index + 1,
+        trackingId: orphan.shipment.trackingId || `Orphan-${index + 1}`,
+        originZip: orphan.shipment.originZip || '',
+        destinationZip: orphan.shipment.destZip || '',
+        weight: parseFloat(orphan.shipment.weight || '0'),
+        length: parseFloat(orphan.shipment.length || '0'),
+        width: parseFloat(orphan.shipment.width || '0'),
+        height: parseFloat(orphan.shipment.height || '0'),
+        dimensions: orphan.shipment.dimensions,
+        service: orphan.customer_service || orphan.shipment.service || 'Unknown',
+        currentRate: parseFloat(currentRate) || 0,
+        error: orphan.error || 'Processing failed',
+        errorType: orphan.errorType || 'Unknown',
+        errorCategory: 'Processing Error'
+      }
+    })
 
     // Prepare processing metadata
     const processingMetadata = {

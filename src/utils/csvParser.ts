@@ -53,8 +53,8 @@ const FIELD_PATTERNS: Record<string, {
     strong: ['wt', 'weight_oz', 'mass', 'pkg_wt'],
     partial: ['lbs', 'pounds', 'kg', 'kilos', 'oz', 'ounces', 'lb', 'kgs']
   },
-  cost: {
-    exact: ['current_cost', 'shipping_cost', 'freight_cost', 'carrier_fee'],
+  currentRate: {
+    exact: ['current_cost', 'shipping_cost', 'freight_cost', 'carrier_fee', 'current_rate'],
     strong: ['cost', 'price', 'amount', 'charge', 'fee', 'total', 'rate', 'freight'],
     partial: ['billing', 'charges', 'expense', 'money', 'bill']
   },

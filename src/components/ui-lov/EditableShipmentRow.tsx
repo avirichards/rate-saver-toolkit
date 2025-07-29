@@ -414,9 +414,17 @@ export function EditableShipmentRow({
       )}
       
       <TableCell className="text-right">
-        {shipment.currentRate ? formatCurrency(shipment.currentRate) : (isOrphanedShipment ? (
-          <Badge variant="destructive" className="text-xs">Missing</Badge>
-        ) : formatCurrency(0))}
+        {(() => {
+          console.log('💰 Current Rate Debug:', {
+            shipmentId: shipment.id,
+            currentRate: shipment.currentRate,
+            isOrphaned: isOrphanedShipment,
+            shipmentData: shipment
+          });
+          return shipment.currentRate ? formatCurrency(shipment.currentRate) : (isOrphanedShipment ? (
+            <Badge variant="destructive" className="text-xs">Missing</Badge>
+          ) : formatCurrency(0));
+        })()}
       </TableCell>
       
       <TableCell className="text-right">

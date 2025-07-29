@@ -171,57 +171,86 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     const accounts: Record<string, {
       accountName: string;
       totalSpend: number;
-      shipmentsQuoted: number;
+      shipmentsQuoted: Set<number>;
       savingsData: { dollarSavings: number; percentSavings: number }[];
       wins: number;
       maxSavingsPercent: number;
     }> = {};
 
-    // Group rates by account and calculate metrics
+    // First, create a structure to track which shipments each account can quote
+    const accountShipmentData: Record<string, Record<number, {
+      rate: number;
+      shipment: ProcessedShipmentData;
+      dollarSavings: number;
+      percentSavings: number;
+    }>> = {};
+
+    // Process each rate and only keep the best rate per account per shipment
     shipmentRates.forEach(rate => {
-      // Use shipment_index for more reliable matching
       const shipmentIndex = rate.shipment_index;
       if (shipmentIndex === null || shipmentIndex === undefined) return;
       
       const shipment = shipmentData.find(s => s.id === shipmentIndex + 1);
       if (!shipment) return;
 
-      if (!accounts[rate.account_name]) {
-        accounts[rate.account_name] = {
-          accountName: rate.account_name,
-          totalSpend: 0,
-          shipmentsQuoted: 0,
-          savingsData: [],
-          wins: 0,
-          maxSavingsPercent: 0
+      if (!accountShipmentData[rate.account_name]) {
+        accountShipmentData[rate.account_name] = {};
+      }
+
+      // Only use the best (lowest) rate for each shipment per account
+      if (!accountShipmentData[rate.account_name][shipmentIndex] || 
+          rate.rate_amount < accountShipmentData[rate.account_name][shipmentIndex].rate) {
+        
+        const dollarSavings = shipment.currentRate - rate.rate_amount;
+        const percentSavings = shipment.currentRate > 0 ? (dollarSavings / shipment.currentRate) * 100 : 0;
+        
+        accountShipmentData[rate.account_name][shipmentIndex] = {
+          rate: rate.rate_amount,
+          shipment,
+          dollarSavings,
+          percentSavings
         };
       }
+    });
 
-      const account = accounts[rate.account_name];
-      account.totalSpend += rate.rate_amount;
-      account.shipmentsQuoted += 1;
+    // Now calculate metrics based on the best rates
+    Object.entries(accountShipmentData).forEach(([accountName, shipmentData]) => {
+      accounts[accountName] = {
+        accountName,
+        totalSpend: 0,
+        shipmentsQuoted: new Set<number>(),
+        savingsData: [],
+        wins: 0,
+        maxSavingsPercent: 0
+      };
 
-      // Calculate savings for this shipment
-      const dollarSavings = shipment.currentRate - rate.rate_amount;
-      const percentSavings = shipment.currentRate > 0 ? (dollarSavings / shipment.currentRate) * 100 : 0;
+      const account = accounts[accountName];
       
-      account.savingsData.push({ dollarSavings, percentSavings });
-      
-      // Check if this account won this shipment (is cheaper than current rate)
-      if (rate.rate_amount < shipment.currentRate) {
-        account.wins += 1;
-      }
+      Object.entries(shipmentData).forEach(([shipmentIndex, data]) => {
+        account.totalSpend += data.rate;
+        account.shipmentsQuoted.add(parseInt(shipmentIndex));
+        account.savingsData.push({ 
+          dollarSavings: data.dollarSavings, 
+          percentSavings: data.percentSavings 
+        });
+        
+        // Check if this account won this shipment
+        if (data.dollarSavings > 0) {
+          account.wins += 1;
+        }
 
-      // Track maximum savings percentage
-      if (percentSavings > account.maxSavingsPercent) {
-        account.maxSavingsPercent = percentSavings;
-      }
+        // Track maximum savings percentage
+        if (data.percentSavings > account.maxSavingsPercent) {
+          account.maxSavingsPercent = data.percentSavings;
+        }
+      });
     });
 
     // Calculate final metrics for each account
     return Object.values(accounts).map(account => {
-      const avgCostPerShipment = account.totalSpend / account.shipmentsQuoted;
-      const winRate = (account.wins / account.shipmentsQuoted) * 100;
+      const shipmentsQuotedCount = account.shipmentsQuoted.size;
+      const avgCostPerShipment = shipmentsQuotedCount > 0 ? account.totalSpend / shipmentsQuotedCount : 0;
+      const winRate = shipmentsQuotedCount > 0 ? (account.wins / shipmentsQuotedCount) * 100 : 0;
       
       // Calculate average savings
       const avgDollarSavings = account.savingsData.reduce((sum, s) => sum + s.dollarSavings, 0) / account.savingsData.length;
@@ -241,6 +270,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       return {
         ...account,
+        shipmentsQuoted: shipmentsQuotedCount,
         avgCostPerShipment,
         winRate,
         avgDollarSavings,

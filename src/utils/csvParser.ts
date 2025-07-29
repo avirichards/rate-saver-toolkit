@@ -102,10 +102,12 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-// Conservative auto-mapping - only high-confidence matches (90%+)
+// Conservative auto-mapping - only high-confidence matches (85%+)
 export function generateConservativeColumnMappings(headers: string[]): FieldMapping[] {
   const mappings: FieldMapping[] = [];
   const usedHeaders = new Set<string>();
+  
+  console.log('🔍 Available headers:', headers);
   
   Object.entries(fieldPatterns).forEach(([fieldName, patterns]) => {
     let bestMatch: { header: string; confidence: number } | null = null;
@@ -119,6 +121,7 @@ export function generateConservativeColumnMappings(headers: string[]): FieldMapp
       // Check for exact or near-exact matches
       patterns.forEach(pattern => {
         if (pattern.test(headerLower)) {
+          console.log(`🎯 Pattern match for ${fieldName}: "${header}" matches ${pattern}`);
           // Calculate confidence based on pattern specificity and header length
           const patternStr = pattern.toString().toLowerCase();
           if (headerLower === patternStr.replace(/[^a-z]/g, '')) {
@@ -126,18 +129,20 @@ export function generateConservativeColumnMappings(headers: string[]): FieldMapp
           } else if (headerLower.includes(patternStr.replace(/[^a-z]/g, ''))) {
             confidence = Math.max(confidence, 85); // Contains key term
           } else {
-            confidence = Math.max(confidence, 75); // Pattern match
+            confidence = Math.max(confidence, 80); // Pattern match
           }
+          console.log(`   → Confidence: ${confidence}%`);
         }
       });
       
-      // Only consider high-confidence matches (90%+)
-      if (confidence >= 90 && (!bestMatch || confidence > bestMatch.confidence)) {
+      // Consider matches with 85%+ confidence (lowered from 90%)
+      if (confidence >= 85 && (!bestMatch || confidence > bestMatch.confidence)) {
         bestMatch = { header, confidence };
       }
     });
     
     if (bestMatch) {
+      console.log(`✅ Best match for ${fieldName}: "${bestMatch.header}" (${bestMatch.confidence}%)`);
       mappings.push({
         fieldName,
         csvHeader: bestMatch.header,
@@ -145,9 +150,12 @@ export function generateConservativeColumnMappings(headers: string[]): FieldMapp
         isAutoDetected: true
       });
       usedHeaders.add(bestMatch.header);
+    } else {
+      console.log(`❌ No match found for ${fieldName}`);
     }
   });
   
+  console.log('🗂️ Final conservative mappings:', mappings);
   return mappings;
 }
 

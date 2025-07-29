@@ -293,10 +293,11 @@ export function OrphanedShipmentRow({
 
       {/* Current Rate Column */}
       <TableCell className="text-right">
-        {getDisplayValue('currentRate') || shipment.currentRate || shipment.originalRate || shipment.rate || shipment.currentCost || shipment.cost ? 
-          formatCurrency(getDisplayValue('currentRate') || shipment.currentRate || shipment.originalRate || shipment.rate || shipment.currentCost || shipment.cost) : 
-          <span className="text-amber-600 text-xs">Missing</span>
-        }
+        {(() => {
+          console.log('Orphaned shipment data:', shipment);
+          const rate = getDisplayValue('currentRate') || shipment.currentRate || shipment.originalRate || shipment.rate || shipment.currentCost || shipment.cost || shipment.original_rate || shipment.shipment?.currentRate;
+          return rate ? formatCurrency(rate) : <span className="text-amber-600 text-xs">Missing</span>;
+        })()}
       </TableCell>
 
       {/* Status Column */}

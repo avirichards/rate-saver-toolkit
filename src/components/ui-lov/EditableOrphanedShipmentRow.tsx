@@ -418,22 +418,51 @@ export function EditableOrphanedShipmentRow({
         })()}
       </TableCell>
       
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-muted-foreground italic">Pending</span>
-        ) : estimatedSavings.isError ? (
-          <Badge variant="destructive" className="text-xs">Error</Badge>
-        ) : (
-          formatCurrency(shipment.ShipPros_cost || 0)
-        )}
-      </TableCell>
+      {/* Ship Pros Rate - Always show, but different positioning */}
+      {editMode && (
+        <TableCell className="text-right">
+          {estimatedSavings.isPending ? (
+            <span className="text-xs text-muted-foreground italic">Pending</span>
+          ) : estimatedSavings.isError ? (
+            <Badge variant="destructive" className="text-xs">Error</Badge>
+          ) : (
+            formatCurrency(shipment.ShipPros_cost || 0)
+          )}
+        </TableCell>
+      )}
       
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
-        ) : estimatedSavings.isError ? (
-          <Badge variant="destructive" className="text-xs">Failed</Badge>
-        ) : (
+      {/* Savings - Always show, but different positioning */}
+      {editMode && (
+        <TableCell className="text-right">
+          {estimatedSavings.isPending ? (
+            <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
+          ) : estimatedSavings.isError ? (
+            <Badge variant="destructive" className="text-xs">Failed</Badge>
+          ) : (
+            <div className="text-destructive flex flex-col items-end">
+              <div className="font-medium">
+                {formatCurrency(0)}
+              </div>
+              <div className="text-xs">
+                0.0%
+              </div>
+            </div>
+          )}
+        </TableCell>
+      )}
+      
+      {/* Ship Pros Rate - Non-edit mode */}
+      {!editMode && (
+        <TableCell className="text-right">
+          {shipment.ShipPros_cost ? formatCurrency(shipment.ShipPros_cost) : (
+            <Badge variant="destructive" className="text-xs">Error</Badge>
+          )}
+        </TableCell>
+      )}
+      
+      {/* Savings - Non-edit mode */}
+      {!editMode && (
+        <TableCell className="text-right">
           <div className="text-destructive flex flex-col items-end">
             <div className="font-medium">
               {formatCurrency(0)}
@@ -442,9 +471,19 @@ export function EditableOrphanedShipmentRow({
               0.0%
             </div>
           </div>
-        )}
-      </TableCell>
+        </TableCell>
+      )}
       
+      {/* Account - Non-edit mode */}
+      {!editMode && (
+        <TableCell>
+          <Badge variant="secondary" className="text-xs">
+            {accountNames[shipment.accountId] || shipment.accountName || 'Unknown Account'}
+          </Badge>
+        </TableCell>
+      )}
+      
+      {/* Actions - Edit mode */}
       {editMode && (
         <TableCell>
           <Button
@@ -461,14 +500,6 @@ export function EditableOrphanedShipmentRow({
             )}
             Fix & Analyze
           </Button>
-        </TableCell>
-      )}
-      
-      {!editMode && (
-        <TableCell>
-          <Badge variant="destructive" className="text-xs">
-            Failed
-          </Badge>
         </TableCell>
       )}
     </TableRow>

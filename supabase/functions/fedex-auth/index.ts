@@ -152,6 +152,8 @@ serve(async (req) => {
         hasCredentials: !!(carrierConfig.fedex_key && carrierConfig.fedex_password)
       });
       
+      console.log('Making FedEx OAuth request...');
+      
       const tokenResponse = await fetch(tokenEndpoint, {
         method: 'POST',
         headers: {
@@ -164,9 +166,15 @@ serve(async (req) => {
         })
       });
 
+      console.log('FedEx OAuth response status:', tokenResponse.status);
+      
       if (!tokenResponse.ok) {
         const errorText = await tokenResponse.text();
-        console.error('FedEx token error:', errorText);
+        console.error('FedEx token error response:', {
+          status: tokenResponse.status,
+          statusText: tokenResponse.statusText,
+          body: errorText
+        });
         
         // Try to update connection status in carrier_configs
         try {

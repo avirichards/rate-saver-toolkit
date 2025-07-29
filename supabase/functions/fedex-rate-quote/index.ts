@@ -336,6 +336,13 @@ serve(async (req) => {
           }
         };
 
+        console.log(`🚀 FEDEX REQUEST DEBUG - Service: ${serviceCode}, Config: ${configId}`);
+        console.log(`📦 Sending FedEx request with pickupType:`, JSON.stringify({
+          pickupType: serviceRequest.requestedShipment.pickupType,
+          packagingType: serviceRequest.requestedShipment.packagingType,
+          endpoint: ratingEndpoint
+        }, null, 2));
+
         console.log(`Requesting FedEx rate for service ${serviceCode} with config ${configId}...`);
 
         const response = await fetch(ratingEndpoint, {

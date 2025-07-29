@@ -27,30 +27,164 @@ export interface ServiceMapping {
   residentialDetectionSource?: 'service_name' | 'address_pattern' | 'csv_data' | 'manual';
 }
 
-// Conservative auto-detection patterns - only high-confidence matches
+// Advanced auto-detection patterns - comprehensive coverage for all field types
 const fieldPatterns = {
-  trackingId: [/track/i, /tracking/i, /shipment.*id/i, /package.*id/i],
-  service: [/service/i, /shipping.*service/i, /delivery.*service/i, /carrier.*service/i],
-  carrier: [/carrier/i, /shipper/i, /company/i],
-  weight: [/weight/i, /wt/i, /lbs/i, /pounds/i],
-  currentRate: [/cost/i, /rate/i, /price/i, /total/i, /amount/i, /charge/i, /fee/i],
-  originZip: [/origin.*zip/i, /from.*zip/i, /ship.*zip/i, /sender.*zip/i, /from.*postal/i, /ship.*postal/i],
-  destZip: [/dest.*zip/i, /to.*zip/i, /delivery.*zip/i, /recipient.*zip/i, /to.*postal/i, /delivery.*postal/i],
-  length: [/length/i, /^len$/i],
-  width: [/width/i, /^wid$/i],
-  height: [/height/i, /^hgt$/i],
-  shipperName: [/shipper.*name/i, /sender.*name/i, /from.*name/i],
-  shipperAddress: [/shipper.*address/i, /sender.*address/i, /from.*address/i],
-  shipperCity: [/shipper.*city/i, /sender.*city/i, /from.*city/i],
-  shipperState: [/shipper.*state/i, /sender.*state/i, /from.*state/i],
-  recipientName: [/recipient.*name/i, /receiver.*name/i, /to.*name/i],
-  recipientAddress: [/recipient.*address/i, /receiver.*address/i, /to.*address/i],
-  recipientCity: [/recipient.*city/i, /receiver.*city/i, /to.*city/i],
-  recipientState: [/recipient.*state/i, /receiver.*state/i, /to.*state/i],
-  zone: [/zone/i, /shipping.*zone/i],
-  isResidential: [/residential/i, /resi/i, /home/i],
-  shipDate: [/ship.*date/i, /sent.*date/i],
-  deliveryDate: [/delivery.*date/i, /delivered.*date/i]
+  trackingId: [
+    /track/i, /tracking/i, /shipment.*id/i, /package.*id/i, /parcel.*id/i,
+    /tracking.*number/i, /track.*number/i, /tracking.*no/i, /track.*no/i,
+    /shipment.*number/i, /package.*number/i, /parcel.*number/i,
+    /reference/i, /ref.*number/i, /ref.*no/i, /confirmation/i,
+    /awb/i, /air.*waybill/i, /waybill/i, /manifest/i,
+    /barcode/i, /label.*id/i, /^id$/i, /identifier/i
+  ],
+  service: [
+    /service/i, /shipping.*service/i, /delivery.*service/i, /carrier.*service/i,
+    /ship.*method/i, /delivery.*method/i, /shipping.*method/i,
+    /service.*type/i, /delivery.*type/i, /ship.*type/i,
+    /service.*level/i, /service.*class/i, /delivery.*option/i,
+    /speed/i, /priority/i, /express/i, /standard/i, /economy/i,
+    /overnight/i, /next.*day/i, /ground/i, /air/i, /freight/i
+  ],
+  carrier: [
+    /carrier/i, /shipper/i, /company/i, /courier/i, /vendor/i,
+    /shipping.*company/i, /delivery.*company/i, /logistics/i,
+    /ups/i, /fedex/i, /dhl/i, /usps/i, /tnt/i, /dpd/i,
+    /royal.*mail/i, /canada.*post/i, /australia.*post/i,
+    /provider/i, /transporter/i
+  ],
+  weight: [
+    /weight/i, /wt/i, /mass/i, /heavy/i,
+    /lbs/i, /pounds/i, /lb/i, /pound/i,
+    /kg/i, /kgs/i, /kilogram/i, /kilograms/i,
+    /oz/i, /ounce/i, /ounces/i, /gram/i, /grams/i, /g$/i,
+    /weight.*lbs/i, /weight.*kg/i, /weight.*oz/i,
+    /actual.*weight/i, /gross.*weight/i, /net.*weight/i
+  ],
+  currentRate: [
+    /cost/i, /rate/i, /price/i, /total/i, /amount/i, /charge/i, /fee/i,
+    /shipping.*cost/i, /shipping.*price/i, /shipping.*rate/i, /shipping.*fee/i,
+    /delivery.*cost/i, /delivery.*price/i, /delivery.*rate/i, /delivery.*fee/i,
+    /freight.*cost/i, /freight.*rate/i, /freight.*charge/i,
+    /carrier.*cost/i, /carrier.*rate/i, /carrier.*fee/i, /carrier.*charge/i,
+    /invoice/i, /bill/i, /payment/i, /paid/i, /expense/i,
+    /\$.*cost/i, /\$.*rate/i, /\$.*price/i, /\$.*total/i, /\$.*amount/i,
+    /usd/i, /eur/i, /gbp/i, /cad/i, /aud/i, /currency/i,
+    /actual.*cost/i, /billed.*amount/i, /charged.*amount/i
+  ],
+  originZip: [
+    /origin.*zip/i, /from.*zip/i, /ship.*zip/i, /sender.*zip/i, /pickup.*zip/i,
+    /from.*postal/i, /ship.*postal/i, /sender.*postal/i, /pickup.*postal/i,
+    /origin.*postal.*code/i, /from.*postal.*code/i, /ship.*postal.*code/i,
+    /shipper.*zip/i, /shipper.*postal/i, /source.*zip/i, /source.*postal/i,
+    /start.*zip/i, /start.*postal/i, /collection.*zip/i, /collection.*postal/i,
+    /warehouse.*zip/i, /facility.*zip/i, /depot.*zip/i
+  ],
+  destZip: [
+    /dest.*zip/i, /to.*zip/i, /delivery.*zip/i, /recipient.*zip/i, /deliver.*zip/i,
+    /to.*postal/i, /delivery.*postal/i, /recipient.*postal/i, /deliver.*postal/i,
+    /destination.*postal.*code/i, /to.*postal.*code/i, /delivery.*postal.*code/i,
+    /consignee.*zip/i, /consignee.*postal/i, /receiver.*zip/i, /receiver.*postal/i,
+    /end.*zip/i, /end.*postal/i, /final.*zip/i, /final.*postal/i,
+    /customer.*zip/i, /customer.*postal/i, /client.*zip/i, /client.*postal/i
+  ],
+  length: [
+    /length/i, /^len$/i, /^l$/i, /long/i, /longest/i,
+    /length.*in/i, /length.*inch/i, /length.*cm/i, /length.*mm/i,
+    /dimension.*l/i, /dim.*l/i, /size.*l/i, /package.*length/i,
+    /box.*length/i, /carton.*length/i, /item.*length/i
+  ],
+  width: [
+    /width/i, /^wid$/i, /^w$/i, /wide/i, /widest/i,
+    /width.*in/i, /width.*inch/i, /width.*cm/i, /width.*mm/i,
+    /dimension.*w/i, /dim.*w/i, /size.*w/i, /package.*width/i,
+    /box.*width/i, /carton.*width/i, /item.*width/i
+  ],
+  height: [
+    /height/i, /^hgt$/i, /^h$/i, /high/i, /tall/i, /depth/i,
+    /height.*in/i, /height.*inch/i, /height.*cm/i, /height.*mm/i,
+    /dimension.*h/i, /dim.*h/i, /size.*h/i, /package.*height/i,
+    /box.*height/i, /carton.*height/i, /item.*height/i, /thickness/i
+  ],
+  shipperName: [
+    /shipper.*name/i, /sender.*name/i, /from.*name/i, /origin.*name/i,
+    /ship.*from.*name/i, /dispatch.*name/i, /consignor.*name/i,
+    /source.*name/i, /pickup.*name/i, /warehouse.*name/i,
+    /facility.*name/i, /depot.*name/i, /vendor.*name/i,
+    /supplier.*name/i, /company.*from/i, /business.*from/i
+  ],
+  shipperAddress: [
+    /shipper.*address/i, /sender.*address/i, /from.*address/i, /origin.*address/i,
+    /ship.*from.*address/i, /dispatch.*address/i, /consignor.*address/i,
+    /source.*address/i, /pickup.*address/i, /warehouse.*address/i,
+    /facility.*address/i, /depot.*address/i, /sender.*street/i,
+    /from.*street/i, /origin.*street/i, /shipper.*street/i
+  ],
+  shipperCity: [
+    /shipper.*city/i, /sender.*city/i, /from.*city/i, /origin.*city/i,
+    /ship.*from.*city/i, /dispatch.*city/i, /consignor.*city/i,
+    /source.*city/i, /pickup.*city/i, /warehouse.*city/i,
+    /facility.*city/i, /depot.*city/i
+  ],
+  shipperState: [
+    /shipper.*state/i, /sender.*state/i, /from.*state/i, /origin.*state/i,
+    /ship.*from.*state/i, /dispatch.*state/i, /consignor.*state/i,
+    /source.*state/i, /pickup.*state/i, /warehouse.*state/i,
+    /shipper.*province/i, /sender.*province/i, /from.*province/i,
+    /shipper.*region/i, /sender.*region/i, /from.*region/i
+  ],
+  recipientName: [
+    /recipient.*name/i, /receiver.*name/i, /to.*name/i, /destination.*name/i,
+    /ship.*to.*name/i, /deliver.*to.*name/i, /consignee.*name/i,
+    /customer.*name/i, /client.*name/i, /addressee.*name/i,
+    /end.*customer/i, /final.*recipient/i, /delivery.*name/i,
+    /contact.*name/i, /person.*name/i, /company.*to/i, /business.*to/i
+  ],
+  recipientAddress: [
+    /recipient.*address/i, /receiver.*address/i, /to.*address/i, /destination.*address/i,
+    /ship.*to.*address/i, /deliver.*to.*address/i, /consignee.*address/i,
+    /customer.*address/i, /client.*address/i, /addressee.*address/i,
+    /delivery.*address/i, /end.*address/i, /final.*address/i,
+    /recipient.*street/i, /to.*street/i, /delivery.*street/i
+  ],
+  recipientCity: [
+    /recipient.*city/i, /receiver.*city/i, /to.*city/i, /destination.*city/i,
+    /ship.*to.*city/i, /deliver.*to.*city/i, /consignee.*city/i,
+    /customer.*city/i, /client.*city/i, /delivery.*city/i
+  ],
+  recipientState: [
+    /recipient.*state/i, /receiver.*state/i, /to.*state/i, /destination.*state/i,
+    /ship.*to.*state/i, /deliver.*to.*state/i, /consignee.*state/i,
+    /customer.*state/i, /client.*state/i, /delivery.*state/i,
+    /recipient.*province/i, /to.*province/i, /delivery.*province/i,
+    /recipient.*region/i, /to.*region/i, /delivery.*region/i
+  ],
+  zone: [
+    /zone/i, /shipping.*zone/i, /delivery.*zone/i, /rate.*zone/i,
+    /postal.*zone/i, /geographic.*zone/i, /distance.*zone/i,
+    /service.*zone/i, /carrier.*zone/i, /pricing.*zone/i,
+    /region/i, /area/i, /territory/i, /sector/i
+  ],
+  isResidential: [
+    /residential/i, /residence/i, /home/i, /house/i, /apartment/i,
+    /business/i, /commercial/i, /office/i, /company/i, /industrial/i,
+    /resi/i, /comm/i, /res.*flag/i, /comm.*flag/i, /address.*type/i,
+    /delivery.*type/i, /location.*type/i, /customer.*type/i,
+    /is.*residential/i, /is.*commercial/i, /is.*business/i
+  ],
+  shipDate: [
+    /ship.*date/i, /shipping.*date/i, /dispatch.*date/i, /sent.*date/i,
+    /pickup.*date/i, /collection.*date/i, /departure.*date/i,
+    /ship.*on/i, /shipped.*on/i, /date.*shipped/i, /date.*sent/i,
+    /manifest.*date/i, /processing.*date/i, /created.*date/i,
+    /order.*date/i, /booking.*date/i
+  ],
+  deliveryDate: [
+    /delivery.*date/i, /delivered.*date/i, /receive.*date/i, /received.*date/i,
+    /arrival.*date/i, /completed.*date/i, /delivered.*on/i,
+    /date.*delivered/i, /date.*received/i, /date.*completed/i,
+    /end.*date/i, /final.*date/i, /finish.*date/i,
+    /proof.*delivery/i, /pod.*date/i, /confirmation.*date/i
+  ]
 };
 
 export function parseCSV(csvContent: string): CSVParseResult {

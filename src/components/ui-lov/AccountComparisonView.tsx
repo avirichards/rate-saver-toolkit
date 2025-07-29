@@ -610,27 +610,14 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start">
                   <div>
-                     <CardTitle className="text-base font-semibold">
-                       {(() => {
-                         const selectedAccount = selectedAccounts[service.serviceName];
-                         if (selectedAccount) {
-                           // Find the selected account's carrier type to show appropriate service name
-                           const selectedAccountRates = shipmentRates.filter(rate => 
-                             rate.account_name === selectedAccount && 
-                             serviceBreakdowns.find(s => s.serviceName === service.serviceName)?.accounts.some(acc => acc.accountName === selectedAccount)
-                           );
-                           if (selectedAccountRates.length > 0) {
-                             const carrierType = selectedAccountRates[0].carrier_type;
-                             const serviceName = selectedAccountRates[0].service_name;
-                             return serviceName || `${carrierType} Service`;
-                           }
-                         }
-                         return service.serviceName;
-                       })()}
-                       <span className="text-xs font-normal text-muted-foreground ml-2">
-                         (Original: {service.serviceName})
-                       </span>
-                     </CardTitle>
+                    <CardTitle className="text-base font-semibold">
+                      {service.serviceName}
+                      {service.upsServiceName && service.upsServiceName !== service.serviceName && (
+                        <span className="text-xs font-normal text-muted-foreground ml-2">
+                          → {service.upsServiceName}
+                        </span>
+                      )}
+                    </CardTitle>
                     
                   </div>
                   <div className="flex flex-col items-end gap-2">

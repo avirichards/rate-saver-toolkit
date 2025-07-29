@@ -2302,7 +2302,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                   <CardDescription>Breakdown of shipments by service type</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-96">
+                  <div className="h-80">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
                         <Pie
@@ -2310,51 +2310,19 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent, value }) => {
-                            // Show all labels, but adjust positioning for small slices
-                            if ((percent || 0) < 0.05) {
-                              // For very small slices, show just percentage
-                              return `${((percent || 0) * 100).toFixed(0)}%`;
-                            }
-                            const shortName = name.length > 15 ? name.split(' ').slice(0, 2).join(' ') : name;
-                            return `${shortName} ${((percent || 0) * 100).toFixed(0)}%`;
-                          }}
-                          outerRadius={100}
-                          innerRadius={30}
+                           label={({ name, percent }) => {
+                             const shortName = name.length > 12 ? name.split(' ').slice(0, 2).join(' ') : name;
+                             return `${shortName}\n${((percent || 0) * 100).toFixed(0)}%`;
+                           }}
+                          outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
-                          stroke="hsl(var(--background))"
-                          strokeWidth={2}
                         >
                           {generateServiceChartData().map((entry, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={[
-                                'hsl(220, 70%, 50%)',  // Blue
-                                'hsl(160, 60%, 45%)',  // Green  
-                                'hsl(25, 95%, 53%)',   // Orange
-                                'hsl(340, 75%, 55%)',  // Pink
-                                'hsl(45, 93%, 47%)',   // Yellow
-                                'hsl(280, 65%, 60%)',  // Purple
-                                'hsl(200, 80%, 45%)',  // Cyan
-                                'hsl(15, 85%, 55%)',   // Red-orange
-                              ][index % 8]} 
-                            />
+                            <Cell key={`cell-${index}`} fill={['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#FF8042', '#8884D8', '#82CA9D', '#FFC658', '#FF7C7C'][index % 8]} />
                           ))}
                         </Pie>
-                        <Tooltip 
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--popover))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                            color: '#ffffff',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                          }}
-                          formatter={(value: any, name: string) => [
-                            `${value} shipments`, 
-                            name
-                          ]}
-                        />
+                        <Tooltip />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -2486,6 +2454,68 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                 </CardContent>
               </Card>
 
+              {/* Zone Breakdown Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Rate Comparison by Zone
+                  </CardTitle>
+                  <CardDescription>
+                    Average cost comparison by shipping zones
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-2">
+                  {/* Legend */}
+                  <div className="flex items-center justify-center gap-6 mb-4 p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-destructive rounded"></div>
+                      <span className="text-sm">Current Cost</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-green-500 rounded"></div>
+                      <span className="text-sm">Ship Pros Cost (Lower = Green)</span>
+                    </div>
+                  </div>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <BarChart data={generateZoneChartData()} margin={{ top: 5, right: 5, left: 5, bottom: 50 }}>
+                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" />
+                         <XAxis 
+                           dataKey="zone" 
+                           tick={ZoneTick}
+                           interval={0}
+                           height={50}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
+                         <YAxis 
+                           tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }} 
+                           tickFormatter={(value) => `$${value}`}
+                           axisLine={{ stroke: 'hsl(var(--border))' }}
+                         />
+                         <Tooltip 
+                           formatter={(value: any, name: string) => [
+                             formatCurrency(value), 
+                             name === 'avgCurrentCost' ? 'Current Cost' : 'Ship Pros Cost'
+                           ]}
+                           labelFormatter={(label) => {
+                             const item = generateZoneChartData().find(d => d.zone === label);
+                             return item ? `${item.zoneName} (${item.shipmentCount} shipments)` : label;
+                           }}
+                           contentStyle={{
+                             backgroundColor: 'hsl(var(--popover))',
+                             border: '1px solid hsl(var(--border))',
+                             borderRadius: '6px',
+                             color: 'hsl(var(--popover-foreground))'
+                           }}
+                         />
+                        <Bar dataKey="avgCurrentCost" fill="hsl(var(--destructive))" name="Current Cost" radius={[2, 2, 0, 0]} />
+                        <Bar dataKey="avgNewCost" fill="#22c55e" name="Ship Pros Cost" radius={[2, 2, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 

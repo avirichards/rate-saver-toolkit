@@ -158,6 +158,13 @@ const Analysis = () => {
     }
     
     // Process CSV data into shipments using the confirmed mappings
+    console.log('🗂️ COLUMN MAPPINGS DEBUG: Processing CSV data with mappings:', {
+      mappings: state.mappings,
+      csvHeaders: Object.keys(state.csvData[0] || {}),
+      currentRateMapping: state.mappings.currentRate,
+      sampleRow: state.csvData[0]
+    });
+    
     const processedShipments = state.csvData.map((row, index) => {
       const shipment: ProcessedShipment = { id: index + 1 };
       
@@ -168,6 +175,17 @@ const Analysis = () => {
             value = value.trim();
           }
           (shipment as any)[fieldName] = value;
+          
+          // Debug the currentRate mapping specifically
+          if (fieldName === 'currentRate') {
+            console.log(`💰 CURRENT RATE MAPPING: Row ${index + 1}:`, {
+              fieldName,
+              csvHeader,
+              rawValue: row[csvHeader],
+              processedValue: value,
+              allRowValues: Object.keys(row).map(key => ({ [key]: row[key] }))
+            });
+          }
         }
       });
       

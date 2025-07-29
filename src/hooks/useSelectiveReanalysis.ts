@@ -303,6 +303,8 @@ export function useSelectiveReanalysis() {
         accountName: result.accountUsed?.name || shipment.accountName,
         analyzedWithAccount: result.accountUsed?.name || shipment.analyzedWithAccount,
         carrier: result.accountUsed?.carrierType || shipment.carrier,
+        // Preserve the original customer service to prevent "Unknown" in overview
+        customer_service: shipment.customer_service || shipment.service,
         fixed: true,
         fixedAt: new Date().toISOString(),
         // Clear error fields since it's now fixed

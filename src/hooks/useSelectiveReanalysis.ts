@@ -298,8 +298,17 @@ export function useSelectiveReanalysis() {
         ShipPros_cost: result.ShipPros_cost,
         ShipPros_service: result.ShipPros_service,
         upsRates: result.upsRates,
+        // Preserve the account information from the re-analysis result
+        accountId: result.accountUsed?.id || shipment.accountId,
+        accountName: result.accountUsed?.name || shipment.accountName,
+        analyzedWithAccount: result.accountUsed?.name || shipment.analyzedWithAccount,
+        carrier: result.accountUsed?.carrierType || shipment.carrier,
         fixed: true,
-        fixedAt: new Date().toISOString()
+        fixedAt: new Date().toISOString(),
+        // Clear error fields since it's now fixed
+        error: undefined,
+        errorType: undefined,
+        errorCategory: undefined
       });
 
       toast.success(`Successfully fixed and analyzed shipment ${shipment.trackingId || shipment.id}`);

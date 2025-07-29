@@ -8,6 +8,7 @@ import { UniversalServiceSelector } from '@/components/ui-lov/UniversalServiceSe
 import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
+import { formatCurrency } from '@/lib/utils';
 
 interface OrphanedShipmentRowProps {
   shipment: any;
@@ -96,11 +97,15 @@ export function OrphanedShipmentRow({
           />
         ) : (
           <div className="w-16">
-            {getDisplayValue('originZip') || 'Missing'}
-            {getDisplayValue('originZip') && (
-              <div className="text-xs text-muted-foreground">
-                {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
-              </div>
+            {getDisplayValue('originZip') ? (
+              <>
+                {getDisplayValue('originZip')}
+                <div className="text-xs text-muted-foreground">
+                  {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
+                </div>
+              </>
+            ) : (
+              <span className="text-amber-600 text-xs">Missing</span>
             )}
           </div>
         )}
@@ -118,11 +123,15 @@ export function OrphanedShipmentRow({
           />
         ) : (
           <div className="w-16">
-            {getDisplayValue('destinationZip') || 'Missing'}
-            {getDisplayValue('destinationZip') && (
-              <div className="text-xs text-muted-foreground">
-                {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
-              </div>
+            {getDisplayValue('destinationZip') ? (
+              <>
+                {getDisplayValue('destinationZip')}
+                <div className="text-xs text-muted-foreground">
+                  {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
+                </div>
+              </>
+            ) : (
+              <span className="text-amber-600 text-xs">Missing</span>
             )}
           </div>
         )}
@@ -139,7 +148,7 @@ export function OrphanedShipmentRow({
             required
           />
         ) : (
-          getDisplayValue('weight') ? `${getDisplayValue('weight')} lbs` : 'Missing'
+          getDisplayValue('weight') ? `${getDisplayValue('weight')} lbs` : <span className="text-amber-600 text-xs">Missing</span>
         )}
       </TableCell>
       
@@ -147,7 +156,7 @@ export function OrphanedShipmentRow({
         {editMode ? (
           <div className="flex items-center gap-0.5 text-xs w-24">
             <InlineEditableField
-              value={getDisplayValue('length') || '12'}
+              value={getDisplayValue('length')}
               onSave={(value) => handleFieldUpdate('length', value)}
               placeholder="L"
               className="w-7 text-xs p-1 h-6"
@@ -157,7 +166,7 @@ export function OrphanedShipmentRow({
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
-              value={getDisplayValue('width') || '12'}
+              value={getDisplayValue('width')}
               onSave={(value) => handleFieldUpdate('width', value)}
               placeholder="W"
               className="w-7 text-xs p-1 h-6"
@@ -167,7 +176,7 @@ export function OrphanedShipmentRow({
             />
             <span className="text-muted-foreground">×</span>
             <InlineEditableField
-              value={getDisplayValue('height') || '6'}
+              value={getDisplayValue('height')}
               onSave={(value) => handleFieldUpdate('height', value)}
               placeholder="H"
               className="w-7 text-xs p-1 h-6"
@@ -180,7 +189,7 @@ export function OrphanedShipmentRow({
           <span className="text-xs">
             {getDisplayValue('length') && getDisplayValue('width') && getDisplayValue('height')
               ? `${getDisplayValue('length')}×${getDisplayValue('width')}×${getDisplayValue('height')}`
-              : 'Missing'}
+              : <span className="text-amber-600">Missing</span>}
           </span>
         )}
       </TableCell>
@@ -235,12 +244,18 @@ export function OrphanedShipmentRow({
 
       {/* Current Rate Column */}
       <TableCell className="text-right">
-        <span className="text-muted-foreground text-xs">N/A</span>
+        {getDisplayValue('currentRate') || shipment.currentRate ? 
+          formatCurrency(getDisplayValue('currentRate') || shipment.currentRate) : 
+          <span className="text-amber-600 text-xs">Missing</span>
+        }
       </TableCell>
 
       {/* Ship Pros Cost Column */}
       <TableCell className="text-right">
-        <span className="text-muted-foreground text-xs">N/A</span>
+        {getDisplayValue('ShipPros_cost') || shipment.ShipPros_cost ? 
+          formatCurrency(getDisplayValue('ShipPros_cost') || shipment.ShipPros_cost) : 
+          <span className="text-amber-600 text-xs">Missing</span>
+        }
       </TableCell>
 
       {/* Savings Column */}
@@ -249,11 +264,9 @@ export function OrphanedShipmentRow({
           <Badge variant="destructive" className="text-xs mb-1">
             Failed
           </Badge>
-          {shipment.errorMessage && (
-            <span className="text-xs text-muted-foreground">
-              Needs fixing
-            </span>
-          )}
+          <span className="text-xs text-muted-foreground">
+            {missingFields.length > 0 ? `Missing: ${missingFields.join(', ')}` : 'Needs fixing'}
+          </span>
         </div>
       </TableCell>
       

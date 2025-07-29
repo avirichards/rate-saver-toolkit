@@ -1586,13 +1586,15 @@ const Analysis = () => {
           </Card>
         </div>
         
-        {/* Validation Summary */}
+        {/* Compact Validation Summary */}
         {validationState.summary.total > 0 && (
-          <ValidationSummary 
-            validationState={validationState} 
-            shipments={shipments} 
-            className="mb-6" 
-          />
+          <div className="mb-4">
+            <ValidationSummary 
+              validationState={validationState} 
+              shipments={shipments} 
+              className="compact" 
+            />
+          </div>
         )}
 
         {/* Progress Bar */}

@@ -46,10 +46,42 @@ export function OrphanedShipmentRow({
     return updatedData[field] ?? shipment[field] ?? '';
   };
 
-  // Validate ZIP code (must be 5 digits)
-  const isValidZip = (zip: string) => {
-    return zip && zip.length === 5 && /^\d{5}$/.test(zip);
+  // Analyze error to determine problematic fields
+  const analyzeError = () => {
+    const errorMessage = shipment.error || shipment.errorMessage || '';
+    const errorType = shipment.errorType || '';
+    const problemFields = [];
+
+    // Check for specific field issues based on error message
+    if (errorMessage.includes('origin ZIP') || errorMessage.includes('Invalid origin ZIP')) {
+      problemFields.push('originZip');
+    }
+    if (errorMessage.includes('destination ZIP') || errorMessage.includes('Invalid destination ZIP')) {
+      problemFields.push('destinationZip');
+    }
+    if (errorMessage.includes('weight') || errorMessage.includes('Weight')) {
+      problemFields.push('weight');
+    }
+    if (errorMessage.includes('dimensions') || errorMessage.includes('length') || errorMessage.includes('width') || errorMessage.includes('height')) {
+      problemFields.push('dimensions');
+    }
+    if (errorMessage.includes('service') || errorMessage.includes('Service')) {
+      problemFields.push('service');
+    }
+
+    return { problemFields, errorMessage, errorType };
   };
+
+  const { problemFields, errorMessage } = analyzeError();
+
+  // Check for basic missing data
+  const missingFields = [];
+  if (!getDisplayValue('originZip')) missingFields.push('Origin ZIP');
+  if (!getDisplayValue('destinationZip')) missingFields.push('Destination ZIP');
+  if (!getDisplayValue('weight') || getDisplayValue('weight') === '0') missingFields.push('Weight');
+  if (!getDisplayValue('service')) missingFields.push('Service Type');
+
+  const canFix = missingFields.length === 0;
 
   const handleFixAndAnalyze = () => {
     onFixAndAnalyze(shipment.id, {
@@ -57,15 +89,6 @@ export function OrphanedShipmentRow({
       ...updatedData
     });
   };
-
-  // Determine what data is missing or invalid
-  const missingFields = [];
-  if (!isValidZip(getDisplayValue('originZip'))) missingFields.push('Origin ZIP');
-  if (!isValidZip(getDisplayValue('destinationZip'))) missingFields.push('Destination ZIP');
-  if (!getDisplayValue('weight') || getDisplayValue('weight') === '0') missingFields.push('Weight');
-  if (!getDisplayValue('service')) missingFields.push('Service Type');
-
-  const canFix = missingFields.length === 0;
 
   return (
     <TableRow className={`${isSelected ? 'bg-muted/50' : ''} ${hasLocalChanges ? 'border-l-4 border-l-primary/50' : ''}`}>
@@ -102,17 +125,19 @@ export function OrphanedShipmentRow({
           />
         ) : (
           <div className="w-16">
-            {isValidZip(getDisplayValue('originZip')) ? (
+            {getDisplayValue('originZip') ? (
               <>
-                {getDisplayValue('originZip')}
-                <div className="text-xs text-muted-foreground">
-                  {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
-                </div>
-              </>
-            ) : getDisplayValue('originZip') ? (
-              <>
-                <span className="text-amber-600 text-xs">{getDisplayValue('originZip')}</span>
-                <div className="text-xs text-red-500">Invalid ZIP</div>
+                <span className={problemFields.includes('originZip') ? 'text-red-600 text-xs' : ''}>
+                  {getDisplayValue('originZip')}
+                </span>
+                {!problemFields.includes('originZip') && getStateFromZip(getDisplayValue('originZip'))?.state && (
+                  <div className="text-xs text-muted-foreground">
+                    {getStateFromZip(getDisplayValue('originZip'))?.state}
+                  </div>
+                )}
+                {problemFields.includes('originZip') && (
+                  <div className="text-xs text-red-500">Invalid format</div>
+                )}
               </>
             ) : (
               <span className="text-amber-600 text-xs">Missing</span>
@@ -133,17 +158,19 @@ export function OrphanedShipmentRow({
           />
         ) : (
           <div className="w-16">
-            {isValidZip(getDisplayValue('destinationZip')) ? (
+            {getDisplayValue('destinationZip') ? (
               <>
-                {getDisplayValue('destinationZip')}
-                <div className="text-xs text-muted-foreground">
-                  {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
-                </div>
-              </>
-            ) : getDisplayValue('destinationZip') ? (
-              <>
-                <span className="text-amber-600 text-xs">{getDisplayValue('destinationZip')}</span>
-                <div className="text-xs text-red-500">Invalid ZIP</div>
+                <span className={problemFields.includes('destinationZip') ? 'text-red-600 text-xs' : ''}>
+                  {getDisplayValue('destinationZip')}
+                </span>
+                {!problemFields.includes('destinationZip') && getStateFromZip(getDisplayValue('destinationZip'))?.state && (
+                  <div className="text-xs text-muted-foreground">
+                    {getStateFromZip(getDisplayValue('destinationZip'))?.state}
+                  </div>
+                )}
+                {problemFields.includes('destinationZip') && (
+                  <div className="text-xs text-red-500">Invalid format</div>
+                )}
               </>
             ) : (
               <span className="text-amber-600 text-xs">Missing</span>
@@ -280,7 +307,7 @@ export function OrphanedShipmentRow({
             Failed
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {missingFields.length > 0 ? `Missing: ${missingFields.join(', ')}` : 'Needs fixing'}
+            {errorMessage || 'Processing error - check highlighted fields'}
           </span>
         </div>
       </TableCell>

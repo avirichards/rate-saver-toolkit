@@ -2927,6 +2927,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           className="h-8 text-xs"
                         >
                           <RotateCw className="h-3 w-3 mr-1" />
+                          Batch Corrections ({selectedShipments.size})
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => handleReanalyzeSelected()}
+                          disabled={selectedShipments.size === 0 || isReanalyzing}
+                          className="h-8 text-xs"
+                        >
+                          <RotateCw className="h-3 w-3 mr-1" />
                           Batch Re-analyze ({selectedShipments.size})
                         </Button>
                         <div className="flex items-center gap-1">
@@ -3054,8 +3063,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         isOpen={isReanalysisModalOpen}
         onClose={() => setIsReanalysisModalOpen(false)}
         onApplyCorrections={handleServiceCorrections}
-        selectedShipments={filteredData.filter(item => selectedShipments.has(item.id))}
-        allShipments={shipmentData}
+        selectedShipments={(window.location.hash.includes('orphaned-data') ? orphanedData : filteredData).filter(item => selectedShipments.has(item.id))}
+        allShipments={window.location.hash.includes('orphaned-data') ? orphanedData : shipmentData}
       />
     </Layout>
   );

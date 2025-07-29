@@ -1300,7 +1300,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           height: shipmentData?.height || rec.height || 6,
           service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
           customer_service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
-          currentRate: shipmentData?.currentRate || shipmentData?.current_rate || shipmentData?.rate || shipmentData?.cost || 0,
+          currentRate: shipmentData?.currentRate || shipmentData?.current_rate || shipmentData?.rate || shipmentData?.cost || rec.currentRate || rec.current_rate || rec.rate || rec.cost || rec.amount || rec.price || 0,
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
           error: orphanReason,
           errorType: validation.errorType || 'Processing Error',

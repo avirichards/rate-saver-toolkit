@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Save, User, Shield, BellRing, Truck, Cog } from 'lucide-react';
 import { CarrierAccountManager } from '@/components/ui-lov/CarrierAccountManager';
+import { FedexTestButton } from '@/components/ui-lov/FedexTestButton';
 
 const SettingsPage = () => {
   return (
@@ -85,7 +86,10 @@ const SettingsPage = () => {
           </TabsContent>
           
           <TabsContent value="carriers">
-            <CarrierAccountManager />
+            <div className="space-y-6">
+              <CarrierAccountManager />
+              <FedexTestButton />
+            </div>
           </TabsContent>
           
           <TabsContent value="notifications">

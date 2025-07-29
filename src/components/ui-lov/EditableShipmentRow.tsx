@@ -236,12 +236,12 @@ export function EditableShipmentRow({
         ) : (
           <div className="w-16">
             <div className={`flex items-center gap-1 ${
-              (getDisplayValue('originZip') && getDisplayValue('originZip').toString().length < 4) ? 'text-red-500 font-medium' : ''
+              (getDisplayValue('originZip') && getDisplayValue('originZip').toString().length <= 4) ? 'text-red-500 font-medium' : ''
             }`}>
               {getDisplayValue('originZip') || (isOrphanedShipment ? (
                 <Badge variant="destructive" className="text-xs">Missing</Badge>
               ) : '')}
-              {getDisplayValue('originZip') && getDisplayValue('originZip').toString().length < 4 && (
+              {getDisplayValue('originZip') && getDisplayValue('originZip').toString().length <= 4 && (
                 <Flag className="h-3 w-3 text-red-500" />
               )}
             </div>
@@ -276,12 +276,12 @@ export function EditableShipmentRow({
         ) : (
           <div className="w-16">
             <div className={`flex items-center gap-1 ${
-              (getDisplayValue('destinationZip') && getDisplayValue('destinationZip').toString().length < 4) ? 'text-red-500 font-medium' : ''
+              (getDisplayValue('destinationZip') && getDisplayValue('destinationZip').toString().length <= 4) ? 'text-red-500 font-medium' : ''
             }`}>
               {getDisplayValue('destinationZip') || (isOrphanedShipment ? (
                 <Badge variant="destructive" className="text-xs">Missing</Badge>
               ) : '')}
-              {getDisplayValue('destinationZip') && getDisplayValue('destinationZip').toString().length < 4 && (
+              {getDisplayValue('destinationZip') && getDisplayValue('destinationZip').toString().length <= 4 && (
                 <Flag className="h-3 w-3 text-red-500" />
               )}
             </div>
@@ -467,16 +467,14 @@ export function EditableShipmentRow({
         {estimatedSavings.isPending ? (
           <span className="text-xs text-muted-foreground italic">Pending</span>
         ) : isOrphanedShipment ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Badge variant="destructive" className="text-xs cursor-help">Failed</Badge>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p className="max-w-xs text-sm">{shipment.error || 'Processing failed due to missing or invalid data'}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="destructive" className="text-xs cursor-help">Failed</Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-xs text-sm">{shipment.error || 'Processing failed due to missing or invalid data'}</p>
+            </TooltipContent>
+          </Tooltip>
         ) : (
           <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
             <div className="font-medium">

@@ -75,21 +75,21 @@ export function OrphanedShipmentRow({
           </div>
         </TableCell>
       )}
-      <TableCell className="w-24">
+      <TableCell>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <span className="font-medium text-xs">
+          <span className="font-medium">
             {shipment.trackingId || `Orphan-${shipment.id}`}
           </span>
         </div>
       </TableCell>
       
-      <TableCell className="w-16">
+      <TableCell>
         <InlineEditableField
           value={getDisplayValue('originZip')}
           onSave={(value) => handleFieldUpdate('originZip', value)}
-          placeholder="Origin"
-          className="min-w-[60px] text-xs"
+          placeholder="Enter Origin ZIP"
+          className="min-w-[80px]"
         />
         {getDisplayValue('originZip') && (
           <div className="text-xs text-muted-foreground">
@@ -98,12 +98,12 @@ export function OrphanedShipmentRow({
         )}
       </TableCell>
       
-      <TableCell className="w-16">
+      <TableCell>
         <InlineEditableField
           value={getDisplayValue('destinationZip')}
           onSave={(value) => handleFieldUpdate('destinationZip', value)}
-          placeholder="Dest"
-          className="min-w-[60px] text-xs"
+          placeholder="Enter Dest ZIP"
+          className="min-w-[80px]"
         />
         {getDisplayValue('destinationZip') && (
           <div className="text-xs text-muted-foreground">
@@ -112,81 +112,61 @@ export function OrphanedShipmentRow({
         )}
       </TableCell>
       
-      <TableCell className="w-14">
+      <TableCell>
         <InlineEditableField
           value={getDisplayValue('weight')}
           onSave={(value) => handleFieldUpdate('weight', value)}
-          placeholder="Weight"
-          className="min-w-[50px] text-xs"
+          placeholder="Enter Weight"
+          className="min-w-[60px]"
         />
       </TableCell>
       
-      <TableCell className="w-24">
+      <TableCell>
         <div className="flex gap-1">
           <InlineEditableField
             value={getDisplayValue('length') || '12'}
             onSave={(value) => handleFieldUpdate('length', value)}
             placeholder="L"
-            className="min-w-[30px] text-xs"
+            className="min-w-[40px]"
           />
           ×
           <InlineEditableField
             value={getDisplayValue('width') || '12'}
             onSave={(value) => handleFieldUpdate('width', value)}
             placeholder="W"
-            className="min-w-[30px] text-xs"
+            className="min-w-[40px]"
           />
           ×
           <InlineEditableField
             value={getDisplayValue('height') || '6'}
             onSave={(value) => handleFieldUpdate('height', value)}
             placeholder="H"
-            className="min-w-[30px] text-xs"
+            className="min-w-[40px]"
           />
         </div>
       </TableCell>
       
-      <TableCell className="w-16">
-        <Badge variant="outline" className="text-xs">
-          Commercial
-        </Badge>
-      </TableCell>
-      
-      <TableCell className="w-20">
-        <Badge variant="outline" className="text-xs text-muted-foreground">
-          {shipment.customer_service || shipment.service || 'Unknown'}
-        </Badge>
-      </TableCell>
-      
-      <TableCell className="w-24">
+      <TableCell>
         <UniversalServiceSelector
           value={getDisplayValue('service')}
           onValueChange={(value) => handleFieldUpdate('service', value)}
           placeholder="Select Service"
-          className="min-w-[100px] text-xs"
+          className="min-w-[120px]"
         />
       </TableCell>
       
       {editMode && (
-        <TableCell className="w-32">
+        <TableCell>
           <InlineEditableField
             value={getDisplayValue('accountId') || getDisplayValue('account')}
             onSave={(value) => handleFieldUpdate('accountId', value)}
-            placeholder="Account"
-            className="min-w-[80px] text-xs"
+            placeholder="Account ID"
+            className="min-w-[100px]"
           />
         </TableCell>
       )}
       
-      <TableCell className="text-right w-20">
-        <span className="text-xs text-muted-foreground">-</span>
-      </TableCell>
-      
-      <TableCell className="text-right w-20">
-        <span className="text-xs text-muted-foreground">-</span>
-      </TableCell>
-      
-      <TableCell className="text-right w-20">
+      <TableCell>
         <div className="space-y-1">
           <Badge variant="destructive" className="text-xs">
             Failed
@@ -197,41 +177,31 @@ export function OrphanedShipmentRow({
         </div>
       </TableCell>
       
-      {editMode && (
-        <TableCell className="w-16">
-          {missingFields.length > 0 && (
-            <div className="text-xs text-amber-600 mb-2">
-              Missing: {missingFields.join(', ')}
-            </div>
+      <TableCell>
+        {missingFields.length > 0 && (
+          <div className="text-xs text-amber-600 mb-2">
+            Missing: {missingFields.join(', ')}
+          </div>
+        )}
+        <Button
+          size="sm"
+          onClick={handleFixAndAnalyze}
+          disabled={!canFix || isFixing}
+          className="h-8"
+        >
+          {isFixing ? (
+            <>
+              <CheckCircle className="h-3 w-3 mr-1 animate-pulse" />
+              Fixing...
+            </>
+          ) : (
+            <>
+              <CheckCircle className="h-3 w-3 mr-1" />
+              Fix & Analyze
+            </>
           )}
-          <Button
-            size="sm"
-            onClick={handleFixAndAnalyze}
-            disabled={!canFix || isFixing}
-            className="h-7 text-xs"
-          >
-            {isFixing ? (
-              <>
-                <CheckCircle className="h-3 w-3 mr-1 animate-pulse" />
-                Fixing...
-              </>
-            ) : (
-              <>
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Fix & Analyze
-              </>
-            )}
-          </Button>
-        </TableCell>
-      )}
-      
-      {!editMode && (
-        <TableCell className="w-20">
-          <Badge variant="secondary" className="text-xs">
-            Unknown Account
-          </Badge>
-        </TableCell>
-      )}
+        </Button>
+      </TableCell>
     </TableRow>
   );
 }

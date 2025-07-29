@@ -9,6 +9,7 @@ import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 import { formatCurrency } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface OrphanedShipmentRowProps {
   shipment: any;
@@ -302,14 +303,18 @@ export function OrphanedShipmentRow({
 
       {/* Savings Column */}
       <TableCell className="text-right">
-        <div className="flex flex-col items-end">
-          <Badge variant="destructive" className="text-xs mb-1">
-            Failed
-          </Badge>
-          <span className="text-xs text-muted-foreground">
-            {errorMessage || 'Processing error - check highlighted fields'}
-          </span>
-        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant="destructive" className="text-xs cursor-help">
+                Failed
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p className="max-w-xs">{errorMessage || 'Processing error - check highlighted fields'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </TableCell>
       
       <TableCell>

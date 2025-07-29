@@ -155,19 +155,27 @@ Deno.serve(async (req) => {
     console.log('Best overall account determined:', bestOverallAccount, 'with total cost:', lowestTotalCost);
     console.log('Account totals:', accountTotals);
 
-    // Format processed shipments using only rates from the best overall account
+    // Format processed shipments with the best account rate for each individual shipment
     const processedShipments = validRecommendations.map((rec, index) => {
-      // Find the rate from the best overall account for this shipment
-      let bestAccountRate = null;
+      // Find the best rate for this specific shipment (lowest cost)
+      let bestRate = null;
+      let bestAccountName = bestOverallAccount; // fallback to global best
+      
       if (rec.allRates && Array.isArray(rec.allRates)) {
-        bestAccountRate = rec.allRates.find((rate: any) => {
-          const accountName = rate.carrierName || rate.accountName || 'Unknown';
-          return accountName === bestOverallAccount;
-        });
+        // Find the absolute best rate for this shipment
+        bestRate = rec.allRates.reduce((best: any, current: any) => {
+          const currentCost = parseFloat(current.totalCharges || current.negotiatedRate || current.rate_amount || Infinity);
+          const bestCost = parseFloat(best?.totalCharges || best?.negotiatedRate || best?.rate_amount || Infinity);
+          return currentCost < bestCost ? current : best;
+        }, null);
+        
+        if (bestRate) {
+          bestAccountName = bestRate.carrierName || bestRate.accountName || bestOverallAccount;
+        }
       }
 
-      // Use the best account rate or fallback to the original recommendation
-      const newRate = bestAccountRate ? parseFloat(bestAccountRate.totalCharges || bestAccountRate.negotiatedRate || bestAccountRate.rate_amount || 0) : parseFloat(rec.recommendedCost || 0);
+      // Use the best rate for this specific shipment
+      const newRate = bestRate ? parseFloat(bestRate.totalCharges || bestRate.negotiatedRate || bestRate.rate_amount || 0) : parseFloat(rec.recommendedCost || 0);
       const currentRate = parseFloat(rec.currentCost || 0);
       const savings = currentRate - newRate;
 
@@ -183,12 +191,13 @@ Deno.serve(async (req) => {
         dimensions: rec.shipment.dimensions,
         carrier: rec.carrier || 'UPS',
         customer_service: rec.customer_service || rec.shipment.service || 'Unknown',
-        ShipPros_service: bestAccountRate ? (bestAccountRate.serviceName || bestAccountRate.description || 'Ground') : 'Ground',
+        ShipPros_service: bestRate ? (bestRate.serviceName || bestRate.description || 'Ground') : 'Ground',
         currentRate: currentRate,
         ShipPros_cost: newRate,
         savings: savings,
         savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
-        analyzedWithAccount: bestOverallAccount // Add the account information
+        analyzedWithAccount: bestAccountName, // Use the account that provides the best rate for this specific shipment
+        accountName: bestAccountName // Also store as accountName for easier access
       }
     })
 

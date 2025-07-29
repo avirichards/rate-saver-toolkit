@@ -259,6 +259,16 @@ serve(async (req) => {
         shipDateStamp: new Date().toISOString().split('T')[0],
         rateRequestType: ["ACCOUNT", "LIST"],
         pickupType: "DROPOFF_AT_FEDEX_LOCATION",
+        shippingChargesPayment: {
+          paymentType: "SENDER",
+          payor: {
+            responsibleParty: {
+              accountNumber: {
+                value: config.fedex_account_number
+              }
+            }
+          }
+        },
         requestedPackageLineItems: [{
           weight: {
             units: shipment.package.weightUnit?.toUpperCase() === 'LBS' ? 'LB' : 'KG',

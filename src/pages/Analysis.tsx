@@ -1311,22 +1311,32 @@ const Analysis = () => {
   
   const finalizeAnalysis = async (analysisData: any) => {
     try {
+      console.log('🚀 Calling finalize-analysis edge function with:', {
+        orphanedCount: analysisData.orphanedShipments?.length || 0,
+        originalDataCount: analysisData.originalData?.length || 0,
+        recommendationsCount: analysisData.recommendations?.length || 0
+      });
+
       const { data, error } = await supabase.functions.invoke('finalize-analysis', {
         body: analysisData
       });
 
+      console.log('📦 Edge function response:', { data, error });
+
       if (error) {
+        console.error('❌ Edge function error:', error);
         throw new Error(error.message || 'Failed to finalize analysis');
       }
 
       if (!data.success) {
+        console.error('❌ Edge function returned failure:', data);
         throw new Error(data.error || 'Failed to finalize analysis');
       }
 
-      console.log('Analysis finalized successfully:', data.analysisId);
+      console.log('✅ Analysis finalized successfully:', data.analysisId);
       return data.analysisId;
     } catch (error) {
-      console.error('Error finalizing analysis:', error);
+      console.error('💥 Error finalizing analysis:', error);
       throw error;
     }
   };

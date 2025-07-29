@@ -1247,6 +1247,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       let shipmentData = rec.shipment || rec.shipment_data || rec;
       let errorStatus = rec.error || rec.status === 'error' ? rec.error || 'Processing failed' : null;
       
+      console.log('🔍 ORIGINAL CSV ROW DATA:', {
+        index: index + 1,
+        trackingId: rec.trackingId || rec.tracking_id || rec.shipment?.trackingId || 'unknown',
+        recKeys: Object.keys(rec),
+        hasCurrentRate: !!rec.currentRate || !!rec.current_rate || !!rec.rate || !!rec.cost,
+        currentRate: rec.currentRate || rec.current_rate || rec.rate || rec.cost,
+        rec: rec
+      });
+      
       // If this is a rate_quote record, extract proper shipment data
       if (rec.shipment_data && !rec.shipment) {
         console.log('🔄 Converting rate_quote to shipment format for:', {

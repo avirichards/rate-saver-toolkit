@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
 import { RateCardUploadDialog } from './RateCardUploadDialog';
 import { RateCardEditDialog } from './RateCardEditDialog';
+import { useFedexConnectivity } from '@/hooks/useFedexConnectivity';
 
 interface CarrierConfig {
   id: string;
@@ -71,6 +72,8 @@ export const CarrierAccountManager = () => {
   const [editingAccount, setEditingAccount] = useState<CarrierConfig | null>(null);
   const [testingAccount, setTestingAccount] = useState<string | null>(null);
   const [isAddingRateCard, setIsAddingRateCard] = useState(false);
+  
+  const { testFedexConnection } = useFedexConnectivity();
 
   const [newAccount, setNewAccount] = useState<{
     carrier_type: 'ups' | 'fedex' | 'dhl' | 'usps';
@@ -333,6 +336,35 @@ const updateAccount = async (account: CarrierConfig) => {
             
           loadCarrierConfigs();
           throw new Error(error?.message || 'Failed to authenticate with UPS');
+        }
+        
+        // Update config to mark as connected
+        await supabase
+          .from('carrier_configs')
+          .update({ 
+            connection_status: 'connected',
+            last_test_at: new Date().toISOString() 
+          })
+          .eq('id', config.id);
+          
+        toast.success(`${config.account_name} connection successful!`);
+        loadCarrierConfigs();
+      } else if (config.carrier_type === 'fedex') {
+        // Test FedEx connection using the specific config ID
+        const result = await testFedexConnection(config.id);
+        
+        if (!result.success) {
+          // Update config to mark as error
+          await supabase
+            .from('carrier_configs')
+            .update({ 
+              connection_status: 'error',
+              last_test_at: new Date().toISOString() 
+            })
+            .eq('id', config.id);
+            
+          loadCarrierConfigs();
+          throw new Error(result.message);
         }
         
         // Update config to mark as connected

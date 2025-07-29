@@ -502,20 +502,39 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
           console.log('📦 Updating shipment:', item.id, 'with new rate:', reanalyzed.ShipPros_cost, 'service:', reanalyzed.ShipPros_service);
-          // Merge the re-analyzed data with the original item
+          console.log('📊 Fields being updated:', {
+            old: { weight: item.weight, length: item.length, width: item.width, height: item.height },
+            new: { weight: reanalyzed.weight, length: reanalyzed.length, width: reanalyzed.width, height: reanalyzed.height }
+          });
+          
+          // Merge the re-analyzed data with the original item, ensuring ALL fields are updated
           return { 
             ...item, 
             ...reanalyzed,
-            // Ensure critical fields are updated
+            // Explicitly ensure all critical fields are updated
             ShipPros_cost: reanalyzed.ShipPros_cost,
             ShipPros_service: reanalyzed.ShipPros_service || 'Ground',
             customer_service: reanalyzed.ShipPros_service || reanalyzed.customer_service || item.customer_service || 'Ground',
+            // Physical dimensions
+            weight: reanalyzed.weight || item.weight,
+            length: reanalyzed.length || item.length,
+            width: reanalyzed.width || item.width,
+            height: reanalyzed.height || item.height,
+            // Address fields
+            originZip: reanalyzed.originZip || item.originZip,
+            destinationZip: reanalyzed.destinationZip || item.destinationZip,
+            // Analysis metadata
+            accountId: reanalyzed.accountId || item.accountId,
+            analyzedWithAccount: reanalyzed.analyzedWithAccount || item.analyzedWithAccount,
+            // Calculated fields
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0,
-            // Clear error fields on successful re-analysis
-            error: undefined,
-            errorType: undefined,
-            errorCategory: undefined
-          };
+            savings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0,
+            savingsPercent: item.currentRate ? ((item.currentRate - reanalyzed.ShipPros_cost) / item.currentRate) * 100 : 0,
+            // Clear error fields on successful re-analysis (as any to handle dynamic fields)
+            ...(reanalyzed.error === undefined && { error: undefined }),
+            ...(reanalyzed.errorType === undefined && { errorType: undefined }),
+            ...(reanalyzed.errorCategory === undefined && { errorCategory: undefined })
+          } as any;
         }
         return item;
       });
@@ -572,20 +591,39 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         const reanalyzed = result.success.find((r: any) => r.id === item.id);
         if (reanalyzed) {
           console.log('📦 Updating single shipment:', item.id, 'with new rate:', reanalyzed.ShipPros_cost, 'service:', reanalyzed.ShipPros_service);
-          // Merge the re-analyzed data with the original item
+          console.log('📊 Single shipment fields being updated:', {
+            old: { weight: item.weight, length: item.length, width: item.width, height: item.height },
+            new: { weight: reanalyzed.weight, length: reanalyzed.length, width: reanalyzed.width, height: reanalyzed.height }
+          });
+          
+          // Merge the re-analyzed data with the original item, ensuring ALL fields are updated
           return { 
             ...item, 
             ...reanalyzed,
-            // Ensure critical fields are updated
+            // Explicitly ensure all critical fields are updated
             ShipPros_cost: reanalyzed.ShipPros_cost,
             ShipPros_service: reanalyzed.ShipPros_service || 'Ground',
             customer_service: reanalyzed.ShipPros_service || reanalyzed.customer_service || item.customer_service || 'Ground',
+            // Physical dimensions
+            weight: reanalyzed.weight || item.weight,
+            length: reanalyzed.length || item.length,
+            width: reanalyzed.width || item.width,
+            height: reanalyzed.height || item.height,
+            // Address fields
+            originZip: reanalyzed.originZip || item.originZip,
+            destinationZip: reanalyzed.destinationZip || item.destinationZip,
+            // Analysis metadata
+            accountId: reanalyzed.accountId || item.accountId,
+            analyzedWithAccount: reanalyzed.analyzedWithAccount || item.analyzedWithAccount,
+            // Calculated fields
             estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0,
-            // Clear error fields on successful re-analysis
-            error: undefined,
-            errorType: undefined,
-            errorCategory: undefined
-          };
+            savings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0,
+            savingsPercent: item.currentRate ? ((item.currentRate - reanalyzed.ShipPros_cost) / item.currentRate) * 100 : 0,
+            // Clear error fields on successful re-analysis (as any to handle dynamic fields)
+            ...(reanalyzed.error === undefined && { error: undefined }),
+            ...(reanalyzed.errorType === undefined && { errorType: undefined }),
+            ...(reanalyzed.errorCategory === undefined && { errorCategory: undefined })
+          } as any;
         }
         return item;
       });

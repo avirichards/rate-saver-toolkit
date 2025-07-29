@@ -466,7 +466,9 @@ export function EditableShipmentRow({
       {/* Ship Pros Rate - Only in Edit Mode */}
       {editMode && (
         <TableCell className="text-right">
-          {shipment.ShipPros_cost ? formatCurrency(shipment.ShipPros_cost) : (
+          {estimatedSavings.isPending ? (
+            <span className="text-xs text-muted-foreground italic">Pending</span>
+          ) : shipment.ShipPros_cost ? formatCurrency(shipment.ShipPros_cost) : (
             <Badge variant="secondary" className="text-xs">No Rate</Badge>
           )}
         </TableCell>

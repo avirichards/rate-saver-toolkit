@@ -155,27 +155,87 @@ Deno.serve(async (req) => {
     console.log('Best overall account determined:', bestOverallAccount, 'with total cost:', lowestTotalCost);
     console.log('Account totals:', accountTotals);
 
-    // Format processed shipments with the best account rate for each individual shipment
-    const processedShipments = validRecommendations.map((rec, index) => {
-      // Find the best rate for this specific shipment (lowest cost)
-      let bestRate = null;
-      let bestAccountName = bestOverallAccount; // fallback to global best
-      
+    // Group rates by service categories to create service-to-account mapping
+    const serviceToAccountMapping: { [serviceCategory: string]: string } = {};
+    const serviceCategoryStats: { [serviceCategory: string]: { [accountName: string]: { totalCost: number; rateCount: number } } } = {};
+    
+    // First, collect all rates grouped by service category and account
+    validRecommendations.forEach(rec => {
       if (rec.allRates && Array.isArray(rec.allRates)) {
-        // Find the absolute best rate for this shipment
-        bestRate = rec.allRates.reduce((best: any, current: any) => {
-          const currentCost = parseFloat(current.totalCharges || current.negotiatedRate || current.rate_amount || Infinity);
-          const bestCost = parseFloat(best?.totalCharges || best?.negotiatedRate || best?.rate_amount || Infinity);
-          return currentCost < bestCost ? current : best;
-        }, null);
+        const serviceCategory = rec.customer_service || rec.shipment.service || 'Unknown';
         
-        if (bestRate) {
-          bestAccountName = bestRate.carrierName || bestRate.accountName || bestOverallAccount;
+        if (!serviceCategoryStats[serviceCategory]) {
+          serviceCategoryStats[serviceCategory] = {};
         }
+        
+        rec.allRates.forEach((rate: any) => {
+          const accountName = rate.carrierName || rate.accountName || 'Unknown';
+          const carrierType = rate.carrierType || 'unknown';
+          const serviceName = rate.serviceName || '';
+          
+          // Filter out Amazon rates for non-Ground services
+          if (carrierType.toLowerCase() === 'amazon' && 
+              serviceName.toLowerCase() !== 'ground' && 
+              !serviceName.toLowerCase().includes('ground')) {
+            return;
+          }
+          
+          if (!serviceCategoryStats[serviceCategory][accountName]) {
+            serviceCategoryStats[serviceCategory][accountName] = { totalCost: 0, rateCount: 0 };
+          }
+          
+          const rateAmount = parseFloat(rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0);
+          serviceCategoryStats[serviceCategory][accountName].totalCost += rateAmount;
+          serviceCategoryStats[serviceCategory][accountName].rateCount += 1;
+        });
+      }
+    });
+
+    // Create service-to-account mapping: primary account first, then best per service category
+    Object.keys(serviceCategoryStats).forEach(serviceCategory => {
+      const accounts = serviceCategoryStats[serviceCategory];
+      
+      // Check if best overall account supports this service category
+      if (accounts[bestOverallAccount] && accounts[bestOverallAccount].rateCount > 0) {
+        serviceToAccountMapping[serviceCategory] = bestOverallAccount;
+      } else {
+        // Find the account with the lowest average cost for this service category
+        let bestAccountForService = '';
+        let lowestAverageCost = Infinity;
+        
+        Object.entries(accounts).forEach(([accountName, stats]) => {
+          const averageCost = stats.totalCost / stats.rateCount;
+          if (averageCost < lowestAverageCost) {
+            lowestAverageCost = averageCost;
+            bestAccountForService = accountName;
+          }
+        });
+        
+        serviceToAccountMapping[serviceCategory] = bestAccountForService || bestOverallAccount;
+      }
+    });
+
+    console.log('Service-to-account mapping:', serviceToAccountMapping);
+    console.log('Best overall account:', bestOverallAccount);
+
+    // Format processed shipments using service-based account selection
+    const processedShipments = validRecommendations.map((rec, index) => {
+      const serviceCategory = rec.customer_service || rec.shipment.service || 'Unknown';
+      const assignedAccount = serviceToAccountMapping[serviceCategory] || bestOverallAccount;
+      
+      // Find the rate from the assigned account for this shipment
+      let assignedAccountRate = null;
+      if (rec.allRates && Array.isArray(rec.allRates)) {
+        assignedAccountRate = rec.allRates.find((rate: any) => {
+          const accountName = rate.carrierName || rate.accountName || 'Unknown';
+          return accountName === assignedAccount;
+        });
       }
 
-      // Use the best rate for this specific shipment
-      const newRate = bestRate ? parseFloat(bestRate.totalCharges || bestRate.negotiatedRate || bestRate.rate_amount || 0) : parseFloat(rec.recommendedCost || 0);
+      // Use the assigned account rate or fallback to best available rate
+      const newRate = assignedAccountRate ? 
+        parseFloat(assignedAccountRate.totalCharges || assignedAccountRate.negotiatedRate || assignedAccountRate.rate_amount || 0) : 
+        parseFloat(rec.recommendedCost || 0);
       const currentRate = parseFloat(rec.currentCost || 0);
       const savings = currentRate - newRate;
 
@@ -191,13 +251,13 @@ Deno.serve(async (req) => {
         dimensions: rec.shipment.dimensions,
         carrier: rec.carrier || 'UPS',
         customer_service: rec.customer_service || rec.shipment.service || 'Unknown',
-        ShipPros_service: bestRate ? (bestRate.serviceName || bestRate.description || 'Ground') : 'Ground',
+        ShipPros_service: assignedAccountRate ? (assignedAccountRate.serviceName || assignedAccountRate.description || 'Ground') : 'Ground',
         currentRate: currentRate,
         ShipPros_cost: newRate,
         savings: savings,
         savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
-        analyzedWithAccount: bestAccountName, // Use the account that provides the best rate for this specific shipment
-        accountName: bestAccountName // Also store as accountName for easier access
+        analyzedWithAccount: assignedAccount, // Use the account assigned for this service category
+        accountName: assignedAccount // Also store as accountName for easier access
       }
     })
 

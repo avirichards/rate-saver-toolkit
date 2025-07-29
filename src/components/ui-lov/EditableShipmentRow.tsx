@@ -7,7 +7,7 @@ import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { UniversalServiceSelector } from '@/components/ui-lov/UniversalServiceSelector';
 import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { RotateCw, AlertCircle } from 'lucide-react';
+import { RotateCw, AlertCircle, Flag } from 'lucide-react';
 import { formatCurrency, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 import { supabase } from '@/integrations/supabase/client';
@@ -235,12 +235,15 @@ export function EditableShipmentRow({
           </div>
         ) : (
           <div className="w-16">
-            <div className={`${
+            <div className={`flex items-center gap-1 ${
               (getDisplayValue('originZip') && getDisplayValue('originZip').toString().length < 4) ? 'text-red-500 font-medium' : ''
             }`}>
               {getDisplayValue('originZip') || (isOrphanedShipment ? (
                 <Badge variant="destructive" className="text-xs">Missing</Badge>
               ) : '')}
+              {getDisplayValue('originZip') && getDisplayValue('originZip').toString().length < 4 && (
+                <Flag className="h-3 w-3 text-red-500" />
+              )}
             </div>
             {getDisplayValue('originZip') && (
               <div className="text-xs text-muted-foreground">
@@ -272,12 +275,15 @@ export function EditableShipmentRow({
           </div>
         ) : (
           <div className="w-16">
-            <div className={`${
+            <div className={`flex items-center gap-1 ${
               (getDisplayValue('destinationZip') && getDisplayValue('destinationZip').toString().length < 4) ? 'text-red-500 font-medium' : ''
             }`}>
               {getDisplayValue('destinationZip') || (isOrphanedShipment ? (
                 <Badge variant="destructive" className="text-xs">Missing</Badge>
               ) : '')}
+              {getDisplayValue('destinationZip') && getDisplayValue('destinationZip').toString().length < 4 && (
+                <Flag className="h-3 w-3 text-red-500" />
+              )}
             </div>
             {getDisplayValue('destinationZip') && (
               <div className="text-xs text-muted-foreground">

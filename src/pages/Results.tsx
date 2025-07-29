@@ -26,6 +26,7 @@ import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { SelectiveReanalysisModal } from '@/components/ui-lov/SelectiveReanalysisModal';
 import { EditableShipmentRow } from '@/components/ui-lov/EditableShipmentRow';
 import { AccountComparisonView } from '@/components/ui-lov/AccountComparisonView';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 import { useSelectiveReanalysis } from '@/hooks/useSelectiveReanalysis';
 import { 
@@ -1935,7 +1936,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const layoutProps = isClientView ? {} : {};
 
   return (
-    <Layout {...layoutProps}>
+    <TooltipProvider>
+      <Layout {...layoutProps}>
       <div className="max-w-7xl mx-auto p-6 animate-fade-in">
 
         {/* Header Section */}
@@ -3078,6 +3080,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         allShipments={window.location.hash.includes('orphaned-data') ? orphanedData : shipmentData}
       />
     </Layout>
+    </TooltipProvider>
   );
 };
 

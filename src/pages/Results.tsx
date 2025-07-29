@@ -2983,8 +2983,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-foreground w-24">Ship Pros Service</TableHead>
                           {orphanedEditMode && <TableHead className="text-foreground w-32">Account Selection</TableHead>}
                           <TableHead className="text-right text-foreground w-20">Current Rate</TableHead>
-                          <TableHead className="text-right text-foreground w-20">Ship Pros Cost</TableHead>
-                          <TableHead className="text-right text-foreground w-20">Savings</TableHead>
+                          <TableHead className="text-right text-foreground w-20">Status</TableHead>
                           <TableHead className="text-foreground">Actions</TableHead>
                         </TableRow>
                       </TableHeader>

@@ -75,10 +75,14 @@ export function OrphanedShipmentRow({
 
   const { problemFields, errorMessage } = analyzeError();
 
-  // Check for basic missing data
+  // Check for basic missing data and validation issues
   const missingFields = [];
   if (!getDisplayValue('originZip')) missingFields.push('Origin ZIP');
+  else if (getDisplayValue('originZip').length < 5) missingFields.push('Origin ZIP (invalid)');
+  
   if (!getDisplayValue('destinationZip')) missingFields.push('Destination ZIP');
+  else if (getDisplayValue('destinationZip').length < 5) missingFields.push('Destination ZIP (invalid)');
+  
   if (!getDisplayValue('weight') || getDisplayValue('weight') === '0') missingFields.push('Weight');
   if (!getDisplayValue('service')) missingFields.push('Service Type');
 
@@ -128,15 +132,15 @@ export function OrphanedShipmentRow({
           <div className="w-16">
             {getDisplayValue('originZip') ? (
               <>
-                <span className={problemFields.includes('originZip') ? 'text-red-600 text-xs' : ''}>
+                <span className={problemFields.includes('originZip') || getDisplayValue('originZip').length < 5 ? 'text-red-600 text-xs' : ''}>
                   {getDisplayValue('originZip')}
                 </span>
-                {!problemFields.includes('originZip') && getStateFromZip(getDisplayValue('originZip'))?.state && (
+                {!problemFields.includes('originZip') && getDisplayValue('originZip').length >= 5 && getStateFromZip(getDisplayValue('originZip'))?.state && (
                   <div className="text-xs text-muted-foreground">
                     {getStateFromZip(getDisplayValue('originZip'))?.state}
                   </div>
                 )}
-                {problemFields.includes('originZip') && (
+                {(problemFields.includes('originZip') || getDisplayValue('originZip').length < 5) && (
                   <div className="text-xs text-red-500">Invalid format</div>
                 )}
               </>
@@ -161,15 +165,15 @@ export function OrphanedShipmentRow({
           <div className="w-16">
             {getDisplayValue('destinationZip') ? (
               <>
-                <span className={problemFields.includes('destinationZip') ? 'text-red-600 text-xs' : ''}>
+                <span className={problemFields.includes('destinationZip') || getDisplayValue('destinationZip').length < 5 ? 'text-red-600 text-xs' : ''}>
                   {getDisplayValue('destinationZip')}
                 </span>
-                {!problemFields.includes('destinationZip') && getStateFromZip(getDisplayValue('destinationZip'))?.state && (
+                {!problemFields.includes('destinationZip') && getDisplayValue('destinationZip').length >= 5 && getStateFromZip(getDisplayValue('destinationZip'))?.state && (
                   <div className="text-xs text-muted-foreground">
                     {getStateFromZip(getDisplayValue('destinationZip'))?.state}
                   </div>
                 )}
-                {problemFields.includes('destinationZip') && (
+                {(problemFields.includes('destinationZip') || getDisplayValue('destinationZip').length < 5) && (
                   <div className="text-xs text-red-500">Invalid format</div>
                 )}
               </>
@@ -254,7 +258,7 @@ export function OrphanedShipmentRow({
       {/* Current Service Column */}
       <TableCell>
         <Badge variant="outline" className="text-xs">
-          {getDisplayValue('originalService') || getDisplayValue('service') || 'Unknown'}
+          {getDisplayValue('originalService') || getDisplayValue('service') || 'Missing'}
         </Badge>
       </TableCell>
       
@@ -293,15 +297,7 @@ export function OrphanedShipmentRow({
         }
       </TableCell>
 
-      {/* Ship Pros Cost Column */}
-      <TableCell className="text-right">
-        {getDisplayValue('ShipPros_cost') || shipment.ShipPros_cost ? 
-          formatCurrency(getDisplayValue('ShipPros_cost') || shipment.ShipPros_cost) : 
-          <span className="text-amber-600 text-xs">Missing</span>
-        }
-      </TableCell>
-
-      {/* Savings Column */}
+      {/* Status Column */}
       <TableCell className="text-right">
         <TooltipProvider>
           <Tooltip>

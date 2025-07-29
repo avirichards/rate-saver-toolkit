@@ -2973,15 +2973,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                               />
                             </TableHead>
                           )}
-                          <TableHead className="text-foreground">Tracking ID</TableHead>
-                          <TableHead className="text-foreground">Origin Zip</TableHead>
-                          <TableHead className="text-foreground">Destination Zip</TableHead>
-                          <TableHead className="text-right text-foreground">Weight</TableHead>
-                          <TableHead className="text-foreground">Dimensions (L×W×H)</TableHead>
-                          <TableHead className="text-foreground">Service Type</TableHead>
-                          {orphanedEditMode && <TableHead className="text-foreground">Account</TableHead>}
-                          <TableHead className="text-foreground">Status</TableHead>
-                          <TableHead className="text-foreground">Actions</TableHead>
+                          <TableHead className="text-foreground w-24">Tracking ID</TableHead>
+                          <TableHead className="text-foreground w-16">Origin</TableHead>
+                          <TableHead className="text-foreground w-16">Destination</TableHead>
+                          <TableHead className="text-foreground w-14">Weight (lbs)</TableHead>
+                          <TableHead className="text-foreground w-24">Dimensions (L×W×H)</TableHead>
+                          <TableHead className="text-foreground w-24">Service Type</TableHead>
+                          {orphanedEditMode && <TableHead className="text-foreground w-32">Account</TableHead>}
+                          <TableHead className="text-foreground w-20">Status</TableHead>
+                          <TableHead className="text-foreground w-20">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>

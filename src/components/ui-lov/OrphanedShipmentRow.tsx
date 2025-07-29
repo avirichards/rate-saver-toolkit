@@ -75,21 +75,21 @@ export function OrphanedShipmentRow({
           </div>
         </TableCell>
       )}
-      <TableCell>
+      <TableCell className="w-24">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <span className="font-medium">
+          <span className="font-medium text-xs">
             {shipment.trackingId || `Orphan-${shipment.id}`}
           </span>
         </div>
       </TableCell>
       
-      <TableCell>
+      <TableCell className="w-16">
         <InlineEditableField
           value={getDisplayValue('originZip')}
           onSave={(value) => handleFieldUpdate('originZip', value)}
-          placeholder="Enter Origin ZIP"
-          className="min-w-[80px]"
+          placeholder="Origin"
+          className="min-w-[60px] text-xs"
         />
         {getDisplayValue('originZip') && (
           <div className="text-xs text-muted-foreground">
@@ -98,12 +98,12 @@ export function OrphanedShipmentRow({
         )}
       </TableCell>
       
-      <TableCell>
+      <TableCell className="w-16">
         <InlineEditableField
           value={getDisplayValue('destinationZip')}
           onSave={(value) => handleFieldUpdate('destinationZip', value)}
-          placeholder="Enter Dest ZIP"
-          className="min-w-[80px]"
+          placeholder="Dest"
+          className="min-w-[60px] text-xs"
         />
         {getDisplayValue('destinationZip') && (
           <div className="text-xs text-muted-foreground">
@@ -112,61 +112,61 @@ export function OrphanedShipmentRow({
         )}
       </TableCell>
       
-      <TableCell>
+      <TableCell className="w-14">
         <InlineEditableField
           value={getDisplayValue('weight')}
           onSave={(value) => handleFieldUpdate('weight', value)}
-          placeholder="Enter Weight"
-          className="min-w-[60px]"
+          placeholder="Weight"
+          className="min-w-[50px] text-xs"
         />
       </TableCell>
       
-      <TableCell>
+      <TableCell className="w-24">
         <div className="flex gap-1">
           <InlineEditableField
             value={getDisplayValue('length') || '12'}
             onSave={(value) => handleFieldUpdate('length', value)}
             placeholder="L"
-            className="min-w-[40px]"
+            className="min-w-[30px] text-xs"
           />
           ×
           <InlineEditableField
             value={getDisplayValue('width') || '12'}
             onSave={(value) => handleFieldUpdate('width', value)}
             placeholder="W"
-            className="min-w-[40px]"
+            className="min-w-[30px] text-xs"
           />
           ×
           <InlineEditableField
             value={getDisplayValue('height') || '6'}
             onSave={(value) => handleFieldUpdate('height', value)}
             placeholder="H"
-            className="min-w-[40px]"
+            className="min-w-[30px] text-xs"
           />
         </div>
       </TableCell>
       
-      <TableCell>
+      <TableCell className="w-24">
         <UniversalServiceSelector
           value={getDisplayValue('service')}
           onValueChange={(value) => handleFieldUpdate('service', value)}
           placeholder="Select Service"
-          className="min-w-[120px]"
+          className="min-w-[100px] text-xs"
         />
       </TableCell>
       
       {editMode && (
-        <TableCell>
+        <TableCell className="w-32">
           <InlineEditableField
             value={getDisplayValue('accountId') || getDisplayValue('account')}
             onSave={(value) => handleFieldUpdate('accountId', value)}
-            placeholder="Account ID"
-            className="min-w-[100px]"
+            placeholder="Account"
+            className="min-w-[80px] text-xs"
           />
         </TableCell>
       )}
       
-      <TableCell>
+      <TableCell className="w-20">
         <div className="space-y-1">
           <Badge variant="destructive" className="text-xs">
             Failed
@@ -177,7 +177,7 @@ export function OrphanedShipmentRow({
         </div>
       </TableCell>
       
-      <TableCell>
+      <TableCell className="w-20">
         {missingFields.length > 0 && (
           <div className="text-xs text-amber-600 mb-2">
             Missing: {missingFields.join(', ')}
@@ -187,7 +187,7 @@ export function OrphanedShipmentRow({
           size="sm"
           onClick={handleFixAndAnalyze}
           disabled={!canFix || isFixing}
-          className="h-8"
+          className="h-7 text-xs"
         >
           {isFixing ? (
             <>

@@ -412,14 +412,6 @@ export function EditableOrphanedShipmentRow({
       
       <TableCell className="text-right">
         {(() => {
-          console.log('🔍 ORPHAN CURRENT RATE DEBUG:', {
-            trackingId: shipment.trackingId,
-            currentRate: shipment.currentRate,
-            currentRateType: typeof shipment.currentRate,
-            shipmentKeys: Object.keys(shipment),
-            fullShipment: shipment
-          });
-          
           return shipment.currentRate && shipment.currentRate !== 0 ? 
             formatCurrency(shipment.currentRate) : 
             <Badge variant="secondary" className="text-xs">No Rate</Badge>;

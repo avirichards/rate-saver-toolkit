@@ -415,13 +415,6 @@ export function EditableShipmentRow({
       
       <TableCell className="text-right">
         {(() => {
-          console.log('💰 Current Rate Debug:', {
-            shipmentId: shipment.id,
-            currentRate: shipment.currentRate,
-            isOrphaned: isOrphanedShipment,
-            shipmentData: shipment
-          });
-          
           // Handle the weird currentRate structure from database
           let actualRate = shipment.currentRate;
           if (actualRate && typeof actualRate === 'object' && actualRate._type === 'undefined') {

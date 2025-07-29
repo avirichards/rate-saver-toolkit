@@ -1127,7 +1127,37 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }
 
       setShipmentData(formattedShipmentData);
-      setOrphanedData(processedData.orphanedShipments || []);
+      
+      // Enhance orphaned data with original CSV rate information
+      const orphanedWithRates = (processedData.orphanedShipments || []).map((orphan: any) => {
+        // Try to find the corresponding original data entry
+        const originalEntry = data.original_data?.find((orig: any) => 
+          orig.trackingId === orphan.trackingId || 
+          orig.tracking_id === orphan.trackingId ||
+          orig.shipment?.trackingId === orphan.trackingId
+        );
+        
+        if (originalEntry) {
+          const originalRate = originalEntry.currentRate || 
+                             originalEntry.current_rate || 
+                             originalEntry.rate || 
+                             originalEntry.cost || 
+                             originalEntry.amount || 
+                             originalEntry.price || 
+                             originalEntry.shipment?.currentRate ||
+                             originalEntry.shipment?.current_rate ||
+                             originalEntry.shipment?.rate ||
+                             originalEntry.shipment?.cost;
+          
+          if (originalRate && originalRate !== 0) {
+            return { ...orphan, currentRate: parseFloat(originalRate) };
+          }
+        }
+        
+        return orphan;
+      });
+      
+      setOrphanedData(orphanedWithRates);
       
       // Initialize services from the processed data
       const services = [...new Set((processedData.recommendations || []).map((item: any) => item.customer_service).filter(Boolean))] as string[];

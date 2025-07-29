@@ -2978,10 +2978,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <TableHead className="text-foreground w-16">Destination</TableHead>
                           <TableHead className="text-foreground w-14">Weight (lbs)</TableHead>
                           <TableHead className="text-foreground w-24">Dimensions (L×W×H)</TableHead>
-                          <TableHead className="text-foreground w-24">Service Type</TableHead>
-                          {orphanedEditMode && <TableHead className="text-foreground w-32">Account</TableHead>}
-                          <TableHead className="text-foreground w-20">Status</TableHead>
-                          <TableHead className="text-foreground w-20">Actions</TableHead>
+                          <TableHead className="text-foreground w-16">Residential</TableHead>
+                          <TableHead className="text-foreground w-20">Current Service</TableHead>
+                          <TableHead className="text-foreground w-24">Ship Pros Service</TableHead>
+                          {orphanedEditMode && <TableHead className="text-foreground w-32">Account Selection</TableHead>}
+                          <TableHead className="text-right text-foreground w-20">Current Rate</TableHead>
+                          <TableHead className="text-right text-foreground w-20">Ship Pros Cost</TableHead>
+                          <TableHead className="text-right text-foreground w-20">Savings</TableHead>
+                          {orphanedEditMode && <TableHead className="text-foreground w-16">Actions</TableHead>}
+                          {!orphanedEditMode && <TableHead className="text-foreground w-20">Account</TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>

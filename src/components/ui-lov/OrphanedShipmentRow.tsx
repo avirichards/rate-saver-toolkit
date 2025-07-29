@@ -146,6 +146,18 @@ export function OrphanedShipmentRow({
         </div>
       </TableCell>
       
+      <TableCell className="w-16">
+        <Badge variant="outline" className="text-xs">
+          Commercial
+        </Badge>
+      </TableCell>
+      
+      <TableCell className="w-20">
+        <Badge variant="outline" className="text-xs text-muted-foreground">
+          {shipment.customer_service || shipment.service || 'Unknown'}
+        </Badge>
+      </TableCell>
+      
       <TableCell className="w-24">
         <UniversalServiceSelector
           value={getDisplayValue('service')}
@@ -166,7 +178,15 @@ export function OrphanedShipmentRow({
         </TableCell>
       )}
       
-      <TableCell className="w-20">
+      <TableCell className="text-right w-20">
+        <span className="text-xs text-muted-foreground">-</span>
+      </TableCell>
+      
+      <TableCell className="text-right w-20">
+        <span className="text-xs text-muted-foreground">-</span>
+      </TableCell>
+      
+      <TableCell className="text-right w-20">
         <div className="space-y-1">
           <Badge variant="destructive" className="text-xs">
             Failed
@@ -177,31 +197,41 @@ export function OrphanedShipmentRow({
         </div>
       </TableCell>
       
-      <TableCell className="w-20">
-        {missingFields.length > 0 && (
-          <div className="text-xs text-amber-600 mb-2">
-            Missing: {missingFields.join(', ')}
-          </div>
-        )}
-        <Button
-          size="sm"
-          onClick={handleFixAndAnalyze}
-          disabled={!canFix || isFixing}
-          className="h-7 text-xs"
-        >
-          {isFixing ? (
-            <>
-              <CheckCircle className="h-3 w-3 mr-1 animate-pulse" />
-              Fixing...
-            </>
-          ) : (
-            <>
-              <CheckCircle className="h-3 w-3 mr-1" />
-              Fix & Analyze
-            </>
+      {editMode && (
+        <TableCell className="w-16">
+          {missingFields.length > 0 && (
+            <div className="text-xs text-amber-600 mb-2">
+              Missing: {missingFields.join(', ')}
+            </div>
           )}
-        </Button>
-      </TableCell>
+          <Button
+            size="sm"
+            onClick={handleFixAndAnalyze}
+            disabled={!canFix || isFixing}
+            className="h-7 text-xs"
+          >
+            {isFixing ? (
+              <>
+                <CheckCircle className="h-3 w-3 mr-1 animate-pulse" />
+                Fixing...
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Fix & Analyze
+              </>
+            )}
+          </Button>
+        </TableCell>
+      )}
+      
+      {!editMode && (
+        <TableCell className="w-20">
+          <Badge variant="secondary" className="text-xs">
+            Unknown Account
+          </Badge>
+        </TableCell>
+      )}
     </TableRow>
   );
 }

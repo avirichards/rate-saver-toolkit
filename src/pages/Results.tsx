@@ -2343,9 +2343,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              backgroundColor: 'hsl(var(--popover))',
                              border: '1px solid hsl(var(--border))',
                              borderRadius: '8px',
-                             color: 'white',
                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                            }}
+                           labelStyle={{ color: 'white' }}
+                           itemStyle={{ color: 'white' }}
                            formatter={(value: any, name: any) => [`${value} Shipments`, name]}
                          />
                       </PieChart>

@@ -261,7 +261,7 @@ serve(async (req) => {
         },
         shipDateStamp: new Date().toISOString().split('T')[0],
         rateRequestType: ["ACCOUNT", "LIST"],
-        pickupType: "USE_SCHEDULED_PICKUP", // Required by FedEx API
+        pickupType: "CONTACT_FEDEX_TO_SCHEDULE", // Valid FedEx API enum value
         packagingType: "YOUR_PACKAGING",
         requestedPackageLineItems: [{
           groupPackageCount: 1,

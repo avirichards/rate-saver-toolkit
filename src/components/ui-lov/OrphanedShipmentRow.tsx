@@ -86,7 +86,9 @@ export function OrphanedShipmentRow({
   if (!getDisplayValue('weight') || getDisplayValue('weight') === '0') missingFields.push('Weight');
   if (!getDisplayValue('service')) missingFields.push('Service Type');
 
-  const canFix = missingFields.length === 0;
+  const canFix = missingFields.length === 0 && 
+    getDisplayValue('originZip')?.length >= 5 && 
+    getDisplayValue('destinationZip')?.length >= 5;
 
   const handleFixAndAnalyze = () => {
     onFixAndAnalyze(shipment.id, {
@@ -291,8 +293,8 @@ export function OrphanedShipmentRow({
 
       {/* Current Rate Column */}
       <TableCell className="text-right">
-        {getDisplayValue('currentRate') || shipment.currentRate ? 
-          formatCurrency(getDisplayValue('currentRate') || shipment.currentRate) : 
+        {getDisplayValue('currentRate') || shipment.currentRate || shipment.originalRate || shipment.rate || shipment.currentCost || shipment.cost ? 
+          formatCurrency(getDisplayValue('currentRate') || shipment.currentRate || shipment.originalRate || shipment.rate || shipment.currentCost || shipment.cost) : 
           <span className="text-amber-600 text-xs">Missing</span>
         }
       </TableCell>

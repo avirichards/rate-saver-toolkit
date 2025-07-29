@@ -293,11 +293,20 @@ export function useSelectiveReanalysis() {
       const result = await processShipment(shipment);
       
       // Update the analysis to move this shipment from orphaned to processed
+      const currentRate = shipment.currentRate || 0;
+      const shipProsCost = result.ShipPros_cost || 0;
+      const calculatedSavings = currentRate - shipProsCost;
+      const savingsPercent = currentRate > 0 ? (calculatedSavings / currentRate) * 100 : 0;
+      
       await moveOrphanToProcessed(analysisId, shipment.id, {
         ...shipment,
-        ShipPros_cost: result.ShipPros_cost,
+        ShipPros_cost: shipProsCost,
         ShipPros_service: result.ShipPros_service,
         upsRates: result.upsRates,
+        // Calculate and preserve savings data
+        currentRate: currentRate,
+        savings: calculatedSavings,
+        savingsPercent: savingsPercent,
         // Preserve the account information from the re-analysis result
         accountId: result.accountUsed?.id || shipment.accountId,
         accountName: result.accountUsed?.name || shipment.accountName,

@@ -104,8 +104,8 @@ export function EditableShipmentRow({
     return value;
   };
 
-  // Check if this is an orphaned shipment (has error or errorType)
-  const isOrphanedShipment = shipment.error || shipment.errorType;
+  // Check if this is an orphaned shipment (has error/errorType AND no valid rate)
+  const isOrphanedShipment = (shipment.error || shipment.errorType) && (!shipment.ShipPros_cost || shipment.ShipPros_cost === 0);
 
   // Check if a field is missing or invalid for orphaned shipments
   const isFieldMissing = (field: string) => {

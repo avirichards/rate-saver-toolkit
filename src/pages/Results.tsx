@@ -509,7 +509,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             // Ensure critical fields are updated
             ShipPros_cost: reanalyzed.ShipPros_cost,
             ShipPros_service: reanalyzed.ShipPros_service || 'Ground',
-            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0
+            customer_service: reanalyzed.ShipPros_service || reanalyzed.customer_service || item.customer_service || 'Ground',
+            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0,
+            // Clear error fields on successful re-analysis
+            error: undefined,
+            errorType: undefined,
+            errorCategory: undefined
           };
         }
         return item;
@@ -574,7 +579,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
             // Ensure critical fields are updated
             ShipPros_cost: reanalyzed.ShipPros_cost,
             ShipPros_service: reanalyzed.ShipPros_service || 'Ground',
-            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0
+            customer_service: reanalyzed.ShipPros_service || reanalyzed.customer_service || item.customer_service || 'Ground',
+            estimatedSavings: item.currentRate ? (item.currentRate - reanalyzed.ShipPros_cost) : 0,
+            // Clear error fields on successful re-analysis
+            error: undefined,
+            errorType: undefined,
+            errorCategory: undefined
           };
         }
         return item;

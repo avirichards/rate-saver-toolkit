@@ -237,8 +237,7 @@ serve(async (req) => {
       return packageMap[packageType || '02'] || 'YOUR_PACKAGING';
     };
 
-    // Build the correct FedEx API request structure
-    const baseRequest = {
+    const ratingRequest = {
       accountNumber: {
         value: config.fedex_account_number
       },
@@ -246,30 +245,24 @@ serve(async (req) => {
         shipper: {
           address: {
             postalCode: cleanZip(shipment.shipFrom.zipCode),
-            countryCode: shipment.shipFrom.country || 'US'
+            countryCode: shipment.shipFrom.country || 'US',
+            ...(shipment.shipFrom.state ? { stateOrProvinceCode: shipment.shipFrom.state } : 
+               getStateFromZip(shipment.shipFrom.zipCode) ? { stateOrProvinceCode: getStateFromZip(shipment.shipFrom.zipCode) } : {})
           }
         },
         recipient: {
           address: {
             postalCode: cleanZip(shipment.shipTo.zipCode),
             countryCode: shipment.shipTo.country || 'US',
-            residential: shipment.isResidential || false
+            residential: shipment.isResidential || false,
+            ...(shipment.shipTo.state ? { stateOrProvinceCode: shipment.shipTo.state } : 
+               getStateFromZip(shipment.shipTo.zipCode) ? { stateOrProvinceCode: getStateFromZip(shipment.shipTo.zipCode) } : {})
           }
         },
         shipDateStamp: new Date().toISOString().split('T')[0],
         rateRequestType: ["ACCOUNT", "LIST"],
-        pickupType: "DROPOFF_AT_FEDEX_LOCATION",
-        shippingChargesPayment: {
-          paymentType: "SENDER",
-          payor: {
-            responsibleParty: {
-              accountNumber: {
-                value: config.fedex_account_number
-              }
-            }
-          }
-        },
         requestedPackageLineItems: [{
+          groupPackageCount: 1,
           weight: {
             units: shipment.package.weightUnit?.toUpperCase() === 'LBS' ? 'LB' : 'KG',
             value: shipment.package.weight
@@ -279,7 +272,12 @@ serve(async (req) => {
             width: shipment.package.width || 12,
             height: shipment.package.height || 6,
             units: shipment.package.dimensionUnit?.toUpperCase() === 'IN' ? 'IN' : 'CM'
-          }
+          },
+          packageSpecialServices: {
+            packageCODDetail: null,
+            dangerousGoodsDetail: null
+          },
+          physicalPackaging: getFedExPackagingCode(shipment.package.packageType)
         }]
       }
     };
@@ -287,8 +285,8 @@ serve(async (req) => {
     console.log('🏠 FedEx API - RESIDENTIAL STATUS VERIFICATION:', {
       inputResidential: shipment.isResidential,
       residentialSource: shipment.residentialSource,
-      fedexResidentialFlag: baseRequest.requestedShipment.recipient.address.residential,
-      zipCode: baseRequest.requestedShipment.recipient.address.postalCode
+      fedexResidentialFlag: ratingRequest.requestedShipment.recipient.address.residential,
+      zipCode: ratingRequest.requestedShipment.recipient.address.postalCode
     });
 
     // Use ONLY the confirmed service codes - NO fallbacks
@@ -329,19 +327,12 @@ serve(async (req) => {
       try {
         // Add service type to the request
         const serviceRequest = {
-          ...baseRequest,
+          ...ratingRequest,
           requestedShipment: {
-            ...baseRequest.requestedShipment,
+            ...ratingRequest.requestedShipment,
             serviceType: serviceCode
           }
         };
-
-        console.log(`🚀 FEDEX REQUEST DEBUG - Service: ${serviceCode}, Config: ${configId}`);
-        console.log(`📦 Sending FedEx request for ${serviceCode}:`, JSON.stringify({
-          accountNumber: serviceRequest.accountNumber.value,
-          serviceType: serviceRequest.requestedShipment.serviceType,
-          endpoint: ratingEndpoint
-        }, null, 2));
 
         console.log(`Requesting FedEx rate for service ${serviceCode} with config ${configId}...`);
 
@@ -360,34 +351,28 @@ serve(async (req) => {
 
         if (response.ok) {
           const rateData = await response.json();
-          console.log(`✅ FedEx Rate Response for service ${serviceCode} (config ${configId}):`, JSON.stringify(rateData, null, 2));
+          console.log(`FedEx Rate Response for service ${serviceCode} (config ${configId}):`, JSON.stringify(rateData, null, 2));
           
           if (rateData.output?.rateReplyDetails) {
             const rateReplyDetails = Array.isArray(rateData.output.rateReplyDetails) 
               ? rateData.output.rateReplyDetails[0] 
               : rateData.output.rateReplyDetails;
             
-            // Get service name from carrier services table
+            // Get service name from FedEx services table
             const { data: service } = await supabase
-              .from('carrier_services')
+              .from('fedex_services')
               .select('service_name, description')
               .eq('service_code', serviceCode)
-              .eq('carrier_type', 'fedex')
               .maybeSingle();
 
-            // Extract rate information from FedEx response
-            const ratedShipmentDetails = rateReplyDetails.ratedShipmentDetails || [];
-            
-            if (ratedShipmentDetails.length > 0) {
-              // Get account and list rates from separate rate details
-              const accountRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'ACCOUNT');
-              const listRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'LIST');
+            // Extract rate information
+            const ratedShipmentDetails = rateReplyDetails.ratedShipmentDetails?.[0];
+            if (ratedShipmentDetails) {
+              // Check for account rates first, then fall back to list rates
+              const listRate = ratedShipmentDetails.shipmentRateDetail?.totalNetCharge || 0;
+              const accountRate = ratedShipmentDetails.shipmentRateDetail?.totalNetChargeWithDutiesAndTaxes || listRate;
               
-              const accountRate = accountRateDetail?.totalNetCharge || 0;
-              const listRate = listRateDetail?.totalNetCharge || 0;
-              
-              // Use account rate if available, otherwise use list rate
-              const hasAccountRates = accountRate > 0 && config?.fedex_account_number;
+              const hasAccountRates = accountRate !== listRate && config?.fedex_account_number;
               const finalCharges = hasAccountRates ? accountRate : listRate;
               const rateType = hasAccountRates ? 'account' : 'list';
               
@@ -396,8 +381,7 @@ serve(async (req) => {
               const savingsPercentage = savingsAmount > 0 ? ((savingsAmount / listRate) * 100) : 0;
 
               // Extract surcharge details for residential analysis
-              const selectedRateDetail = hasAccountRates ? accountRateDetail : listRateDetail;
-              const surcharges = selectedRateDetail?.shipmentRateDetail?.surCharges || [];
+              const surcharges = ratedShipmentDetails.shipmentRateDetail?.surCharges || [];
               const residentialSurcharge = surcharges.find((charge: any) => 
                 charge.type === 'RESIDENTIAL_DELIVERY' || charge.description?.toLowerCase().includes('residential')
               );
@@ -429,8 +413,8 @@ serve(async (req) => {
                   serviceName: service?.service_name || `FedEx ${serviceCode}`,
                   description: service?.description || '',
                   totalCharges: finalCharges,
-                  currency: selectedRateDetail?.currency || 'USD',
-                  baseCharges: selectedRateDetail?.totalBaseCharge || 0,
+                  currency: ratedShipmentDetails.shipmentRateDetail?.currency || 'USD',
+                  baseCharges: ratedShipmentDetails.shipmentRateDetail?.totalBaseCharge || 0,
                   transitTime: rateReplyDetails.operationalDetail?.transitTime || null,
                   deliveryDate: rateReplyDetails.operationalDetail?.deliveryDate || null,
                   rateType,
@@ -451,15 +435,7 @@ serve(async (req) => {
           }
         } else {
           const errorText = await response.text();
-          console.error(`❌ FedEx API Error for service ${serviceCode}:`, {
-            status: response.status,
-            statusText: response.statusText,
-            error: errorText,
-            configId: configId
-          });
-          
-          // Log the exact request that failed
-          console.error(`📝 Failed FedEx Request for ${serviceCode}:`, JSON.stringify(serviceRequest, null, 2));
+          console.error(`FedEx API Error for service ${serviceCode}:`, errorText);
           
           // Continue with other services even if one fails
           continue;

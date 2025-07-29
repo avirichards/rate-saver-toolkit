@@ -658,29 +658,41 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                           <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded">Selected</span>
                         )}
                       </h4>
-                      <div className="space-y-2 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Shipments:</span>
-                          <span className="font-medium">{account.shipmentCount}</span>
-                        </div>
-                        
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Avg Cost:</span>
-                          <span className="font-medium">{formatCurrency(account.avgCost)}</span>
-                        </div>
-                        
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Avg Savings:</span>
-                          <span className={`font-medium ${account.avgSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {formatCurrency(account.avgSavings)}
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Win Rate:</span>
-                          <span className="font-medium">{account.winRate.toFixed(1)}%</span>
-                        </div>
-                      </div>
+                       <div className="space-y-2 text-xs">
+                         <div className="flex justify-between">
+                           <span className="text-muted-foreground">Shipments:</span>
+                           <span className="font-medium">{account.shipmentCount}</span>
+                         </div>
+                         
+                         <div className="flex justify-between">
+                           <span className="text-muted-foreground">Total Spend:</span>
+                           <span className="font-medium">{formatCurrency(account.totalCost)}</span>
+                         </div>
+                         
+                         <div className="flex justify-between">
+                           <span className="text-muted-foreground">Total Savings:</span>
+                           <span className={`font-medium ${account.totalSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                             {formatCurrency(account.totalSavings)}
+                           </span>
+                         </div>
+                         
+                         <div className="flex justify-between">
+                           <span className="text-muted-foreground">Avg Cost:</span>
+                           <span className="font-medium">{formatCurrency(account.avgCost)}</span>
+                         </div>
+                         
+                         <div className="flex justify-between">
+                           <span className="text-muted-foreground">Avg Savings:</span>
+                           <span className={`font-medium ${account.avgSavings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                             {formatCurrency(account.avgSavings)}
+                           </span>
+                         </div>
+                         
+                         <div className="flex justify-between">
+                           <span className="text-muted-foreground">Win Rate:</span>
+                           <span className="font-medium">{account.winRate.toFixed(1)}%</span>
+                         </div>
+                       </div>
                     </div>
                   ))}
                 </div>

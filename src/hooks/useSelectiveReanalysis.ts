@@ -292,20 +292,22 @@ export function useSelectiveReanalysis() {
     try {
       const result = await processShipment(shipment);
       
-      // Update the analysis to move this shipment from orphaned to processed
-      await moveOrphanToProcessed(analysisId, shipment.id, {
-        ...shipment,
+      // Create the fixed shipment data, preserving all original data except analysis results
+      const fixedShipment = {
+        ...shipment, // Keep all original data as-is
+        // Only update the analysis results
         ShipPros_cost: result.ShipPros_cost,
         ShipPros_service: result.ShipPros_service,
         upsRates: result.upsRates,
-        // Preserve the account information used for re-analysis
-        accountName: result.accountUsed.name || shipment.accountName,
-        analyzedWithAccount: result.accountUsed.name || shipment.accountName,
-        // Preserve service mapping information
-        customer_service: shipment.service || shipment.customer_service,
+        // Update the account used for analysis
+        analyzedWithAccount: result.accountUsed.name,
+        // Mark as fixed
         fixed: true,
         fixedAt: new Date().toISOString()
-      });
+      };
+      
+      // Update the analysis to move this shipment from orphaned to processed
+      await moveOrphanToProcessed(analysisId, shipment.id, fixedShipment);
 
       toast.success(`Successfully fixed and analyzed shipment ${shipment.trackingId || shipment.id}`);
       return result;

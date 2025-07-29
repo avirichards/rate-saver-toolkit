@@ -72,10 +72,14 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
 
   // Apply conservative auto-mapping on CSV load
   useEffect(() => {
+    console.log('🗂️ useEffect triggered - csvHeaders:', csvHeaders.length, 'userOverrides:', userOverrides.size);
+    
     if (csvHeaders.length > 0) {
       console.log('🗂️ Applying conservative auto-mapping...');
       
       const autoMappings = generateConservativeColumnMappings(csvHeaders);
+      console.log('🗂️ Generated auto-mappings:', autoMappings);
+      
       const initialMappings: Record<string, string> = {};
       
       autoMappings.forEach(mapping => {

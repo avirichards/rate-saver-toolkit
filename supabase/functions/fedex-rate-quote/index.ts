@@ -237,7 +237,8 @@ serve(async (req) => {
       return packageMap[packageType || '02'] || 'YOUR_PACKAGING';
     };
 
-    const ratingRequest = {
+    // Build the correct FedEx API request structure
+    const baseRequest = {
       accountNumber: {
         value: config.fedex_account_number
       },
@@ -245,26 +246,19 @@ serve(async (req) => {
         shipper: {
           address: {
             postalCode: cleanZip(shipment.shipFrom.zipCode),
-            countryCode: shipment.shipFrom.country || 'US',
-            ...(shipment.shipFrom.state ? { stateOrProvinceCode: shipment.shipFrom.state } : 
-               getStateFromZip(shipment.shipFrom.zipCode) ? { stateOrProvinceCode: getStateFromZip(shipment.shipFrom.zipCode) } : {})
+            countryCode: shipment.shipFrom.country || 'US'
           }
         },
         recipient: {
           address: {
             postalCode: cleanZip(shipment.shipTo.zipCode),
             countryCode: shipment.shipTo.country || 'US',
-            residential: shipment.isResidential || false,
-            ...(shipment.shipTo.state ? { stateOrProvinceCode: shipment.shipTo.state } : 
-               getStateFromZip(shipment.shipTo.zipCode) ? { stateOrProvinceCode: getStateFromZip(shipment.shipTo.zipCode) } : {})
+            residential: shipment.isResidential || false
           }
         },
         shipDateStamp: new Date().toISOString().split('T')[0],
         rateRequestType: ["ACCOUNT", "LIST"],
-        // Removing pickupType to see if it's optional or causing the issue
-        packagingType: "YOUR_PACKAGING",
         requestedPackageLineItems: [{
-          groupPackageCount: 1,
           weight: {
             units: shipment.package.weightUnit?.toUpperCase() === 'LBS' ? 'LB' : 'KG',
             value: shipment.package.weight
@@ -274,12 +268,7 @@ serve(async (req) => {
             width: shipment.package.width || 12,
             height: shipment.package.height || 6,
             units: shipment.package.dimensionUnit?.toUpperCase() === 'IN' ? 'IN' : 'CM'
-          },
-          packageSpecialServices: {
-            packageCODDetail: null,
-            dangerousGoodsDetail: null
-          },
-          physicalPackaging: getFedExPackagingCode(shipment.package.packageType)
+          }
         }]
       }
     };
@@ -287,8 +276,8 @@ serve(async (req) => {
     console.log('🏠 FedEx API - RESIDENTIAL STATUS VERIFICATION:', {
       inputResidential: shipment.isResidential,
       residentialSource: shipment.residentialSource,
-      fedexResidentialFlag: ratingRequest.requestedShipment.recipient.address.residential,
-      zipCode: ratingRequest.requestedShipment.recipient.address.postalCode
+      fedexResidentialFlag: baseRequest.requestedShipment.recipient.address.residential,
+      zipCode: baseRequest.requestedShipment.recipient.address.postalCode
     });
 
     // Use ONLY the confirmed service codes - NO fallbacks
@@ -329,17 +318,17 @@ serve(async (req) => {
       try {
         // Add service type to the request
         const serviceRequest = {
-          ...ratingRequest,
+          ...baseRequest,
           requestedShipment: {
-            ...ratingRequest.requestedShipment,
+            ...baseRequest.requestedShipment,
             serviceType: serviceCode
           }
         };
 
         console.log(`🚀 FEDEX REQUEST DEBUG - Service: ${serviceCode}, Config: ${configId}`);
-        console.log(`📦 Sending FedEx request with pickupType:`, JSON.stringify({
-          pickupType: serviceRequest.requestedShipment.pickupType,
-          packagingType: serviceRequest.requestedShipment.packagingType,
+        console.log(`📦 Sending FedEx request for ${serviceCode}:`, JSON.stringify({
+          accountNumber: serviceRequest.accountNumber.value,
+          serviceType: serviceRequest.requestedShipment.serviceType,
           endpoint: ratingEndpoint
         }, null, 2));
 

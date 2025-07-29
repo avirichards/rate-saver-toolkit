@@ -1546,10 +1546,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     // Apply search filter
     if (searchTerm) {
       filtered = filtered.filter(item => 
-        item.trackingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.originZip.includes(searchTerm) ||
-        item.destinationZip.includes(searchTerm) ||
-        item.customer_service.toLowerCase().includes(searchTerm.toLowerCase())
+        (item.trackingId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.originZip || '').includes(searchTerm) ||
+        (item.destinationZip || '').includes(searchTerm) ||
+        (item.customer_service || '').toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 

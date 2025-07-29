@@ -2540,9 +2540,17 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                     
                     if (optimizedRate) {
                       const newSavings = shipment.currentRate - optimizedRate.rate_amount;
+                      
+                      // Update the service name based on the carrier type
+                      let carrierSpecificService = shipment.ShipPros_service;
+                      if (optimizedRate.carrier_type && optimizedRate.service_name) {
+                        carrierSpecificService = optimizedRate.service_name;
+                      }
+                      
                       const optimizedShipment = {
                         ...shipment,
                         ShipPros_cost: optimizedRate.rate_amount,
+                        ShipPros_service: carrierSpecificService,
                         savings: newSavings,
                         account: selectedAccount,
                         // Also update accountName for consistency

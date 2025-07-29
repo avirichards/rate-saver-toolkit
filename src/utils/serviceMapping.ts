@@ -63,20 +63,20 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
     };
   }
 
-  // 3 Day Select patterns
-  if (service.includes('3 day') || service.includes('3-day') || service.includes('select')) {
-    return {
-      standardizedService: UniversalServiceCategory.THREE_DAY,
-      serviceName: '3-Day Select',
-      confidence: 0.9
-    };
-  }
-
-  // Ground patterns
+  // Ground patterns (check before 3 Day Select to catch USPS Parcel Select Ground)
   if (service.includes('ground') || service.includes('standard') || service.includes('regular')) {
     return {
       standardizedService: UniversalServiceCategory.GROUND,
       serviceName: 'Ground',
+      confidence: 0.9
+    };
+  }
+
+  // 3 Day Select patterns (but not if it includes ground)
+  if ((service.includes('3 day') || service.includes('3-day') || service.includes('select')) && !service.includes('ground')) {
+    return {
+      standardizedService: UniversalServiceCategory.THREE_DAY,
+      serviceName: '3-Day Select',
       confidence: 0.9
     };
   }

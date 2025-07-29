@@ -1127,7 +1127,26 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       }
 
       setShipmentData(formattedShipmentData);
-      setOrphanedData(processedData.orphanedShipments || []);
+      
+      // Enhance orphaned data with currentRate from original data
+      const enhancedOrphanedData = (processedData.orphanedShipments || []).map((orphan: any) => {
+        // Look up the tracking ID in original data to get currentRate
+        const originalEntry = data.original_data?.find((orig: any) => 
+          orig.shipment?.trackingId === orphan.trackingId ||
+          orig.trackingId === orphan.trackingId
+        );
+        
+        const currentRate = originalEntry?.shipment?.currentRate || 
+                           originalEntry?.currentRate || 
+                           orphan.currentRate || 0;
+        
+        return {
+          ...orphan,
+          currentRate: parseFloat(currentRate) || 0
+        };
+      });
+      
+      setOrphanedData(enhancedOrphanedData);
       
       // Initialize services from the processed data
       const services = [...new Set((processedData.recommendations || []).map((item: any) => item.customer_service).filter(Boolean))] as string[];

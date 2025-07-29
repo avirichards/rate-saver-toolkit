@@ -257,15 +257,8 @@ const Analysis = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const { data, error } = await supabase
-          .from('carrier_configs')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('is_active', true);
-
-        if (!error && data && data.length > 0) {
-          setSelectedCarriers(data.map(config => config.id));
-        }
+        // Don't auto-select any carriers - let user explicitly choose
+        console.log('📋 Available carrier configs loaded, waiting for user selection');
         setHasLoadedInitialCarriers(true);
       } catch (error) {
         console.error('Error loading carrier configs:', error);
@@ -279,10 +272,20 @@ const Analysis = () => {
     }
   }, [shipments, hasLoadedInitialCarriers]);
 
-  // Wait for both service mappings and carrier selection to complete
-  useEffect(() => {
-    if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && 
-        selectedCarriers.length > 0 && carrierSelectionComplete && !isAnalysisStarted) {
+    // Wait for both service mappings and explicit carrier selection to complete
+    useEffect(() => {
+      console.log('🎯 Analysis readiness check:', {
+        readyToAnalyze,
+        serviceMappingsCount: serviceMappings.length,
+        shipmentsCount: shipments.length,
+        selectedCarriersCount: selectedCarriers.length,
+        carrierSelectionComplete,
+        isAnalysisStarted,
+        selectedCarriers: selectedCarriers
+      });
+      
+      if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && 
+          selectedCarriers.length > 0 && carrierSelectionComplete && !isAnalysisStarted) {
       console.log('🚀 Starting analysis with service mappings and carriers:', {
         serviceMappingsCount: serviceMappings.length,
         shipmentsCount: shipments.length,

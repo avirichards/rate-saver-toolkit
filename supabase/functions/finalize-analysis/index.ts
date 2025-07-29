@@ -120,6 +120,17 @@ Deno.serve(async (req) => {
       if (rec.allRates && Array.isArray(rec.allRates)) {
         rec.allRates.forEach((rate: any) => {
           const accountName = rate.carrierName || rate.accountName || 'Unknown';
+          const carrierType = rate.carrierType || 'unknown';
+          const serviceName = rate.serviceName || '';
+          
+          // Filter out Amazon rates for non-Ground services (these should not exist but are invalid if they do)
+          if (carrierType.toLowerCase() === 'amazon' && 
+              serviceName.toLowerCase() !== 'ground' && 
+              !serviceName.toLowerCase().includes('ground')) {
+            console.log(`⚠️ Filtering out invalid Amazon rate for non-Ground service: ${serviceName}`);
+            return;
+          }
+          
           if (!accountTotals[accountName]) {
             accountTotals[accountName] = { totalCost: 0, shipmentCount: 0 };
           }
@@ -231,9 +242,14 @@ Deno.serve(async (req) => {
       recommendations: payload.recommendations,
       processed_shipments: processedShipments,
       orphaned_shipments: orphanedShipmentsFormatted,
-      processing_metadata: processingMetadata,
+      processing_metadata: {
+        ...processingMetadata,
+        bestOverallAccount: bestOverallAccount,
+        accountTotals: accountTotals,
+        selectedCarrierConfigs: payload.carrierConfigsUsed
+      },
       total_shipments: payload.totalShipments,
-      total_savings: payload.totalPotentialSavings, // Now we can store negative savings!
+      total_savings: payload.totalPotentialSavings,
       status: 'completed'
     }
 

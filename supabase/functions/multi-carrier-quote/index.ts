@@ -120,13 +120,19 @@ serve(async (req) => {
       startTime: Date.now()
     };
 
-    // Get carrier configurations for the user
+    // Validate that the requested carrier configs belong to the authenticated user and are active
     const { data: carrierConfigs, error: configError } = await supabase
       .from('carrier_configs')
       .select('*')
       .eq('user_id', user.id)
       .in('id', shipment.carrierConfigIds)
       .eq('is_active', true);
+
+    console.log('🔐 Carrier config validation:', {
+      requestedCarrierIds: shipment.carrierConfigIds,
+      foundConfigs: carrierConfigs?.map(c => ({ id: c.id, account_name: c.account_name, carrier_type: c.carrier_type })),
+      userId: user.id
+    });
 
     if (configError || !carrierConfigs || carrierConfigs.length === 0) {
       return new Response(JSON.stringify({ error: 'No valid carrier configurations found' }), {
@@ -192,13 +198,8 @@ serve(async (req) => {
                 'INTERNATIONAL_EXPEDITED': 'INTERNATIONAL_ECONOMY'
               },
               'AMAZON': {
-                'GROUND': 'GROUND',
-                'OVERNIGHT': 'GROUND', // Amazon only has ground service
-                'OVERNIGHT_SAVER': 'GROUND',
-                'OVERNIGHT_EARLY': 'GROUND',
-                'TWO_DAY': 'GROUND',
-                'TWO_DAY_MORNING': 'GROUND',
-                'THREE_DAY': 'GROUND'
+                'GROUND': 'GROUND'
+                // Amazon ONLY supports ground service - don't map other services
               },
               'DHL': {
                 'OVERNIGHT': 'EXPRESS_10_30',
@@ -225,6 +226,20 @@ serve(async (req) => {
             filtered: servicesToRequest,
             enabledServices: config.enabled_services
           });
+        }
+
+        // Skip Amazon carriers for non-Ground services
+        if (config.carrier_type === 'amazon' && servicesToRequest.length > 0 && !servicesToRequest.includes('GROUND')) {
+          console.log(`⏭️ Skipping Amazon carrier ${config.account_name}: Only supports Ground service, requested: ${servicesToRequest.join(', ')}`);
+          carrierResults.push({
+            carrierId: config.id,
+            carrierName: config.account_name,
+            carrierType: config.carrier_type,
+            success: false,
+            error: 'Amazon only supports Ground service',
+            rates: []
+          });
+          continue;
         }
 
         // Skip if no services are enabled for this carrier

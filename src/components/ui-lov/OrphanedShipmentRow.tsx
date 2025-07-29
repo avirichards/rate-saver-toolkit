@@ -260,7 +260,7 @@ export function OrphanedShipmentRow({
       {/* Current Service Column */}
       <TableCell>
         <Badge variant="outline" className="text-xs">
-          {getDisplayValue('originalService') || shipment.originalService || shipment.customer_service || 'Missing'}
+          {getDisplayValue('customer_service') || shipment.customer_service || getDisplayValue('service') || shipment.service || 'Missing'}
         </Badge>
       </TableCell>
       

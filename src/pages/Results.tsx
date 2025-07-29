@@ -1309,6 +1309,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
           service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
+          customer_service: shipmentData?.customer_service || rec.customer_service || '',
+          currentRate: parseFloat(shipmentData?.currentRate || rec.currentRate || '0'),
           error: orphanReason,
           errorType: validation.errorType || 'Processing Error',
           missingFields: validation.missingFields
@@ -1365,6 +1367,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           destinationZip: shipmentData.destZip || shipmentData.destinationZip || '',
           weight: parseFloat(shipmentData.weight || '0'),
           customer_service: originalShipment?.customer_service || shipmentData.customer_service || '',
+          currentRate: parseFloat(originalShipment?.currentRate || shipmentData.currentRate || '0'),
           error: 'Missing from analysis data - shipment was not processed during analysis',
           errorType: 'Missing Data',
           missingFields: originalShipment ? ['Analysis incomplete'] : ['All data missing']

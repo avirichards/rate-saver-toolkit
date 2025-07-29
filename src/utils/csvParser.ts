@@ -27,7 +27,31 @@ export interface ServiceMapping {
   residentialDetectionSource?: 'service_name' | 'address_pattern' | 'csv_data' | 'manual';
 }
 
-// Removed auto-detection patterns - manual mapping only
+// Conservative auto-detection patterns - only high-confidence matches
+const fieldPatterns = {
+  trackingId: [/track/i, /tracking/i, /shipment.*id/i, /package.*id/i],
+  service: [/service/i, /shipping.*service/i, /delivery.*service/i, /carrier.*service/i],
+  carrier: [/carrier/i, /shipper/i, /company/i],
+  weight: [/weight/i, /wt/i, /lbs/i, /pounds/i],
+  currentRate: [/cost/i, /rate/i, /price/i, /total/i, /amount/i, /charge/i, /fee/i],
+  originZip: [/origin.*zip/i, /from.*zip/i, /ship.*zip/i, /sender.*zip/i],
+  destZip: [/dest.*zip/i, /to.*zip/i, /delivery.*zip/i, /recipient.*zip/i],
+  length: [/length/i, /^len$/i],
+  width: [/width/i, /^wid$/i],
+  height: [/height/i, /^hgt$/i],
+  shipperName: [/shipper.*name/i, /sender.*name/i, /from.*name/i],
+  shipperAddress: [/shipper.*address/i, /sender.*address/i, /from.*address/i],
+  shipperCity: [/shipper.*city/i, /sender.*city/i, /from.*city/i],
+  shipperState: [/shipper.*state/i, /sender.*state/i, /from.*state/i],
+  recipientName: [/recipient.*name/i, /receiver.*name/i, /to.*name/i],
+  recipientAddress: [/recipient.*address/i, /receiver.*address/i, /to.*address/i],
+  recipientCity: [/recipient.*city/i, /receiver.*city/i, /to.*city/i],
+  recipientState: [/recipient.*state/i, /receiver.*state/i, /to.*state/i],
+  zone: [/zone/i, /shipping.*zone/i],
+  isResidential: [/residential/i, /resi/i, /home/i],
+  shipDate: [/ship.*date/i, /sent.*date/i],
+  deliveryDate: [/delivery.*date/i, /delivered.*date/i]
+};
 
 export function parseCSV(csvContent: string): CSVParseResult {
   const lines = csvContent.split('\n').filter(line => line.trim());
@@ -78,7 +102,54 @@ function parseCSVLine(line: string): string[] {
   return result;
 }
 
-// Removed auto-detection functions - manual mapping only
+// Conservative auto-mapping - only high-confidence matches (90%+)
+export function generateConservativeColumnMappings(headers: string[]): FieldMapping[] {
+  const mappings: FieldMapping[] = [];
+  const usedHeaders = new Set<string>();
+  
+  Object.entries(fieldPatterns).forEach(([fieldName, patterns]) => {
+    let bestMatch: { header: string; confidence: number } | null = null;
+    
+    headers.forEach(header => {
+      if (usedHeaders.has(header)) return;
+      
+      const headerLower = header.toLowerCase().trim();
+      let confidence = 0;
+      
+      // Check for exact or near-exact matches
+      patterns.forEach(pattern => {
+        if (pattern.test(headerLower)) {
+          // Calculate confidence based on pattern specificity and header length
+          const patternStr = pattern.toString().toLowerCase();
+          if (headerLower === patternStr.replace(/[^a-z]/g, '')) {
+            confidence = Math.max(confidence, 95); // Exact match
+          } else if (headerLower.includes(patternStr.replace(/[^a-z]/g, ''))) {
+            confidence = Math.max(confidence, 85); // Contains key term
+          } else {
+            confidence = Math.max(confidence, 75); // Pattern match
+          }
+        }
+      });
+      
+      // Only consider high-confidence matches (90%+)
+      if (confidence >= 90 && (!bestMatch || confidence > bestMatch.confidence)) {
+        bestMatch = { header, confidence };
+      }
+    });
+    
+    if (bestMatch) {
+      mappings.push({
+        fieldName,
+        csvHeader: bestMatch.header,
+        confidence: bestMatch.confidence,
+        isAutoDetected: true
+      });
+      usedHeaders.add(bestMatch.header);
+    }
+  });
+  
+  return mappings;
+}
 
 export function detectServiceTypes(data: any[], serviceColumn: string): ServiceMapping[] {
   const uniqueServices = [...new Set(data.map(row => row[serviceColumn]).filter(Boolean))];

@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertCircle, CheckCircle, AlertTriangle, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { parseCSV, detectServiceTypes, CSVParseResult } from '@/utils/csvParser';
+import { parseCSV, detectServiceTypes, CSVParseResult, generateConservativeColumnMappings } from '@/utils/csvParser';
 
 interface FieldMapping {
   fieldName: string;
@@ -68,13 +68,31 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
   const [mappings, setMappings] = useState<Record<string, string>>({});
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [userOverrides, setUserOverrides] = useState<Set<string>>(new Set());
 
-  // Initialize with empty mappings - no auto-detection
+  // Apply conservative auto-mapping on CSV load
   useEffect(() => {
     if (csvHeaders.length > 0) {
-      console.log('🗂️ Manual mapping mode - no auto-detection');
+      console.log('🗂️ Applying conservative auto-mapping...');
+      
+      const autoMappings = generateConservativeColumnMappings(csvHeaders);
+      const initialMappings: Record<string, string> = {};
+      
+      autoMappings.forEach(mapping => {
+        // Only apply auto-mapping if user hasn't manually set this field
+        if (!userOverrides.has(mapping.fieldName)) {
+          initialMappings[mapping.fieldName] = mapping.csvHeader;
+          console.log(`✅ Auto-mapped: ${mapping.fieldName} → ${mapping.csvHeader} (${mapping.confidence}% confidence)`);
+        }
+      });
+      
+      setMappings(prev => ({ ...prev, ...initialMappings }));
+      
+      if (autoMappings.length > 0) {
+        toast.success(`Auto-mapped ${autoMappings.length} columns. You can adjust any mapping as needed.`);
+      }
     }
-  }, [csvHeaders]);
+  }, [csvHeaders, userOverrides]);
 
   const getFieldDisplayName = (fieldName: string): string => {
     const field = fieldDefinitions.find(f => f.name === fieldName);
@@ -83,6 +101,8 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
 
   const handleMappingChange = (fieldName: string, csvHeader: string) => {
     setMappings(prev => ({ ...prev, [fieldName]: csvHeader }));
+    // Track that user manually changed this field
+    setUserOverrides(prev => new Set([...prev, fieldName]));
   };
 
   const validateMappings = (): boolean => {

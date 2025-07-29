@@ -133,6 +133,12 @@ const FEDEX_SERVICE_MAPPINGS: CarrierServiceMapping[] = [
     isAvailable: true
   },
   {
+    universalCategory: UniversalServiceCategory.GROUND,
+    carrierCode: 'FEDEX_HOME_DELIVERY',
+    carrierServiceName: 'FedEx Home Delivery',
+    isAvailable: true
+  },
+  {
     universalCategory: UniversalServiceCategory.INTERNATIONAL_EXPRESS,
     carrierCode: 'INTERNATIONAL_PRIORITY',
     carrierServiceName: 'FedEx International Priority',
@@ -142,6 +148,24 @@ const FEDEX_SERVICE_MAPPINGS: CarrierServiceMapping[] = [
     universalCategory: UniversalServiceCategory.INTERNATIONAL_EXPEDITED,
     carrierCode: 'INTERNATIONAL_ECONOMY',
     carrierServiceName: 'FedEx International Economy',
+    isAvailable: true
+  },
+  {
+    universalCategory: UniversalServiceCategory.INTERNATIONAL_EXPRESS,
+    carrierCode: 'INTERNATIONAL_FIRST',
+    carrierServiceName: 'FedEx International First',
+    isAvailable: true
+  },
+  {
+    universalCategory: UniversalServiceCategory.GROUND,
+    carrierCode: 'FEDEX_FREIGHT_ECONOMY',
+    carrierServiceName: 'FedEx Freight Economy',
+    isAvailable: true
+  },
+  {
+    universalCategory: UniversalServiceCategory.GROUND,
+    carrierCode: 'FEDEX_FREIGHT_PRIORITY',
+    carrierServiceName: 'FedEx Freight Priority',
     isAvailable: true
   }
 ];

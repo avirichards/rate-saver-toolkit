@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { UniversalServiceSelector } from '@/components/ui-lov/UniversalServiceSelector';
+import { AccountSelector } from '@/components/ui-lov/AccountSelector';
 import { CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
 
@@ -28,6 +29,8 @@ export function OrphanedShipmentRow({
   onFieldUpdate
 }: OrphanedShipmentRowProps) {
   const [updatedData, setUpdatedData] = useState<Record<string, string>>({});
+  
+  const hasLocalChanges = Object.keys(updatedData).length > 0;
 
   const handleFieldUpdate = (field: string, value: string) => {
     setUpdatedData(prev => ({ ...prev, [field]: value }));
@@ -59,121 +62,198 @@ export function OrphanedShipmentRow({
   const canFix = missingFields.length === 0;
 
   return (
-    <TableRow className="border-l-4 border-l-amber-500/50">
+    <TableRow className={`${isSelected ? 'bg-muted/50' : ''} ${hasLocalChanges ? 'border-l-4 border-l-primary/50' : ''}`}>
       {editMode && (
         <TableCell>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Checkbox
               checked={isSelected}
               onCheckedChange={onSelect}
             />
-            {Object.keys(updatedData).length > 0 && (
-              <div title="Unsaved changes">
-                <AlertCircle className="h-4 w-4 text-orange-500" />
-              </div>
+            {hasLocalChanges && (
+              <AlertCircle className="h-3 w-3 text-amber-500" />
             )}
           </div>
         </TableCell>
       )}
+      
+      <TableCell className="font-medium">
+        <div className="flex items-center gap-2 truncate w-24">
+          <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+          <span className="truncate">{getDisplayValue('trackingId') || shipment.trackingId || `Orphan-${shipment.id}`}</span>
+        </div>
+      </TableCell>
+      
       <TableCell>
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <span className="font-medium">
-            {shipment.trackingId || `Orphan-${shipment.id}`}
+        {editMode ? (
+          <InlineEditableField
+            value={getDisplayValue('originZip')}
+            onSave={(value) => handleFieldUpdate('originZip', value)}
+            placeholder="Origin ZIP"
+            className="w-20 text-xs"
+            minWidth="80px"
+            required
+          />
+        ) : (
+          <div className="w-16">
+            {getDisplayValue('originZip') || 'Missing'}
+            {getDisplayValue('originZip') && (
+              <div className="text-xs text-muted-foreground">
+                {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
+              </div>
+            )}
+          </div>
+        )}
+      </TableCell>
+      
+      <TableCell>
+        {editMode ? (
+          <InlineEditableField
+            value={getDisplayValue('destinationZip')}
+            onSave={(value) => handleFieldUpdate('destinationZip', value)}
+            placeholder="Dest ZIP"
+            className="w-20 text-xs"
+            minWidth="80px"
+            required
+          />
+        ) : (
+          <div className="w-16">
+            {getDisplayValue('destinationZip') || 'Missing'}
+            {getDisplayValue('destinationZip') && (
+              <div className="text-xs text-muted-foreground">
+                {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
+              </div>
+            )}
+          </div>
+        )}
+      </TableCell>
+      
+      <TableCell>
+        {editMode ? (
+          <InlineEditableField
+            value={getDisplayValue('weight')}
+            onSave={(value) => handleFieldUpdate('weight', value)}
+            placeholder="Weight"
+            className="w-16 text-xs"
+            minWidth="64px"
+            required
+          />
+        ) : (
+          getDisplayValue('weight') ? `${getDisplayValue('weight')} lbs` : 'Missing'
+        )}
+      </TableCell>
+      
+      <TableCell>
+        {editMode ? (
+          <div className="flex items-center gap-0.5 text-xs w-24">
+            <InlineEditableField
+              value={getDisplayValue('length') || '12'}
+              onSave={(value) => handleFieldUpdate('length', value)}
+              placeholder="L"
+              className="w-7 text-xs p-1 h-6"
+              minWidth="28px"
+              showIcon={false}
+              required
+            />
+            <span className="text-muted-foreground">×</span>
+            <InlineEditableField
+              value={getDisplayValue('width') || '12'}
+              onSave={(value) => handleFieldUpdate('width', value)}
+              placeholder="W"
+              className="w-7 text-xs p-1 h-6"
+              minWidth="28px"
+              showIcon={false}
+              required
+            />
+            <span className="text-muted-foreground">×</span>
+            <InlineEditableField
+              value={getDisplayValue('height') || '6'}
+              onSave={(value) => handleFieldUpdate('height', value)}
+              placeholder="H"
+              className="w-7 text-xs p-1 h-6"
+              minWidth="28px"
+              showIcon={false}
+              required
+            />
+          </div>
+        ) : (
+          <span className="text-xs">
+            {getDisplayValue('length') && getDisplayValue('width') && getDisplayValue('height')
+              ? `${getDisplayValue('length')}×${getDisplayValue('width')}×${getDisplayValue('height')}`
+              : 'Missing'}
           </span>
-        </div>
-      </TableCell>
-      
-      <TableCell>
-        <InlineEditableField
-          value={getDisplayValue('originZip')}
-          onSave={(value) => handleFieldUpdate('originZip', value)}
-          placeholder="Enter Origin ZIP"
-          className="min-w-[80px]"
-        />
-        {getDisplayValue('originZip') && (
-          <div className="text-xs text-muted-foreground">
-            {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
-          </div>
         )}
       </TableCell>
-      
+
+      {/* Residential Column */}
       <TableCell>
-        <InlineEditableField
-          value={getDisplayValue('destinationZip')}
-          onSave={(value) => handleFieldUpdate('destinationZip', value)}
-          placeholder="Enter Dest ZIP"
-          className="min-w-[80px]"
-        />
-        {getDisplayValue('destinationZip') && (
-          <div className="text-xs text-muted-foreground">
-            {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
-          </div>
+        {editMode ? (
+          <Checkbox
+            checked={getDisplayValue('isResidential') === 'true' || getDisplayValue('isResidential') === true}
+            onCheckedChange={(checked) => handleFieldUpdate('isResidential', checked ? 'true' : 'false')}
+          />
+        ) : (
+          <Badge variant="outline" className="text-xs">
+            Unknown
+          </Badge>
         )}
       </TableCell>
-      
+
+      {/* Current Service Column */}
       <TableCell>
-        <InlineEditableField
-          value={getDisplayValue('weight')}
-          onSave={(value) => handleFieldUpdate('weight', value)}
-          placeholder="Enter Weight"
-          className="min-w-[60px]"
-        />
+        <Badge variant="outline" className="text-xs">
+          {getDisplayValue('originalService') || getDisplayValue('service') || 'Unknown'}
+        </Badge>
       </TableCell>
       
+      {/* Ship Pros Service Column */}
       <TableCell>
-        <div className="flex gap-1">
-          <InlineEditableField
-            value={getDisplayValue('length') || '12'}
-            onSave={(value) => handleFieldUpdate('length', value)}
-            placeholder="L"
-            className="min-w-[40px]"
+        {editMode ? (
+          <UniversalServiceSelector
+            value={getDisplayValue('service') || 'GROUND'}
+            onValueChange={(value) => handleFieldUpdate('service', value)}
+            placeholder="Select Service"
+            className="w-24 text-xs"
           />
-          ×
-          <InlineEditableField
-            value={getDisplayValue('width') || '12'}
-            onSave={(value) => handleFieldUpdate('width', value)}
-            placeholder="W"
-            className="min-w-[40px]"
-          />
-          ×
-          <InlineEditableField
-            value={getDisplayValue('height') || '6'}
-            onSave={(value) => handleFieldUpdate('height', value)}
-            placeholder="H"
-            className="min-w-[40px]"
-          />
-        </div>
-      </TableCell>
-      
-      <TableCell>
-        <UniversalServiceSelector
-          value={getDisplayValue('service')}
-          onValueChange={(value) => handleFieldUpdate('service', value)}
-          placeholder="Select Service"
-          className="min-w-[120px]"
-        />
+        ) : (
+          <Badge variant="outline" className="text-xs text-primary">
+            {getDisplayValue('service') || 'Ground'}
+          </Badge>
+        )}
       </TableCell>
       
       {editMode && (
         <TableCell>
-          <InlineEditableField
-            value={getDisplayValue('accountId') || getDisplayValue('account')}
-            onSave={(value) => handleFieldUpdate('accountId', value)}
-            placeholder="Account ID"
-            className="min-w-[100px]"
+          <AccountSelector
+            value={getDisplayValue('accountId') || ''}
+            onValueChange={(value) => handleFieldUpdate('accountId', value)}
+            placeholder="Select Account"
+            className="w-32 text-xs"
           />
         </TableCell>
       )}
-      
-      <TableCell>
-        <div className="space-y-1">
-          <Badge variant="destructive" className="text-xs">
+
+      {/* Current Rate Column */}
+      <TableCell className="text-right">
+        <span className="text-muted-foreground text-xs">N/A</span>
+      </TableCell>
+
+      {/* Ship Pros Cost Column */}
+      <TableCell className="text-right">
+        <span className="text-muted-foreground text-xs">N/A</span>
+      </TableCell>
+
+      {/* Savings Column */}
+      <TableCell className="text-right">
+        <div className="flex flex-col items-end">
+          <Badge variant="destructive" className="text-xs mb-1">
             Failed
           </Badge>
-          <div className="text-xs text-muted-foreground">
-            {shipment.error || 'Processing failed'}
-          </div>
+          {shipment.errorMessage && (
+            <span className="text-xs text-muted-foreground">
+              Needs fixing
+            </span>
+          )}
         </div>
       </TableCell>
       
@@ -187,7 +267,7 @@ export function OrphanedShipmentRow({
           size="sm"
           onClick={handleFixAndAnalyze}
           disabled={!canFix || isFixing}
-          className="h-8"
+          className="h-8 text-xs"
         >
           {isFixing ? (
             <>

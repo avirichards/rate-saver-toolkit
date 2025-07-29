@@ -418,6 +418,9 @@ export function EditableShipmentRow({
           console.log('💰 Current Rate Debug:', {
             shipmentId: shipment.id,
             currentRate: shipment.currentRate,
+            currentRateType: typeof shipment.currentRate,
+            hasCurrentRate: !!shipment.currentRate,
+            shipmentKeys: Object.keys(shipment),
             isOrphaned: isOrphanedShipment,
             shipmentData: shipment
           });

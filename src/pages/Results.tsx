@@ -2875,7 +2875,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              <TableHead className="text-right text-foreground w-20">Current Rate</TableHead>
                              {editMode && <TableHead className="text-right text-foreground w-20">Ship Pros Rate</TableHead>}
                              {editMode && <TableHead className="text-right text-foreground w-20">Savings</TableHead>}
-                             {!editMode && <TableHead className="text-right text-foreground w-20">Status</TableHead>}
+                             {!editMode && <TableHead className="text-right text-foreground w-20">Ship Pros Rate</TableHead>}
+                             {!editMode && <TableHead className="text-right text-foreground w-20">Savings</TableHead>}
                              {!editMode && <TableHead className="text-foreground w-20">Account</TableHead>}
                              {editMode && <TableHead className="text-foreground w-16">Actions</TableHead>}
                         </TableRow>

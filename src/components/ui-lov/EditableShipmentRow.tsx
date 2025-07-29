@@ -499,7 +499,16 @@ export function EditableShipmentRow({
         </TableCell>
       )}
       
-      {/* Status - Only in Non-Edit Mode */}
+      {/* Ship Pros Rate - Always show, but different positioning */}
+      {!editMode && (
+        <TableCell className="text-right">
+          {shipment.ShipPros_cost ? formatCurrency(shipment.ShipPros_cost) : (
+            <Badge variant="secondary" className="text-xs">No Rate</Badge>
+          )}
+        </TableCell>
+      )}
+      
+      {/* Status/Savings - Only in Non-Edit Mode */}
       {!editMode && (
         <TableCell className="text-right">
           {estimatedSavings.isPending ? (

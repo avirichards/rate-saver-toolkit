@@ -438,7 +438,15 @@ serve(async (req) => {
           }
         } else {
           const errorText = await response.text();
-          console.error(`FedEx API Error for service ${serviceCode}:`, errorText);
+          console.error(`❌ FedEx API Error for service ${serviceCode}:`, {
+            status: response.status,
+            statusText: response.statusText,
+            error: errorText,
+            configId: configId
+          });
+          
+          // Log the exact request that failed
+          console.error(`📝 Failed FedEx Request for ${serviceCode}:`, JSON.stringify(serviceRequest, null, 2));
           
           // Continue with other services even if one fails
           continue;

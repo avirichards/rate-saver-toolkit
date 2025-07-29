@@ -234,7 +234,8 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           percentSavings: data.percentSavings 
         });
         
-        // Check if this account won this shipment
+        // Check if this account won this shipment (provides savings vs current rate)
+        // Note: "win" means offering savings, not necessarily being the best option among all accounts
         if (data.dollarSavings > 0) {
           account.wins += 1;
         }
@@ -253,20 +254,40 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       const winRate = shipmentsQuotedCount > 0 ? (account.wins / shipmentsQuotedCount) * 100 : 0;
       
       // Calculate average savings
-      const avgDollarSavings = account.savingsData.reduce((sum, s) => sum + s.dollarSavings, 0) / account.savingsData.length;
-      const avgPercentSavings = account.savingsData.reduce((sum, s) => sum + s.percentSavings, 0) / account.savingsData.length;
+      const avgDollarSavings = account.savingsData.length > 0 
+        ? account.savingsData.reduce((sum, s) => sum + s.dollarSavings, 0) / account.savingsData.length 
+        : 0;
+      const avgPercentSavings = account.savingsData.length > 0 
+        ? account.savingsData.reduce((sum, s) => sum + s.percentSavings, 0) / account.savingsData.length 
+        : 0;
       
-      // Calculate median savings
+      // Calculate median savings (properly handle even-length arrays)
       const sortedDollarSavings = [...account.savingsData].map(s => s.dollarSavings).sort((a, b) => a - b);
       const sortedPercentSavings = [...account.savingsData].map(s => s.percentSavings).sort((a, b) => a - b);
-      const medianDollarSavings = sortedDollarSavings[Math.floor(sortedDollarSavings.length / 2)] || 0;
-      const medianPercentSavings = sortedPercentSavings[Math.floor(sortedPercentSavings.length / 2)] || 0;
-
-      // Calculate total savings
-      const totalSavings = account.savingsData.reduce((sum, s) => sum + s.dollarSavings, 0);
-      const totalSavingsPercent = account.savingsData.length > 0 
-        ? (totalSavings / account.savingsData.reduce((sum, s, i) => sum + (account.totalSpend / account.savingsData.length + s.dollarSavings), 0)) * 100 
+      
+      const medianDollarSavings = sortedDollarSavings.length > 0 
+        ? sortedDollarSavings.length % 2 === 0
+          ? (sortedDollarSavings[sortedDollarSavings.length / 2 - 1] + sortedDollarSavings[sortedDollarSavings.length / 2]) / 2
+          : sortedDollarSavings[Math.floor(sortedDollarSavings.length / 2)]
         : 0;
+      
+      const medianPercentSavings = sortedPercentSavings.length > 0 
+        ? sortedPercentSavings.length % 2 === 0
+          ? (sortedPercentSavings[sortedPercentSavings.length / 2 - 1] + sortedPercentSavings[sortedPercentSavings.length / 2]) / 2
+          : sortedPercentSavings[Math.floor(sortedPercentSavings.length / 2)]
+        : 0;
+
+      // Calculate total savings and percentage
+      const totalSavings = account.savingsData.reduce((sum, s) => sum + s.dollarSavings, 0);
+      
+      // Calculate original total cost for shipments this account can quote
+      // For each shipment, original cost = account's rate + savings (what customer currently pays)
+      const originalTotalCost = account.savingsData.reduce((sum, s) => {
+        // Current customer rate = account rate + savings
+        const currentCustomerRate = (account.totalSpend / shipmentsQuotedCount) + s.dollarSavings;
+        return sum + currentCustomerRate;
+      }, 0);
+      const totalSavingsPercent = originalTotalCost > 0 ? (totalSavings / originalTotalCost) * 100 : 0;
 
       return {
         ...account,
@@ -278,8 +299,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         medianDollarSavings,
         medianPercentSavings,
         totalSavings,
-        totalSavingsPercent,
-        totalShipments: shipmentData.length
+        totalSavingsPercent
       };
     }).sort((a, b) => {
       // Sort to match KPI summary order (top performer first, then by total spend)
@@ -609,7 +629,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                         <p>Number of shipments this account provided quotes for out of total shipments</p>
                       </TooltipContent>
                     </Tooltip>
-                    <span className="font-medium">{account.shipmentsQuoted} / {account.totalShipments}</span>
+                    <span className="font-medium">{account.shipmentsQuoted} / {kpiMetrics.totalShipments}</span>
                   </div>
                   
                   <div className="flex justify-between">

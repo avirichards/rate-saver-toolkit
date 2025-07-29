@@ -8,6 +8,7 @@ import * as AccordionComponents from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home, Calculator, AlertTriangle, X, Edit3, RotateCw } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -98,6 +99,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [markupData, setMarkupData] = useState<MarkupData | null>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
   const [clients, setClients] = useState<any[]>([]);
+  const [analysisStatus, setAnalysisStatus] = useState<'completed' | 'processing' | 'failed' | null>(null);
+  const [processingProgress, setProcessingProgress] = useState<{ completed: number; total: number } | null>(null);
   const [serviceNotes, setServiceNotes] = useState<Record<string, string>>({});
   const [accountNames, setAccountNames] = useState<Record<string, string>>({});
   const hasTriedAutoSave = useRef(false);
@@ -1127,7 +1130,75 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
     console.log('Successfully loaded analysis:', data);
     setCurrentAnalysisId(analysisId);
-    processAnalysisFromDatabase(data);
+    
+    // Check if analysis is still processing
+    if (data.status === 'processing') {
+      console.log('🔄 Analysis still processing, starting status polling');
+      setAnalysisStatus('processing');
+      toast.info('Large dataset analysis is still processing. Please wait...');
+      await pollAnalysisStatus(analysisId);
+    } else {
+      processAnalysisFromDatabase(data);
+    }
+  };
+
+  const pollAnalysisStatus = async (analysisId: string) => {
+    const maxAttempts = 60; // Poll for up to 10 minutes (60 * 10 seconds)
+    let attempts = 0;
+    
+    const poll = async (): Promise<boolean> => {
+      attempts++;
+      
+      const { data, error } = await supabase
+        .from('shipping_analyses')
+        .select('status, processing_metadata')
+        .eq('id', analysisId)
+        .single();
+        
+      if (error) {
+        console.error('Error polling analysis status:', error);
+        return false;
+      }
+      
+      const status = data.status as 'completed' | 'processing' | 'failed';
+      setAnalysisStatus(status);
+      
+      if (data.processing_metadata && typeof data.processing_metadata === 'object') {
+        const metadata = data.processing_metadata as any;
+        if (metadata.totalBatches && metadata.completedBatches !== undefined) {
+          setProcessingProgress({
+            completed: metadata.completedBatches,
+            total: metadata.totalBatches
+          });
+        }
+      }
+      
+      if (status === 'completed') {
+        console.log('✅ Analysis completed, reloading data');
+        await loadFromDatabase(analysisId);
+        return true;
+      }
+      
+      if (status === 'failed') {
+        console.error('❌ Analysis failed');
+        toast.error('Analysis processing failed. Please try again.');
+        setLoading(false);
+        return true;
+      }
+      
+      if (attempts >= maxAttempts) {
+        console.error('⏰ Polling timeout reached');
+        toast.error('Analysis is taking longer than expected. Please refresh the page to check status.');
+        setLoading(false);
+        return true;
+      }
+      
+      // Continue polling
+      setTimeout(() => poll(), 10000); // Poll every 10 seconds
+      return false;
+    };
+    
+    return poll();
   };
 
   const loadMostRecentAnalysis = async () => {
@@ -1160,7 +1231,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
 
     console.log('Raw database data:', data);
-    processAnalysisFromDatabase(data);
+    
+    // Check if analysis is still processing
+    if (data.status === 'processing') {
+      console.log('🔄 Analysis still processing, starting status polling');
+      setAnalysisStatus('processing');
+      toast.info('Large dataset analysis is still processing. Please wait...');
+      await pollAnalysisStatus(data.id);
+    } else {
+      processAnalysisFromDatabase(data);
+    }
   };
 
   // Data validation function to check for missing critical data
@@ -2030,11 +2110,45 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       <DashboardLayout>
         <div className="max-w-7xl mx-auto p-6">
           <div className="text-center animate-fade-in">
-            <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-muted rounded w-1/3 mx-auto"></div>
-              <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
-              <div className="h-32 bg-muted rounded"></div>
-            </div>
+            {analysisStatus === 'processing' ? (
+              <div className="space-y-6">
+                <div className="h-16 w-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-semibold">Processing Large Dataset</h2>
+                  <p className="text-muted-foreground">
+                    Your analysis contains a large number of shipments and is being processed in batches for optimal performance.
+                  </p>
+                  {processingProgress && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Progress</span>
+                        <span>{processingProgress.completed} of {processingProgress.total} batches</span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-3">
+                        <div 
+                          className="bg-primary h-3 rounded-full transition-all duration-300"
+                          style={{ 
+                            width: `${(processingProgress.completed / processingProgress.total) * 100}%` 
+                          }}
+                        ></div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Estimated time remaining: {Math.max(1, processingProgress.total - processingProgress.completed)} minute(s)
+                      </p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground mt-4">
+                    This page will automatically refresh when processing is complete. You can safely close this page and return later.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="animate-pulse space-y-4">
+                <div className="h-8 bg-muted rounded w-1/3 mx-auto"></div>
+                <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
+                <div className="h-32 bg-muted rounded"></div>
+              </div>
+            )}
           </div>
         </div>
       </DashboardLayout>

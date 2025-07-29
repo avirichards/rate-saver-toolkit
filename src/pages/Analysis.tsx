@@ -1334,6 +1334,13 @@ const Analysis = () => {
       }
 
       console.log('✅ Analysis finalized successfully:', data.analysisId);
+      
+      // Handle batch processing response
+      if (data.batchInfo) {
+        console.log('🔄 Large dataset initiated batch processing:', data.batchInfo);
+        toast.success('Large dataset analysis started - you\'ll be redirected to view progress');
+      }
+      
       return data.analysisId;
     } catch (error) {
       console.error('💥 Error finalizing analysis:', error);

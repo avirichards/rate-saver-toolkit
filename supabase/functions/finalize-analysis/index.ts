@@ -18,6 +18,384 @@ interface AnalysisPayload {
   originalData: any[];
   carrierConfigsUsed: string[];
   serviceMappings?: any[];
+  batchInfo?: {
+    batchIndex: number;
+    totalBatches: number;
+    analysisId: string;
+  };
+}
+
+interface BatchProcessingResult {
+  analysisId: string;
+  batchIndex: number;
+  totalBatches: number;
+  isComplete: boolean;
+}
+
+// Batch processing functions
+async function handleLargeDatasetBatching(payload: AnalysisPayload, user: any, supabase: any) {
+  console.log('🔄 Initiating batch processing for large dataset');
+  
+  const BATCH_SIZE = 2000;
+  const totalBatches = Math.ceil(payload.recommendations.length / BATCH_SIZE);
+  
+  // Create initial analysis record with processing status
+  const initialAnalysisRecord = {
+    user_id: user.id,
+    file_name: payload.fileName,
+    original_data: payload.originalData,
+    carrier_configs_used: payload.carrierConfigsUsed,
+    service_mappings: payload.serviceMappings || [],
+    savings_analysis: {
+      totalCurrentCost: payload.totalCurrentCost,
+      totalPotentialSavings: payload.totalPotentialSavings,
+      savingsPercentage: payload.totalCurrentCost > 0 ? (payload.totalPotentialSavings / payload.totalCurrentCost) * 100 : 0,
+      totalShipments: payload.totalShipments,
+      completedShipments: payload.completedShipments,
+      errorShipments: payload.errorShipments,
+      orphanedShipments: payload.orphanedShipments
+    },
+    total_shipments: payload.totalShipments,
+    total_savings: payload.totalPotentialSavings,
+    status: 'processing',
+    processing_metadata: {
+      savedAt: new Date().toISOString(),
+      totalBatches: totalBatches,
+      completedBatches: 0,
+      dataSource: 'batch_processing'
+    }
+  };
+  
+  const { data: analysisData, error: analysisError } = await supabase
+    .from('shipping_analyses')
+    .insert(initialAnalysisRecord)
+    .select('id')
+    .single();
+    
+  if (analysisError) {
+    throw new Error(`Failed to create initial analysis record: ${analysisError.message}`);
+  }
+  
+  console.log(`✅ Created analysis record ${analysisData.id}, starting background batch processing`);
+  
+  // Process batches in background using EdgeRuntime.waitUntil
+  const processBatchesInBackground = async () => {
+    try {
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const startIndex = batchIndex * BATCH_SIZE;
+        const endIndex = Math.min(startIndex + BATCH_SIZE, payload.recommendations.length);
+        const batchRecommendations = payload.recommendations.slice(startIndex, endIndex);
+        
+        // Create batch payload
+        const batchPayload = {
+          ...payload,
+          recommendations: batchRecommendations,
+          batchInfo: {
+            batchIndex: batchIndex,
+            totalBatches: totalBatches,
+            analysisId: analysisData.id
+          }
+        };
+        
+        console.log(`🔄 Processing batch ${batchIndex + 1}/${totalBatches} with ${batchRecommendations.length} shipments`);
+        
+        // Process this batch (recursive call but with batch info)
+        await processBatch(batchPayload, user, supabase);
+        
+        console.log(`✅ Completed batch ${batchIndex + 1}/${totalBatches}`);
+      }
+      
+      // Mark analysis as completed
+      await supabase
+        .from('shipping_analyses')
+        .update({ 
+          status: 'completed',
+          processing_metadata: {
+            ...initialAnalysisRecord.processing_metadata,
+            completedBatches: totalBatches,
+            completedAt: new Date().toISOString()
+          }
+        })
+        .eq('id', analysisData.id);
+        
+      console.log(`🎉 All batches completed for analysis ${analysisData.id}`);
+    } catch (error) {
+      console.error('❌ Error during batch processing:', error);
+      
+      // Mark analysis as failed
+      await supabase
+        .from('shipping_analyses')
+        .update({ 
+          status: 'failed',
+          processing_metadata: {
+            ...initialAnalysisRecord.processing_metadata,
+            error: error.message,
+            failedAt: new Date().toISOString()
+          }
+        })
+        .eq('id', analysisData.id);
+    }
+  };
+  
+  // Start background processing
+  EdgeRuntime.waitUntil(processBatchesInBackground());
+  
+  // Return immediate response with analysis ID
+  return new Response(
+    JSON.stringify({ 
+      success: true, 
+      analysisId: analysisData.id,
+      message: 'Large dataset analysis started - processing in background',
+      batchInfo: {
+        totalBatches: totalBatches,
+        status: 'processing'
+      }
+    }),
+    { 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    }
+  );
+}
+
+async function handleBatchRequest(payload: AnalysisPayload, user: any, supabase: any) {
+  console.log(`🔄 Processing batch ${payload.batchInfo!.batchIndex + 1}/${payload.batchInfo!.totalBatches}`);
+  
+  return await processBatch(payload, user, supabase);
+}
+
+async function processBatch(payload: AnalysisPayload, user: any, supabase: any) {
+  // This function contains the core processing logic
+  // (moved from the main handler to be reusable for batches)
+  
+  // Filter valid recommendations for this batch
+  const validRecommendations = payload.recommendations.filter(rec => {
+    const service = rec.customer_service || rec.shipment.service || '';
+    const hasValidService = service && service.trim() !== '' && service !== 'Unknown';
+    const hasRates = rec.allRates && rec.allRates.length > 0;
+    return hasValidService && hasRates;
+  });
+
+  // Calculate account totals for this batch
+  const accountTotals: { [key: string]: { totalCost: number; shipmentCount: number } } = {};
+  
+  validRecommendations.forEach(rec => {
+    if (rec.allRates && Array.isArray(rec.allRates)) {
+      rec.allRates.forEach((rate: any) => {
+        const accountName = rate.carrierName || rate.accountName || 'Unknown';
+        const carrierType = rate.carrierType || 'unknown';
+        const serviceName = rate.serviceName || '';
+        
+        if (carrierType.toLowerCase() === 'amazon' && 
+            serviceName.toLowerCase() !== 'ground' && 
+            !serviceName.toLowerCase().includes('ground')) {
+          return;
+        }
+        
+        if (!accountTotals[accountName]) {
+          accountTotals[accountName] = { totalCost: 0, shipmentCount: 0 };
+        }
+        const rateAmount = parseFloat(rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0);
+        accountTotals[accountName].totalCost += rateAmount;
+        accountTotals[accountName].shipmentCount += 1;
+      });
+    }
+  });
+
+  // Find best account for this batch
+  let bestOverallAccount = '';
+  let lowestTotalCost = Infinity;
+  
+  Object.entries(accountTotals).forEach(([accountName, totals]) => {
+    if (totals.totalCost < lowestTotalCost) {
+      lowestTotalCost = totals.totalCost;
+      bestOverallAccount = accountName;
+    }
+  });
+
+  // Create service-to-account mapping for this batch
+  const serviceToAccountMapping: { [serviceCategory: string]: string } = {};
+  const serviceCategoryStats: { [serviceCategory: string]: { [accountName: string]: { totalCost: number; rateCount: number } } } = {};
+  
+  validRecommendations.forEach(rec => {
+    if (rec.allRates && Array.isArray(rec.allRates)) {
+      const serviceCategory = rec.customer_service || rec.shipment.service || 'Unknown';
+      
+      if (!serviceCategoryStats[serviceCategory]) {
+        serviceCategoryStats[serviceCategory] = {};
+      }
+      
+      rec.allRates.forEach((rate: any) => {
+        const accountName = rate.carrierName || rate.accountName || 'Unknown';
+        const carrierType = rate.carrierType || 'unknown';
+        const serviceName = rate.serviceName || '';
+        
+        if (carrierType.toLowerCase() === 'amazon' && 
+            serviceName.toLowerCase() !== 'ground' && 
+            !serviceName.toLowerCase().includes('ground')) {
+          return;
+        }
+        
+        if (!serviceCategoryStats[serviceCategory][accountName]) {
+          serviceCategoryStats[serviceCategory][accountName] = { totalCost: 0, rateCount: 0 };
+        }
+        
+        const rateAmount = parseFloat(rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0);
+        serviceCategoryStats[serviceCategory][accountName].totalCost += rateAmount;
+        serviceCategoryStats[serviceCategory][accountName].rateCount += 1;
+      });
+    }
+  });
+
+  Object.keys(serviceCategoryStats).forEach(serviceCategory => {
+    const accounts = serviceCategoryStats[serviceCategory];
+    
+    if (accounts[bestOverallAccount] && accounts[bestOverallAccount].rateCount > 0) {
+      serviceToAccountMapping[serviceCategory] = bestOverallAccount;
+    } else {
+      let bestAccountForService = '';
+      let lowestAverageCost = Infinity;
+      
+      Object.entries(accounts).forEach(([accountName, stats]) => {
+        const averageCost = stats.totalCost / stats.rateCount;
+        if (averageCost < lowestAverageCost) {
+          lowestAverageCost = averageCost;
+          bestAccountForService = accountName;
+        }
+      });
+      
+      serviceToAccountMapping[serviceCategory] = bestAccountForService || bestOverallAccount;
+    }
+  });
+
+  // Process shipments for this batch
+  const processedShipments = validRecommendations.map((rec, index) => {
+    const serviceCategory = rec.customer_service || rec.shipment.service || 'Unknown';
+    const assignedAccount = serviceToAccountMapping[serviceCategory] || bestOverallAccount;
+    
+    let assignedAccountRate = null;
+    if (rec.allRates && Array.isArray(rec.allRates)) {
+      assignedAccountRate = rec.allRates.find((rate: any) => {
+        const accountName = rate.carrierName || rate.accountName || 'Unknown';
+        return accountName === assignedAccount;
+      });
+    }
+
+    const newRate = assignedAccountRate ? 
+      parseFloat(assignedAccountRate.totalCharges || assignedAccountRate.negotiatedRate || assignedAccountRate.rate_amount || 0) : 
+      parseFloat(rec.recommendedCost || 0);
+    const currentRate = parseFloat(rec.currentCost || 0);
+    const savings = currentRate - newRate;
+
+    // Calculate batch-aware ID
+    const batchStartIndex = payload.batchInfo ? payload.batchInfo.batchIndex * 2000 : 0;
+
+    return {
+      id: batchStartIndex + index + 1,
+      trackingId: rec.shipment.trackingId || `Shipment-${batchStartIndex + index + 1}`,
+      originZip: rec.shipment.originZip || '',
+      destinationZip: rec.shipment.destZip || '',
+      weight: parseFloat(rec.shipment.weight || '0'),
+      length: parseFloat(rec.shipment.length || '0'),
+      width: parseFloat(rec.shipment.width || '0'),
+      height: parseFloat(rec.shipment.height || '0'),
+      dimensions: rec.shipment.dimensions,
+      carrier: rec.carrier || 'UPS',
+      customer_service: rec.customer_service || rec.shipment.service || 'Unknown',
+      ShipPros_service: assignedAccountRate ? (assignedAccountRate.serviceName || assignedAccountRate.description || 'Ground') : 'Ground',
+      currentRate: currentRate,
+      ShipPros_cost: newRate,
+      savings: savings,
+      savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
+      analyzedWithAccount: assignedAccount,
+      accountName: assignedAccount
+    }
+  });
+
+  // Handle batch data insertion
+  if (payload.batchInfo) {
+    // For batches, append data instead of replacing
+    const analysisId = payload.batchInfo.analysisId;
+    
+    // Get current analysis data
+    const { data: currentAnalysis } = await supabase
+      .from('shipping_analyses')
+      .select('processed_shipments, processing_metadata')
+      .eq('id', analysisId)
+      .single();
+      
+    const existingShipments = currentAnalysis?.processed_shipments || [];
+    const updatedShipments = [...existingShipments, ...processedShipments];
+    
+    // Update processing metadata
+    const updatedMetadata = {
+      ...currentAnalysis?.processing_metadata,
+      completedBatches: payload.batchInfo.batchIndex + 1,
+      lastBatchCompletedAt: new Date().toISOString()
+    };
+    
+    // Update analysis with batch data
+    const { error: updateError } = await supabase
+      .from('shipping_analyses')
+      .update({
+        processed_shipments: updatedShipments,
+        processing_metadata: updatedMetadata
+      })
+      .eq('id', analysisId);
+      
+    if (updateError) {
+      throw new Error(`Failed to update batch data: ${updateError.message}`);
+    }
+    
+    // Insert shipment rates for this batch
+    const shipmentRatesToInsert: any[] = [];
+    const batchStartIndex = payload.batchInfo.batchIndex * 2000;
+    
+    payload.recommendations.forEach((rec, localIndex) => {
+      if (rec.allRates && Array.isArray(rec.allRates)) {
+        rec.allRates.forEach((rate: any) => {
+          shipmentRatesToInsert.push({
+            analysis_id: analysisId,
+            shipment_index: batchStartIndex + localIndex,
+            carrier_config_id: rate.carrierId || '',
+            account_name: rate.carrierName || rate.accountName || 'Unknown',
+            carrier_type: rate.carrierType || 'ups',
+            service_code: rate.serviceCode || '',
+            service_name: rate.serviceName || rate.description || '',
+            rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
+            currency: rate.currency || 'USD',
+            transit_days: rate.transitTime || null,
+            is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
+            published_rate: rate.publishedRate || null,
+            shipment_data: rec.shipment || {}
+          });
+        });
+      }
+    });
+    
+    if (shipmentRatesToInsert.length > 0) {
+      await supabase
+        .from('shipment_rates')
+        .insert(shipmentRatesToInsert);
+    }
+    
+    console.log(`✅ Batch ${payload.batchInfo.batchIndex + 1}/${payload.batchInfo.totalBatches} completed`);
+    
+    return new Response(
+      JSON.stringify({
+        success: true,
+        batchIndex: payload.batchInfo.batchIndex,
+        totalBatches: payload.batchInfo.totalBatches,
+        isComplete: payload.batchInfo.batchIndex === payload.batchInfo.totalBatches - 1
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
+  // This should not happen in batch mode, but included for completeness
+  return new Response(
+    JSON.stringify({ success: true, message: 'Batch processed' }),
+    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
 Deno.serve(async (req) => {
@@ -52,8 +430,24 @@ Deno.serve(async (req) => {
       totalShipments: payload.totalShipments,
       completedShipments: payload.completedShipments,
       errorShipments: payload.errorShipments,
-      totalSavings: payload.totalPotentialSavings
+      totalSavings: payload.totalPotentialSavings,
+      isBatch: !!payload.batchInfo
     })
+
+    // Smart size detection - datasets over 5000 shipments should use batch processing
+    const BATCH_THRESHOLD = 5000;
+    const BATCH_SIZE = 2000;
+    const isLargeDataset = payload.totalShipments > BATCH_THRESHOLD;
+    
+    // If this is a large dataset and not already a batch request, initiate batch processing
+    if (isLargeDataset && !payload.batchInfo) {
+      return await handleLargeDatasetBatching(payload, user, supabase);
+    }
+    
+    // If this is a batch request, handle it appropriately
+    if (payload.batchInfo) {
+      return await handleBatchRequest(payload, user, supabase);
+    }
 
     // Check for existing analysis with smart duplicate detection
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString()

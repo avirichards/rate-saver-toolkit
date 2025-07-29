@@ -265,11 +265,13 @@ Deno.serve(async (req) => {
     const orphanedShipmentsFormatted = payload.orphanedShipments.map((orphan, index) => {
       // Extract currentRate from original data
       const originalEntry = payload.originalData?.find((orig: any) => 
-        orig.trackingId === orphan.shipment.trackingId || 
+        orig.shipment?.trackingId === orphan.shipment.trackingId || 
+        orig.trackingId === orphan.shipment.trackingId ||
         orig.tracking_id === orphan.shipment.trackingId
       );
       
       const currentRate = originalEntry ? 
+        originalEntry.shipment?.currentRate || 
         originalEntry.currentRate || 
         originalEntry.current_rate || 
         originalEntry.cost || 

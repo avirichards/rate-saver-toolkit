@@ -99,17 +99,36 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
     if (csvHeader === "__NONE__") {
       delete newMappings[fieldId];
     } else {
+      // Check if this header is already mapped to another field
+      const conflictingField = Object.entries(mappings).find(
+        ([existingFieldId, existingHeader]) => 
+          existingHeader === csvHeader && existingFieldId !== fieldId
+      );
+      
+      if (conflictingField) {
+        // Clear the conflicting mapping
+        delete newMappings[conflictingField[0]];
+        const conflictingFieldLabel = ALL_FIELDS.find(f => f.id === conflictingField[0])?.label || conflictingField[0];
+        toast.info(`Moved "${csvHeader}" from ${conflictingFieldLabel} to ${ALL_FIELDS.find(f => f.id === fieldId)?.label}`);
+      }
+      
       newMappings[fieldId] = csvHeader;
     }
     
     setMappings(newMappings);
     
-    // Clear validation error for this field
-    if (validationErrors[fieldId]) {
-      const newErrors = { ...validationErrors };
-      delete newErrors[fieldId];
-      setValidationErrors(newErrors);
+    // Clear validation errors for affected fields
+    const newErrors = { ...validationErrors };
+    delete newErrors[fieldId];
+    // Also clear error from previously conflicting field if it exists
+    if (Object.entries(mappings).find(([_, header]) => header === csvHeader)) {
+      Object.keys(newErrors).forEach(errorFieldId => {
+        if (mappings[errorFieldId] === csvHeader) {
+          delete newErrors[errorFieldId];
+        }
+      });
     }
+    setValidationErrors(newErrors);
   };
 
   const validateMappings = (): boolean => {
@@ -133,15 +152,42 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
       errors.originZip = 'Please enter a valid ZIP code (12345 or 12345-6789)';
     }
     
-    // Check for duplicate mappings
-    const usedHeaders = new Set<string>();
+    // Check for duplicate mappings - improved error messages
+    const headerToField = new Map<string, string>();
+    const duplicateFields = new Set<string>();
+    
+    // First pass: find all duplicates
     Object.entries(mappings).forEach(([fieldId, header]) => {
       if (header && header !== "__NONE__") {
-        if (usedHeaders.has(header)) {
-          errors[fieldId] = `This column is already mapped to another field`;
+        if (headerToField.has(header)) {
+          // Mark both fields as having conflicts
+          const conflictingFieldId = headerToField.get(header)!;
+          duplicateFields.add(fieldId);
+          duplicateFields.add(conflictingFieldId);
         }
-        usedHeaders.add(header);
+        headerToField.set(header, fieldId);
       }
+    });
+    
+    // Second pass: add specific error messages for all conflicting fields
+    duplicateFields.forEach(fieldId => {
+      const header = mappings[fieldId];
+      const conflictingFieldId = Array.from(headerToField.entries())
+        .find(([h, fId]) => h === header && fId !== fieldId)?.[1];
+      
+      if (conflictingFieldId) {
+        const conflictingField = ALL_FIELDS.find(f => f.id === conflictingFieldId);
+        const conflictingFieldLabel = conflictingField?.label || conflictingFieldId;
+        errors[fieldId] = `Column "${header}" is already mapped to ${conflictingFieldLabel}`;
+      }
+    });
+    
+    // Debug logging
+    console.log('Validation state:', {
+      mappings,
+      headerToField: Object.fromEntries(headerToField),
+      duplicateFields: Array.from(duplicateFields),
+      errors
     });
     
     setValidationErrors(errors);
@@ -301,19 +347,40 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
             <SelectTrigger className={`w-full ${error ? 'border-red-500' : ''}`}>
               <SelectValue placeholder="Select column..." />
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__NONE__" disabled={field.required}>
-                <div className="flex items-center gap-2">
-                  <X className="h-4 w-4 text-muted-foreground" />
-                  <span>{field.required ? 'Required field' : 'Skip this field'}</span>
-                </div>
-              </SelectItem>
-              {csvHeaders.filter(header => header && header.trim()).map((header) => (
-                <SelectItem key={header} value={header}>
-                  {header}
-                </SelectItem>
-              ))}
-            </SelectContent>
+                <SelectContent>
+                  <SelectItem value="__NONE__" disabled={field.required}>
+                    <div className="flex items-center gap-2">
+                      <X className="h-4 w-4 text-muted-foreground" />
+                      <span>{field.required ? 'Required field' : 'Skip this field'}</span>
+                    </div>
+                  </SelectItem>
+                  {csvHeaders.filter(header => header && header.trim()).map((header) => {
+                    // Check if this header is already mapped to another field
+                    const mappedToOtherField = Object.entries(mappings).find(
+                      ([otherFieldId, otherHeader]) => 
+                        otherHeader === header && otherFieldId !== field.id
+                    );
+                    const mappedFieldLabel = mappedToOtherField ? 
+                      ALL_FIELDS.find(f => f.id === mappedToOtherField[0])?.label : null;
+                    
+                    return (
+                      <SelectItem 
+                        key={header} 
+                        value={header}
+                        className={mappedToOtherField ? 'text-orange-600' : ''}
+                      >
+                        <div className="flex items-center justify-between w-full">
+                          <span>{header}</span>
+                          {mappedToOtherField && (
+                            <Badge variant="outline" className="ml-2 text-xs text-orange-600 border-orange-300">
+                              Used by {mappedFieldLabel}
+                            </Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
           </Select>
           {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
         </div>

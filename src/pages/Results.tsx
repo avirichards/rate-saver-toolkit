@@ -2310,12 +2310,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent }) => {
-                            // Show percentage if it's significant enough
-                            if ((percent || 0) < 0.03) return ''; // Hide labels for slices < 3%
-                            const shortName = name.length > 15 ? name.split(' ').slice(0, 2).join(' ') : name;
-                            return `${shortName} ${((percent || 0) * 100).toFixed(0)}%`;
-                          }}
+                           label={({ name, percent }) => {
+                             // Always show service name, regardless of slice size
+                             const shortName = name.length > 20 ? name.split(' ').slice(0, 3).join(' ') : name;
+                             return `${shortName}`;
+                           }}
                           outerRadius={100}
                           innerRadius={30}
                           fill="#8884d8"
@@ -2339,16 +2338,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             />
                           ))}
                         </Pie>
-                        <Tooltip 
-                          contentStyle={{
-                            backgroundColor: 'hsl(var(--popover))',
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                            color: 'hsl(var(--popover-foreground))',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                          }}
-                          formatter={(value: any) => [value, 'Shipments']}
-                        />
+                         <Tooltip 
+                           contentStyle={{
+                             backgroundColor: 'hsl(var(--popover))',
+                             border: '1px solid hsl(var(--border))',
+                             borderRadius: '8px',
+                             color: 'white',
+                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                           }}
+                           formatter={(value: any, name: any) => [`${value} Shipments`, name]}
+                         />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>

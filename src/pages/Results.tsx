@@ -2310,9 +2310,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           cx="50%"
                           cy="50%"
                           labelLine={false}
-                          label={({ name, percent }) => {
-                            // Show percentage if it's significant enough
-                            if ((percent || 0) < 0.03) return ''; // Hide labels for slices < 3%
+                          label={({ name, percent, value }) => {
+                            // Show all labels, but adjust positioning for small slices
+                            if ((percent || 0) < 0.05) {
+                              // For very small slices, show just percentage
+                              return `${((percent || 0) * 100).toFixed(0)}%`;
+                            }
                             const shortName = name.length > 15 ? name.split(' ').slice(0, 2).join(' ') : name;
                             return `${shortName} ${((percent || 0) * 100).toFixed(0)}%`;
                           }}
@@ -2344,10 +2347,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             backgroundColor: 'hsl(var(--popover))',
                             border: '1px solid hsl(var(--border))',
                             borderRadius: '8px',
-                            color: 'hsl(var(--popover-foreground))',
+                            color: '#ffffff',
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                           }}
-                          formatter={(value: any) => [value, 'Shipments']}
+                          formatter={(value: any, name: string) => [
+                            `${value} shipments`, 
+                            name
+                          ]}
                         />
                       </PieChart>
                     </ResponsiveContainer>

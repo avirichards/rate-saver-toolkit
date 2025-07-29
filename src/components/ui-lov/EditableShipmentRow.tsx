@@ -421,7 +421,14 @@ export function EditableShipmentRow({
             isOrphaned: isOrphanedShipment,
             shipmentData: shipment
           });
-          return shipment.currentRate ? formatCurrency(shipment.currentRate) : (isOrphanedShipment ? (
+          
+          // Handle the weird currentRate structure from database
+          let actualRate = shipment.currentRate;
+          if (actualRate && typeof actualRate === 'object' && actualRate._type === 'undefined') {
+            actualRate = null;
+          }
+          
+          return actualRate ? formatCurrency(actualRate) : (isOrphanedShipment ? (
             <Badge variant="destructive" className="text-xs">Missing</Badge>
           ) : formatCurrency(0));
         })()}

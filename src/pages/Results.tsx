@@ -727,7 +727,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           errorCategory: undefined
         };
         
-        setShipmentData(prev => [...prev, fixedShipmentData]);
+        console.log('🔧 ADDING FIXED SHIPMENT TO DATA:', {
+          trackingId: fixedShipmentData.trackingId,
+          shipmentId: shipmentId,
+          fixedShipmentData,
+          currentShipmentDataCount: shipmentData.length
+        });
+        setShipmentData(prev => {
+          const newData = [...prev, fixedShipmentData];
+          console.log('🔧 NEW SHIPMENT DATA ARRAY:', {
+            newCount: newData.length,
+            newShipment: fixedShipmentData,
+            allTrackingIds: newData.map(s => s.trackingId)
+          });
+          return newData;
+        });
         
         // Save the updated data to the database
         setTimeout(() => saveShipmentData(), 100);
@@ -1634,6 +1648,15 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       });
     }
 
+    console.log('🔍 FILTERING DEBUG:', {
+      originalShipmentDataCount: shipmentData.length,
+      filteredCount: filtered.length,
+      searchTerm,
+      resultFilter,
+      selectedService,
+      shipmentsWithTrackingId: shipmentData.filter(s => s.trackingId?.includes('1Z4W80R50324765887')),
+      filteredWithTrackingId: filtered.filter(s => s.trackingId?.includes('1Z4W80R50324765887'))
+    });
     setFilteredData(filtered);
   }, [shipmentData, resultFilter, selectedService, availableServices.length, searchTerm, sortConfig]);
 
@@ -2881,7 +2904,22 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              {editMode && <TableHead className="text-foreground w-16">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
-                     <TableBody className="bg-background">
+                      <TableBody className="bg-background">
+                        {(() => {
+                          console.log('🔍 TABLE RENDER DEBUG:', {
+                          filteredDataCount: filteredData.length,
+                          shipmentDataCount: shipmentData.length,
+                          searchTerm,
+                          resultFilter,
+                          selectedService,
+                          trackingIdsInFiltered: filteredData.map(s => s.trackingId),
+                          trackingIdsInShipmentData: shipmentData.map(s => s.trackingId),
+                          searchingFor: '1Z4W80R50324765887',
+                          foundInShipmentData: shipmentData.some(s => s.trackingId?.includes('1Z4W80R50324765887')),
+                          foundInFiltered: filteredData.some(s => s.trackingId?.includes('1Z4W80R50324765887'))
+                          });
+                          return null;
+                        })()}
                        {filteredData.map((item, index) => 
                          editMode ? (
                             <EditableShipmentRow

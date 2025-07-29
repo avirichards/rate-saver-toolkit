@@ -463,29 +463,75 @@ export function EditableShipmentRow({
         })()}
       </TableCell>
       
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-muted-foreground italic">Pending</span>
-        ) : isOrphanedShipment ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="destructive" className="text-xs cursor-help">Failed</Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="max-w-xs text-sm">{shipment.error || 'Processing failed due to missing or invalid data'}</p>
-            </TooltipContent>
-          </Tooltip>
-        ) : (
-          <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
-            <div className="font-medium">
-              {formatCurrency(estimatedSavings.savings)}
+      {/* Ship Pros Rate - Only in Edit Mode */}
+      {editMode && (
+        <TableCell className="text-right">
+          {shipment.ShipPros_cost ? formatCurrency(shipment.ShipPros_cost) : (
+            <Badge variant="secondary" className="text-xs">No Rate</Badge>
+          )}
+        </TableCell>
+      )}
+      
+      {/* Savings - Only in Edit Mode */}
+      {editMode && (
+        <TableCell className="text-right">
+          {estimatedSavings.isPending ? (
+            <span className="text-xs text-muted-foreground italic">Pending</span>
+          ) : isOrphanedShipment ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="text-xs cursor-help">Failed</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-sm">{shipment.error || 'Processing failed due to missing or invalid data'}</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
+              <div className="font-medium">
+                {formatCurrency(estimatedSavings.savings)}
+              </div>
+              <div className="text-xs">
+                {estimatedSavings.savingsPercent?.toFixed(1)}%
+              </div>
             </div>
-            <div className="text-xs">
-              {estimatedSavings.savingsPercent?.toFixed(1)}%
+          )}
+        </TableCell>
+      )}
+      
+      {/* Status - Only in Non-Edit Mode */}
+      {!editMode && (
+        <TableCell className="text-right">
+          {estimatedSavings.isPending ? (
+            <span className="text-xs text-muted-foreground italic">Pending</span>
+          ) : isOrphanedShipment ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="text-xs cursor-help">Failed</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-sm">{shipment.error || 'Processing failed due to missing or invalid data'}</p>
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
+              <div className="font-medium">
+                {formatCurrency(estimatedSavings.savings)}
+              </div>
+              <div className="text-xs">
+                {estimatedSavings.savingsPercent?.toFixed(1)}%
+              </div>
             </div>
-          </div>
-        )}
-      </TableCell>
+          )}
+        </TableCell>
+      )}
+      
+      {/* Account - Only in Non-Edit Mode */}
+      {!editMode && (
+        <TableCell>
+          {accountNames[shipment.accountId] || shipment.analyzedWithAccount || 'Unknown'}
+        </TableCell>
+      )}
       
       {editMode && (
         <TableCell>

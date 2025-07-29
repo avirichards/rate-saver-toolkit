@@ -709,13 +709,28 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       // Add the successfully processed shipment to the shipment data
       // The result from fixOrphanedShipment should contain the processed shipment data
       if (result) {
-        setShipmentData(prev => [...prev, {
+        const fixedShipmentData = {
           ...updatedData,
           ShipPros_cost: result.ShipPros_cost,
           ShipPros_service: result.ShipPros_service,
+          // Preserve account information from the result
+          accountId: result.accountUsed?.id || updatedData.accountId,
+          accountName: result.accountUsed?.name || updatedData.accountName,
+          analyzedWithAccount: result.accountUsed?.name || updatedData.analyzedWithAccount,
+          carrier: result.accountUsed?.carrierType || updatedData.carrier,
+          upsRates: result.upsRates,
           fixed: true,
-          fixedAt: new Date().toISOString()
-        }]);
+          fixedAt: new Date().toISOString(),
+          // Clear error fields since it's fixed
+          error: undefined,
+          errorType: undefined,
+          errorCategory: undefined
+        };
+        
+        setShipmentData(prev => [...prev, fixedShipmentData]);
+        
+        // Save the updated data to the database
+        setTimeout(() => saveShipmentData(), 100);
         
         // Update the analysis totals
         setAnalysisData(prev => prev ? {
@@ -2761,7 +2776,21 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                           <div className="flex items-center gap-4">
                             <Button
                               variant={editMode ? "secondary" : "outline"}
-                              onClick={() => setEditMode(!editMode)}
+                              onClick={async () => {
+                                if (editMode) {
+                                  // Exiting edit mode - refresh data from database
+                                  console.log('Exiting edit mode, refreshing data...');
+                                  
+                                  // Refresh the data by reloading from database
+                                  if (currentAnalysisId) {
+                                    await loadFromDatabase(currentAnalysisId);
+                                  } else if (params.id) {
+                                    await loadFromDatabase(params.id);
+                                  }
+                                }
+                                setEditMode(!editMode);
+                                setSelectedShipments(new Set()); // Clear selections when toggling
+                              }}
                               className="h-9"
                             >
                               {editMode ? 'Exit Edit Mode' : 'Edit Mode'}

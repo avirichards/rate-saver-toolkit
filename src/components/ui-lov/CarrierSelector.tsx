@@ -175,18 +175,13 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
             const carrierInfo = CARRIER_INFO[config.carrier_type] || { label: config.carrier_type.toUpperCase(), icon: '📋', color: 'bg-gray-100 text-gray-800' };
             const isSelected = selectedCarriers.includes(config.id);
             const isRateCard = config.is_rate_card;
-            const isDisabled = isRateCard && !hasZoneMapping;
+            const willFallbackToAPI = isRateCard && !hasZoneMapping;
             
             const carrierElement = (
               <div 
                 key={config.id} 
-                className={`flex items-center space-x-3 p-3 border rounded-lg transition-colors ${
-                  isDisabled 
-                    ? 'opacity-50 cursor-not-allowed bg-muted/30' 
-                    : 'hover:bg-muted/50 cursor-pointer'
-                }`}
+                className={`flex items-center space-x-3 p-3 border rounded-lg transition-colors hover:bg-muted/50 cursor-pointer`}
                 onClick={(e) => {
-                  if (isDisabled) return;
                   // Only handle click if it's not on the checkbox itself
                   if (e.target !== e.currentTarget.querySelector('button')) {
                     handleCarrierToggle(config.id, !isSelected);
@@ -197,11 +192,9 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
                   id={config.id}
                   checked={isSelected}
                   onCheckedChange={(checked) => {
-                    if (isDisabled) return;
                     handleCarrierToggle(config.id, !!checked);
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  disabled={isDisabled}
                 />
                 
                 <div className="flex items-center gap-3 flex-1 pointer-events-none">
@@ -224,29 +217,20 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
                           Rate Card
                         </Badge>
                       )}
+                      {willFallbackToAPI && (
+                        <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                          Will use API
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground">
                       {carrierInfo.label} Account • Active
+                      {willFallbackToAPI && " • No zone mapping - will use live API rates"}
                     </div>
                   </div>
                 </div>
               </div>
             );
-
-            if (isDisabled) {
-              return (
-                <TooltipProvider key={config.id}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      {carrierElement}
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Rate card accounts require zone mapping in your CSV data</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              );
-            }
 
             return carrierElement;
           })}

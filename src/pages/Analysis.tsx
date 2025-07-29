@@ -504,34 +504,30 @@ const Analysis = () => {
       .in('id', selectedCarriers)
       .eq('is_active', true);
     
-    // Filter out rate card accounts if no zone mapping exists
+    // Allow both API and rate card accounts to run together
     const state = location.state as { mappings?: Record<string, string> } | null;
     const hasZoneMapping = state?.mappings?.zone;
-    const filteredConfigs = configs?.filter(config => {
-      // Keep non-rate-card accounts
-      if (!config.is_rate_card) return true;
-      // For rate card accounts, only include if zone mapping exists
-      return hasZoneMapping;
-    }) || [];
+    
+    // Keep all active configs - rate card accounts without zone mapping will fall back to API calls
+    const filteredConfigs = configs || [];
 
     if (error || !filteredConfigs || filteredConfigs.length === 0) {
-      const errorMsg = !hasZoneMapping 
-        ? 'No carrier configurations available. Rate card accounts require zone mapping - please map a Zone column in your CSV data.'
-        : 'No valid carrier configurations found. Please check your carrier accounts in Settings.';
-      throw new Error(errorMsg);
+      throw new Error('No valid carrier configurations found. Please check your carrier accounts in Settings.');
     }
 
-    // Update selectedCarriers to only include filtered configs
-    const filteredCarrierIds = filteredConfigs.map(config => config.id);
-    const validSelectedCarriers = selectedCarriers.filter(id => filteredCarrierIds.includes(id));
+    // Log which accounts will use rate cards vs API calls
+    const rateCardAccounts = filteredConfigs.filter(config => config.is_rate_card && hasZoneMapping);
+    const apiAccounts = filteredConfigs.filter(config => !config.is_rate_card || !hasZoneMapping);
     
-    if (validSelectedCarriers.length !== selectedCarriers.length) {
-      console.log('🚫 Filtered out rate card accounts without zone mapping:', {
-        original: selectedCarriers.length,
-        filtered: validSelectedCarriers.length,
-        hasZoneMapping
-      });
-    }
+    console.log('📊 Analysis will use both rate card and API accounts:', {
+      rateCardAccounts: rateCardAccounts.length,
+      apiAccounts: apiAccounts.length,
+      hasZoneMapping,
+      accounts: filteredConfigs.map(c => ({ 
+        name: c.account_name, 
+        type: c.is_rate_card && hasZoneMapping ? 'rate_card' : 'api' 
+      }))
+     });
 
     console.log('✅ Carrier validation passed:', {
       selectedCarriers: selectedCarriers.length,
@@ -539,7 +535,7 @@ const Analysis = () => {
       carriers: filteredConfigs.map(c => ({ type: c.carrier_type, name: c.account_name }))
     });
 
-    return validSelectedCarriers;
+    return selectedCarriers;
   };
 
   const createAnalysisRecord = async (shipmentsToAnalyze: ProcessedShipment[]) => {

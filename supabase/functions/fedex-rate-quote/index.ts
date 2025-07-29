@@ -95,79 +95,8 @@ serve(async (req) => {
       });
     }
 
-    // Clean and format addresses with comprehensive ZIP to state mapping
-    const cleanZip = (zip: string) => zip.trim().substring(0, 5); // Use 5-digit ZIP for FedEx
-    const formatAddress = (addr: string) => addr.trim().substring(0, 50); // FedEx address line limit
-    
-    // ZIP to state mapping function
-    const getStateFromZip = (zipCode: string): string => {
-      if (!zipCode) return '';
-      
-      const cleanZip = zipCode.trim().substring(0, 5);
-      const zipNum = parseInt(cleanZip);
-      
-      if (isNaN(zipNum)) return '';
-
-      // Comprehensive ZIP code ranges by state
-      if (zipNum >= 35000 && zipNum <= 36999) return 'AL';
-      if (zipNum >= 99500 && zipNum <= 99999) return 'AK';
-      if (zipNum >= 85000 && zipNum <= 86999) return 'AZ';
-      if (zipNum >= 71600 && zipNum <= 72999) return 'AR';
-      if (zipNum >= 90000 && zipNum <= 96699) return 'CA';
-      if (zipNum >= 80000 && zipNum <= 81999) return 'CO';
-      if (zipNum >= 6000 && zipNum <= 6999) return 'CT';
-      if (zipNum >= 19700 && zipNum <= 19999) return 'DE';
-      if (zipNum >= 20000 && zipNum <= 20599) return 'DC';
-      if (zipNum >= 32000 && zipNum <= 34999) return 'FL';
-      if (zipNum >= 30000 && zipNum <= 31999) return 'GA';
-      if (zipNum >= 96700 && zipNum <= 96999) return 'HI';
-      if (zipNum >= 83200 && zipNum <= 83999) return 'ID';
-      if (zipNum >= 60000 && zipNum <= 62999) return 'IL';
-      if (zipNum >= 46000 && zipNum <= 47999) return 'IN';
-      if (zipNum >= 50000 && zipNum <= 52999) return 'IA';
-      if (zipNum >= 66000 && zipNum <= 67999) return 'KS';
-      if (zipNum >= 40000 && zipNum <= 42999) return 'KY';
-      if (zipNum >= 70000 && zipNum <= 71599) return 'LA';
-      if (zipNum >= 3900 && zipNum <= 4999) return 'ME';
-      if (zipNum >= 20600 && zipNum <= 21999) return 'MD';
-      if (zipNum >= 1000 && zipNum <= 2799) return 'MA';
-      if (zipNum >= 48000 && zipNum <= 49999) return 'MI';
-      if (zipNum >= 55000 && zipNum <= 56999) return 'MN';
-      if (zipNum >= 38600 && zipNum <= 39999) return 'MS';
-      if (zipNum >= 63000 && zipNum <= 65999) return 'MO';
-      if (zipNum >= 59000 && zipNum <= 59999) return 'MT';
-      if (zipNum >= 68000 && zipNum <= 69999) return 'NE';
-      if (zipNum >= 88900 && zipNum <= 89999) return 'NV';
-      if (zipNum >= 3000 && zipNum <= 3899) return 'NH';
-      if (zipNum >= 7000 && zipNum <= 8999) return 'NJ';
-      if (zipNum >= 87000 && zipNum <= 88499) return 'NM';
-      if (zipNum >= 10000 && zipNum <= 14999) return 'NY';
-      if (zipNum >= 27000 && zipNum <= 28999) return 'NC';
-      if (zipNum >= 58000 && zipNum <= 58999) return 'ND';
-      if (zipNum >= 43000 && zipNum <= 45999) return 'OH';
-      if (zipNum >= 73000 && zipNum <= 74999) return 'OK';
-      if (zipNum >= 97000 && zipNum <= 97999) return 'OR';
-      if (zipNum >= 15000 && zipNum <= 19699) return 'PA';
-      if (zipNum >= 2800 && zipNum <= 2999) return 'RI';
-      if (zipNum >= 29000 && zipNum <= 29999) return 'SC';
-      if (zipNum >= 57000 && zipNum <= 57999) return 'SD';
-      if (zipNum >= 37000 && zipNum <= 38599) return 'TN';
-      if (zipNum >= 75000 && zipNum <= 79999) return 'TX';
-      if (zipNum >= 84000 && zipNum <= 84999) return 'UT';
-      if (zipNum >= 5000 && zipNum <= 5999) return 'VT';
-      if (zipNum >= 22000 && zipNum <= 24699) return 'VA';
-      if (zipNum >= 98000 && zipNum <= 99499) return 'WA';
-      if (zipNum >= 24700 && zipNum <= 26999) return 'WV';
-      if (zipNum >= 53000 && zipNum <= 54999) return 'WI';
-      if (zipNum >= 82000 && zipNum <= 83199) return 'WY';
-      
-      // Territories
-      if (zipNum >= 600 && zipNum <= 999) return 'PR';
-      if (zipNum >= 800 && zipNum <= 899) return 'VI';
-      if (zipNum >= 96900 && zipNum <= 96999) return 'GU';
-      
-      return ''; // Unknown ZIP code
-    };
+    // Clean and format addresses
+    const cleanZip = (zip: string) => zip.trim().substring(0, 5);
 
     // Get specific FedEx account configuration using configId
     let query = supabase
@@ -222,23 +151,7 @@ serve(async (req) => {
       configId
     });
 
-    // Map package type to FedEx packaging codes
-    const getFedExPackagingCode = (packageType?: string): string => {
-      const packageMap: { [key: string]: string } = {
-        '02': 'YOUR_PACKAGING', // Customer Supplied Package
-        '01': 'FEDEX_ENVELOPE',
-        '03': 'FEDEX_TUBE',
-        '04': 'FEDEX_BOX',
-        '21': 'FEDEX_SMALL_BOX',
-        '24': 'FEDEX_MEDIUM_BOX',
-        '25': 'FEDEX_LARGE_BOX',
-        '30': 'FEDEX_EXTRA_LARGE_BOX'
-      };
-      return packageMap[packageType || '02'] || 'YOUR_PACKAGING';
-    };
-
-    // Build the correct FedEx API request structure
-    const baseRequest = {
+    const ratingRequest = {
       accountNumber: {
         value: config.fedex_account_number
       },
@@ -259,16 +172,6 @@ serve(async (req) => {
         shipDateStamp: new Date().toISOString().split('T')[0],
         rateRequestType: ["ACCOUNT", "LIST"],
         pickupType: "DROPOFF_AT_FEDEX_LOCATION",
-        shippingChargesPayment: {
-          paymentType: "SENDER",
-          payor: {
-            responsibleParty: {
-              accountNumber: {
-                value: config.fedex_account_number
-              }
-            }
-          }
-        },
         requestedPackageLineItems: [{
           weight: {
             units: shipment.package.weightUnit?.toUpperCase() === 'LBS' ? 'LB' : 'KG',
@@ -284,14 +187,6 @@ serve(async (req) => {
       }
     };
 
-    console.log('🏠 FedEx API - RESIDENTIAL STATUS VERIFICATION:', {
-      inputResidential: shipment.isResidential,
-      residentialSource: shipment.residentialSource,
-      fedexResidentialFlag: baseRequest.requestedShipment.recipient.address.residential,
-      zipCode: baseRequest.requestedShipment.recipient.address.postalCode
-    });
-
-    // Use ONLY the confirmed service codes - NO fallbacks
     if (!shipment.serviceTypes || shipment.serviceTypes.length === 0) {
       return new Response(JSON.stringify({ 
         error: 'No service codes provided. All shipments must have confirmed service mappings.' 
@@ -303,47 +198,14 @@ serve(async (req) => {
     
     const serviceCodes = shipment.serviceTypes;
     const equivalentServiceCode = shipment.equivalentServiceCode || serviceCodes[0];
-    
-    console.log('🔍 SERVICE CODE VALIDATION - NO FALLBACKS:', {
-      receivedServiceTypes: shipment.serviceTypes,
-      receivedEquivalentCode: shipment.equivalentServiceCode,
-      finalServiceCodes: serviceCodes,
-      finalEquivalentCode: equivalentServiceCode,
-      confirmedMappingOnly: true,
-      configId
-    });
-
     const rates = [];
-
-    console.log('Service codes to request:', {
-      serviceCodes,
-      equivalentServiceCode,
-      total: serviceCodes.length,
-      receivedServiceTypes: shipment.serviceTypes,
-      receivedEquivalentCode: shipment.equivalentServiceCode,
-      configId
-    });
 
     // Get rates for each service type
     for (const serviceCode of serviceCodes) {
       try {
-        // Add service type to the request
-        const serviceRequest = {
-          ...baseRequest,
-          requestedShipment: {
-            ...baseRequest.requestedShipment,
-            serviceType: serviceCode
-          }
-        };
+        ratingRequest.requestedShipment.serviceType = serviceCode;
 
-        console.log(`🚀 FEDEX REQUEST DEBUG - Service: ${serviceCode}, Config: ${configId}`);
-        console.log(`📦 Sending FedEx request for ${serviceCode}:`, JSON.stringify({
-          accountNumber: serviceRequest.accountNumber.value,
-          serviceType: serviceRequest.requestedShipment.serviceType,
-          endpoint: ratingEndpoint
-        }, null, 2));
-
-        console.log(`Requesting FedEx rate for service ${serviceCode} with config ${configId}...`);
+        console.log(`Requesting rate for service ${serviceCode} with config ${configId}...`);
 
         const response = await fetch(ratingEndpoint, {
           method: 'POST',
@@ -353,21 +215,21 @@ serve(async (req) => {
             'Accept': 'application/json',
             'X-locale': 'en_US'
           },
-          body: JSON.stringify(serviceRequest)
+          body: JSON.stringify(ratingRequest)
         });
 
         console.log(`FedEx API Response Status for service ${serviceCode} (config ${configId}):`, response.status);
 
         if (response.ok) {
           const rateData = await response.json();
-          console.log(`✅ FedEx Rate Response for service ${serviceCode} (config ${configId}):`, JSON.stringify(rateData, null, 2));
+          console.log(`FedEx Rate Response for service ${serviceCode} (config ${configId}):`, JSON.stringify(rateData, null, 2));
           
           if (rateData.output?.rateReplyDetails) {
             const rateReplyDetails = Array.isArray(rateData.output.rateReplyDetails) 
               ? rateData.output.rateReplyDetails[0] 
               : rateData.output.rateReplyDetails;
             
-            // Get service name from carrier services table
+            // Get service name
             const { data: service } = await supabase
               .from('carrier_services')
               .select('service_name, description')
@@ -375,53 +237,21 @@ serve(async (req) => {
               .eq('carrier_type', 'fedex')
               .maybeSingle();
 
-            // Extract rate information from FedEx response
             const ratedShipmentDetails = rateReplyDetails.ratedShipmentDetails || [];
             
             if (ratedShipmentDetails.length > 0) {
-              // Get account and list rates from separate rate details
               const accountRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'ACCOUNT');
               const listRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'LIST');
               
               const accountRate = accountRateDetail?.totalNetCharge || 0;
               const listRate = listRateDetail?.totalNetCharge || 0;
               
-              // Use account rate if available, otherwise use list rate
               const hasAccountRates = accountRate > 0 && config?.fedex_account_number;
               const finalCharges = hasAccountRates ? accountRate : listRate;
               const rateType = hasAccountRates ? 'account' : 'list';
               
-              // Calculate savings if we have both rates
               const savingsAmount = hasAccountRates && listRate > 0 ? listRate - accountRate : 0;
               const savingsPercentage = savingsAmount > 0 ? ((savingsAmount / listRate) * 100) : 0;
-
-              // Extract surcharge details for residential analysis
-              const selectedRateDetail = hasAccountRates ? accountRateDetail : listRateDetail;
-              const surcharges = selectedRateDetail?.shipmentRateDetail?.surCharges || [];
-              const residentialSurcharge = surcharges.find((charge: any) => 
-                charge.type === 'RESIDENTIAL_DELIVERY' || charge.description?.toLowerCase().includes('residential')
-              );
-              
-              console.log(`Rate analysis for service ${serviceCode} (config ${configId}) - RESIDENTIAL IMPACT:`, {
-                list: listRate,
-                account: accountRate,
-                final: finalCharges,
-                rateType,
-                savings: savingsAmount,
-                hasAccount: !!config?.fedex_account_number,
-                isResidential: shipment.isResidential,
-                residentialSource: shipment.residentialSource,
-                residentialSurcharge: residentialSurcharge ? {
-                  amount: residentialSurcharge.amount,
-                  type: residentialSurcharge.type,
-                  description: residentialSurcharge.description
-                } : 'No residential surcharge found',
-                allSurcharges: surcharges.map((s: any) => ({ 
-                  type: s.type, 
-                  amount: s.amount, 
-                  desc: s.description 
-                }))
-              });
 
               if (finalCharges > 0) {
                 rates.push({
@@ -429,8 +259,8 @@ serve(async (req) => {
                   serviceName: service?.service_name || `FedEx ${serviceCode}`,
                   description: service?.description || '',
                   totalCharges: finalCharges,
-                  currency: selectedRateDetail?.currency || 'USD',
-                  baseCharges: selectedRateDetail?.totalBaseCharge || 0,
+                  currency: (hasAccountRates ? accountRateDetail : listRateDetail)?.currency || 'USD',
+                  baseCharges: (hasAccountRates ? accountRateDetail : listRateDetail)?.totalBaseCharge || 0,
                   transitTime: rateReplyDetails.operationalDetail?.transitTime || null,
                   deliveryDate: rateReplyDetails.operationalDetail?.deliveryDate || null,
                   rateType,
@@ -439,29 +269,18 @@ serve(async (req) => {
                   accountRate: accountRate,
                   savingsAmount,
                   savingsPercentage,
-                  isEquivalentService: serviceCode === equivalentServiceCode,
-                  residentialInfo: {
-                    isResidential: shipment.isResidential || false,
-                    residentialSource: shipment.residentialSource || 'unknown',
-                    hasResidentialIndicator: !!residentialSurcharge
-                  }
+                  isEquivalentService: serviceCode === equivalentServiceCode
                 });
               }
             }
           }
         } else {
           const errorText = await response.text();
-          console.error(`❌ FedEx API Error for service ${serviceCode}:`, {
+          console.error(`FedEx API Error for service ${serviceCode}:`, {
             status: response.status,
-            statusText: response.statusText,
             error: errorText,
             configId: configId
           });
-          
-          // Log the exact request that failed
-          console.error(`📝 Failed FedEx Request for ${serviceCode}:`, JSON.stringify(serviceRequest, null, 2));
-          
-          // Continue with other services even if one fails
           continue;
         }
       } catch (error) {
@@ -473,21 +292,10 @@ serve(async (req) => {
     const apiCallEnd = Date.now();
     const apiCallDuration = apiCallEnd - apiCallStart;
 
-    console.log(`FedEx API Performance (config ${configId}):`, {
-      duration: `${apiCallDuration}ms`,
-      ratesReturned: rates.length,
-      servicesRequested: serviceCodes.length
-    });
-
     return new Response(JSON.stringify({
       rates,
       requestedServices: serviceCodes,
-      equivalentServiceCode,
-      performanceMetrics: {
-        apiCallDuration,
-        ratesReturned: rates.length,
-        servicesRequested: serviceCodes.length
-      }
+      equivalentServiceCode
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

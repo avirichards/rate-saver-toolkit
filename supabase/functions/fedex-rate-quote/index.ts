@@ -375,23 +375,28 @@ serve(async (req) => {
               .eq('carrier_type', 'fedex')
               .maybeSingle();
 
-            // Extract rate information
-            const ratedShipmentDetails = rateReplyDetails.ratedShipmentDetails?.[0];
-            if (ratedShipmentDetails) {
-              // Check for account rates first, then fall back to list rates
-              const listRate = ratedShipmentDetails.shipmentRateDetail?.totalNetCharge || 0;
-              const accountRate = ratedShipmentDetails.shipmentRateDetail?.totalNetChargeWithDutiesAndTaxes || listRate;
-              
-              const hasAccountRates = accountRate !== listRate && config?.fedex_account_number;
-              const finalCharges = hasAccountRates ? accountRate : listRate;
-              const rateType = hasAccountRates ? 'account' : 'list';
+            // Extract rate information from FedEx response
+            const ratedShipmentDetails = rateReplyDetails.ratedShipmentDetails || [];
+            
+            // Get account and list rates from separate rate details
+            const accountRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'ACCOUNT');
+            const listRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'LIST');
+            
+            const accountRate = accountRateDetail?.totalNetCharge || 0;
+            const listRate = listRateDetail?.totalNetCharge || 0;
+            
+            // Use account rate if available, otherwise use list rate
+            const hasAccountRates = accountRate > 0 && config?.fedex_account_number;
+            const finalCharges = hasAccountRates ? accountRate : listRate;
+            const rateType = hasAccountRates ? 'account' : 'list';
               
               // Calculate savings if we have both rates
               const savingsAmount = hasAccountRates && listRate > 0 ? listRate - accountRate : 0;
               const savingsPercentage = savingsAmount > 0 ? ((savingsAmount / listRate) * 100) : 0;
 
               // Extract surcharge details for residential analysis
-              const surcharges = ratedShipmentDetails.shipmentRateDetail?.surCharges || [];
+              const selectedRateDetail = hasAccountRates ? accountRateDetail : listRateDetail;
+              const surcharges = selectedRateDetail?.shipmentRateDetail?.surCharges || [];
               const residentialSurcharge = surcharges.find((charge: any) => 
                 charge.type === 'RESIDENTIAL_DELIVERY' || charge.description?.toLowerCase().includes('residential')
               );
@@ -423,8 +428,8 @@ serve(async (req) => {
                   serviceName: service?.service_name || `FedEx ${serviceCode}`,
                   description: service?.description || '',
                   totalCharges: finalCharges,
-                  currency: ratedShipmentDetails.shipmentRateDetail?.currency || 'USD',
-                  baseCharges: ratedShipmentDetails.shipmentRateDetail?.totalBaseCharge || 0,
+                  currency: selectedRateDetail?.currency || 'USD',
+                  baseCharges: selectedRateDetail?.totalBaseCharge || 0,
                   transitTime: rateReplyDetails.operationalDetail?.transitTime || null,
                   deliveryDate: rateReplyDetails.operationalDetail?.deliveryDate || null,
                   rateType,

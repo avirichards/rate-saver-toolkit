@@ -306,9 +306,11 @@ export function OrphanedShipmentRow({
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Badge variant="destructive" className="text-xs cursor-help">
-                Failed
-              </Badge>
+              <div className="inline-block cursor-help">
+                <Badge variant="destructive" className="text-xs">
+                  Failed
+                </Badge>
+              </div>
             </TooltipTrigger>
             <TooltipContent>
               <p className="max-w-xs">{errorMessage || 'Processing error - check highlighted fields'}</p>

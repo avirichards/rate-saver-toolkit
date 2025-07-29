@@ -6,6 +6,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { UniversalServiceSelector } from '@/components/ui-lov/UniversalServiceSelector';
 import { AccountSelector } from '@/components/ui-lov/AccountSelector';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { RotateCw, AlertCircle } from 'lucide-react';
 import { formatCurrency, getSavingsColor } from '@/lib/utils';
 import { getStateFromZip } from '@/utils/zipToStateMapping';
@@ -234,9 +235,13 @@ export function EditableShipmentRow({
           </div>
         ) : (
           <div className="w-16">
-            {getDisplayValue('originZip') || (isOrphanedShipment ? (
-              <Badge variant="destructive" className="text-xs">Missing</Badge>
-            ) : '')}
+            <div className={`${
+              (getDisplayValue('originZip') && getDisplayValue('originZip').toString().length < 4) ? 'text-red-500 font-medium' : ''
+            }`}>
+              {getDisplayValue('originZip') || (isOrphanedShipment ? (
+                <Badge variant="destructive" className="text-xs">Missing</Badge>
+              ) : '')}
+            </div>
             {getDisplayValue('originZip') && (
               <div className="text-xs text-muted-foreground">
                 {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
@@ -267,9 +272,13 @@ export function EditableShipmentRow({
           </div>
         ) : (
           <div className="w-16">
-            {getDisplayValue('destinationZip') || (isOrphanedShipment ? (
-              <Badge variant="destructive" className="text-xs">Missing</Badge>
-            ) : '')}
+            <div className={`${
+              (getDisplayValue('destinationZip') && getDisplayValue('destinationZip').toString().length < 4) ? 'text-red-500 font-medium' : ''
+            }`}>
+              {getDisplayValue('destinationZip') || (isOrphanedShipment ? (
+                <Badge variant="destructive" className="text-xs">Missing</Badge>
+              ) : '')}
+            </div>
             {getDisplayValue('destinationZip') && (
               <div className="text-xs text-muted-foreground">
                 {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
@@ -338,9 +347,9 @@ export function EditableShipmentRow({
           <span className="text-xs">
             {(() => {
               // Get dimensions from shipment object (from recommendations) or fallback to processed shipment data
-              const length = shipment.originalShipment?.length || shipment.length || 'N/A';
-              const width = shipment.originalShipment?.width || shipment.width || 'N/A';
-              const height = shipment.originalShipment?.height || shipment.height || 'N/A';
+              const length = shipment.originalShipment?.length || shipment.length || 'Missing';
+              const width = shipment.originalShipment?.width || shipment.width || 'Missing';
+              const height = shipment.originalShipment?.height || shipment.height || 'Missing';
               return `${length}×${width}×${height}`;
             })()}
           </span>
@@ -363,11 +372,16 @@ export function EditableShipmentRow({
       
       {/* Current Service - NOT editable */}
       <TableCell>
-        {getDisplayValue('customer_service') || getDisplayValue('service') || shipment.customer_service || shipment.service || (isOrphanedShipment ? (
-          <Badge variant="destructive" className="text-xs">Missing</Badge>
-        ) : (
-          <Badge variant="outline" className="text-xs truncate">Unknown</Badge>
-        ))}
+        {(() => {
+          const currentService = getDisplayValue('customer_service') || getDisplayValue('service') || shipment.customer_service || shipment.service;
+          const displayService = currentService === 'Unknown' ? 'Missing' : currentService;
+          
+          return displayService || (isOrphanedShipment ? (
+            <Badge variant="destructive" className="text-xs">Missing</Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs truncate">Missing</Badge>
+          ));
+        })()}
       </TableCell>
       
       {/* Ship Pros Service - Editable */}
@@ -431,17 +445,16 @@ export function EditableShipmentRow({
         {estimatedSavings.isPending ? (
           <span className="text-xs text-muted-foreground italic">Pending</span>
         ) : isOrphanedShipment ? (
-          <Badge variant="destructive" className="text-xs">Error</Badge>
-        ) : (
-          formatCurrency(shipment.ShipPros_cost)
-        )}
-      </TableCell>
-      
-      <TableCell className="text-right">
-        {estimatedSavings.isPending ? (
-          <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
-        ) : isOrphanedShipment ? (
-          <Badge variant="destructive" className="text-xs">Failed</Badge>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Badge variant="destructive" className="text-xs cursor-help">Failed</Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs text-sm">{shipment.error || 'Processing failed due to missing or invalid data'}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
           <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
             <div className="font-medium">
@@ -470,23 +483,6 @@ export function EditableShipmentRow({
             )}
             Re-analyze
           </Button>
-        </TableCell>
-      )}
-      
-      {!editMode && (
-        <TableCell>
-          <Badge variant="secondary" className="text-xs truncate">
-            {(() => {
-              // Priority order: account (from optimization) > analyzedWithAccount.name > accountNames lookup > accountName > fallback
-              const accountName = shipment.account || 
-                                  shipment.analyzedWithAccount?.name || 
-                                  (shipment.accountId ? accountNames[shipment.accountId] : null) ||
-                                  shipment.accountName || 
-                                  'Default Account';
-              
-              return accountName;
-            })()}
-          </Badge>
         </TableCell>
       )}
     </TableRow>

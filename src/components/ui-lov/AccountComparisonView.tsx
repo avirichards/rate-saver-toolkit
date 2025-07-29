@@ -402,20 +402,22 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     }).filter(service => service.totalShipments > 0);
   }, [shipmentRates, shipmentData, serviceMappings, accountSummaries]);
 
-  // Initialize selected accounts with best performing account for each service
+  // Initialize selected accounts with what's actually being used in shipment data
   useEffect(() => {
     if (serviceBreakdowns.length > 0) {
       const initialSelections: Record<string, string> = {};
       serviceBreakdowns.forEach(service => {
-        // Check if shipments in this service have been optimized (have account property)
+        // Get all shipments for this service
         const serviceShipments = shipmentData.filter(s => s.customer_service === service.serviceName);
-        const optimizedShipments = serviceShipments.filter(s => s.account);
         
-        if (optimizedShipments.length > 0) {
-          // Use the most common optimized account for this service
-          const accountCounts = optimizedShipments.reduce((acc, s) => {
-            const account = s.account!;
-            acc[account] = (acc[account] || 0) + 1;
+        if (serviceShipments.length > 0) {
+          // Find what account is actually being used for this service
+          const accountCounts = serviceShipments.reduce((acc, s) => {
+            // Check multiple possible account fields
+            const account = s.account || s.accountName;
+            if (account && account !== 'Default Account' && account !== 'unknown') {
+              acc[account] = (acc[account] || 0) + 1;
+            }
             return acc;
           }, {} as Record<string, number>);
           
@@ -424,9 +426,14 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           
           if (mostUsedAccount) {
             initialSelections[service.serviceName] = mostUsedAccount;
+            console.log(`🔍 Initialized ${service.serviceName} with currently used account: ${mostUsedAccount}`);
+          } else if (service.accounts.length > 0) {
+            // Fallback to best performing account if no actual usage found
+            initialSelections[service.serviceName] = service.accounts[0].accountName;
+            console.log(`🔍 Initialized ${service.serviceName} with best performing account: ${service.accounts[0].accountName}`);
           }
         } else if (service.accounts.length > 0) {
-          // No optimization yet, use best performing account
+          // No shipments for this service, use best performing account
           initialSelections[service.serviceName] = service.accounts[0].accountName;
         }
       });

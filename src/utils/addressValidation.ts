@@ -199,14 +199,14 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
     errors.weight = weightResult.errors;
   }
 
-  // Cost validation - more flexible
-  if (shipment.cost) {
-    const costResult = validateCost(shipment.cost);
+  // CurrentRate validation - more flexible
+  if (shipment.currentRate) {
+    const costResult = validateCost(shipment.currentRate);
     if (!costResult.isValid) {
-      errors.cost = costResult.errors;
+      errors.currentRate = costResult.errors;
     }
   } else {
-    warnings.cost = ['Missing cost data - cannot calculate savings'];
+    warnings.currentRate = ['Missing currentRate data - cannot calculate savings'];
   }
 
   // Validate dimensions - now optional with smart defaults

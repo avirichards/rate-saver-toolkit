@@ -185,9 +185,8 @@ export const formatShipmentData = (recommendations: any[], shipmentRates?: any[]
   // We'll use the recommendedService directly from the analysis data
   
   return recommendations.map((rec: any, index: number) => {
-    // Get current rate from original data
-    const currentRate = rec.currentCost || rec.current_rate || rec.currentRate || 
-                       rec.shipment?.currentRate || rec.shipment?.current_rate || 0;
+    // Use standardized currentRate field
+    const currentRate = rec.currentRate || 0;
     
     const originalService = rec.customer_service || 'Unknown';
     

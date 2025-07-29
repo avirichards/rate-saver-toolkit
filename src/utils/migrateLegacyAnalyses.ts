@@ -160,14 +160,10 @@ export const migrateSingleAnalysis = async (analysis: LegacyAnalysis): Promise<b
           weight: parseFloat(shipmentData?.weight || '0'),
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
           customer_service: rec.customer_service || shipmentData?.customer_service || 'Unknown',
-          currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
-          ShipPros_cost: rec.recommendedCost || rec.recommended_cost || rec.negotiated_rate || rec.ShipPros_cost || 0,
-          savings: rec.savings || rec.savings_amount || 0,
-          savingsPercent: (() => {
-            const current = rec.currentCost || rec.current_rate || rec.published_rate || 0;
-            const savings = rec.savings || rec.savings_amount || 0;
-            return current > 0 ? (savings / current) * 100 : 0;
-          })()
+          currentRate: rec.currentRate || 0,
+          ShipPros_cost: rec.ShipPros_cost || 0,
+          savings: rec.savings || 0,
+          savingsPercent: rec.savingsPercent || 0
         });
       }
     });

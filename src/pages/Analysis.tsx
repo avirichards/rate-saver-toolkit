@@ -24,7 +24,7 @@ interface ProcessedShipment {
   carrier?: string;
   weight?: string;
   weightUnit?: string;
-  cost?: string;
+  currentRate?: string;
   originZip?: string;
   destZip?: string;
   length?: string;
@@ -190,7 +190,7 @@ const Analysis = () => {
         service: s.service,
         weight: s.weight,
         dimensions: `${s.length || 'N/A'} x ${s.width || 'N/A'} x ${s.height || 'N/A'}`,
-        cost: s.cost,
+        currentRate: s.currentRate,
         originZip: s.originZip,
         destZip: s.destZip
       })),
@@ -208,7 +208,7 @@ const Analysis = () => {
         currentDimensions: `${targetShipment.length || 'N/A'} x ${targetShipment.width || 'N/A'} x ${targetShipment.height || 'N/A'}`,
         expectedDimensions: "22 x 8 x 7", // From user's updated spreadsheet
         dimensionsMatch: targetShipment.length === "22" && targetShipment.width === "8" && targetShipment.height === "7",
-        cost: targetShipment.cost,
+        currentRate: targetShipment.currentRate,
         rawRowData: state.csvData.find((row, idx) => idx === (targetShipment.id - 1))
       });
     } else {
@@ -319,7 +319,7 @@ const Analysis = () => {
           originZip: s.originZip,
           destZip: s.destZip,
           weight: s.weight,
-          cost: s.cost
+          currentRate: s.currentRate
         }))
       });
       
@@ -347,7 +347,7 @@ const Analysis = () => {
               originZip: shipment.originZip,
               destZip: shipment.destZip,
               weight: shipment.weight,
-              cost: shipment.cost
+              currentRate: shipment.currentRate
             }
           });
         }
@@ -626,7 +626,7 @@ const Analysis = () => {
       originZip: shipment.originZip,
       destZip: shipment.destZip,
       weight: shipment.weight,
-      cost: shipment.cost,
+      currentRate: shipment.currentRate,
       isRetry: retryCount > 0
     });
     
@@ -647,13 +647,13 @@ const Analysis = () => {
         hasDestZip: !!shipment.destZip?.trim(),
         hasService: !!shipment.service?.trim(),
         hasWeight: !!shipment.weight,
-        hasCost: !!shipment.cost,
+        hasCost: !!shipment.currentRate,
         rawData: {
           originZip: shipment.originZip,
           destZip: shipment.destZip,
           service: shipment.service,
           weight: shipment.weight,
-          cost: shipment.cost
+          currentRate: shipment.currentRate
         }
       });
       
@@ -695,14 +695,14 @@ const Analysis = () => {
         throw new Error(`Invalid destination ZIP code format: "${shipment.destZip}" (expected format: 12345 or 12345-6789)`);
       }
       
-      // Parse cost and handle different formats ($4.41, 4.41, $1,234.56, etc.)
-      const costString = (shipment.cost || '0').toString().replace(/[$,]/g, '').trim();
+      // Parse currentRate and handle different formats ($4.41, 4.41, $1,234.56, etc.)
+      const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
       const currentCost = parseFloat(costString);
       
       // Add validation for zero or invalid costs - move to orphans
       if (isNaN(currentCost) || currentCost <= 0) {
         console.log(`💰 Cost parsing debug:`, {
-          original: shipment.cost,
+          original: shipment.currentRate,
           cleaned: costString,
           parsed: currentCost,
           isNaN: isNaN(currentCost),
@@ -721,7 +721,7 @@ const Analysis = () => {
             destZip: shipment.destZip,
             service: shipment.service,
             weight: shipment.weight,
-            cost: shipment.cost
+            currentRate: shipment.currentRate
           }
         });
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
@@ -1238,7 +1238,7 @@ const Analysis = () => {
           originZip: shipment.originZip,
           destZip: shipment.destZip,
           weight: shipment.weight,
-          cost: shipment.cost
+          currentRate: shipment.currentRate
         },
         attemptNumber: retryCount + 1,
         maxRetries: maxRetries + 1

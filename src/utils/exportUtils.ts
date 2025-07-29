@@ -132,7 +132,7 @@ export const generateReportExcelFromProcessedData = (
         data.width || shipment.width || '',
         data.height || shipment.height || '',
         data.customer_service || data.currentService || shipment.currentService || shipment.customer_service || '',
-        data.cost || data.currentRate || shipment.currentRate || shipment.cost || 0,
+        data.currentRate || shipment.currentRate || 0,
         shipment.reason || data.reason || 'Unable to quote'
       ]);
     });

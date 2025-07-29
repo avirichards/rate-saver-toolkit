@@ -123,15 +123,15 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     const shipmentBestRates: Record<string, { account: string; rate: number; currentRate: number }> = {};
     
     shipmentRates.forEach(rate => {
-      // Use shipment_index for matching instead of trackingId for more reliable matching
-      const shipmentIndex = rate.shipment_index;
-      if (shipmentIndex === null || shipmentIndex === undefined) return;
+      // Use tracking ID for reliable matching
+      const trackingId = rate.shipment_data?.trackingId;
+      if (!trackingId) return;
       
-      // Find shipment by index (id - 1, since shipment.id is 1-based while array is 0-based)
-      const currentShipment = shipmentData.find(s => s.id === shipmentIndex + 1);
+      // Find shipment by tracking ID
+      const currentShipment = shipmentData.find(s => s.trackingId === trackingId);
       
       if (currentShipment) {
-        const shipmentKey = `${shipmentIndex}`;
+        const shipmentKey = trackingId;
         if (!shipmentBestRates[shipmentKey] || rate.rate_amount < shipmentBestRates[shipmentKey].rate) {
           shipmentBestRates[shipmentKey] = {
             account: rate.account_name,
@@ -171,13 +171,13 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     const accounts: Record<string, {
       accountName: string;
       totalSpend: number;
-      shipmentsQuoted: Set<number>;
+      shipmentsQuoted: Set<string>;
       savingsData: { dollarSavings: number; percentSavings: number }[];
       wins: number;
     }> = {};
 
     // First, create a structure to track which shipments each account can quote
-    const accountShipmentData: Record<string, Record<number, {
+    const accountShipmentData: Record<string, Record<string, {
       rate: number;
       shipment: ProcessedShipmentData;
       dollarSavings: number;
@@ -186,10 +186,10 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
     // Process each rate and only keep the best rate per account per shipment
     shipmentRates.forEach(rate => {
-      const shipmentIndex = rate.shipment_index;
-      if (shipmentIndex === null || shipmentIndex === undefined) return;
+      const trackingId = rate.shipment_data?.trackingId;
+      if (!trackingId) return;
       
-      const shipment = shipmentData.find(s => s.id === shipmentIndex + 1);
+      const shipment = shipmentData.find(s => s.trackingId === trackingId);
       if (!shipment) return;
 
       if (!accountShipmentData[rate.account_name]) {
@@ -197,13 +197,13 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       }
 
       // Only use the best (lowest) rate for each shipment per account
-      if (!accountShipmentData[rate.account_name][shipmentIndex] || 
-          rate.rate_amount < accountShipmentData[rate.account_name][shipmentIndex].rate) {
+      if (!accountShipmentData[rate.account_name][trackingId] || 
+          rate.rate_amount < accountShipmentData[rate.account_name][trackingId].rate) {
         
         const dollarSavings = shipment.currentRate - rate.rate_amount;
         const percentSavings = shipment.currentRate > 0 ? (dollarSavings / shipment.currentRate) * 100 : 0;
         
-        accountShipmentData[rate.account_name][shipmentIndex] = {
+        accountShipmentData[rate.account_name][trackingId] = {
           rate: rate.rate_amount,
           shipment,
           dollarSavings,
@@ -217,16 +217,16 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       accounts[accountName] = {
         accountName,
         totalSpend: 0,
-        shipmentsQuoted: new Set<number>(),
+        shipmentsQuoted: new Set<string>(),
         savingsData: [],
         wins: 0
       };
 
       const account = accounts[accountName];
       
-      Object.entries(shipmentData).forEach(([shipmentIndex, data]) => {
+      Object.entries(shipmentData).forEach(([trackingId, data]) => {
         account.totalSpend += data.rate;
-        account.shipmentsQuoted.add(parseInt(shipmentIndex));
+        account.shipmentsQuoted.add(trackingId);
         account.savingsData.push({ 
           dollarSavings: data.dollarSavings, 
           percentSavings: data.percentSavings 
@@ -328,9 +328,9 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       // Get rates for the UPS equivalent service
       const serviceRates = shipmentRates.filter(rate => {
-        // Check if any shipment with this customer service has rates using shipment_index
+        // Check if any shipment with this customer service has rates using tracking ID
         return serviceShipments.some(shipment => 
-          rate.shipment_index === shipment.id - 1 // Convert 1-based id to 0-based index
+          rate.shipment_data?.trackingId === shipment.trackingId
         );
       });
 
@@ -353,9 +353,9 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           let validRatesCount = 0;
           
           accountRates.forEach(rate => {
-            // Find the corresponding shipment data by shipment_index (more reliable than trackingId)
+            // Find the corresponding shipment data by tracking ID
             const correspondingShipment = serviceShipments.find(shipment => 
-              shipment.id === rate.shipment_index + 1 // Convert 0-based index to 1-based id
+              shipment.trackingId === rate.shipment_data?.trackingId
             );
             
             if (correspondingShipment) {

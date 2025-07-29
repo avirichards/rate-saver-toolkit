@@ -171,7 +171,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     const accounts: Record<string, {
       accountName: string;
       totalSpend: number;
-      shipmentsQuoted: number;
+      shipmentsQuoted: Set<number>;
       savingsData: { dollarSavings: number; percentSavings: number }[];
       wins: number;
       maxSavingsPercent: number;
@@ -190,7 +190,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         accounts[rate.account_name] = {
           accountName: rate.account_name,
           totalSpend: 0,
-          shipmentsQuoted: 0,
+          shipmentsQuoted: new Set<number>(),
           savingsData: [],
           wins: 0,
           maxSavingsPercent: 0
@@ -199,7 +199,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       const account = accounts[rate.account_name];
       account.totalSpend += rate.rate_amount;
-      account.shipmentsQuoted += 1;
+      account.shipmentsQuoted.add(rate.shipment_index);
 
       // Calculate savings for this shipment
       const dollarSavings = shipment.currentRate - rate.rate_amount;
@@ -220,8 +220,9 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
     // Calculate final metrics for each account
     return Object.values(accounts).map(account => {
-      const avgCostPerShipment = account.totalSpend / account.shipmentsQuoted;
-      const winRate = (account.wins / account.shipmentsQuoted) * 100;
+      const shipmentsQuotedCount = account.shipmentsQuoted.size;
+      const avgCostPerShipment = account.totalSpend / shipmentsQuotedCount;
+      const winRate = (account.wins / shipmentsQuotedCount) * 100;
       
       // Calculate average savings
       const avgDollarSavings = account.savingsData.reduce((sum, s) => sum + s.dollarSavings, 0) / account.savingsData.length;
@@ -579,7 +580,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                         <p>Number of shipments this account provided quotes for out of total shipments</p>
                       </TooltipContent>
                     </Tooltip>
-                    <span className="font-medium">{account.shipmentsQuoted} / {account.totalShipments}</span>
+                    <span className="font-medium">{account.shipmentsQuoted.size} / {account.totalShipments}</span>
                   </div>
                   
                   <div className="flex justify-between">

@@ -1288,23 +1288,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         const orphanReason = errorStatus || `Missing: ${validation.missingFields.join(', ')}`;
         console.warn(`❌ MOVING TO ORPHANS: ${trackingId} - ${orphanReason}`);
         
-        console.log('🔍 ORIGINAL REC RATE DATA:', {
-          trackingId,
-          recKeys: Object.keys(rec),
-          possibleRateFields: {
-            currentRate: rec.currentRate,
-            current_rate: rec.current_rate,
-            rate: rec.rate,
-            cost: rec.cost,
-            amount: rec.amount,
-            price: rec.price,
-            customer_rate: rec.customer_rate,
-            customerRate: rec.customerRate,
-            total_cost: rec.total_cost,
-            totalCost: rec.totalCost
-          }
-        });
-        
         
         orphanedShipments.push({
           id: index + 1,
@@ -1379,7 +1362,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           height: shipmentData.height || 6,
           service: originalShipment?.customer_service || shipmentData.customer_service || '',
           customer_service: originalShipment?.customer_service || shipmentData.customer_service || '',
-          currentRate: shipmentData.currentRate || shipmentData.current_rate || shipmentData.rate || shipmentData.cost || 0,
+          currentRate: originalShipment?.currentRate || originalShipment?.current_rate || originalShipment?.rate || originalShipment?.cost || originalShipment?.amount || originalShipment?.price || shipmentData.currentRate || shipmentData.current_rate || shipmentData.rate || shipmentData.cost || 0,
           carrier: shipmentData.carrier || 'UPS',
           error: 'Missing from analysis data - shipment was not processed during analysis',
           errorType: 'Missing Data',

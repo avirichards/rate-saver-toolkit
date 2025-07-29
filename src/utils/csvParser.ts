@@ -43,7 +43,9 @@ const fieldPatterns = {
     /service.*type/i, /delivery.*type/i, /ship.*type/i,
     /service.*level/i, /service.*class/i, /delivery.*option/i,
     /speed/i, /priority/i, /express/i, /standard/i, /economy/i,
-    /overnight/i, /next.*day/i, /ground/i, /air/i, /freight/i
+    /overnight/i, /next.*day/i, /ground/i, /air/i, /freight/i,
+    /service.*selected/i, /carrier.*selected/i, /shipping.*selected/i,
+    /selected/i, /chosen/i, /used/i, /method/i, /option/i
   ],
   carrier: [
     /carrier/i, /shipper/i, /company/i, /courier/i, /vendor/i,
@@ -77,7 +79,8 @@ const fieldPatterns = {
     /origin.*postal.*code/i, /from.*postal.*code/i, /ship.*postal.*code/i,
     /shipper.*zip/i, /shipper.*postal/i, /source.*zip/i, /source.*postal/i,
     /start.*zip/i, /start.*postal/i, /collection.*zip/i, /collection.*postal/i,
-    /warehouse.*zip/i, /facility.*zip/i, /depot.*zip/i
+    /warehouse.*zip/i, /facility.*zip/i, /depot.*zip/i,
+    /ship.*from.*postal.*code/i, /^from.*code$/i, /^ship.*code$/i
   ],
   destZip: [
     /dest.*zip/i, /to.*zip/i, /delivery.*zip/i, /recipient.*zip/i, /deliver.*zip/i,
@@ -85,7 +88,8 @@ const fieldPatterns = {
     /destination.*postal.*code/i, /to.*postal.*code/i, /delivery.*postal.*code/i,
     /consignee.*zip/i, /consignee.*postal/i, /receiver.*zip/i, /receiver.*postal/i,
     /end.*zip/i, /end.*postal/i, /final.*zip/i, /final.*postal/i,
-    /customer.*zip/i, /customer.*postal/i, /client.*zip/i, /client.*postal/i
+    /customer.*zip/i, /customer.*postal/i, /client.*zip/i, /client.*postal/i,
+    /ship.*to.*postal.*code/i, /^to.*code$/i, /^ship.*to$/i
   ],
   length: [
     /length/i, /^len$/i, /^l$/i, /long/i, /longest/i,
@@ -256,14 +260,26 @@ export function generateConservativeColumnMappings(headers: string[]): FieldMapp
       patterns.forEach(pattern => {
         if (pattern.test(headerLower)) {
           console.log(`🎯 Pattern match for ${fieldName}: "${header}" matches ${pattern}`);
-          // Calculate confidence based on pattern specificity and header length
-          const patternStr = pattern.toString().toLowerCase();
-          if (headerLower === patternStr.replace(/[^a-z]/g, '')) {
-            confidence = Math.max(confidence, 95); // Exact match
-          } else if (headerLower.includes(patternStr.replace(/[^a-z]/g, ''))) {
-            confidence = Math.max(confidence, 85); // Contains key term
+          
+          // Much more lenient confidence calculation
+          if (headerLower.includes('postal') && (fieldName === 'originZip' || fieldName === 'destZip')) {
+            confidence = Math.max(confidence, 90); // High confidence for postal code fields
+          } else if (headerLower.includes('selected') && fieldName === 'service') {
+            confidence = Math.max(confidence, 90); // High confidence for service selected
+          } else if (headerLower.includes('fee') && fieldName === 'currentRate') {
+            confidence = Math.max(confidence, 90); // High confidence for fee fields
+          } else if (headerLower.includes('weight') && fieldName === 'weight') {
+            confidence = Math.max(confidence, 90); // High confidence for weight fields
+          } else if (headerLower.includes('tracking') && fieldName === 'trackingId') {
+            confidence = Math.max(confidence, 95); // Very high confidence for tracking
+          } else if (headerLower.includes('height') && fieldName === 'height') {
+            confidence = Math.max(confidence, 90);
+          } else if (headerLower.includes('length') && fieldName === 'length') {
+            confidence = Math.max(confidence, 90);
+          } else if (headerLower.includes('width') && fieldName === 'width') {
+            confidence = Math.max(confidence, 90);
           } else {
-            confidence = Math.max(confidence, 80); // Pattern match
+            confidence = Math.max(confidence, 80); // General pattern match
           }
           console.log(`   → Confidence: ${confidence}%`);
         }

@@ -7,6 +7,12 @@ verify_jwt = true
 [functions.ups-rate-quote]
 verify_jwt = true
 
+[functions.fedex-auth]
+verify_jwt = true
+
+[functions.fedex-rate-quote]
+verify_jwt = true
+
 [functions.multi-carrier-quote]
 verify_jwt = true
 

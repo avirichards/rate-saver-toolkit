@@ -424,11 +424,25 @@ async function getUpsRates(supabase: any, shipment: ShipmentRequest, config: Car
 }
 
 async function getFedexRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, serviceTypes?: string[]) {
-  console.log('🚚 Getting FedEx rates... (placeholder)');
+  console.log('🚚 Getting FedEx rates...');
   
-  // TODO: Implement FedEx API integration
-  // For now, return empty array
-  return [];
+  // Call FedEx rate quote function
+  const { data, error } = await supabase.functions.invoke('fedex-rate-quote', {
+    body: { 
+      shipment: {
+        ...shipment,
+        serviceTypes: serviceTypes || shipment.serviceTypes
+      },
+      configId: config.id // Pass specific config ID for this carrier
+    }
+  });
+
+  if (error) {
+    console.error('FedEx rate error:', error);
+    throw new Error(`FedEx rate error: ${error.message}`);
+  }
+
+  return data?.rates || [];
 }
 
 async function getDhlRates(supabase: any, shipment: ShipmentRequest, config: CarrierConfig, serviceTypes?: string[]) {

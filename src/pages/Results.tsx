@@ -1288,7 +1288,32 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         const orphanReason = errorStatus || `Missing: ${validation.missingFields.join(', ')}`;
         console.warn(`❌ MOVING TO ORPHANS: ${trackingId} - ${orphanReason}`);
         
-        console.log('🔍 SIMPLE RATE DEBUG:', rec);
+        console.log('🔍 RATE FIELDS IN REC:', {
+          keys: Object.keys(rec),
+          rate: rec.rate,
+          cost: rec.cost,
+          currentRate: rec.currentRate,
+          current_rate: rec.current_rate,
+          price: rec.price,
+          amount: rec.amount,
+          totalCost: rec.totalCost,
+          total_cost: rec.total_cost,
+          customer_rate: rec.customer_rate,
+          customerRate: rec.customerRate,
+          originalShipment: rec.originalShipment ? {
+            keys: Object.keys(rec.originalShipment),
+            rate: rec.originalShipment.rate,
+            cost: rec.originalShipment.cost,
+            currentRate: rec.originalShipment.currentRate,
+            current_rate: rec.originalShipment.current_rate,
+            price: rec.originalShipment.price,
+            amount: rec.originalShipment.amount,
+            totalCost: rec.originalShipment.totalCost,
+            total_cost: rec.originalShipment.total_cost,
+            customer_rate: rec.originalShipment.customer_rate,
+            customerRate: rec.originalShipment.customerRate
+          } : 'no originalShipment'
+        });
         
         orphanedShipments.push({
           id: index + 1,

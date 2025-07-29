@@ -699,67 +699,97 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     try {
       console.log('🔧 Fixing orphaned shipment:', shipmentId, updatedData);
       
+      // Store original state for rollback
+      const originalOrphanedShipment = orphanedData.find(item => item.id === shipmentId);
+      if (!originalOrphanedShipment) {
+        throw new Error('Original orphaned shipment not found');
+      }
+
       // Use the fixOrphanedShipment hook which handles re-analysis and database updates
       const result = await fixOrphanedShipment(updatedData, currentAnalysisId);
       
-      // The hook automatically handles moving the shipment from orphaned to processed
-      // Update local state to reflect the changes
+      if (!result) {
+        throw new Error('Failed to get fix result from server - shipment may be lost');
+      }
+
+      // Verify the database was actually updated by refetching the analysis
+      const { data: updatedAnalysis, error: fetchError } = await supabase
+        .from('shipping_analyses')
+        .select('processed_shipments, orphaned_shipments')
+        .eq('id', currentAnalysisId)
+        .single();
+
+      if (fetchError) {
+        throw new Error(`Failed to verify database update: ${fetchError.message}`);
+      }
+
+      // Check if the shipment was actually moved in the database
+      const processedShipments = Array.isArray(updatedAnalysis.processed_shipments) ? updatedAnalysis.processed_shipments : [];
+      const orphanedShipments = Array.isArray(updatedAnalysis.orphaned_shipments) ? updatedAnalysis.orphaned_shipments : [];
+      
+      const foundInProcessed = processedShipments.find((s: any) => 
+        s.trackingId === updatedData.trackingId || s.id === shipmentId
+      );
+      const stillInOrphaned = orphanedShipments.find((s: any) => 
+        s.trackingId === updatedData.trackingId || s.id === shipmentId
+      );
+
+      if (!foundInProcessed || stillInOrphaned) {
+        throw new Error('Database update verification failed - shipment not properly moved');
+      }
+
+      console.log('✅ Database update verified - shipment successfully moved');
+
+      // Only update frontend state after successful database verification
       setOrphanedData(prev => prev.filter(item => item.id !== shipmentId));
       
-      // Add the successfully processed shipment to the shipment data
-      // The result from fixOrphanedShipment should contain the processed shipment data
-      if (result) {
-        const fixedShipmentData = {
-          ...updatedData,
-          ShipPros_cost: result.ShipPros_cost,
-          ShipPros_service: result.ShipPros_service,
-          // Preserve account information from the result
-          accountId: result.accountUsed?.id || updatedData.accountId,
-          accountName: result.accountUsed?.name || updatedData.accountName,
-          analyzedWithAccount: result.accountUsed?.name || updatedData.analyzedWithAccount,
-          carrier: result.accountUsed?.carrierType || updatedData.carrier,
-          upsRates: result.upsRates,
-          fixed: true,
-          fixedAt: new Date().toISOString(),
-          // Clear error fields since it's fixed
-          error: undefined,
-          errorType: undefined,
-          errorCategory: undefined
-        };
+      const fixedShipmentData = {
+        ...updatedData,
+        ShipPros_cost: result.ShipPros_cost,
+        ShipPros_service: result.ShipPros_service,
+        accountId: result.accountUsed?.id || updatedData.accountId,
+        accountName: result.accountUsed?.name || updatedData.accountName,
+        analyzedWithAccount: result.accountUsed?.name || updatedData.analyzedWithAccount,
+        carrier: result.accountUsed?.carrierType || updatedData.carrier,
+        upsRates: result.upsRates,
+        fixed: true,
+        fixedAt: new Date().toISOString(),
+        error: undefined,
+        errorType: undefined,
+        errorCategory: undefined
+      };
+      
+      setShipmentData(prev => [...prev, fixedShipmentData]);
+      
+      // Update local analysis state with the verified data
+      setAnalysisData(prev => prev ? {
+        ...prev,
+        processed_shipments: updatedAnalysis.processed_shipments,
+        orphaned_shipments: updatedAnalysis.orphaned_shipments
+      } : prev);
         
-        console.log('🔧 ADDING FIXED SHIPMENT TO DATA:', {
-          trackingId: fixedShipmentData.trackingId,
-          shipmentId: shipmentId,
-          fixedShipmentData,
-          currentShipmentDataCount: shipmentData.length
-        });
-        setShipmentData(prev => {
-          const newData = [...prev, fixedShipmentData];
-          console.log('🔧 NEW SHIPMENT DATA ARRAY:', {
-            newCount: newData.length,
-            newShipment: fixedShipmentData,
-            allTrackingIds: newData.map(s => s.trackingId)
-          });
-          return newData;
-        });
-        
-        // Save the updated data to the database
-        setTimeout(() => saveShipmentData(), 100);
-        
-        // Update the analysis totals
-        setAnalysisData(prev => prev ? {
-          ...prev,
-          totalShipments: (prev.totalShipments || 0) + 1,
-          completedShipments: (prev.completedShipments || 0) + 1
-        } : prev);
-      }
+      // Update the analysis totals
+      setAnalysisData(prev => prev ? {
+        ...prev,
+        totalShipments: (prev.totalShipments || 0) + 1,
+        completedShipments: (prev.completedShipments || 0) + 1
+      } : prev);
       
       toast.success(`Successfully fixed and analyzed shipment ${updatedData.trackingId || shipmentId}`);
       
-    } catch (error) {
-      console.error('Fix orphaned shipment failed:', error);
-      toast.error(`Failed to fix shipment: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
+     } catch (error) {
+       console.error('❌ Error fixing orphaned shipment:', error);
+       
+       // Rollback: ensure orphaned shipment is still in the list if it was removed
+       const originalOrphanedShipment = orphanedData.find(item => item.id === shipmentId);
+       if (!originalOrphanedShipment) {
+         // If not found in current state, reload from database to recover the shipment
+         console.log('🔄 Attempting to recover lost orphaned shipment...');
+         await loadFromDatabase(currentAnalysisId);
+       }
+       
+       toast.error(`Failed to fix shipment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+     }
   };
 
   // Handler for orphaned shipment field updates

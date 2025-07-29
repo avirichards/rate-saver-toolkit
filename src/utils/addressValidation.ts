@@ -170,7 +170,7 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
     originZip: shipment.originZip,
     destZip: shipment.destZip,
     weight: shipment.weight,
-    cost: shipment.cost,
+    currentRate: shipment.currentRate,
     dimensions: { length: shipment.length, width: shipment.width, height: shipment.height }
   });
 

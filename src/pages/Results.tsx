@@ -1290,8 +1290,16 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         
         console.log('🔍 Creating orphaned shipment with rate data:', {
           shipmentId: index + 1,
+          trackingId: shipmentData?.trackingId,
           rec: { currentCost: rec.currentCost, current_rate: rec.current_rate, published_rate: rec.published_rate },
-          shipmentData: { currentRate: shipmentData?.currentRate, current_rate: shipmentData?.current_rate, rate: shipmentData?.rate, cost: shipmentData?.cost }
+          shipmentData: { currentRate: shipmentData?.currentRate, current_rate: shipmentData?.current_rate, rate: shipmentData?.rate, cost: shipmentData?.cost },
+          originalShipment: rec.originalShipment ? {
+            currentRate: rec.originalShipment.currentRate,
+            current_rate: rec.originalShipment.current_rate,
+            rate: rec.originalShipment.rate,
+            cost: rec.originalShipment.cost,
+            allFields: Object.keys(rec.originalShipment)
+          } : 'No originalShipment'
         });
         
         orphanedShipments.push({
@@ -1307,7 +1315,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           customer_service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
           currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 
                        shipmentData?.currentRate || shipmentData?.current_rate || 
-                       shipmentData?.rate || shipmentData?.cost || 0,
+                       shipmentData?.rate || shipmentData?.cost ||
+                       rec.originalShipment?.currentRate || rec.originalShipment?.current_rate ||
+                       rec.originalShipment?.rate || rec.originalShipment?.cost || 0,
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
           error: orphanReason,
           errorType: validation.errorType || 'Processing Error',

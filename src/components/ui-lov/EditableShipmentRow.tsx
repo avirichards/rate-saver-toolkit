@@ -103,6 +103,33 @@ export function EditableShipmentRow({
     return value;
   };
 
+  // Check if this is an orphaned shipment (has error or errorType)
+  const isOrphanedShipment = shipment.error || shipment.errorType;
+
+  // Check if a field is missing or invalid for orphaned shipments
+  const isFieldMissing = (field: string) => {
+    if (!isOrphanedShipment) return false;
+    
+    const value = getDisplayValue(field);
+    switch (field) {
+      case 'originZip':
+      case 'destinationZip':
+        return !value || value.toString().trim() === '';
+      case 'weight':
+        return !value || parseFloat(value.toString()) <= 0;
+      case 'service':
+      case 'ShipPros_service':
+        return !value || value.toString().trim() === '';
+      default:
+        return false;
+    }
+  };
+
+  // Get error styling for missing fields
+  const getFieldErrorClass = (field: string) => {
+    return isFieldMissing(field) ? 'border-destructive bg-destructive/5' : '';
+  };
+
   // Convert string service names to UniversalServiceCategory and vice versa
   const getServiceEnumValue = (serviceName: string): UniversalServiceCategory => {
     if (!serviceName) return UniversalServiceCategory.GROUND;
@@ -164,37 +191,52 @@ export function EditableShipmentRow({
   }, [localChanges, shipment, getShipmentMarkup]);
 
   return (
-    <TableRow className={`${isSelected ? 'bg-muted/50' : ''} ${hasChanges ? 'border-l-4 border-l-primary/50' : ''}`}>
-      <TableCell>
-        <div className="flex items-center gap-1">
-          <Checkbox
-            checked={isSelected}
-            onCheckedChange={onSelect}
-          />
-          {hasChanges && (
-            <AlertCircle className="h-3 w-3 text-amber-500" />
-          )}
-        </div>
-      </TableCell>
+    <TableRow className={`${isSelected ? 'bg-muted/50' : ''} ${hasChanges ? 'border-l-4 border-l-primary/50' : ''} ${isOrphanedShipment ? 'border-l-4 border-l-amber-500/50' : ''}`}>
+      {editMode && (
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={onSelect}
+            />
+            {hasChanges && (
+              <AlertCircle className="h-3 w-3 text-amber-500" />
+            )}
+          </div>
+        </TableCell>
+      )}
       
       <TableCell className="font-medium">
-        <div className="truncate w-24">
-          {shipment.trackingId || `Shipment-${shipment.id}`}
+        <div className="flex items-center gap-2 truncate w-24">
+          {isOrphanedShipment && <AlertCircle className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+          {shipment.trackingId || `${isOrphanedShipment ? 'Orphan' : 'Shipment'}-${shipment.id}`}
         </div>
       </TableCell>
       
       <TableCell>
         {editMode ? (
-          <InlineEditableField
-            value={getDisplayValue('originZip')}
-            onSave={(value) => handleFieldSave('originZip', value)}
-            placeholder="Origin ZIP"
-            className="w-20 text-xs"
-            minWidth="80px"
-          />
+          <div>
+            <InlineEditableField
+              value={getDisplayValue('originZip')}
+              onSave={(value) => handleFieldSave('originZip', value)}
+              placeholder="Origin ZIP"
+              className={`w-20 text-xs ${getFieldErrorClass('originZip')}`}
+              minWidth="80px"
+            />
+            {getDisplayValue('originZip') && (
+              <div className="text-xs text-muted-foreground mt-1">
+                {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
+              </div>
+            )}
+            {isFieldMissing('originZip') && (
+              <div className="text-xs text-destructive mt-1">Required</div>
+            )}
+          </div>
         ) : (
           <div className="w-16">
-            {getDisplayValue('originZip')}
+            {getDisplayValue('originZip') || (isOrphanedShipment ? (
+              <Badge variant="destructive" className="text-xs">Missing</Badge>
+            ) : '')}
             {getDisplayValue('originZip') && (
               <div className="text-xs text-muted-foreground">
                 {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
@@ -206,16 +248,28 @@ export function EditableShipmentRow({
       
       <TableCell>
         {editMode ? (
-          <InlineEditableField
-            value={getDisplayValue('destinationZip')}
-            onSave={(value) => handleFieldSave('destinationZip', value)}
-            placeholder="Dest ZIP"
-            className="w-20 text-xs"
-            minWidth="80px"
-          />
+          <div>
+            <InlineEditableField
+              value={getDisplayValue('destinationZip')}
+              onSave={(value) => handleFieldSave('destinationZip', value)}
+              placeholder="Dest ZIP"
+              className={`w-20 text-xs ${getFieldErrorClass('destinationZip')}`}
+              minWidth="80px"
+            />
+            {getDisplayValue('destinationZip') && (
+              <div className="text-xs text-muted-foreground mt-1">
+                {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
+              </div>
+            )}
+            {isFieldMissing('destinationZip') && (
+              <div className="text-xs text-destructive mt-1">Required</div>
+            )}
+          </div>
         ) : (
           <div className="w-16">
-            {getDisplayValue('destinationZip')}
+            {getDisplayValue('destinationZip') || (isOrphanedShipment ? (
+              <Badge variant="destructive" className="text-xs">Missing</Badge>
+            ) : '')}
             {getDisplayValue('destinationZip') && (
               <div className="text-xs text-muted-foreground">
                 {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
@@ -227,15 +281,26 @@ export function EditableShipmentRow({
       
       <TableCell>
         {editMode ? (
-          <InlineEditableField
-            value={getDisplayValue('weight')}
-            onSave={(value) => handleFieldSave('weight', value)}
-            placeholder="Weight"
-            className="w-16 text-xs"
-            minWidth="64px"
-          />
+          <div>
+            <InlineEditableField
+              value={getDisplayValue('weight')}
+              onSave={(value) => handleFieldSave('weight', value)}
+              placeholder="Weight"
+              className={`w-16 text-xs ${getFieldErrorClass('weight')}`}
+              minWidth="64px"
+            />
+            {isFieldMissing('weight') && (
+              <div className="text-xs text-destructive mt-1">Required</div>
+            )}
+          </div>
         ) : (
-          `${getDisplayValue('weight')} lbs`
+          <div>
+            {(getDisplayValue('weight') && parseFloat(getDisplayValue('weight')) > 0) ? (
+              `${getDisplayValue('weight')} lbs`
+            ) : isOrphanedShipment ? (
+              <Badge variant="destructive" className="text-xs">Missing</Badge>
+            ) : '0 lbs'}
+          </div>
         )}
       </TableCell>
       
@@ -298,27 +363,38 @@ export function EditableShipmentRow({
       
       {/* Current Service - NOT editable */}
       <TableCell>
-        <Badge variant="outline" className="text-xs truncate">
-          {getDisplayValue('customer_service') || shipment.customer_service}
-        </Badge>
+        {getDisplayValue('customer_service') || getDisplayValue('service') || shipment.customer_service || shipment.service || (isOrphanedShipment ? (
+          <Badge variant="destructive" className="text-xs">Missing</Badge>
+        ) : (
+          <Badge variant="outline" className="text-xs truncate">Unknown</Badge>
+        ))}
       </TableCell>
       
       {/* Ship Pros Service - Editable */}
       <TableCell>
         {editMode ? (
-          <UniversalServiceSelector
-            value={getServiceEnumValue(getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'GROUND')}
-            onValueChange={(value) => {
-              console.log('Service changed:', { from: getDisplayValue('ShipPros_service'), to: value });
-              handleFieldSave('ShipPros_service', value);
-            }}
-            placeholder="Select Service"
-            className="w-24 text-xs"
-          />
+          <div>
+            <UniversalServiceSelector
+              value={getServiceEnumValue(getDisplayValue('ShipPros_service') || shipment.ShipPros_service || getDisplayValue('service') || 'GROUND')}
+              onValueChange={(value) => {
+                console.log('Service changed:', { from: getDisplayValue('ShipPros_service'), to: value });
+                handleFieldSave('ShipPros_service', value);
+              }}
+              placeholder="Select Service"
+              className={`w-24 text-xs ${getFieldErrorClass('ShipPros_service')}`}
+            />
+            {isFieldMissing('ShipPros_service') && isFieldMissing('service') && (
+              <div className="text-xs text-destructive mt-1">Required</div>
+            )}
+          </div>
         ) : (
-          <Badge variant="outline" className="text-xs text-primary truncate">
-            {getServiceDisplayName(getDisplayValue('ShipPros_service') || shipment.ShipPros_service || 'Ground')}
-          </Badge>
+          <div>
+            {getDisplayValue('ShipPros_service') || shipment.ShipPros_service || getDisplayValue('service') || (isOrphanedShipment ? (
+              <Badge variant="destructive" className="text-xs">Missing</Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs text-primary truncate">Ground</Badge>
+            ))}
+          </div>
         )}
       </TableCell>
       
@@ -338,12 +414,16 @@ export function EditableShipmentRow({
       )}
       
       <TableCell className="text-right">
-        {formatCurrency(shipment.currentRate)}
+        {shipment.currentRate ? formatCurrency(shipment.currentRate) : (isOrphanedShipment ? (
+          <Badge variant="destructive" className="text-xs">Missing</Badge>
+        ) : formatCurrency(0))}
       </TableCell>
       
       <TableCell className="text-right">
         {estimatedSavings.isPending ? (
           <span className="text-xs text-muted-foreground italic">Pending</span>
+        ) : isOrphanedShipment ? (
+          <Badge variant="destructive" className="text-xs">Error</Badge>
         ) : (
           formatCurrency(shipment.ShipPros_cost)
         )}
@@ -352,6 +432,8 @@ export function EditableShipmentRow({
       <TableCell className="text-right">
         {estimatedSavings.isPending ? (
           <span className="text-xs text-orange-500 italic">Re-analyze needed</span>
+        ) : isOrphanedShipment ? (
+          <Badge variant="destructive" className="text-xs">Failed</Badge>
         ) : (
           <div className={`${getSavingsColor(estimatedSavings.savings)} flex flex-col items-end`}>
             <div className="font-medium">

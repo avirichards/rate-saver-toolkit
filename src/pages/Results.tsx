@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import * as AccordionComponents from '@/components/ui/accordion';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui-lov/Card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home, Calculator } from 'lucide-react';
+import { Download, DollarSign, Package, TruckIcon, AlertCircle, Filter, CheckCircle2, XCircle, Calendar, Zap, Target, TrendingUp, TrendingDown, ArrowLeft, Upload, FileText, Home, Calculator, AlertTriangle, X, Edit3, RotateCw } from 'lucide-react';
 import { Button } from '@/components/ui-lov/Button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -25,7 +25,6 @@ import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { SelectiveReanalysisModal } from '@/components/ui-lov/SelectiveReanalysisModal';
 import { EditableShipmentRow } from '@/components/ui-lov/EditableShipmentRow';
-import { EditableOrphanedDataTable } from '@/components/ui-lov/EditableOrphanedDataTable';
 import { AccountComparisonView } from '@/components/ui-lov/AccountComparisonView';
 
 import { useSelectiveReanalysis } from '@/hooks/useSelectiveReanalysis';
@@ -682,6 +681,55 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     } catch (error) {
       console.error('Fix orphaned shipment failed:', error);
       toast.error(`Failed to fix shipment: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Handler for orphaned shipment field updates
+  const handleOrphanedFieldUpdate = (shipmentId: number, field: string, value: string) => {
+    // Auto-select the shipment when any field is edited
+    setSelectedShipments(prev => new Set([...prev, shipmentId]));
+    
+    // Update orphaned data directly
+    setOrphanedData(prev => prev.map(shipment => {
+      if (shipment.id === shipmentId) {
+        const fieldToUpdate = field === 'shipProsService' ? 'ShipPros_service' : field;
+        console.log('🔄 Orphaned field update:', { shipmentId, field: fieldToUpdate, value });
+        return { ...shipment, [fieldToUpdate]: value };
+      }
+      return shipment;
+    }));
+  };
+
+  // Handler for fixing a single orphaned shipment
+  const handleFixOrphanedSingle = async (shipmentId: number) => {
+    if (!currentAnalysisId) {
+      toast.error('Analysis ID not found');
+      return;
+    }
+
+    const shipmentToFix = orphanedData.find(item => item.id === shipmentId);
+    if (!shipmentToFix) {
+      toast.error('Orphaned shipment not found');
+      return;
+    }
+
+    // Validate that all required fields are present
+    const missingFields = [];
+    if (!shipmentToFix.originZip) missingFields.push('Origin ZIP');
+    if (!shipmentToFix.destinationZip) missingFields.push('Destination ZIP');
+    if (!shipmentToFix.weight || shipmentToFix.weight === 0) missingFields.push('Weight');
+    if (!shipmentToFix.service && !shipmentToFix.ShipPros_service) missingFields.push('Service Type');
+
+    if (missingFields.length > 0) {
+      toast.error(`Cannot fix shipment: Missing ${missingFields.join(', ')}`);
+      return;
+    }
+
+    try {
+      await handleFixOrphaned(shipmentId, shipmentToFix);
+    } catch (error) {
+      console.error('Single fix failed:', error);
+      toast.error('Failed to fix shipment. Please try again.');
     }
   };
 
@@ -2857,12 +2905,146 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
 
           <TabsContent value="orphaned-data" className="space-y-6">
-            <EditableOrphanedDataTable
-              orphanedData={orphanedData}
-              onFixOrphaned={handleFixOrphaned}
-              isReanalyzing={isReanalyzing}
-              reanalyzingShipments={reanalyzingShipments}
-            />
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-amber-500" />
+                      Orphaned Shipments ({orphanedData.length})
+                    </CardTitle>
+                    <CardDescription>
+                      Shipments that encountered errors during processing. Fix missing data and re-analyze to move them to the Shipment Data tab.
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {editMode && (
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsReanalysisModalOpen(true)}
+                          disabled={selectedShipments.size === 0 || isReanalyzing}
+                          className="h-8 text-xs"
+                        >
+                          <RotateCw className="h-3 w-3 mr-1" />
+                          Batch Re-analyze ({selectedShipments.size})
+                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="outline"
+                            onClick={() => handleBatchResidentialUpdate(true)}
+                            disabled={selectedShipments.size === 0}
+                            className="h-8 text-xs"
+                          >
+                            Mark Residential
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => handleBatchResidentialUpdate(false)}
+                            disabled={selectedShipments.size === 0}
+                            className="h-8 text-xs"
+                          >
+                            Mark Commercial
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                    <Button
+                      variant={editMode ? "default" : "outline"}
+                      onClick={() => setEditMode(!editMode)}
+                      disabled={isReanalyzing}
+                      className="h-8 text-xs"
+                    >
+                      {editMode ? (
+                        <>
+                          <X className="h-3 w-3 mr-1" />
+                          Exit Edit
+                        </>
+                      ) : (
+                        <>
+                          <Edit3 className="h-3 w-3 mr-1" />
+                          Edit Mode
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {orphanedData.length === 0 ? (
+                  <div className="text-center py-12">
+                    <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-medium mb-2">Perfect Processing!</h3>
+                    <p className="text-muted-foreground">
+                      All shipments were successfully analyzed with no errors.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow className="border-b border-border">
+                          {editMode && (
+                            <TableHead className="w-12">
+                              <Checkbox
+                                checked={selectedShipments.size === orphanedData.length && orphanedData.length > 0}
+                                onCheckedChange={handleSelectAllShipments}
+                              />
+                            </TableHead>
+                          )}
+                          <TableHead className="text-foreground">Tracking ID</TableHead>
+                          <TableHead className="text-foreground">Origin ZIP</TableHead>
+                          <TableHead className="text-foreground">Dest ZIP</TableHead>
+                          <TableHead className="text-foreground">Weight</TableHead>
+                          <TableHead className="text-foreground">Dimensions</TableHead>
+                          <TableHead className="text-foreground">Residential</TableHead>
+                          <TableHead className="text-foreground">Current Service</TableHead>
+                          <TableHead className="text-foreground">Ship Pros Service</TableHead>
+                          {editMode && <TableHead className="text-foreground">Account</TableHead>}
+                          <TableHead className="text-right text-foreground">Current Rate</TableHead>
+                          <TableHead className="text-right text-foreground">Ship Pros Rate</TableHead>
+                          <TableHead className="text-right text-foreground">Savings</TableHead>
+                          <TableHead className="text-foreground">
+                            {editMode ? 'Re-analyze' : 'Account'}
+                          </TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody className="bg-background">
+                        {orphanedData.map((item, index) => 
+                          <EditableShipmentRow
+                            key={item.id}
+                            shipment={item}
+                            isSelected={selectedShipments.has(item.id)}
+                            onSelect={(selected) => handleSelectShipment(item.id, selected)}
+                            onFieldUpdate={handleOrphanedFieldUpdate}
+                            onReanalyze={() => handleFixOrphanedSingle(item.id)}
+                            isReanalyzing={reanalyzingShipments.has(item.id)}
+                            editMode={editMode}
+                            getShipmentMarkup={getShipmentMarkup}
+                          />
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+                
+                {editMode && orphanedData.length > 0 && (
+                  <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <div className="font-medium mb-1 text-amber-800">Editing Orphaned Shipments</div>
+                        <div className="text-amber-700 space-y-1">
+                          <div>• Missing or invalid data will be highlighted in red</div>
+                          <div>• Fix all required fields (Origin ZIP, Dest ZIP, Weight, Service) before re-analyzing</div>
+                          <div>• Successfully fixed shipments will automatically move to the Shipment Data tab</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

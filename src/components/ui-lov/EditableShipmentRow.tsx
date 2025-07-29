@@ -347,10 +347,26 @@ export function EditableShipmentRow({
           <span className="text-xs">
             {(() => {
               // Get dimensions from shipment object (from recommendations) or fallback to processed shipment data
-              const length = shipment.originalShipment?.length || shipment.length || 'Missing';
-              const width = shipment.originalShipment?.width || shipment.width || 'Missing';
-              const height = shipment.originalShipment?.height || shipment.height || 'Missing';
-              return `${length}×${width}×${height}`;
+              const length = shipment.originalShipment?.length || shipment.length;
+              const width = shipment.originalShipment?.width || shipment.width;
+              const height = shipment.originalShipment?.height || shipment.height;
+              
+              const formatDimension = (dim: any) => {
+                if (!dim || dim === '' || dim === null || dim === undefined) {
+                  return <Badge variant="destructive" className="text-xs">Missing</Badge>;
+                }
+                return dim;
+              };
+              
+              return (
+                <div className="flex items-center gap-0.5">
+                  {formatDimension(length)}
+                  <span className="text-muted-foreground">×</span>
+                  {formatDimension(width)}
+                  <span className="text-muted-foreground">×</span>
+                  {formatDimension(height)}
+                </div>
+              );
             })()}
           </span>
         )}
@@ -374,13 +390,13 @@ export function EditableShipmentRow({
       <TableCell>
         {(() => {
           const currentService = getDisplayValue('customer_service') || getDisplayValue('service') || shipment.customer_service || shipment.service;
-          const displayService = currentService === 'Unknown' ? 'Missing' : currentService;
+          const displayService = currentService === 'Unknown' ? null : currentService;
           
-          return displayService || (isOrphanedShipment ? (
-            <Badge variant="destructive" className="text-xs">Missing</Badge>
-          ) : (
-            <Badge variant="outline" className="text-xs truncate">Missing</Badge>
-          ));
+          if (!displayService) {
+            return <Badge variant="destructive" className="text-xs">Missing</Badge>;
+          }
+          
+          return displayService;
         })()}
       </TableCell>
       

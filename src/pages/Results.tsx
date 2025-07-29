@@ -1299,7 +1299,9 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           height: shipmentData?.height || rec.height || 6,
           service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
           customer_service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
-          currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
+          currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 
+                       shipmentData?.currentRate || shipmentData?.current_rate || 
+                       shipmentData?.rate || shipmentData?.cost || 0,
           carrier: shipmentData?.carrier || rec.carrier || 'UPS',
           error: orphanReason,
           errorType: validation.errorType || 'Processing Error',
@@ -1361,7 +1363,10 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           height: shipmentData.height || 6,
           service: originalShipment?.customer_service || shipmentData.customer_service || '',
           customer_service: originalShipment?.customer_service || shipmentData.customer_service || '',
-          currentRate: originalShipment?.currentCost || originalShipment?.current_rate || 0,
+          currentRate: originalShipment?.currentCost || originalShipment?.current_rate || 
+                       originalShipment?.rate || originalShipment?.cost ||
+                       shipmentData.currentRate || shipmentData.current_rate || 
+                       shipmentData.rate || shipmentData.cost || 0,
           carrier: shipmentData.carrier || 'UPS',
           error: 'Missing from analysis data - shipment was not processed during analysis',
           errorType: 'Missing Data',

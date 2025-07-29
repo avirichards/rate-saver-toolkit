@@ -298,6 +298,11 @@ export function useSelectiveReanalysis() {
         ShipPros_cost: result.ShipPros_cost,
         ShipPros_service: result.ShipPros_service,
         upsRates: result.upsRates,
+        // Preserve the account information used for re-analysis
+        accountName: result.accountUsed.name || shipment.accountName,
+        analyzedWithAccount: result.accountUsed.name || shipment.accountName,
+        // Preserve service mapping information
+        customer_service: shipment.service || shipment.customer_service,
         fixed: true,
         fixedAt: new Date().toISOString()
       });

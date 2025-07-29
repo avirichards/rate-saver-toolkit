@@ -62,6 +62,8 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [userModifiedFields, setUserModifiedFields] = useState<Set<string>>(new Set());
+  const [showCostDataPreview, setShowCostDataPreview] = useState(false);
   
   const [useManualOriginZip, setUseManualOriginZip] = useState(false);
   const [manualOriginZip, setManualOriginZip] = useState('');
@@ -95,6 +97,11 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
 
   const handleMappingChange = (fieldId: string, csvHeader: string) => {
     const newMappings = { ...mappings };
+    
+    // Mark this field as user-modified
+    const newUserModifiedFields = new Set(userModifiedFields);
+    newUserModifiedFields.add(fieldId);
+    setUserModifiedFields(newUserModifiedFields);
     
     if (csvHeader === "__NONE__") {
       delete newMappings[fieldId];
@@ -200,15 +207,46 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
       const autoDetected = generateColumnMappings(csvHeaders);
       setAutoMappings(autoDetected);
       
-      const newMappings: Record<string, string> = {};
+      // Preserve user selections - only update fields that haven't been manually modified
+      const newMappings: Record<string, string> = { ...mappings };
       autoDetected.forEach(mapping => {
-        newMappings[mapping.fieldName] = mapping.csvHeader;
+        // Only apply auto-detection if user hasn't manually modified this field
+        if (!userModifiedFields.has(mapping.fieldName)) {
+          newMappings[mapping.fieldName] = mapping.csvHeader;
+        }
       });
       setMappings(newMappings);
       
       setIsAnalyzing(false);
-      toast.success('Re-analysis complete!');
+      toast.success('Re-analysis complete! Your manual selections were preserved.');
     }, 1000);
+  };
+
+  const getCostDataPreview = (headerName: string): { isValid: boolean; preview: string[]; issues: string[] } => {
+    if (!csvData.length || !headerName) {
+      return { isValid: false, preview: [], issues: ['No data available'] };
+    }
+    
+    const sampleValues = csvData.slice(0, 5).map(row => row[headerName]).filter(val => val !== null && val !== undefined && val !== '');
+    const issues: string[] = [];
+    let validCount = 0;
+    
+    sampleValues.forEach(val => {
+      const numVal = parseFloat(String(val).replace(/[,$]/g, ''));
+      if (!isNaN(numVal) && numVal > 0) {
+        validCount++;
+      } else {
+        issues.push(`"${val}" doesn't appear to be a valid cost`);
+      }
+    });
+    
+    const validationRate = sampleValues.length > 0 ? (validCount / sampleValues.length) * 100 : 0;
+    
+    return {
+      isValid: validationRate >= 60, // 60% of sample data should be valid costs
+      preview: sampleValues.map(val => String(val)).slice(0, 3),
+      issues: issues.slice(0, 2) // Limit to 2 issues
+    };
   };
 
   const getConfidenceColor = (confidence: number): string => {
@@ -383,6 +421,40 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
                 </SelectContent>
           </Select>
           {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+          
+          {/* Cost field data preview */}
+          {field.id === 'cost' && selectedHeader && selectedHeader !== "__NONE__" && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+              {(() => {
+                const preview = getCostDataPreview(selectedHeader);
+                return (
+                  <div>
+                    <div className="flex items-center gap-1 mb-1">
+                      {preview.isValid ? (
+                        <CheckCircle className="h-3 w-3 text-green-600" />
+                      ) : (
+                        <AlertCircle className="h-3 w-3 text-orange-600" />
+                      )}
+                      <span className="font-medium">
+                        {preview.isValid ? 'Data looks good!' : 'Data validation warning'}
+                      </span>
+                    </div>
+                    {preview.preview.length > 0 && (
+                      <div className="mb-1">
+                        <span className="text-muted-foreground">Sample: </span>
+                        <span>{preview.preview.join(', ')}</span>
+                      </div>
+                    )}
+                    {preview.issues.length > 0 && (
+                      <div className="text-orange-600">
+                        {preview.issues.join('; ')}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       </div>
     );

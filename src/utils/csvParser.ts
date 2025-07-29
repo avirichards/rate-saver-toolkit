@@ -54,9 +54,9 @@ const FIELD_PATTERNS: Record<string, {
     partial: ['lbs', 'pounds', 'kg', 'kilos', 'oz', 'ounces', 'lb', 'kgs']
   },
   currentRate: {
-    exact: ['current_cost', 'shipping_cost', 'freight_cost', 'carrier_fee', 'current_rate'],
-    strong: ['cost', 'price', 'amount', 'charge', 'fee', 'total', 'rate', 'freight'],
-    partial: ['billing', 'charges', 'expense', 'money', 'bill']
+    exact: ['current_cost', 'shipping_cost', 'freight_cost', 'carrier_fee', 'current_rate', 'total_cost', 'actual_cost'],
+    strong: ['cost', 'price', 'amount', 'rate', 'freight', 'shipping_charge'],
+    partial: ['billing', 'charges', 'expense', 'fee']
   },
   originZip: {
     exact: ['origin_zip', 'ship_from_postal_code', 'pickup_zip', 'shipper_zip'],

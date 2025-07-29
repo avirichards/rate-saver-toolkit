@@ -1247,15 +1247,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       let shipmentData = rec.shipment || rec.shipment_data || rec;
       let errorStatus = rec.error || rec.status === 'error' ? rec.error || 'Processing failed' : null;
       
-      console.log('🔍 ORIGINAL CSV ROW DATA:', {
-        index: index + 1,
-        trackingId: rec.trackingId || rec.tracking_id || rec.shipment?.trackingId || 'unknown',
-        recKeys: Object.keys(rec),
-        hasCurrentRate: !!rec.currentRate || !!rec.current_rate || !!rec.rate || !!rec.cost,
-        currentRate: rec.currentRate || rec.current_rate || rec.rate || rec.cost,
-        rec: rec
-      });
-      
       // If this is a rate_quote record, extract proper shipment data
       if (rec.shipment_data && !rec.shipment) {
         console.log('🔄 Converting rate_quote to shipment format for:', {
@@ -1297,32 +1288,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         const orphanReason = errorStatus || `Missing: ${validation.missingFields.join(', ')}`;
         console.warn(`❌ MOVING TO ORPHANS: ${trackingId} - ${orphanReason}`);
         
-        console.log('🔍 RATE FIELDS IN REC:', {
-          keys: Object.keys(rec),
-          rate: rec.rate,
-          cost: rec.cost,
-          currentRate: rec.currentRate,
-          current_rate: rec.current_rate,
-          price: rec.price,
-          amount: rec.amount,
-          totalCost: rec.totalCost,
-          total_cost: rec.total_cost,
-          customer_rate: rec.customer_rate,
-          customerRate: rec.customerRate,
-          originalShipment: rec.originalShipment ? {
-            keys: Object.keys(rec.originalShipment),
-            rate: rec.originalShipment.rate,
-            cost: rec.originalShipment.cost,
-            currentRate: rec.originalShipment.currentRate,
-            current_rate: rec.originalShipment.current_rate,
-            price: rec.originalShipment.price,
-            amount: rec.originalShipment.amount,
-            totalCost: rec.originalShipment.totalCost,
-            total_cost: rec.originalShipment.total_cost,
-            customer_rate: rec.originalShipment.customer_rate,
-            customerRate: rec.originalShipment.customerRate
-          } : 'no originalShipment'
-        });
         
         orphanedShipments.push({
           id: index + 1,

@@ -411,9 +411,17 @@ export function EditableOrphanedShipmentRow({
       )}
       
       <TableCell className="text-right">
-        {shipment.currentRate ? formatCurrency(shipment.currentRate) : (
-          <Badge variant="destructive" className="text-xs">Missing</Badge>
-        )}
+        {(() => {
+          // Handle the weird currentRate structure from database
+          let actualRate = shipment.currentRate;
+          if (actualRate && typeof actualRate === 'object' && actualRate._type === 'undefined') {
+            actualRate = null;
+          }
+          
+          return actualRate ? formatCurrency(actualRate) : (
+            <Badge variant="destructive" className="text-xs">Missing</Badge>
+          );
+        })()}
       </TableCell>
       
       <TableCell className="text-right">

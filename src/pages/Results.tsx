@@ -25,7 +25,7 @@ import { InlineEditableField } from '@/components/ui-lov/InlineEditableField';
 import { ClientCombobox } from '@/components/ui-lov/ClientCombobox';
 import { SelectiveReanalysisModal } from '@/components/ui-lov/SelectiveReanalysisModal';
 import { EditableShipmentRow } from '@/components/ui-lov/EditableShipmentRow';
-import { OrphanedShipmentRow } from '@/components/ui-lov/OrphanedShipmentRow';
+import { EditableOrphanedDataTable } from '@/components/ui-lov/EditableOrphanedDataTable';
 import { AccountComparisonView } from '@/components/ui-lov/AccountComparisonView';
 
 import { useSelectiveReanalysis } from '@/hooks/useSelectiveReanalysis';
@@ -649,14 +649,39 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     }
 
     try {
-      await fixOrphanedShipment(updatedData, currentAnalysisId);
+      console.log('🔧 Fixing orphaned shipment:', shipmentId, updatedData);
       
-      // Remove from orphaned and add to processed
+      // Use the fixOrphanedShipment hook which handles re-analysis and database updates
+      const result = await fixOrphanedShipment(updatedData, currentAnalysisId);
+      
+      // The hook automatically handles moving the shipment from orphaned to processed
+      // Update local state to reflect the changes
       setOrphanedData(prev => prev.filter(item => item.id !== shipmentId));
-      setShipmentData(prev => [...prev, updatedData]);
+      
+      // Add the successfully processed shipment to the shipment data
+      // The result from fixOrphanedShipment should contain the processed shipment data
+      if (result) {
+        setShipmentData(prev => [...prev, {
+          ...updatedData,
+          ShipPros_cost: result.ShipPros_cost,
+          ShipPros_service: result.ShipPros_service,
+          fixed: true,
+          fixedAt: new Date().toISOString()
+        }]);
+        
+        // Update the analysis totals
+        setAnalysisData(prev => prev ? {
+          ...prev,
+          totalShipments: (prev.totalShipments || 0) + 1,
+          completedShipments: (prev.completedShipments || 0) + 1
+        } : prev);
+      }
+      
+      toast.success(`Successfully fixed and analyzed shipment ${updatedData.trackingId || shipmentId}`);
       
     } catch (error) {
       console.error('Fix orphaned shipment failed:', error);
+      toast.error(`Failed to fix shipment: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -1221,7 +1246,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           originZip: shipmentData?.originZip || '',
           destinationZip: shipmentData?.destZip || '',
           weight: parseFloat(shipmentData?.weight || '0'),
+          length: shipmentData?.length || rec.length || 12,
+          width: shipmentData?.width || rec.width || 12,
+          height: shipmentData?.height || rec.height || 6,
           service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
+          customer_service: shipmentData?.customer_service || rec.customer_service || 'Unknown',
+          currentRate: rec.currentCost || rec.current_rate || rec.published_rate || 0,
+          carrier: shipmentData?.carrier || rec.carrier || 'UPS',
           error: orphanReason,
           errorType: validation.errorType || 'Processing Error',
           missingFields: validation.missingFields
@@ -1277,7 +1308,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           originZip: shipmentData.originZip || '',
           destinationZip: shipmentData.destZip || shipmentData.destinationZip || '',
           weight: parseFloat(shipmentData.weight || '0'),
+          length: shipmentData.length || 12,
+          width: shipmentData.width || 12,
+          height: shipmentData.height || 6,
+          service: originalShipment?.customer_service || shipmentData.customer_service || '',
           customer_service: originalShipment?.customer_service || shipmentData.customer_service || '',
+          currentRate: originalShipment?.currentCost || originalShipment?.current_rate || 0,
+          carrier: shipmentData.carrier || 'UPS',
           error: 'Missing from analysis data - shipment was not processed during analysis',
           errorType: 'Missing Data',
           missingFields: originalShipment ? ['Analysis incomplete'] : ['All data missing']
@@ -2820,82 +2857,12 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
 
           <TabsContent value="orphaned-data" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Orphaned Shipments</CardTitle>
-                <CardDescription>
-                  Shipments that encountered errors during processing
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {orphanedData.length === 0 ? (
-                  <div className="text-center py-12">
-                    <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-                    <h3 className="text-xl font-medium mb-2">Perfect Processing!</h3>
-                    <p className="text-muted-foreground">
-                      All shipments were successfully analyzed with no errors.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow className="border-b border-border">
-                           <TableHead className="text-foreground">Tracking ID</TableHead>
-                           <TableHead className="text-foreground">Origin Zip</TableHead>
-                           <TableHead className="text-foreground">Destination Zip</TableHead>
-                           <TableHead className="text-right text-foreground">Weight</TableHead>
-                           <TableHead className="text-foreground">Service Type</TableHead>
-                           <TableHead className="text-foreground">Missing Fields</TableHead>
-                           <TableHead className="text-foreground">Error Type</TableHead>
-                           <TableHead className="text-foreground">Error Details</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                         {orphanedData.map((row, index) => (
-                           <TableRow key={index} className="border-b border-border hover:bg-muted/50">
-                             <TableCell className="font-medium text-foreground">{row.trackingId}</TableCell>
-                             <TableCell className="text-foreground">
-                               {row.originZip || <span className="text-muted-foreground italic">Missing</span>}
-                             </TableCell>
-                             <TableCell className="text-foreground">
-                               {row.destinationZip || <span className="text-muted-foreground italic">Missing</span>}
-                             </TableCell>
-                               <TableCell className="text-right text-foreground">
-                                 {(row.weight && parseFloat(row.weight) > 0) ? parseFloat(row.weight).toFixed(1) : <span className="text-muted-foreground italic">Missing</span>}
-                               </TableCell>
-                             <TableCell className="text-foreground">
-                               {row.service || <span className="text-muted-foreground italic">Missing</span>}
-                             </TableCell>
-                             <TableCell>
-                               {row.missingFields && row.missingFields.length > 0 ? (
-                                 <div className="flex flex-wrap gap-1">
-                                   {row.missingFields.map((field: string, idx: number) => (
-                                     <Badge key={idx} variant="outline" className="text-xs text-orange-600 border-orange-300">
-                                       {field}
-                                     </Badge>
-                                   ))}
-                                 </div>
-                               ) : (
-                                 <span className="text-muted-foreground">-</span>
-                               )}
-                             </TableCell>
-                             <TableCell>
-                               <Badge variant="destructive">{row.errorType}</Badge>
-                             </TableCell>
-                             <TableCell>
-                               <div className="max-w-xs truncate text-muted-foreground" title={row.error}>
-                                 {row.error}
-                               </div>
-                             </TableCell>
-                           </TableRow>
-                         ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <EditableOrphanedDataTable
+              orphanedData={orphanedData}
+              onFixOrphaned={handleFixOrphaned}
+              isReanalyzing={isReanalyzing}
+              reanalyzingShipments={reanalyzingShipments}
+            />
           </TabsContent>
         </Tabs>
       </div>

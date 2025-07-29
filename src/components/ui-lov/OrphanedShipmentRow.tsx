@@ -46,6 +46,11 @@ export function OrphanedShipmentRow({
     return updatedData[field] ?? shipment[field] ?? '';
   };
 
+  // Validate ZIP code (must be 5 digits)
+  const isValidZip = (zip: string) => {
+    return zip && zip.length === 5 && /^\d{5}$/.test(zip);
+  };
+
   const handleFixAndAnalyze = () => {
     onFixAndAnalyze(shipment.id, {
       ...shipment,
@@ -53,10 +58,10 @@ export function OrphanedShipmentRow({
     });
   };
 
-  // Determine what data is missing
+  // Determine what data is missing or invalid
   const missingFields = [];
-  if (!getDisplayValue('originZip')) missingFields.push('Origin ZIP');
-  if (!getDisplayValue('destinationZip')) missingFields.push('Destination ZIP');
+  if (!isValidZip(getDisplayValue('originZip'))) missingFields.push('Origin ZIP');
+  if (!isValidZip(getDisplayValue('destinationZip'))) missingFields.push('Destination ZIP');
   if (!getDisplayValue('weight') || getDisplayValue('weight') === '0') missingFields.push('Weight');
   if (!getDisplayValue('service')) missingFields.push('Service Type');
 
@@ -97,12 +102,17 @@ export function OrphanedShipmentRow({
           />
         ) : (
           <div className="w-16">
-            {getDisplayValue('originZip') ? (
+            {isValidZip(getDisplayValue('originZip')) ? (
               <>
                 {getDisplayValue('originZip')}
                 <div className="text-xs text-muted-foreground">
                   {getStateFromZip(getDisplayValue('originZip'))?.state || ''}
                 </div>
+              </>
+            ) : getDisplayValue('originZip') ? (
+              <>
+                <span className="text-amber-600 text-xs">{getDisplayValue('originZip')}</span>
+                <div className="text-xs text-red-500">Invalid ZIP</div>
               </>
             ) : (
               <span className="text-amber-600 text-xs">Missing</span>
@@ -123,12 +133,17 @@ export function OrphanedShipmentRow({
           />
         ) : (
           <div className="w-16">
-            {getDisplayValue('destinationZip') ? (
+            {isValidZip(getDisplayValue('destinationZip')) ? (
               <>
                 {getDisplayValue('destinationZip')}
                 <div className="text-xs text-muted-foreground">
                   {getStateFromZip(getDisplayValue('destinationZip'))?.state || ''}
                 </div>
+              </>
+            ) : getDisplayValue('destinationZip') ? (
+              <>
+                <span className="text-amber-600 text-xs">{getDisplayValue('destinationZip')}</span>
+                <div className="text-xs text-red-500">Invalid ZIP</div>
               </>
             ) : (
               <span className="text-amber-600 text-xs">Missing</span>

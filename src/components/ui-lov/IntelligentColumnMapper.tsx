@@ -254,41 +254,6 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
                         {hasError}
                       </p>
                     )}
-                    
-                    {/* Cost Data Preview */}
-                    {costPreview && (
-                      <div className={cn(
-                        "mt-3 p-3 rounded border text-xs",
-                        costPreview.isValid ? "border-green-200 bg-green-50" : "border-amber-200 bg-amber-50"
-                      )}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <DollarSign className="h-3 w-3" />
-                          <span className="font-medium">Cost Data Preview:</span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex gap-2">
-                            <span className="text-muted-foreground">Sample:</span>
-                            <span className="font-mono">{costPreview.preview.join(', ')}</span>
-                          </div>
-                          <div className={cn(
-                            "flex items-center gap-1",
-                            costPreview.isValid ? "text-green-700" : "text-amber-700"
-                          )}>
-                            {costPreview.isValid ? (
-                              <CheckCircle className="h-3 w-3" />
-                            ) : (
-                              <AlertTriangle className="h-3 w-3" />
-                            )}
-                            <span>
-                              {costPreview.isValid 
-                                ? "✓ Valid cost data detected" 
-                                : `⚠ Potential issues: ${costPreview.issues[0]}`
-                              }
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>

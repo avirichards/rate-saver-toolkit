@@ -174,7 +174,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       shipmentsQuoted: Set<number>;
       savingsData: { dollarSavings: number; percentSavings: number }[];
       wins: number;
-      maxSavingsPercent: number;
     }> = {};
 
     // First, create a structure to track which shipments each account can quote
@@ -220,8 +219,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         totalSpend: 0,
         shipmentsQuoted: new Set<number>(),
         savingsData: [],
-        wins: 0,
-        maxSavingsPercent: 0
+        wins: 0
       };
 
       const account = accounts[accountName];
@@ -240,10 +238,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           account.wins += 1;
         }
 
-        // Track maximum savings percentage
-        if (data.percentSavings > account.maxSavingsPercent) {
-          account.maxSavingsPercent = data.percentSavings;
-        }
       });
     });
 
@@ -281,12 +275,8 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       const totalSavings = account.savingsData.reduce((sum, s) => sum + s.dollarSavings, 0);
       
       // Calculate original total cost for shipments this account can quote
-      // For each shipment, original cost = account's rate + savings (what customer currently pays)
-      const originalTotalCost = account.savingsData.reduce((sum, s) => {
-        // Current customer rate = account rate + savings
-        const currentCustomerRate = (account.totalSpend / shipmentsQuotedCount) + s.dollarSavings;
-        return sum + currentCustomerRate;
-      }, 0);
+      // Original cost = account's total spend + total savings (what customer currently pays)
+      const originalTotalCost = account.totalSpend + totalSavings;
       const totalSavingsPercent = originalTotalCost > 0 ? (totalSavings / originalTotalCost) * 100 : 0;
 
       return {
@@ -630,18 +620,6 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                       </TooltipContent>
                     </Tooltip>
                     <span className="font-medium">{account.shipmentsQuoted} / {kpiMetrics.totalShipments}</span>
-                  </div>
-                  
-                  <div className="flex justify-between">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-muted-foreground cursor-help">Max Savings:</span>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Highest percentage savings achieved on a single shipment with this account</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <span className="font-medium text-green-600">{account.maxSavingsPercent.toFixed(1)}%</span>
                   </div>
                 </TooltipProvider>
               </CardContent>

@@ -360,11 +360,12 @@ serve(async (req) => {
               ? rateData.output.rateReplyDetails[0] 
               : rateData.output.rateReplyDetails;
             
-            // Get service name from FedEx services table
+            // Get service name from carrier services table
             const { data: service } = await supabase
-              .from('fedex_services')
+              .from('carrier_services')
               .select('service_name, description')
               .eq('service_code', serviceCode)
+              .eq('carrier_type', 'fedex')
               .maybeSingle();
 
             // Extract rate information

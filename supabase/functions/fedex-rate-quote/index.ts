@@ -353,7 +353,7 @@ serve(async (req) => {
 
         if (response.ok) {
           const rateData = await response.json();
-          console.log(`FedEx Rate Response for service ${serviceCode} (config ${configId}):`, JSON.stringify(rateData, null, 2));
+          console.log(`✅ FedEx Rate Response for service ${serviceCode} (config ${configId}):`, JSON.stringify(rateData, null, 2));
           
           if (rateData.output?.rateReplyDetails) {
             const rateReplyDetails = Array.isArray(rateData.output.rateReplyDetails) 

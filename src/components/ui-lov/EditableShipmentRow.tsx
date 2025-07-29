@@ -40,9 +40,10 @@ export function EditableShipmentRow({
   const [accountNames, setAccountNames] = useState<Record<string, string>>({});
 
   // Clear local changes when shipment data is updated (after re-analysis)
+  // Only clear on actual re-analysis, not on user edits
   useEffect(() => {
     setLocalChanges({});
-  }, [shipment.savings, shipment.ShipPros_cost, shipment.savingsPercent, shipment.reanalyzedAt, shipment.weight, shipment.length, shipment.width, shipment.height]);
+  }, [shipment.savings, shipment.ShipPros_cost, shipment.savingsPercent, shipment.reanalyzedAt]);
 
   // Load account names when accountId changes
   useEffect(() => {

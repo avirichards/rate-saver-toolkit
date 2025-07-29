@@ -378,17 +378,18 @@ serve(async (req) => {
             // Extract rate information from FedEx response
             const ratedShipmentDetails = rateReplyDetails.ratedShipmentDetails || [];
             
-            // Get account and list rates from separate rate details
-            const accountRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'ACCOUNT');
-            const listRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'LIST');
-            
-            const accountRate = accountRateDetail?.totalNetCharge || 0;
-            const listRate = listRateDetail?.totalNetCharge || 0;
-            
-            // Use account rate if available, otherwise use list rate
-            const hasAccountRates = accountRate > 0 && config?.fedex_account_number;
-            const finalCharges = hasAccountRates ? accountRate : listRate;
-            const rateType = hasAccountRates ? 'account' : 'list';
+            if (ratedShipmentDetails.length > 0) {
+              // Get account and list rates from separate rate details
+              const accountRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'ACCOUNT');
+              const listRateDetail = ratedShipmentDetails.find((detail: any) => detail.rateType === 'LIST');
+              
+              const accountRate = accountRateDetail?.totalNetCharge || 0;
+              const listRate = listRateDetail?.totalNetCharge || 0;
+              
+              // Use account rate if available, otherwise use list rate
+              const hasAccountRates = accountRate > 0 && config?.fedex_account_number;
+              const finalCharges = hasAccountRates ? accountRate : listRate;
+              const rateType = hasAccountRates ? 'account' : 'list';
               
               // Calculate savings if we have both rates
               const savingsAmount = hasAccountRates && listRate > 0 ? listRate - accountRate : 0;

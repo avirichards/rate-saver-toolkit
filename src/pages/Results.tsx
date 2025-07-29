@@ -740,13 +740,14 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
       console.log('✅ Database update verified - shipment successfully moved');
 
-      // Only update frontend state after successful database verification
+      // Immediately update frontend state with the fixed shipment data
       setOrphanedData(prev => prev.filter(item => item.id !== shipmentId));
       
       const fixedShipmentData = {
         ...updatedData,
         ShipPros_cost: result.ShipPros_cost,
         ShipPros_service: result.ShipPros_service,
+        customer_service: updatedData.customer_service || updatedData.service || result.ShipPros_service,
         accountId: result.accountUsed?.id || updatedData.accountId,
         accountName: result.accountUsed?.name || updatedData.accountName,
         analyzedWithAccount: result.accountUsed?.name || updatedData.analyzedWithAccount,
@@ -761,19 +762,31 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       setShipmentData(prev => [...prev, fixedShipmentData]);
       
-      // Update local analysis state with the verified data
-      setAnalysisData(prev => prev ? {
-        ...prev,
-        processed_shipments: updatedAnalysis.processed_shipments,
-        orphaned_shipments: updatedAnalysis.orphaned_shipments
-      } : prev);
+      // Force immediate refresh of the analysis data to update overview
+      setAnalysisData(prev => {
+        if (!prev) return prev;
         
-      // Update the analysis totals
-      setAnalysisData(prev => prev ? {
-        ...prev,
-        totalShipments: (prev.totalShipments || 0) + 1,
-        completedShipments: (prev.completedShipments || 0) + 1
-      } : prev);
+        const newProcessedCount = (prev.completedShipments || 0) + 1;
+        const newOrphanedCount = Math.max(0, (prev.errorShipments || 0) - 1);
+        
+        return {
+          ...prev,
+          processed_shipments: updatedAnalysis.processed_shipments,
+          orphaned_shipments: updatedAnalysis.orphaned_shipments,
+          completedShipments: newProcessedCount,
+          errorShipments: newOrphanedCount,
+          totalShipments: newProcessedCount + newOrphanedCount
+        };
+      });
+      
+      // Trigger immediate re-processing of analysis data for overview
+      if (updatedAnalysis.processed_shipments) {
+        const reprocessedData = processAnalysisData({
+          processed_shipments: updatedAnalysis.processed_shipments,
+          orphaned_shipments: updatedAnalysis.orphaned_shipments || []
+        });
+        setAnalysisData(prev => prev ? { ...prev, ...reprocessedData } : prev);
+      }
       
       toast.success(`Successfully fixed and analyzed shipment ${updatedData.trackingId || shipmentId}`);
       

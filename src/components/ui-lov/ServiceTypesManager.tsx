@@ -43,6 +43,11 @@ interface ServiceMapping {
   carrier_type: string;
 }
 
+interface EditingService {
+  service_code: string;
+  original_service_code: string;
+}
+
 const CARRIER_TYPES = [
   { value: 'UPS', label: 'UPS' },
   { value: 'FEDEX', label: 'FedEx' },
@@ -63,6 +68,7 @@ export const ServiceTypesManager = () => {
   const [universalTypes, setUniversalTypes] = useState<Record<string, any>>({...UNIVERSAL_SERVICES});
   const [editedUniversalTypes, setEditedUniversalTypes] = useState<Record<string, any>>({});
   const [isAddingUniversal, setIsAddingUniversal] = useState(false);
+  const [editingService, setEditingService] = useState<EditingService | null>(null);
   const [newUniversalType, setNewUniversalType] = useState({
     key: '',
     displayName: '',
@@ -335,6 +341,67 @@ export const ServiceTypesManager = () => {
     }
   };
 
+  const editServiceCode = (serviceCode: string) => {
+    setEditingService({
+      service_code: serviceCode,
+      original_service_code: serviceCode
+    });
+  };
+
+  const saveServiceCodeEdit = async () => {
+    if (!editingService) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update service code in custom_carrier_service_codes
+      const { error } = await supabase
+        .from('custom_carrier_service_codes')
+        .update({ service_code: editingService.service_code })
+        .eq('service_code', editingService.original_service_code)
+        .eq('carrier_type', selectedCarrierType.toUpperCase())
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      setEditingService(null);
+      await loadData();
+      toast.success('Service code updated successfully');
+    } catch (error: any) {
+      console.error('Error updating service code:', error);
+      if (error.message?.includes('duplicate')) {
+        toast.error('A service with this code already exists');
+      } else {
+        toast.error('Failed to update service code');
+      }
+    }
+  };
+
+  const deleteService = async (serviceCode: string) => {
+    if (!confirm('Are you sure you want to delete this service? This action cannot be undone.')) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('custom_carrier_service_codes')
+        .delete()
+        .eq('service_code', serviceCode)
+        .eq('carrier_type', selectedCarrierType.toUpperCase())
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      await loadData();
+      toast.success('Service deleted successfully');
+    } catch (error) {
+      console.error('Error deleting service:', error);
+      toast.error('Failed to delete service');
+    }
+  };
+
   const deleteCustomService = async (serviceCode: string) => {
     if (!confirm('Are you sure you want to delete this custom service?')) return;
 
@@ -357,6 +424,11 @@ export const ServiceTypesManager = () => {
       console.error('Error deleting custom service:', error);
       toast.error('Failed to delete custom service');
     }
+  };
+
+  const getTransitTime = (universalCategory: string) => {
+    const universalInfo = UNIVERSAL_SERVICES[universalCategory as UniversalServiceCategory];
+    return universalInfo?.typicalTransitDays || 'N/A';
   };
 
   const resetToDefaults = async () => {
@@ -601,7 +673,7 @@ export const ServiceTypesManager = () => {
                         <TableHead>Service Code</TableHead>
                         <TableHead>Service Name</TableHead>
                         <TableHead>Universal Category</TableHead>
-                        <TableHead>Source</TableHead>
+                        <TableHead>Transit Time</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -609,9 +681,36 @@ export const ServiceTypesManager = () => {
                       {serviceMappings.map(mapping => (
                         <TableRow key={mapping.service_code}>
                           <TableCell>
-                            <code className="text-sm bg-muted px-2 py-1 rounded font-mono">
-                              {mapping.service_code}
-                            </code>
+                            {editingService?.original_service_code === mapping.service_code ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  value={editingService.service_code}
+                                  onChange={(e) => setEditingService(prev => prev ? {
+                                    ...prev,
+                                    service_code: e.target.value.toUpperCase()
+                                  } : null)}
+                                  className="font-mono text-sm"
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={saveServiceCodeEdit}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setEditingService(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <code className="text-sm bg-muted px-2 py-1 rounded font-mono">
+                                {mapping.service_code}
+                              </code>
+                            )}
                           </TableCell>
                           <TableCell>
                             <Input
@@ -642,21 +741,30 @@ export const ServiceTypesManager = () => {
                             </Select>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={mapping.is_custom ? "default" : "outline"}>
-                              {mapping.is_custom ? 'Custom' : mapping.is_system ? 'System' : 'Registry'}
+                            <Badge variant="outline">
+                              {getTransitTime(getCurrentValue(mapping.service_code, 'universal_category') as string)} days
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            {mapping.is_custom && (
+                            <div className="flex items-center gap-2">
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => deleteCustomService(mapping.service_code)}
+                                onClick={() => editServiceCode(mapping.service_code)}
+                                iconLeft={<Edit2 className="h-4 w-4" />}
+                                disabled={editingService !== null}
+                              >
+                                Edit Code
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteService(mapping.service_code)}
                                 iconLeft={<Trash2 className="h-4 w-4" />}
                               >
                                 Delete
                               </Button>
-                            )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

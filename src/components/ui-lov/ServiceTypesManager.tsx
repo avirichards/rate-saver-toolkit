@@ -58,7 +58,7 @@ export const ServiceTypesManager = () => {
   const [systemServices, setSystemServices] = useState<CarrierService[]>([]);
   const [customServices, setCustomServices] = useState<CustomService[]>([]);
   const [selectedCarrier, setSelectedCarrier] = useState<string>('');
-  const [carrierTypeFilter, setCarrierTypeFilter] = useState<string>('');
+  const [carrierTypeFilter, setCarrierTypeFilter] = useState<string>('ALL');
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [editedMappings, setEditedMappings] = useState<Record<string, Partial<ServiceMapping>>>({});
   const [isAddingCustom, setIsAddingCustom] = useState(false);
@@ -192,7 +192,7 @@ export const ServiceTypesManager = () => {
     });
 
     // Filter by carrier type if filter is applied
-    const filteredMappings = carrierTypeFilter 
+    const filteredMappings = carrierTypeFilter && carrierTypeFilter !== 'ALL'
       ? mappings.filter(m => m.carrier_type === carrierTypeFilter)
       : mappings;
 
@@ -488,7 +488,7 @@ export const ServiceTypesManager = () => {
                   <SelectValue placeholder="All carrier types" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Carrier Types</SelectItem>
+                  <SelectItem value="ALL">All Carrier Types</SelectItem>
                   {Array.from(new Set(carrierConfigs.map(c => c.carrier_type.toUpperCase()))).map(type => (
                     <SelectItem key={type} value={type}>
                       {type}

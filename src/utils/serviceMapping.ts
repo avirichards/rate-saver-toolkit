@@ -24,6 +24,47 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
 
   const service = serviceName.toLowerCase().trim();
 
+  // FedEx specific mappings (check early to avoid conflicts with general patterns)
+  if (service.includes('fedex')) {
+    // FedEx Express Saver should map to 3-Day Select
+    if (service.includes('express saver') || service.includes('express save')) {
+      return {
+        standardizedService: UniversalServiceCategory.THREE_DAY,
+        serviceName: '3-Day Select',
+        confidence: 0.95
+      };
+    }
+    // FedEx Home Delivery is ground residential
+    if (service.includes('home delivery') || service.includes('home deliver')) {
+      return {
+        standardizedService: UniversalServiceCategory.GROUND,
+        serviceName: 'Ground',
+        confidence: 0.95
+      };
+    }
+    if (service.includes('overnight') || service.includes('priority overnight')) {
+      return {
+        standardizedService: UniversalServiceCategory.OVERNIGHT,
+        serviceName: 'Overnight',
+        confidence: 0.85
+      };
+    }
+    if (service.includes('2day') || service.includes('2 day')) {
+      return {
+        standardizedService: UniversalServiceCategory.TWO_DAY,
+        serviceName: '2-Day',
+        confidence: 0.85
+      };
+    }
+    if (service.includes('ground')) {
+      return {
+        standardizedService: UniversalServiceCategory.GROUND,
+        serviceName: 'Ground',
+        confidence: 0.85
+      };
+    }
+  }
+
   // Next Day Air / Overnight patterns
   if (service.includes('next day') || service.includes('overnight') || service.includes('1 day')) {
     if (service.includes('saver') || service.includes('save')) {
@@ -133,46 +174,6 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
     };
   }
 
-  // FedEx specific mappings
-  if (service.includes('fedex')) {
-    // FedEx Express Saver should map to 3-Day Select
-    if (service.includes('express saver') || service.includes('express save')) {
-      return {
-        standardizedService: UniversalServiceCategory.THREE_DAY,
-        serviceName: '3-Day Select',
-        confidence: 0.95
-      };
-    }
-    // FedEx Home Delivery is ground residential
-    if (service.includes('home delivery') || service.includes('home deliver')) {
-      return {
-        standardizedService: UniversalServiceCategory.GROUND,
-        serviceName: 'Ground',
-        confidence: 0.95
-      };
-    }
-    if (service.includes('overnight') || service.includes('priority overnight')) {
-      return {
-        standardizedService: UniversalServiceCategory.OVERNIGHT,
-        serviceName: 'Overnight',
-        confidence: 0.85
-      };
-    }
-    if (service.includes('2day') || service.includes('2 day')) {
-      return {
-        standardizedService: UniversalServiceCategory.TWO_DAY,
-        serviceName: '2-Day',
-        confidence: 0.85
-      };
-    }
-    if (service.includes('ground')) {
-      return {
-        standardizedService: UniversalServiceCategory.GROUND,
-        serviceName: 'Ground',
-        confidence: 0.85
-      };
-    }
-  }
 
   // Home delivery patterns (general, not just FedEx)
   if (service.includes('home delivery') || service.includes('home deliver')) {

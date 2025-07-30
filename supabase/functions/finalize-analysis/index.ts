@@ -434,13 +434,25 @@ Deno.serve(async (req) => {
       isBatch: !!payload.batchInfo
     })
 
-    // Smart size detection - datasets over 5000 shipments should use batch processing
+    // Smart size detection - datasets over 5000 COMPLETED shipments should use batch processing
     const BATCH_THRESHOLD = 5000;
     const BATCH_SIZE = 2000;
-    const isLargeDataset = payload.totalShipments > BATCH_THRESHOLD;
+    const isLargeDataset = payload.completedShipments > BATCH_THRESHOLD;
     
-    // If this is a large dataset and not already a batch request, initiate batch processing
-    if (isLargeDataset && !payload.batchInfo) {
+    // Don't use batch processing if most shipments failed (completion rate < 50%)
+    const completionRate = payload.totalShipments > 0 ? (payload.completedShipments / payload.totalShipments) : 0;
+    const shouldUseBatchProcessing = isLargeDataset && completionRate > 0.5;
+    
+    console.log('Dataset analysis:', {
+      totalShipments: payload.totalShipments,
+      completedShipments: payload.completedShipments,
+      completionRate: `${(completionRate * 100).toFixed(1)}%`,
+      isLargeDataset,
+      shouldUseBatchProcessing
+    });
+    
+    // If this is a large dataset with good completion rate and not already a batch request, initiate batch processing
+    if (shouldUseBatchProcessing && !payload.batchInfo) {
       return await handleLargeDatasetBatching(payload, user, supabase);
     }
     

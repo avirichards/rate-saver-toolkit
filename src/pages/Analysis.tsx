@@ -1370,8 +1370,18 @@ const Analysis = () => {
       totalShipments: analysisResults.length,
       completedShipments: completedResults.length,
       errorShipments: errorResults.length,
-      orphanShipments: errorResults.length
+      orphanShipments: errorResults.length,
+      completionRate: `${((completedResults.length / analysisResults.length) * 100).toFixed(1)}%`
     });
+    
+    // Log error breakdown for debugging
+    const errorBreakdown = errorResults.reduce((acc, result) => {
+      const errorType = result.errorType || 'unknown';
+      acc[errorType] = (acc[errorType] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    console.log('Error breakdown:', errorBreakdown);
 
     // Format data for the finalize endpoint
     const recommendations = completedResults.map((result, index) => ({
@@ -1426,6 +1436,14 @@ const Analysis = () => {
         errorMessage = 'The analysis server is experiencing issues. Please try again in a moment.';
       } else if (error.message?.includes('Failed to finalize analysis')) {
         errorMessage = 'Unable to save analysis results. Please check your data and try again.';
+      }
+      
+      // Add completion rate context
+      const completionRate = analysisPayload.totalShipments > 0 ? 
+        (analysisPayload.completedShipments / analysisPayload.totalShipments) : 0;
+      
+      if (completionRate < 0.5) {
+        errorMessage += ` (Only ${(completionRate * 100).toFixed(1)}% of shipments completed successfully)`;
       }
       
       toast.error(`Failed to save analysis: ${errorMessage}`);

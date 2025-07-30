@@ -355,18 +355,35 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
       
-      // Adaptive batch processing based on dataset size and performance
-      const getOptimalBatchConfig = (totalShipments: number) => {
-        if (totalShipments <= 50) return { size: 10, concurrency: 5 };
-        if (totalShipments <= 200) return { size: 20, concurrency: 8 };
-        if (totalShipments <= 500) return { size: 25, concurrency: 10 };
-        return { size: 30, concurrency: 12 };
+      // Get carrier configs to determine analysis type
+      const { data: carrierConfigs } = await supabase
+        .from('carrier_configs')
+        .select('*')
+        .in('id', selectedCarriers);
+      
+      // Check if this is primarily a rate card analysis
+      const isRateCardAnalysis = carrierConfigs?.some(config => config.is_rate_card) || false;
+      
+      // Adaptive batch processing based on analysis type
+      const getOptimalBatchConfig = (totalShipments: number, isRateCard: boolean) => {
+        if (isRateCard) {
+          // Rate cards are fast database lookups - use larger batches, no delays
+          if (totalShipments <= 100) return { size: 50, concurrency: 20, delay: 0 };
+          if (totalShipments <= 500) return { size: 100, concurrency: 30, delay: 0 };
+          return { size: 200, concurrency: 50, delay: 0 };
+        } else {
+          // API calls need rate limiting protection
+          if (totalShipments <= 50) return { size: 10, concurrency: 5, delay: 50 };
+          if (totalShipments <= 200) return { size: 20, concurrency: 8, delay: 100 };
+          if (totalShipments <= 500) return { size: 25, concurrency: 10, delay: 150 };
+          return { size: 30, concurrency: 12, delay: 200 };
+        }
       };
       
-      const batchConfig = getOptimalBatchConfig(shipmentsToAnalyze.length);
+      const batchConfig = getOptimalBatchConfig(shipmentsToAnalyze.length, isRateCardAnalysis);
       const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchConfig.size);
       
-      console.log(`🚀 Processing ${shipmentsToAnalyze.length} shipments in ${totalBatches} batches (${batchConfig.size} per batch, ${batchConfig.concurrency} concurrent)`);
+      console.log(`🚀 Processing ${shipmentsToAnalyze.length} shipments in ${totalBatches} batches (${batchConfig.size} per batch, ${batchConfig.concurrency} concurrent) - ${isRateCardAnalysis ? 'Rate Card' : 'API'} mode`);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
         if (isPaused) {
@@ -380,7 +397,7 @@ const Analysis = () => {
         
         console.log(`🔄 Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} shipments)`);
         
-        // Process shipments with controlled concurrency
+        // Process shipments with type-appropriate concurrency
         const processBatchWithConcurrency = async (shipments: ProcessedShipment[], concurrency: number) => {
           const results = [];
           for (let i = 0; i < shipments.length; i += concurrency) {
@@ -394,9 +411,9 @@ const Analysis = () => {
             const chunkResults = await Promise.allSettled(chunkPromises);
             results.push(...chunkResults);
             
-            // Small delay between chunks for API rate limiting
-            if (i + concurrency < shipments.length) {
-              await new Promise(resolve => setTimeout(resolve, 50));
+            // Only add delays for API calls, not rate cards
+            if (!isRateCardAnalysis && i + concurrency < shipments.length) {
+              await new Promise(resolve => setTimeout(resolve, batchConfig.delay));
             }
           }
           return results;
@@ -407,10 +424,9 @@ const Analysis = () => {
         // Update progress
         setCurrentShipmentIndex(endIndex - 1);
         
-        // Adaptive delay between batches
-        if (batchIndex < totalBatches - 1 && !isPaused) {
-          const delay = Math.max(50, Math.min(200, batchConfig.size * 2));
-          await new Promise(resolve => setTimeout(resolve, delay));
+        // Only add delays between batches for API calls
+        if (!isRateCardAnalysis && batchIndex < totalBatches - 1 && !isPaused) {
+          await new Promise(resolve => setTimeout(resolve, batchConfig.delay));
         }
       }
       
@@ -569,61 +585,91 @@ const Analysis = () => {
     
     try {
       
-      // Fast validation with early exits
-      if (!shipment.originZip?.trim()) {
-        throw new Error('Missing Origin ZIP');
-      }
-      if (!shipment.destZip?.trim()) {
-        throw new Error('Missing Destination ZIP');
-      }
-      if (!shipment.service?.trim()) {
-        throw new Error('Missing Service Type');
-      }
-      if (!shipment.weight || shipment.weight === '') {
-        throw new Error('Missing Weight');
-      }
+      // Ultra-fast validation for rate cards, standard for API calls
+      const isRateCardRequest = selectedCarriers.some(carrierId => {
+        const config = carrierConfigs?.find(c => c.id === carrierId);
+        return config?.is_rate_card;
+      });
       
-      // Parse and validate weight
-      let weight = parseFloat(shipment.weight);
-      if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
-        weight = weight / 16;
+      if (isRateCardRequest) {
+        // Minimal validation for rate cards - just essential fields
+        if (!shipment.originZip?.trim() || !shipment.destZip?.trim() || !shipment.service?.trim() || !shipment.weight) {
+          throw new Error('Missing required fields for rate card analysis');
+        }
+        
+        // Fast parsing for rate cards
+        let weight = parseFloat(shipment.weight);
+        if (shipment.weightUnit?.toLowerCase().includes('oz')) weight /= 16;
+        if (isNaN(weight) || weight <= 0) throw new Error('Invalid weight');
+        
+        const length = parseFloat(shipment.length || '0');
+        const width = parseFloat(shipment.width || '0');
+        const height = parseFloat(shipment.height || '0');
+        if (!length || !width || !height) throw new Error('Missing dimensions');
+        
+        // Quick ZIP cleaning
+        shipment.originZip = shipment.originZip.trim().replace(/\D/g, '').slice(0, 5);
+        shipment.destZip = shipment.destZip.trim().replace(/\D/g, '').slice(0, 5);
+        
+        const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
+        const currentCost = parseFloat(costString);
+      } else {
+        // Standard validation for API calls
+        if (!shipment.originZip?.trim()) {
+          throw new Error('Missing Origin ZIP');
+        }
+        if (!shipment.destZip?.trim()) {
+          throw new Error('Missing Destination ZIP');
+        }
+        if (!shipment.service?.trim()) {
+          throw new Error('Missing Service Type');
+        }
+        if (!shipment.weight || shipment.weight === '') {
+          throw new Error('Missing Weight');
+        }
+        
+        // Parse and validate weight
+        let weight = parseFloat(shipment.weight);
+        if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
+          weight = weight / 16;
+        }
+        if (isNaN(weight) || weight <= 0) {
+          throw new Error('Invalid Weight');
+        }
+        
+        // Parse and validate dimensions
+        const length = parseFloat(shipment.length);
+        const width = parseFloat(shipment.width); 
+        const height = parseFloat(shipment.height);
+        
+        if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
+          throw new Error('Missing or invalid package dimensions');
+        }
+        
+        // Fast ZIP code cleaning
+        const cleanZip = (zipCode: string) => {
+          const digits = zipCode.trim().replace(/\D/g, '');
+          return digits.length >= 4 ? digits.slice(0, 5) : digits;
+        };
+        
+        const cleanOriginZip = cleanZip(shipment.originZip);
+        const cleanDestZip = cleanZip(shipment.destZip);
+        
+        if (cleanOriginZip.length < 4) {
+          throw new Error('Invalid Origin ZIP code');
+        }
+        if (cleanDestZip.length < 4) {
+          throw new Error('Invalid Destination ZIP code');
+        }
+        
+        // Update shipment with cleaned ZIP codes
+        shipment.originZip = cleanOriginZip;
+        shipment.destZip = cleanDestZip;
+        
+        // Parse current rate
+        const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
+        const currentCost = parseFloat(costString);
       }
-      if (isNaN(weight) || weight <= 0) {
-        throw new Error('Invalid Weight');
-      }
-      
-      // Parse and validate dimensions
-      const length = parseFloat(shipment.length);
-      const width = parseFloat(shipment.width); 
-      const height = parseFloat(shipment.height);
-      
-      if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
-        throw new Error('Missing or invalid package dimensions');
-      }
-      
-      // Fast ZIP code cleaning
-      const cleanZip = (zipCode: string) => {
-        const digits = zipCode.trim().replace(/\D/g, '');
-        return digits.length >= 4 ? digits.slice(0, 5) : digits;
-      };
-      
-      const cleanOriginZip = cleanZip(shipment.originZip);
-      const cleanDestZip = cleanZip(shipment.destZip);
-      
-      if (cleanOriginZip.length < 4) {
-        throw new Error('Invalid Origin ZIP code');
-      }
-      if (cleanDestZip.length < 4) {
-        throw new Error('Invalid Destination ZIP code');
-      }
-      
-      // Update shipment with cleaned ZIP codes
-      shipment.originZip = cleanOriginZip;
-      shipment.destZip = cleanDestZip;
-      
-      // Parse current rate
-      const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
-      const currentCost = parseFloat(costString);
       
       // Optimized service mapping lookup with memoization
       const normalizedService = shipment.service?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
@@ -704,38 +750,48 @@ const Analysis = () => {
         zone: shipment.zone // Include CSV-mapped zone if available
       };
       
-      // Check cache first for identical requests
-      const cacheKey = {
-        originZip: shipment.originZip,
-        destZip: shipment.destZip,
-        weight,
-        length,
-        width,
-        height,
-        serviceTypes: serviceCodesToRequest,
-        carrierConfigIds: selectedCarriers,
-        isResidential: residentialStatus.isResidential
-      };
+      // Only use caching for API calls, not rate cards (which are already fast)
+      const isRateCardRequest = selectedCarriers.some(carrierId => {
+        const config = carrierConfigs?.find(c => c.id === carrierId);
+        return config?.is_rate_card;
+      });
       
-      const cachedResult = analysisCache.get(cacheKey);
-      if (cachedResult) {
-        console.log(`⚡ Cache hit for shipment ${index + 1}`);
+      let cachedResult = null;
+      let cacheKey = null;
+      if (!isRateCardRequest) {
+        // Check cache first for identical requests
+        cacheKey = {
+          originZip: shipment.originZip,
+          destZip: shipment.destZip,
+          weight,
+          length,
+          width,
+          height,
+          serviceTypes: serviceCodesToRequest,
+          carrierConfigIds: selectedCarriers,
+          isResidential: residentialStatus.isResidential
+        };
         
-        // Update results with cached data
-        setAnalysisResults(prev => {
-          return prev.map(result => {
-            if (result.shipment.id === shipment.id) {
-              return {
-                ...result,
-                status: 'completed',
-                ...cachedResult
-              };
-            }
-            return result;
+        cachedResult = analysisCache.get(cacheKey);
+        if (cachedResult) {
+          console.log(`⚡ Cache hit for shipment ${index + 1}`);
+          
+          // Update results with cached data
+          setAnalysisResults(prev => {
+            return prev.map(result => {
+              if (result.shipment.id === shipment.id) {
+                return {
+                  ...result,
+                  status: 'completed',
+                  ...cachedResult
+                };
+              }
+              return result;
+            });
           });
-        });
-        
-        return cachedResult;
+          
+          return cachedResult;
+        }
       }
       
       const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
@@ -1040,19 +1096,21 @@ const Analysis = () => {
         mappingValid: updatedResult.mappingValidation?.isValid
       });
       
-      // Cache the result for future use
-      analysisCache.set(cacheKey, {
-        currentCost: updatedResult.currentCost,
-        originalService: updatedResult.originalService,
-        allRates: updatedResult.allRates,
-        carrierResults: updatedResult.carrierResults,
-        bestRate: updatedResult.bestRate,
-        bestOverallRate: updatedResult.bestOverallRate,
-        savings: updatedResult.savings,
-        maxSavings: updatedResult.maxSavings,
-        expectedServiceCode: updatedResult.expectedServiceCode,
-        mappingValidation: updatedResult.mappingValidation
-      });
+      // Only cache results for API calls, not rate cards
+      if (!isRateCardRequest && cachedResult === null) {
+        analysisCache.set(cacheKey, {
+          currentCost: updatedResult.currentCost,
+          originalService: updatedResult.originalService,
+          allRates: updatedResult.allRates,
+          carrierResults: updatedResult.carrierResults,
+          bestRate: updatedResult.bestRate,
+          bestOverallRate: updatedResult.bestOverallRate,
+          savings: updatedResult.savings,
+          maxSavings: updatedResult.maxSavings,
+          expectedServiceCode: updatedResult.expectedServiceCode,
+          mappingValidation: updatedResult.mappingValidation
+        });
+      }
       
       return updatedResult;
           }

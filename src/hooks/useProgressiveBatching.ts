@@ -45,17 +45,17 @@ export function useProgressiveBatching(
     // Make this completely async - don't await or block anything
     (async () => {
       try {
-        console.log(`📦 Progressive batching: Starting async save of ${shipments.length} shipments`);
+        console.log(`📦 Progressive batching: Starting async save of ${shipments.length} complete shipments`);
         
-        // Just save the rates - skip the full processed shipments for speed
+        // Save both rates AND processed shipments for complete progressive saving
         const shipmentRatesToInsert: any[] = [];
-        
-        shipments.forEach((completed, shipmentIndex) => {
+        const processedShipments = shipments.map((completed, localIndex) => {
+          // Process rates for this shipment
           if (completed.allRates && Array.isArray(completed.allRates)) {
             completed.allRates.forEach((rate: any) => {
               shipmentRatesToInsert.push({
                 analysis_id: analysisId,
-                shipment_index: shipmentIndex, 
+                shipment_index: localIndex,
                 carrier_config_id: rate.carrierId || '',
                 account_name: rate.carrierName || rate.accountName || 'Unknown',
                 carrier_type: rate.carrierType || 'ups',
@@ -70,36 +70,83 @@ export function useProgressiveBatching(
               });
             });
           }
+
+          // Return processed shipment for analysis
+          return {
+            id: completed.shipment.id,
+            trackingId: completed.shipment.trackingId,
+            service: completed.shipment.service,
+            carrier: completed.shipment.carrier || 'UPS',
+            originZip: completed.shipment.originZip,
+            destZip: completed.shipment.destZip,
+            weight: parseFloat(completed.shipment.weight || '0'),
+            length: parseFloat(completed.shipment.length || '0'),
+            width: parseFloat(completed.shipment.width || '0'),
+            height: parseFloat(completed.shipment.height || '0'),
+            dimensions: completed.shipment.dimensions,
+            customer_service: completed.shipment.service || 'Unknown',
+            ShipPros_service: completed.bestRate?.serviceName || 'Ground',
+            currentRate: completed.currentCost,
+            ShipPros_cost: completed.bestRate?.totalCharges || 0,
+            savings: completed.savings,
+            savingsPercent: completed.currentCost > 0 ? (completed.savings / completed.currentCost) * 100 : 0,
+            analyzedWithAccount: completed.bestRate?.accountName || 'Unknown',
+            accountName: completed.bestRate?.accountName || 'Unknown'
+          };
         });
 
-        // Fire-and-forget database writes
+        // Fire-and-forget database writes (parallel for speed)
+        const promises = [];
+        
+        // Save rates
         if (shipmentRatesToInsert.length > 0) {
-          supabase.from('shipment_rates').insert(shipmentRatesToInsert).then(({ error }) => {
-            if (error) {
-              console.warn('Progressive batch save failed (non-blocking):', error);
-            } else {
-              console.log(`✅ Progressive batch: Saved ${shipments.length} shipments in background`);
-              onBatchSaved?.(shipments.length);
-            }
-          });
+          promises.push(
+            supabase.from('shipment_rates').insert(shipmentRatesToInsert).then(({ error }) => {
+              if (error) {
+                console.warn('Progressive batch rates save failed (non-blocking):', error);
+              } else {
+                console.log(`✅ Saved ${shipmentRatesToInsert.length} rates in background`);
+              }
+            })
+          );
         }
 
-        // Simple metadata update (also fire-and-forget)
-        supabase
-          .from('shipping_analyses')
-          .update({
-            updated_at: new Date().toISOString(),
-            processing_metadata: {
-              lastProgressiveBatch: new Date().toISOString(),
-              progressiveBatchesSaved: true
-            }
-          })
-          .eq('id', analysisId)
-          .then(({ error }) => {
-            if (error) {
-              console.warn('Failed to update analysis metadata (non-blocking):', error);
-            }
-          });
+        // For now, just append to processed_shipments with a simpler approach
+        promises.push(
+          supabase
+            .from('shipping_analyses')
+            .select('processed_shipments')
+            .eq('id', analysisId)
+            .single()
+            .then(({ data, error }) => {
+              if (error) {
+                console.warn('Failed to read current shipments:', error);
+                return;
+              }
+              
+              const existingShipments = Array.isArray(data?.processed_shipments) ? data.processed_shipments : [];
+              const updatedShipments = [...existingShipments, ...processedShipments];
+              
+              return supabase
+                .from('shipping_analyses')
+                .update({
+                  processed_shipments: updatedShipments,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', analysisId);
+            })
+            .then((result) => {
+              if (result?.error) {
+                console.warn('Progressive batch shipments save failed (non-blocking):', result.error);
+              } else {
+                console.log(`✅ Saved ${processedShipments.length} processed shipments in background`);
+                onBatchSaved?.(shipments.length);
+              }
+            })
+        );
+
+        // Wait for all saves to complete in background
+        Promise.all(promises);
           
       } catch (error) {
         console.error('Progressive batching error (non-blocking):', error);

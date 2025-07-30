@@ -1373,121 +1373,16 @@ const Analysis = () => {
           </Card>
         )}
         
-        {/* Real-time Results */}
+        {/* Real-time Results - Virtualized for Performance */}
         <Card>
           <CardHeader>
             <CardTitle>Live Analysis Results</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {analysisResults.map((result, index) => (
-                <div 
-                  key={index} 
-                  className="flex items-center justify-between p-3 border border-border rounded-lg bg-card"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex-shrink-0">
-                      {result.status === 'pending' && (
-                        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
-                          <span className="text-xs">{index + 1}</span>
-                        </div>
-                      )}
-                      {result.status === 'processing' && (
-                        <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center">
-                          <RotateCw className="w-4 h-4 text-primary animate-spin" />
-                        </div>
-                      )}
-                      {result.status === 'completed' && (
-                        <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center">
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        </div>
-                      )}
-                      {result.status === 'error' && (
-                        <div className="w-6 h-6 rounded-full bg-red-100 flex items-center justify-center">
-                          <AlertCircle className="w-4 h-4 text-red-600" />
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <p className="font-medium text-sm">
-                        {result.shipment.trackingId || `Shipment ${index + 1}`}
-                      </p>
-                      <div className="text-xs text-muted-foreground space-y-1">
-                        <p>{result.shipment.originZip} → {result.shipment.destZip} | {result.shipment.weight}lbs</p>
-                        {result.shipment.service && (
-                          <p>Service: {result.shipment.service}</p>
-                        )}
-                        {(result.shipment.length || result.shipment.width || result.shipment.height) && (
-                          <p>Dimensions: {result.shipment.length || 12}" × {result.shipment.width || 12}" × {result.shipment.height || 6}"</p>
-                        )}
-                        {result.status === 'processing' && (
-                          <p className="text-primary font-medium">Getting UPS rates...</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  
-                   <div className="text-right">
-                     {result.status === 'completed' && (
-                       <div className="flex items-center gap-2">
-                         <div className="text-right">
-                            <p className="text-sm font-medium">
-                              ${result.currentCost?.toFixed(2)} → ${Number(result.bestRate?.totalCharges || 0).toFixed(2)}
-                            </p>
-                            <div className="text-xs text-muted-foreground mb-1">
-                              via {result.bestRate?.serviceName || 'UPS Service'}
-                              {result.expectedServiceCode && (
-                                <span className="text-xs ml-1 text-gray-500">({result.expectedServiceCode})</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-1 justify-end mb-1">
-                              {result.savings && result.savings > 0 ? (
-                                <Badge variant="secondary" className="bg-green-100 text-green-800">
-                                  Save ${result.savings.toFixed(2)}
-                                </Badge>
-                              ) : result.savings && result.savings < 0 ? (
-                                <Badge variant="secondary" className="bg-red-100 text-red-800">
-                                  Loss ${Math.abs(result.savings).toFixed(2)}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline">No change</Badge>
-                              )}
-                              {/* Validation indicator */}
-                              {result.mappingValidation && !result.mappingValidation.isValid && (
-                                <Badge variant="destructive" className="text-xs">MISMATCH</Badge>
-                              )}
-                              {result.mappingValidation && result.mappingValidation.isValid && (
-                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">VALID</Badge>
-                              )}
-                            </div>
-                            {/* Debug information for mapping validation */}
-                            {result.mappingValidation && !result.mappingValidation.isValid && (
-                              <div className="text-xs text-red-600 mt-1 p-1 bg-red-50 rounded">
-                                Expected: {result.mappingValidation.expectedService} ({result.mappingValidation.expectedServiceCode})
-                                <br />
-                                Got: {result.mappingValidation.actualService} ({result.mappingValidation.actualServiceCode})
-                              </div>
-                            )}
-                         </div>
-                       </div>
-                     )}
-                    
-                    {result.status === 'error' && (
-                      <Badge variant="destructive">Error</Badge>
-                    )}
-                    
-                    {result.status === 'processing' && (
-                      <Badge variant="secondary">Processing...</Badge>
-                    )}
-                    
-                    {result.status === 'pending' && (
-                      <Badge variant="outline">Pending</Badge>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <VirtualizedAnalysisResults 
+              results={analysisResults}
+              height={400}
+            />
             
             {isComplete && (
               <div className="flex justify-end mt-6">

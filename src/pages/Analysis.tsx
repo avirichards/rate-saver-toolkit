@@ -664,17 +664,10 @@ const Analysis = () => {
     const maxRetries = 2;
     const startTime = performance.now(); // ADD PERFORMANCE MONITORING
     
-    console.log(`🔍 Processing shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
-      shipmentId: shipment.id,
-      service: shipment.service,
-      carrier: shipment.carrier,
-      originZip: shipment.originZip,
-      destZip: shipment.destZip,
-      weight: shipment.weight,
-      currentRate: shipment.currentRate,
-      isRetry: retryCount > 0,
-      timestamp: new Date().toISOString()
-    });
+    // SIMPLIFIED: Minimal logging for rate card performance
+    if (index % 100 === 0) { // Only log every 100th shipment
+      console.log(`📦 Processing batch: shipments ${index + 1}...`);
+    }
     
       // Update status to processing using shipment ID-based update to prevent race conditions
       setAnalysisResults(prev => {

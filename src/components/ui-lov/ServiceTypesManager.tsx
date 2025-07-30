@@ -12,7 +12,7 @@ import { Plus, Save, RotateCcw, Trash2, Edit2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { UniversalServiceCategory, UNIVERSAL_SERVICES } from '@/utils/universalServiceCategories';
-import { CarrierType, getUniversalCategoryFromCarrierCode } from '@/utils/carrierServiceRegistry';
+import { CarrierType, getUniversalCategoryFromCarrierCode, CARRIER_MAPPINGS } from '@/utils/carrierServiceRegistry';
 
 interface CarrierConfig {
   id: string;
@@ -147,41 +147,37 @@ export const ServiceTypesManager = () => {
 
     const carrierType = selectedConfig.carrier_type.toUpperCase() as CarrierType;
     const mappings: ServiceMapping[] = [];
+    const enabledServices = selectedConfig.enabled_services as string[] || [];
 
-    // Add system services for this carrier
-    const carrierSystemServices = systemServices.filter(
-      s => s.carrier_type.toUpperCase() === carrierType
-    );
+    // Get carrier-specific service mappings from the registry
+    const carrierServiceMappings = CARRIER_MAPPINGS[carrierType] || [];
 
-    carrierSystemServices.forEach(service => {
-      // Find universal mapping from registry
-      const universalCategory = getUniversalCategoryFromCarrierCode(carrierType, service.service_code) 
-        || UniversalServiceCategory.GROUND;
+    // Create mappings for enabled services
+    enabledServices.forEach(serviceCode => {
+      // Find the service mapping from carrier registry
+      const registryMapping = carrierServiceMappings.find(m => m.carrierCode === serviceCode);
+      
+      // Try to find in system services as fallback
+      const systemService = systemServices.find(s => 
+        s.service_code === serviceCode && s.carrier_type.toUpperCase() === carrierType
+      );
+
+      // Use registry service name if available, otherwise fallback to system service or code
+      const serviceName = registryMapping?.carrierServiceName || 
+                         systemService?.service_name || 
+                         serviceCode;
+
+      const universalCategory = registryMapping?.universalCategory || 
+                               getUniversalCategoryFromCarrierCode(carrierType, serviceCode) ||
+                               UniversalServiceCategory.GROUND;
 
       mappings.push({
-        service_code: service.service_code,
-        service_name: service.service_name,
+        service_code: serviceCode,
+        service_name: serviceName,
         universal_category: universalCategory,
-        is_enabled: (selectedConfig.enabled_services as string[]).includes(service.service_code),
-        is_custom: false,
-        is_system: true,
-        carrier_type: carrierType
-      });
-    });
-
-    // Add custom services for this carrier
-    const carrierCustomServices = customServices.filter(
-      s => s.carrier_type.toUpperCase() === carrierType
-    );
-
-    carrierCustomServices.forEach(service => {
-      mappings.push({
-        service_code: service.service_code,
-        service_name: service.service_name,
-        universal_category: service.universal_category,
-        is_enabled: (selectedConfig.enabled_services as string[]).includes(service.service_code),
-        is_custom: true,
-        is_system: false,
+        is_enabled: true,
+        is_custom: !registryMapping && !systemService,
+        is_system: !!systemService,
         carrier_type: carrierType
       });
     });

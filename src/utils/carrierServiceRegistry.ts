@@ -214,7 +214,7 @@ const AMAZON_SERVICE_MAPPINGS: CarrierServiceMapping[] = [
   }
 ];
 
-const CARRIER_MAPPINGS = {
+export const CARRIER_MAPPINGS = {
   [CarrierType.UPS]: UPS_SERVICE_MAPPINGS,
   [CarrierType.FEDEX]: FEDEX_SERVICE_MAPPINGS,
   [CarrierType.DHL]: DHL_SERVICE_MAPPINGS,

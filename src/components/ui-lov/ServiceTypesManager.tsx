@@ -58,9 +58,11 @@ export const ServiceTypesManager = () => {
   const [systemServices, setSystemServices] = useState<CarrierService[]>([]);
   const [customServices, setCustomServices] = useState<CustomService[]>([]);
   const [selectedCarrier, setSelectedCarrier] = useState<string>('');
+  const [carrierTypeFilter, setCarrierTypeFilter] = useState<string>('');
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [editedMappings, setEditedMappings] = useState<Record<string, Partial<ServiceMapping>>>({});
   const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [isManagingUniversal, setIsManagingUniversal] = useState(false);
   const [editingService, setEditingService] = useState<ServiceMapping | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -78,6 +80,11 @@ export const ServiceTypesManager = () => {
   useEffect(() => {
     if (selectedCarrier) {
       buildServiceMappings();
+      // Auto-set carrier type filter based on selected carrier
+      const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
+      if (selectedConfig) {
+        setCarrierTypeFilter(selectedConfig.carrier_type.toUpperCase());
+      }
     }
   }, [selectedCarrier, systemServices, customServices, carrierConfigs]);
 
@@ -184,7 +191,12 @@ export const ServiceTypesManager = () => {
       });
     });
 
-    setServiceMappings(mappings.sort((a, b) => a.service_name.localeCompare(b.service_name)));
+    // Filter by carrier type if filter is applied
+    const filteredMappings = carrierTypeFilter 
+      ? mappings.filter(m => m.carrier_type === carrierTypeFilter)
+      : mappings;
+
+    setServiceMappings(filteredMappings.sort((a, b) => a.service_name.localeCompare(b.service_name)));
     setEditedMappings({});
     setHasUnsavedChanges(false);
   };
@@ -451,21 +463,40 @@ export const ServiceTypesManager = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Carrier Selection */}
-          <div className="space-y-2">
-            <Label>Select Carrier Account</Label>
-            <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a carrier account" />
-              </SelectTrigger>
-              <SelectContent>
-                {carrierConfigs.map(config => (
-                  <SelectItem key={config.id} value={config.id}>
-                    {config.account_name} ({config.carrier_type.toUpperCase()})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          {/* Carrier Selection and Filter */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Select Carrier Account</Label>
+              <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a carrier account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {carrierConfigs.map(config => (
+                    <SelectItem key={config.id} value={config.id}>
+                      {config.account_name} ({config.carrier_type.toUpperCase()})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Filter by Carrier Type</Label>
+              <Select value={carrierTypeFilter} onValueChange={setCarrierTypeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All carrier types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Carrier Types</SelectItem>
+                  {Array.from(new Set(carrierConfigs.map(c => c.carrier_type.toUpperCase()))).map(type => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {selectedCarrier && (
@@ -503,6 +534,14 @@ export const ServiceTypesManager = () => {
                   iconLeft={<Save className="h-4 w-4" />}
                 >
                   Save Changes
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsManagingUniversal(true)}
+                  iconLeft={<Edit2 className="h-4 w-4" />}
+                >
+                  Manage Universal Types
                 </Button>
                 <Dialog open={isAddingCustom} onOpenChange={setIsAddingCustom}>
                   <DialogTrigger asChild>
@@ -599,7 +638,6 @@ export const ServiceTypesManager = () => {
                         <TableHead>Service Name</TableHead>
                         <TableHead>Service Code</TableHead>
                         <TableHead>Universal Category</TableHead>
-                        <TableHead>Type</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -655,11 +693,6 @@ export const ServiceTypesManager = () => {
                               </SelectContent>
                             </Select>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant={mapping.is_custom ? "default" : "outline"}>
-                              {mapping.is_custom ? 'Custom' : 'System'}
-                            </Badge>
-                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -672,6 +705,59 @@ export const ServiceTypesManager = () => {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Universal Service Types Management Dialog */}
+              <Dialog open={isManagingUniversal} onOpenChange={setIsManagingUniversal}>
+                <DialogContent className="max-w-4xl">
+                  <DialogHeader>
+                    <DialogTitle>Manage Universal Service Types</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="text-sm text-muted-foreground">
+                      These are the universal service categories that all carrier services map to. Changes here will affect the entire system.
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Display Name</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Transit Days</TableHead>
+                          <TableHead>International</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Object.entries(UNIVERSAL_SERVICES).map(([key, info]) => (
+                          <TableRow key={key}>
+                            <TableCell>
+                              <code className="text-sm bg-muted px-2 py-1 rounded">
+                                {key}
+                              </code>
+                            </TableCell>
+                            <TableCell className="font-medium">
+                              {info.displayName}
+                            </TableCell>
+                            <TableCell>
+                              {info.description}
+                            </TableCell>
+                            <TableCell>
+                              {info.typicalTransitDays}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={info.isInternational ? "default" : "outline"}>
+                                {info.isInternational ? 'Yes' : 'No'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    <div className="text-sm text-muted-foreground">
+                      Note: Universal service types are currently read-only. Contact support if you need to modify these categories.
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </>
           )}
 

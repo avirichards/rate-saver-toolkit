@@ -218,14 +218,22 @@ serve(async (req) => {
         
         // Filter service types based on enabled services in carrier config
         if (config.enabled_services && config.enabled_services.length > 0) {
+          const beforeFiltering = [...servicesToRequest];
           servicesToRequest = servicesToRequest.filter(service => 
             config.enabled_services!.includes(service)
           );
           console.log(`🔧 Filtered services for ${config.account_name}:`, {
             original: shipment.serviceTypes,
+            mapped: beforeFiltering,
             filtered: servicesToRequest,
             enabledServices: config.enabled_services
           });
+          
+          // Debug: Check if the mapped services are in enabled services
+          for (const mappedService of beforeFiltering) {
+            const isEnabled = config.enabled_services!.includes(mappedService);
+            console.log(`🔍 Service check: ${mappedService} → enabled: ${isEnabled}`);
+          }
         }
 
         // Skip Amazon carriers for non-Ground services

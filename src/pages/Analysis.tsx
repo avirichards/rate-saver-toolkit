@@ -405,7 +405,7 @@ const Analysis = () => {
             const chunkPromises = chunk.map((shipment, indexInChunk) => {
               const globalIndex = startIndex + i + indexInChunk;
               setCurrentShipmentIndex(globalIndex);
-              return processShipment(globalIndex, shipment, 0, analysisId);
+              return processShipment(globalIndex, shipment, 0, analysisId, carrierConfigs);
             });
             
             const chunkResults = await Promise.allSettled(chunkPromises);
@@ -570,7 +570,7 @@ const Analysis = () => {
     }
   };
   
-  const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
+  const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string, carrierConfigs?: any[]) => {
     const maxRetries = 2;
     
       // Memory-efficient status update
@@ -591,6 +591,13 @@ const Analysis = () => {
         return config?.is_rate_card;
       });
       
+      // Parse and validate common fields
+      let weight: number;
+      let length: number;
+      let width: number;
+      let height: number;
+      let currentCost: number;
+      
       if (isRateCardRequest) {
         // Minimal validation for rate cards - just essential fields
         if (!shipment.originZip?.trim() || !shipment.destZip?.trim() || !shipment.service?.trim() || !shipment.weight) {
@@ -598,13 +605,13 @@ const Analysis = () => {
         }
         
         // Fast parsing for rate cards
-        let weight = parseFloat(shipment.weight);
+        weight = parseFloat(shipment.weight);
         if (shipment.weightUnit?.toLowerCase().includes('oz')) weight /= 16;
         if (isNaN(weight) || weight <= 0) throw new Error('Invalid weight');
         
-        const length = parseFloat(shipment.length || '0');
-        const width = parseFloat(shipment.width || '0');
-        const height = parseFloat(shipment.height || '0');
+        length = parseFloat(shipment.length || '0');
+        width = parseFloat(shipment.width || '0');
+        height = parseFloat(shipment.height || '0');
         if (!length || !width || !height) throw new Error('Missing dimensions');
         
         // Quick ZIP cleaning
@@ -612,7 +619,7 @@ const Analysis = () => {
         shipment.destZip = shipment.destZip.trim().replace(/\D/g, '').slice(0, 5);
         
         const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
-        const currentCost = parseFloat(costString);
+        currentCost = parseFloat(costString);
       } else {
         // Standard validation for API calls
         if (!shipment.originZip?.trim()) {
@@ -629,7 +636,7 @@ const Analysis = () => {
         }
         
         // Parse and validate weight
-        let weight = parseFloat(shipment.weight);
+        weight = parseFloat(shipment.weight);
         if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
           weight = weight / 16;
         }
@@ -638,9 +645,9 @@ const Analysis = () => {
         }
         
         // Parse and validate dimensions
-        const length = parseFloat(shipment.length);
-        const width = parseFloat(shipment.width); 
-        const height = parseFloat(shipment.height);
+        length = parseFloat(shipment.length);
+        width = parseFloat(shipment.width); 
+        height = parseFloat(shipment.height);
         
         if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
           throw new Error('Missing or invalid package dimensions');
@@ -668,7 +675,7 @@ const Analysis = () => {
         
         // Parse current rate
         const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
-        const currentCost = parseFloat(costString);
+        currentCost = parseFloat(costString);
       }
       
       // Optimized service mapping lookup with memoization
@@ -751,6 +758,7 @@ const Analysis = () => {
       };
       
       // Only use caching for API calls, not rate cards (which are already fast)
+      
       let cachedResult = null;
       let cacheKey = null;
       if (!isRateCardRequest) {
@@ -826,7 +834,7 @@ const Analysis = () => {
           const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
           console.log(`🔄 Retrying shipment ${index + 1} in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, delay));
-          return processShipment(index, shipment, retryCount + 1);
+          return processShipment(index, shipment, retryCount + 1, analysisId, carrierConfigs);
         }
         
         throw new Error(`Multi-carrier API Error: ${error.message || 'Unknown API error'}`);
@@ -1175,7 +1183,7 @@ const Analysis = () => {
       if (shouldRetry) {
         console.log(`🔄 Retrying shipment ${index + 1} due to ${errorCategory} error`);
         await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1))); // Progressive delay
-        return processShipment(index, shipment, retryCount + 1);
+        return processShipment(index, shipment, retryCount + 1, analysisId, carrierConfigs);
       }
       
       // Update error result using functional update to prevent race conditions

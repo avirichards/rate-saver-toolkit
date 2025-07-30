@@ -95,19 +95,22 @@ const Analysis = () => {
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
-  // Initialize progressive batching
+  // Initialize progressive batching with optimized settings for speed
   const { addCompletedShipment, finalizeBatching, getPendingCount } = useProgressiveBatching(
     analysisId,
     {
-      batchSize: 25, // Save every 25 completed shipments
-      batchTimeoutMs: 15000, // Or every 15 seconds
+      batchSize: 100, // Larger batches, less frequent saves
+      batchTimeoutMs: 45000, // Less frequent timeout saves
       onBatchSaved: (batchSize) => {
-        console.log(`📦 Progressive batch saved: ${batchSize} shipments`);
-        toast.success(`Saved progress: ${batchSize} shipments processed`, { duration: 2000 });
+        console.log(`📦 Background save: ${batchSize} shipments`);
+        // Removed toast for performance - was slowing things down
       },
       onError: (error) => {
         console.error('Progressive batching error:', error);
-        toast.error('Failed to save progress automatically');
+        // Only show critical errors
+        if (error.message.includes('auth')) {
+          toast.error('Failed to save progress - authentication issue');
+        }
       }
     }
   );

@@ -42,119 +42,72 @@ export function useProgressiveBatching(
 
     isSaving.current = true;
     
-    try {
-      console.log(`📦 Progressive batching: Saving ${shipments.length} completed shipments`);
-      
-      // Transform completed shipments to shipment_rates format
-      const shipmentRatesToInsert: any[] = [];
-      
-      shipments.forEach((completed, shipmentIndex) => {
-        if (completed.allRates && Array.isArray(completed.allRates)) {
-          completed.allRates.forEach((rate: any) => {
-            shipmentRatesToInsert.push({
-              analysis_id: analysisId,
-              shipment_index: shipmentIndex, // Will need to be adjusted for global index
-              carrier_config_id: rate.carrierId || '',
-              account_name: rate.carrierName || rate.accountName || 'Unknown',
-              carrier_type: rate.carrierType || 'ups',
-              service_code: rate.serviceCode || '',
-              service_name: rate.serviceName || rate.description || '',
-              rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
-              currency: rate.currency || 'USD',
-              transit_days: rate.transitTime || null,
-              is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
-              published_rate: rate.publishedRate || null,
-              shipment_data: completed.shipment || {}
+    // Make this completely async - don't await or block anything
+    (async () => {
+      try {
+        console.log(`📦 Progressive batching: Starting async save of ${shipments.length} shipments`);
+        
+        // Just save the rates - skip the full processed shipments for speed
+        const shipmentRatesToInsert: any[] = [];
+        
+        shipments.forEach((completed, shipmentIndex) => {
+          if (completed.allRates && Array.isArray(completed.allRates)) {
+            completed.allRates.forEach((rate: any) => {
+              shipmentRatesToInsert.push({
+                analysis_id: analysisId,
+                shipment_index: shipmentIndex, 
+                carrier_config_id: rate.carrierId || '',
+                account_name: rate.carrierName || rate.accountName || 'Unknown',
+                carrier_type: rate.carrierType || 'ups',
+                service_code: rate.serviceCode || '',
+                service_name: rate.serviceName || rate.description || '',
+                rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
+                currency: rate.currency || 'USD',
+                transit_days: rate.transitTime || null,
+                is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
+                published_rate: rate.publishedRate || null,
+                shipment_data: completed.shipment || {}
+              });
             });
+          }
+        });
+
+        // Fire-and-forget database writes
+        if (shipmentRatesToInsert.length > 0) {
+          supabase.from('shipment_rates').insert(shipmentRatesToInsert).then(({ error }) => {
+            if (error) {
+              console.warn('Progressive batch save failed (non-blocking):', error);
+            } else {
+              console.log(`✅ Progressive batch: Saved ${shipments.length} shipments in background`);
+              onBatchSaved?.(shipments.length);
+            }
           });
         }
-      });
 
-      // Save shipment rates if we have any
-      if (shipmentRatesToInsert.length > 0) {
-        const { error: ratesError } = await supabase
-          .from('shipment_rates')
-          .insert(shipmentRatesToInsert);
-
-        if (ratesError) {
-          throw new Error(`Failed to save shipment rates: ${ratesError.message}`);
-        }
+        // Simple metadata update (also fire-and-forget)
+        supabase
+          .from('shipping_analyses')
+          .update({
+            updated_at: new Date().toISOString(),
+            processing_metadata: {
+              lastProgressiveBatch: new Date().toISOString(),
+              progressiveBatchesSaved: true
+            }
+          })
+          .eq('id', analysisId)
+          .then(({ error }) => {
+            if (error) {
+              console.warn('Failed to update analysis metadata (non-blocking):', error);
+            }
+          });
+          
+      } catch (error) {
+        console.error('Progressive batching error (non-blocking):', error);
+        onError?.(error as Error);
+      } finally {
+        isSaving.current = false;
       }
-
-      // Save completed shipments to analysis record
-      // First get current processed shipments
-      const { data: currentAnalysis } = await supabase
-        .from('shipping_analyses')
-        .select('processed_shipments, processing_metadata')
-        .eq('id', analysisId)
-        .single();
-
-      const existingShipments = Array.isArray(currentAnalysis?.processed_shipments) 
-        ? currentAnalysis.processed_shipments 
-        : [];
-      
-      // Transform completed shipments to the format expected by the analysis
-      const processedShipments = shipments.map(completed => ({
-        id: completed.shipment.id,
-        trackingId: completed.shipment.trackingId,
-        service: completed.shipment.service,
-        carrier: completed.shipment.carrier || 'UPS',
-        originZip: completed.shipment.originZip,
-        destZip: completed.shipment.destZip,
-        weight: parseFloat(completed.shipment.weight || '0'),
-        length: parseFloat(completed.shipment.length || '0'),
-        width: parseFloat(completed.shipment.width || '0'),
-        height: parseFloat(completed.shipment.height || '0'),
-        dimensions: completed.shipment.dimensions,
-        customer_service: completed.shipment.service || 'Unknown',
-        ShipPros_service: completed.bestRate?.serviceName || 'Ground',
-        currentRate: completed.currentCost,
-        ShipPros_cost: completed.bestRate?.totalCharges || 0,
-        savings: completed.savings,
-        savingsPercent: completed.currentCost > 0 ? (completed.savings / completed.currentCost) * 100 : 0,
-        analyzedWithAccount: completed.bestRate?.accountName || 'Unknown',
-        accountName: completed.bestRate?.accountName || 'Unknown'
-      }));
-
-      const updatedShipments = [...existingShipments, ...processedShipments];
-      
-      // Update processing metadata - properly handle JSON type
-      const currentMetadata = currentAnalysis?.processing_metadata && 
-        typeof currentAnalysis.processing_metadata === 'object' && 
-        currentAnalysis.processing_metadata !== null &&
-        !Array.isArray(currentAnalysis.processing_metadata)
-        ? currentAnalysis.processing_metadata as Record<string, any>
-        : {};
-      
-      const updatedMetadata = {
-        ...currentMetadata,
-        lastProgressiveBatch: new Date().toISOString(),
-        progressiveBatchesSaved: (currentMetadata.progressiveBatchesSaved || 0) + 1
-      };
-
-      // Update analysis record
-      const { error: analysisError } = await supabase
-        .from('shipping_analyses')
-        .update({
-          processed_shipments: updatedShipments,
-          processing_metadata: updatedMetadata,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', analysisId);
-
-      if (analysisError) {
-        console.warn('Failed to update analysis metadata:', analysisError);
-      }
-
-      console.log(`✅ Progressive batching: Saved ${shipments.length} shipments successfully`);
-      onBatchSaved?.(shipments.length);
-      
-    } catch (error) {
-      console.error('Progressive batching error:', error);
-      onError?.(error as Error);
-    } finally {
-      isSaving.current = false;
-    }
+    })();
   }, [analysisId, onBatchSaved, onError]);
 
   const flushPendingBatch = useCallback(async () => {
@@ -167,16 +120,17 @@ export function useProgressiveBatching(
         batchTimeout.current = undefined;
       }
       
-      await saveBatch(batch);
+      // Don't await this - let it run in background
+      saveBatch(batch);
     }
   }, [saveBatch]);
 
-  const addCompletedShipment = useCallback(async (completed: CompletedShipment) => {
+  const addCompletedShipment = useCallback((completed: CompletedShipment) => {
     pendingShipments.current.push(completed);
 
-    // Check if we should save immediately due to batch size
+    // Check if we should save immediately due to batch size  
     if (pendingShipments.current.length >= batchSize) {
-      await flushPendingBatch();
+      flushPendingBatch(); // Fire-and-forget
       return;
     }
 
@@ -186,7 +140,7 @@ export function useProgressiveBatching(
     }
     
     batchTimeout.current = setTimeout(() => {
-      flushPendingBatch();
+      flushPendingBatch(); // Fire-and-forget
     }, batchTimeoutMs);
   }, [batchSize, batchTimeoutMs, flushPendingBatch]);
 
@@ -197,8 +151,11 @@ export function useProgressiveBatching(
       batchTimeout.current = undefined;
     }
 
-    // Save any remaining shipments
-    await flushPendingBatch();
+    // Save any remaining shipments (still non-blocking for speed)
+    if (pendingShipments.current.length > 0) {
+      console.log(`📦 Finalizing ${pendingShipments.current.length} remaining shipments`);
+      flushPendingBatch(); // Fire-and-forget, don't wait
+    }
   }, [flushPendingBatch]);
 
   return {

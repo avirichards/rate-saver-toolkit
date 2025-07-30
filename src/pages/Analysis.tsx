@@ -665,7 +665,7 @@ const Analysis = () => {
                                 error.message?.includes('503');
         
         if (isRetryableError && retryCount < maxRetries) {
-          console.log(`⏳ Retrying shipment ${index + 1} due to retryable error (attempt ${retryCount + 1}/${maxRetries})`);
+          
           await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Progressive delay
           return processShipment(index, shipment, retryCount + 1);
         }
@@ -703,7 +703,7 @@ const Analysis = () => {
         throw new Error(detailedError);
       }
       
-      console.log(`✅ Successfully retrieved ${data.allRates.length} rates from ${data.summary?.successfulCarriers || 0} carriers for shipment ${index + 1}`);
+      
       
       // Enhanced rate selection with multi-carrier data
       let comparisonRate;

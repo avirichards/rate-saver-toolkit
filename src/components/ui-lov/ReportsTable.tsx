@@ -56,9 +56,10 @@ interface ReportsTableProps {
     savingsPercentage: number;
   };
   onReportUpdate?: () => void;
+  clients: { id: string; company_name: string }[];
 }
 
-export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: ReportsTableProps) {
+export function ReportsTable({ reports, getMarkupStatus, onReportUpdate, clients }: ReportsTableProps) {
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [sharingReports, setSharingReports] = useState<Set<string>>(new Set());
   const [downloadingReports, setDownloadingReports] = useState<Set<string>>(new Set());
@@ -347,7 +348,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                         onValueChange={async (clientId) => {
                           // Get client name for optimistic update
                           const clientName = clientId ? 
-                            (await supabase.from('clients').select('company_name').eq('id', clientId).single()).data?.company_name 
+                            clients.find(c => c.id === clientId)?.company_name
                             : undefined;
                           
                           // Optimistic update
@@ -371,6 +372,7 @@ export function ReportsTable({ reports, getMarkupStatus, onReportUpdate }: Repor
                           }
                         }}
                         placeholder="No client"
+                        clients={clients}
                       />
                     </div>
                    </td>

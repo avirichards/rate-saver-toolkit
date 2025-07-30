@@ -28,22 +28,27 @@ interface ClientComboboxProps {
   onValueChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  clients?: Client[]; // Optional pre-fetched clients
 }
 
 export function ClientCombobox({ 
   value, 
   onValueChange, 
   placeholder = "Select client...",
-  disabled = false 
+  disabled = false,
+  clients: prefeetchedClients
 }: ClientComboboxProps) {
   const [open, setOpen] = useState(false);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [clients, setClients] = useState<Client[]>(prefeetchedClients || []);
+  const [loading, setLoading] = useState(!prefeetchedClients);
   const [searchValue, setSearchValue] = useState('');
 
   useEffect(() => {
-    loadClients();
-  }, []);
+    // Only load clients if they weren't pre-fetched
+    if (!prefeetchedClients) {
+      loadClients();
+    }
+  }, [prefeetchedClients]);
 
   const loadClients = async () => {
     try {

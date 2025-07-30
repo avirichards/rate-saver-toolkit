@@ -45,12 +45,14 @@ const ReportsPage = () => {
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [totalReports, setTotalReports] = useState(0);
+  const [clients, setClients] = useState<{ id: string; company_name: string }[]>([]);
   const { user } = useAuth();
 
   const REPORTS_PER_PAGE = 25;
 
   useEffect(() => {
     if (user) {
+      loadClients();
       loadReports();
     }
   }, [user, currentPage]);
@@ -59,6 +61,19 @@ const ReportsPage = () => {
     // Reset to first page when search term changes
     setCurrentPage(1);
   }, [searchTerm]);
+
+  const loadClients = async () => {
+    try {
+      const { data: clientsData } = await supabase
+        .from('clients')
+        .select('id, company_name')
+        .order('company_name', { ascending: true });
+      
+      setClients(clientsData || []);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+    }
+  };
 
   const loadReports = async () => {
     try {
@@ -109,25 +124,15 @@ const ReportsPage = () => {
         throw error;
       }
 
-      // Manually fetch client data for reports that have a client_id
+      // Manually attach client data to reports using the pre-fetched clients
       let reportsWithClients = data || [];
-      if (reportsWithClients.length > 0) {
-        const clientIds = [...new Set(reportsWithClients.map(r => r.client_id).filter(Boolean))];
-        
-        if (clientIds.length > 0) {
-          const { data: clientsData } = await supabase
-            .from('clients')
-            .select('id, company_name')
-            .in('id', clientIds);
-
-          // Map clients to reports
-          reportsWithClients = reportsWithClients.map(report => ({
-            ...report,
-            client: report.client_id 
-              ? clientsData?.find(c => c.id === report.client_id) || null
-              : null
-          }));
-        }
+      if (reportsWithClients.length > 0 && clients.length > 0) {
+        reportsWithClients = reportsWithClients.map(report => ({
+          ...report,
+          client: report.client_id 
+            ? clients.find(c => c.id === report.client_id) || null
+            : null
+        }));
       }
       
       console.log('Loaded reports:', reportsWithClients?.length || 0, 'of', count, 'total reports');
@@ -374,6 +379,7 @@ const ReportsPage = () => {
                       reports={filteredReports} 
                       getMarkupStatus={getMarkupStatus}
                       onReportUpdate={loadReports}
+                      clients={clients}
                     />
                     {renderPagination()}
                   </>
@@ -392,6 +398,7 @@ const ReportsPage = () => {
                     reports={getWinsReports()} 
                     getMarkupStatus={getMarkupStatus}
                     onReportUpdate={loadReports}
+                    clients={clients}
                   />
                 )}
               </TabsContent>
@@ -408,6 +415,7 @@ const ReportsPage = () => {
                     reports={getLossesReports()} 
                     getMarkupStatus={getMarkupStatus}
                     onReportUpdate={loadReports}
+                    clients={clients}
                   />
                 )}
               </TabsContent>
@@ -424,6 +432,7 @@ const ReportsPage = () => {
                     reports={getSavedReports()} 
                     getMarkupStatus={getMarkupStatus}
                     onReportUpdate={loadReports}
+                    clients={clients}
                   />
                 )}
               </TabsContent>

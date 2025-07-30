@@ -14,7 +14,6 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { ReportsTable } from '@/components/ui-lov/ReportsTable';
 import { GroupedReportsView } from '@/components/ui-lov/GroupedReportsView';
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 interface ShippingAnalysis {
   id: string;
@@ -43,56 +42,18 @@ const ReportsPage = () => {
   const [loading, setLoading] = useState(true);
   const [groupByClient, setGroupByClient] = useState(false);
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalReports, setTotalReports] = useState(0);
-  const [clients, setClients] = useState<{ id: string; company_name: string }[]>([]);
   const { user } = useAuth();
-
-  const REPORTS_PER_PAGE = 25;
 
   useEffect(() => {
     if (user) {
-      loadClients();
       loadReports();
     }
-  }, [user, currentPage]);
-
-  useEffect(() => {
-    // Reset to first page when search term changes
-    setCurrentPage(1);
-  }, [searchTerm]);
-
-  const loadClients = async () => {
-    try {
-      const { data: clientsData } = await supabase
-        .from('clients')
-        .select('id, company_name')
-        .order('company_name', { ascending: true });
-      
-      setClients(clientsData || []);
-    } catch (error) {
-      console.error('Error loading clients:', error);
-    }
-  };
+  }, [user]);
 
   const loadReports = async () => {
     try {
       setLoading(true);
-      console.log('📊 REPORTS: Loading reports for user:', user?.id, 'page:', currentPage);
-
-      // First get the total count
-      const { count } = await supabase
-        .from('shipping_analyses')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user?.id)
-        .eq('is_deleted', false)
-        .eq('status', 'completed');
-
-      setTotalReports(count || 0);
-
-      // Then get the paginated data
-      const from = (currentPage - 1) * REPORTS_PER_PAGE;
-      const to = from + REPORTS_PER_PAGE - 1;
+      console.log('📊 REPORTS: Loading reports for user:', user?.id);
       
       const { data, error } = await supabase
         .from('shipping_analyses')
@@ -116,26 +77,35 @@ const ReportsPage = () => {
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
         .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Database error:', error);
         throw error;
       }
 
-      // Manually attach client data to reports using the pre-fetched clients
+      // Manually fetch client data for reports that have a client_id
       let reportsWithClients = data || [];
-      if (reportsWithClients.length > 0 && clients.length > 0) {
-        reportsWithClients = reportsWithClients.map(report => ({
-          ...report,
-          client: report.client_id 
-            ? clients.find(c => c.id === report.client_id) || null
-            : null
-        }));
+      if (reportsWithClients.length > 0) {
+        const clientIds = [...new Set(reportsWithClients.map(r => r.client_id).filter(Boolean))];
+        
+        if (clientIds.length > 0) {
+          const { data: clientsData } = await supabase
+            .from('clients')
+            .select('id, company_name')
+            .in('id', clientIds);
+
+          // Map clients to reports
+          reportsWithClients = reportsWithClients.map(report => ({
+            ...report,
+            client: report.client_id 
+              ? clientsData?.find(c => c.id === report.client_id) || null
+              : null
+          }));
+        }
       }
       
-      console.log('Loaded reports:', reportsWithClients?.length || 0, 'of', count, 'total reports');
+      console.log('Loaded reports:', reportsWithClients?.length || 0, 'reports');
       setReports(reportsWithClients as any);
     } catch (error) {
       console.error('Error loading reports:', error);
@@ -151,70 +121,6 @@ const ReportsPage = () => {
       (report.client?.company_name || '').toLowerCase().includes(searchLower)
     );
   });
-
-  const totalPages = Math.ceil(totalReports / REPORTS_PER_PAGE);
-
-  const renderPagination = () => {
-    if (totalPages <= 1) return null;
-
-    return (
-      <div className="flex justify-center mt-6">
-        <Pagination>
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious 
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (currentPage > 1) setCurrentPage(currentPage - 1);
-                }}
-                className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
-              />
-            </PaginationItem>
-            
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum;
-              if (totalPages <= 5) {
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                pageNum = totalPages - 4 + i;
-              } else {
-                pageNum = currentPage - 2 + i;
-              }
-              
-              return (
-                <PaginationItem key={pageNum}>
-                  <PaginationLink
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setCurrentPage(pageNum);
-                    }}
-                    isActive={currentPage === pageNum}
-                  >
-                    {pageNum}
-                  </PaginationLink>
-                </PaginationItem>
-              );
-            })}
-            
-            <PaginationItem>
-              <PaginationNext 
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-                }}
-                className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      </div>
-    );
-  };
 
   const getMarkupStatus = (markupData: any) => {
     if (!markupData) return { 
@@ -334,7 +240,7 @@ const ReportsPage = () => {
 
             <Tabs defaultValue="all" className="w-full">
               <TabsList className="mb-4">
-                <TabsTrigger value="all">All Reports ({totalReports})</TabsTrigger>
+                <TabsTrigger value="all">All Reports ({filteredReports.length})</TabsTrigger>
                 <TabsTrigger value="wins">Wins ({getWinsReports().length})</TabsTrigger>
                 <TabsTrigger value="losses">Losses ({getLossesReports().length})</TabsTrigger>
                 <TabsTrigger value="markup">With Markup ({getSavedReports().length})</TabsTrigger>
@@ -345,7 +251,7 @@ const ReportsPage = () => {
                   <div className="flex items-center justify-center py-8">
                     <div className="text-muted-foreground">Loading reports...</div>
                   </div>
-                ) : totalReports === 0 ? (
+                ) : filteredReports.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <FileBarChart className="h-12 w-12 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-medium mb-2">No reports found</h3>
@@ -357,32 +263,19 @@ const ReportsPage = () => {
                       </Button>
                     </Link>
                   </div>
-                ) : searchTerm && filteredReports.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Search className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No matching reports</h3>
-                    <p className="text-muted-foreground mb-4">Try adjusting your search term.</p>
-                  </div>
                 ) : groupByClient ? (
-                  <>
-                    <GroupedReportsView
-                      groupedReports={getGroupedReports()}
-                      expandedClients={expandedClients}
-                      toggleClientExpansion={toggleClientExpansion}
-                      getMarkupStatus={getMarkupStatus}
-                    />
-                    {renderPagination()}
-                  </>
+                  <GroupedReportsView
+                    groupedReports={getGroupedReports()}
+                    expandedClients={expandedClients}
+                    toggleClientExpansion={toggleClientExpansion}
+                    getMarkupStatus={getMarkupStatus}
+                  />
                 ) : (
-                  <>
-                    <ReportsTable 
-                      reports={filteredReports} 
-                      getMarkupStatus={getMarkupStatus}
-                      onReportUpdate={loadReports}
-                      clients={clients}
-                    />
-                    {renderPagination()}
-                  </>
+                  <ReportsTable 
+                    reports={filteredReports} 
+                    getMarkupStatus={getMarkupStatus}
+                    onReportUpdate={loadReports}
+                  />
                 )}
               </TabsContent>
               
@@ -398,7 +291,6 @@ const ReportsPage = () => {
                     reports={getWinsReports()} 
                     getMarkupStatus={getMarkupStatus}
                     onReportUpdate={loadReports}
-                    clients={clients}
                   />
                 )}
               </TabsContent>
@@ -415,7 +307,6 @@ const ReportsPage = () => {
                     reports={getLossesReports()} 
                     getMarkupStatus={getMarkupStatus}
                     onReportUpdate={loadReports}
-                    clients={clients}
                   />
                 )}
               </TabsContent>
@@ -432,7 +323,6 @@ const ReportsPage = () => {
                     reports={getSavedReports()} 
                     getMarkupStatus={getMarkupStatus}
                     onReportUpdate={loadReports}
-                    clients={clients}
                   />
                 )}
               </TabsContent>

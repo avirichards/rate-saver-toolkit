@@ -22,10 +22,16 @@ class BackgroundProcessor {
 
   private initializeWorkers() {
     // Create web workers for background processing
-    for (let i = 0; i < this.maxWorkers; i++) {
-      const worker = new Worker(new URL('../workers/analysisWorker.ts', import.meta.url));
-      worker.onmessage = this.handleWorkerMessage.bind(this);
-      this.workers.push(worker);
+    try {
+      for (let i = 0; i < this.maxWorkers; i++) {
+        const worker = new Worker(new URL('../workers/analysisWorker.ts', import.meta.url));
+        worker.onmessage = this.handleWorkerMessage.bind(this);
+        (worker as any).busy = false; // Add busy flag
+        this.workers.push(worker);
+      }
+    } catch (error) {
+      console.warn('Web Workers not supported, falling back to main thread processing');
+      this.maxWorkers = 0;
     }
   }
 
@@ -89,11 +95,11 @@ class BackgroundProcessor {
 
     // Find available worker
     const availableWorker = this.workers.find(worker => 
-      !worker.busy
+      !(worker as any).busy
     );
 
     if (availableWorker) {
-      availableWorker.busy = true;
+      (availableWorker as any).busy = true;
       availableWorker.postMessage({
         taskId,
         type,
@@ -111,9 +117,9 @@ class BackgroundProcessor {
   private queueTask(taskId: string, type: string, data: any, total: number) {
     // Simple queue implementation
     setTimeout(() => {
-      const availableWorker = this.workers.find(worker => !worker.busy);
+      const availableWorker = this.workers.find(worker => !(worker as any).busy);
       if (availableWorker) {
-        availableWorker.busy = true;
+        (availableWorker as any).busy = true;
         availableWorker.postMessage({
           taskId,
           type,
@@ -166,9 +172,9 @@ export const backgroundProcessor = new BackgroundProcessor();
 
 // Hook for using background tasks
 export const useBackgroundTasks = () => {
-  const [tasks, setTasks] = React.useState<BackgroundTask[]>([]);
+  const [tasks, setTasks] = useState<BackgroundTask[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleTaskUpdate = (event: CustomEvent) => {
       setTasks(backgroundProcessor.getAllTasks());
     };

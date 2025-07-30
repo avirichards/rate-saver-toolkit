@@ -2315,11 +2315,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="account-comparison" className="flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Account Comparison
-            </TabsTrigger>
+          <TabsList className={cn("grid w-full", isClientView ? "grid-cols-3" : "grid-cols-4")}>
+            {!isClientView && (
+              <TabsTrigger value="account-comparison" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Account Comparison
+              </TabsTrigger>
+            )}
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart className="h-4 w-4" />
               Overview
@@ -2496,7 +2498,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                         <TableHead className="text-right text-foreground">Avg Weight</TableHead>
                         <TableHead className="text-right text-foreground">Avg Savings ($)</TableHead>
                         <TableHead className="text-right text-foreground">Avg Savings (%)</TableHead>
-                        <TableHead className="text-foreground">Account</TableHead>
+                        {!isClientView && <TableHead className="text-foreground">Account</TableHead>}
                       </TableRow>
                     </TableHeader>
                      <TableBody className="bg-background">
@@ -2585,50 +2587,52 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                      {formatPercentage(avgSavingsPercentWithMarkup)}
                                    </span>
                                  </TableCell>
-                                 <TableCell>
-                                   {(() => {
-                                       // Get all accounts used for this service
-                                       const serviceShipments = shipmentData
-                                         .filter(item => item.customer_service === service);
-                                      
-                                      const accountCounts = serviceShipments.reduce((acc, item) => {
-                                         // Use the same account resolution logic as the Shipment Data tab
-                                          const account = item.account || 
-                                                         (typeof item.analyzedWithAccount === 'object' ? item.analyzedWithAccount?.name : item.analyzedWithAccount) || 
-                                                         (item.accountId ? accountNames[item.accountId] : null) ||
-                                                         item.accountName || 
-                                                         analysisData?.bestAccount || 
-                                                         'Best Overall';
-                                        acc[account] = (acc[account] || 0) + 1;
-                                        return acc;
-                                      }, {} as Record<string, number>);
-                                     
-                                     const accounts = Object.entries(accountCounts);
-                                     
-                                     // If only one account, show single badge
-                                     if (accounts.length === 1) {
-                                       return (
-                                         <Badge variant="secondary" className="text-xs">
-                                           {accounts[0][0]}
-                                         </Badge>
-                                       );
-                                     }
-                                     
-                                     // If multiple accounts, show all with counts
-                                     return (
-                                       <div className="flex flex-wrap gap-1">
-                                         {accounts
-                                           .sort(([,a], [,b]) => (b as number) - (a as number))
-                                           .map(([account, count]) => (
-                                              <Badge key={account} variant="secondary" className="text-xs">
-                                                {account} ({count as number})
-                                              </Badge>
-                                           ))
-                                         }
-                                       </div>
-                                     );
-                                   })()}
-                                 </TableCell>
+                                  {!isClientView && (
+                                    <TableCell>
+                                      {(() => {
+                                          // Get all accounts used for this service
+                                          const serviceShipments = shipmentData
+                                            .filter(item => item.customer_service === service);
+                                         
+                                         const accountCounts = serviceShipments.reduce((acc, item) => {
+                                            // Use the same account resolution logic as the Shipment Data tab
+                                             const account = item.account || 
+                                                            (typeof item.analyzedWithAccount === 'object' ? item.analyzedWithAccount?.name : item.analyzedWithAccount) || 
+                                                            (item.accountId ? accountNames[item.accountId] : null) ||
+                                                            item.accountName || 
+                                                            analysisData?.bestAccount || 
+                                                            'Best Overall';
+                                           acc[account] = (acc[account] || 0) + 1;
+                                           return acc;
+                                         }, {} as Record<string, number>);
+                                        
+                                        const accounts = Object.entries(accountCounts);
+                                        
+                                        // If only one account, show single badge
+                                        if (accounts.length === 1) {
+                                          return (
+                                            <Badge variant="secondary" className="text-xs">
+                                              {accounts[0][0]}
+                                            </Badge>
+                                          );
+                                        }
+                                        
+                                        // If multiple accounts, show all with counts
+                                        return (
+                                          <div className="flex flex-wrap gap-1">
+                                            {accounts
+                                              .sort(([,a], [,b]) => (b as number) - (a as number))
+                                              .map(([account, count]) => (
+                                                 <Badge key={account} variant="secondary" className="text-xs">
+                                                   {account} ({count as number})
+                                                 </Badge>
+                                              ))
+                                            }
+                                          </div>
+                                        );
+                                      })()}
+                                    </TableCell>
+                                  )}
                               </TableRow>
                             );
                          });
@@ -3057,7 +3061,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                              {editMode && <TableHead className="text-right text-foreground w-20">Savings</TableHead>}
                              {!editMode && <TableHead className="text-right text-foreground w-20">Ship Pros Rate</TableHead>}
                              {!editMode && <TableHead className="text-right text-foreground w-20">Savings</TableHead>}
-                             {!editMode && <TableHead className="text-foreground w-20">Account</TableHead>}
+                              {!editMode && !isClientView && <TableHead className="text-foreground w-20">Account</TableHead>}
                              {editMode && <TableHead className="text-foreground w-16">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
@@ -3180,11 +3184,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                                 </span>
                               </div>
                             </TableCell>
-                              <TableCell>
-                                <Badge variant="secondary" className="text-xs">
-                                  {item.analyzedWithAccount?.name || item.accountName || analysisData?.bestAccount || 'Unknown Account'}
-                                </Badge>
-                              </TableCell>
+                               {!isClientView && (
+                                 <TableCell>
+                                   <Badge variant="secondary" className="text-xs">
+                                     {item.analyzedWithAccount?.name || item.accountName || analysisData?.bestAccount || 'Unknown Account'}
+                                   </Badge>
+                                 </TableCell>
+                               )}
                            </TableRow>
                          )
                        )}

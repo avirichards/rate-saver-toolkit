@@ -250,14 +250,44 @@ const Analysis = () => {
       setValidationSummary(summary);
       
       
-      // Store invalid shipments in analysis results for tracking
+      // Store invalid shipments in analysis results for tracking AND send to orphans immediately
       const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
         shipment,
         status: 'error' as const,
         error: `Validation failed: ${reasons.join(', ')}`,
         errorType: 'validation_error',
-        errorCategory: 'Data Validation'
+        errorCategory: 'Data Validation',
+        originalService: shipment.service || 'Unknown'
       }));
+      
+      // Send validation failures to orphans immediately
+      if (invalidResults.length > 0) {
+        const orphanedShipments = invalidResults.map(result => ({
+          shipment: result.shipment,
+          error: result.error,
+          errorType: result.errorType,
+          customer_service: result.originalService,
+          status: 'error'
+        }));
+        
+        const state = location.state as any;
+        const orphanPayload = {
+          fileName: state?.fileName || 'Real-time Analysis',
+          totalShipments: shipmentsToAnalyze.length,
+          completedShipments: 0,
+          errorShipments: invalidResults.length,
+          totalCurrentCost: 0,
+          totalPotentialSavings: 0,
+          recommendations: [],
+          orphanedShipments,
+          originalData: invalidResults,
+          carrierConfigsUsed: selectedCarriers,
+          serviceMappings: serviceMappings
+        };
+        
+        console.log('🚨 Sending validation failures to orphans:', orphanedShipments.length);
+        await finalizeAnalysis(orphanPayload);
+      }
       
       // Initialize results with both valid (pending) and invalid (error) shipments
       const initialResults = [

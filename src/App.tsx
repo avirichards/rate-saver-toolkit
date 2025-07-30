@@ -11,7 +11,7 @@ import NotFound from "./pages/NotFound";
 import Upload from "./pages/Upload";
 import Mapping from "./pages/Mapping";
 import ServiceMapping from "./pages/ServiceMapping";
-import OptimizedAnalysis from "./pages/OptimizedAnalysis";
+import Analysis from "./pages/Analysis";
 import Results from "./pages/Results";
 import Dashboard from "./pages/Dashboard";
 import ReportsPage from "./pages/Reports";
@@ -43,7 +43,7 @@ const App = () => (
               <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
               <Route path="/mapping" element={<ProtectedRoute><Mapping /></ProtectedRoute>} />
               <Route path="/service-mapping" element={<ProtectedRoute><ServiceMapping /></ProtectedRoute>} />
-              <Route path="/analysis" element={<ProtectedRoute><OptimizedAnalysis /></ProtectedRoute>} />
+              <Route path="/analysis" element={<ProtectedRoute><Analysis /></ProtectedRoute>} />
               <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
               <Route path="/reports/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />

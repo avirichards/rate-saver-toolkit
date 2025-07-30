@@ -16,7 +16,6 @@ import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/
 import { getCarrierServiceCode, CarrierType, getUniversalCategoryFromCarrierCode } from '@/utils/carrierServiceRegistry';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
-import { useProgressiveBatching } from '@/hooks/useProgressiveBatching';
 
 interface ProcessedShipment {
   id: number;
@@ -92,26 +91,7 @@ const Analysis = () => {
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const [hasLoadedInitialCarriers, setHasLoadedInitialCarriers] = useState(false);
-  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
-  
-  // TEMPORARILY DISABLE progressive batching to debug performance
-  const { addCompletedShipment, finalizeBatching, getPendingCount } = {
-    addCompletedShipment: (_completed: any) => {}, // No-op for now
-    finalizeBatching: async () => {}, // No-op for now  
-    getPendingCount: () => 0 // No-op for now
-  };
-  
-  // TODO: Re-enable once we identify the slowdown
-  // const { addCompletedShipment, finalizeBatching, getPendingCount } = useProgressiveBatching(
-  //   analysisId,
-  //   {
-  //     batchSize: 100,
-  //     batchTimeoutMs: 45000,
-  //     onBatchSaved: (batchSize) => console.log(`📦 Background save: ${batchSize} shipments`),
-  //     onError: (error) => console.error('Progressive batching error:', error)
-  //   }
-  // );
   
   useEffect(() => {
     const state = location.state as { 
@@ -515,12 +495,7 @@ const Analysis = () => {
       
       // Only mark complete if we processed all shipments and weren't paused
       if (!isPaused) {
-        console.log('✅ Analysis complete, finalizing progressive batching');
-        
-        // Finalize any remaining batched shipments before marking complete
-        await finalizeBatching();
-        
-        console.log('✅ Progressive batching complete, updating database');
+        console.log('✅ Analysis complete, updating database');
         setIsComplete(true);
         await updateAnalysisRecord(analysisId);
       }
@@ -621,7 +596,6 @@ const Analysis = () => {
     }
 
     console.log('✅ Analysis record created successfully:', data.id);
-    setAnalysisId(data.id); // Store analysis ID for progressive batching
     return data.id;
   };
 
@@ -662,12 +636,17 @@ const Analysis = () => {
   
   const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
     const maxRetries = 2;
-    const startTime = performance.now(); // ADD PERFORMANCE MONITORING
     
-    // SIMPLIFIED: Minimal logging for rate card performance
-    if (index % 100 === 0) { // Only log every 100th shipment
-      console.log(`📦 Processing batch: shipments ${index + 1}...`);
-    }
+    console.log(`🔍 Processing shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
+      shipmentId: shipment.id,
+      service: shipment.service,
+      carrier: shipment.carrier,
+      originZip: shipment.originZip,
+      destZip: shipment.destZip,
+      weight: shipment.weight,
+      currentRate: shipment.currentRate,
+      isRetry: retryCount > 0
+    });
     
       // Update status to processing using shipment ID-based update to prevent race conditions
       setAnalysisResults(prev => {
@@ -943,26 +922,19 @@ const Analysis = () => {
           serviceTypes: shipmentRequest.serviceTypes,
           equivalentServiceCode: shipmentRequest.equivalentServiceCode,
           isResidential: shipmentRequest.isResidential
-         }
-       });
-       
-       const apiStartTime = performance.now(); // TIMING: API call start
-       console.log(`🚀 Starting API call for shipment ${index + 1} at ${apiStartTime.toFixed(2)}ms`);
-       
-       const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
-         body: { 
-           shipment: {
-             ...shipmentRequest,
-             carrierConfigIds: selectedCarriers,
-             analysisId: analysisId, // Pass analysis ID for saving individual rates
-             shipmentIndex: index // Pass shipment index for tracking
-           }
-         }
-       });
-       
-       const apiEndTime = performance.now(); // TIMING: API call end  
-       const apiDuration = apiEndTime - apiStartTime;
-       console.log(`⏱️ API call completed for shipment ${index + 1} in ${apiDuration.toFixed(2)}ms`);
+        }
+      });
+      
+      const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
+        body: { 
+          shipment: {
+            ...shipmentRequest,
+            carrierConfigIds: selectedCarriers,
+            analysisId: analysisId, // Pass analysis ID for saving individual rates
+            shipmentIndex: index // Pass shipment index for tracking
+          }
+        }
+      });
 
       console.log(`📦 Multi-carrier API response for shipment ${index + 1}:`, {
         hasData: !!data,
@@ -1266,25 +1238,7 @@ const Analysis = () => {
               mappingValid: updatedResult.mappingValidation?.isValid
             });
             
-            // Add completed shipment to progressive batching
-            addCompletedShipment({
-              shipment,
-              currentCost,
-              allRates: data.allRates,
-              carrierResults: data.carrierResults,
-              bestRate: comparisonRate,
-              bestOverallRate: bestRate,
-              savings,
-              maxSavings,
-              expectedServiceCode: equivalentServiceCode,
-              mappingValidation
-             });
-             
-             const endTime = performance.now(); // TIMING: Total processing time
-             const totalDuration = endTime - startTime;
-             console.log(`🏁 PERFORMANCE: Shipment ${index + 1} completed in ${totalDuration.toFixed(2)}ms (API: ${apiDuration.toFixed(2)}ms)`);
-             
-             return updatedResult;
+            return updatedResult;
           }
           return result;
         });
@@ -1434,10 +1388,6 @@ const Analysis = () => {
     });
 
     try {
-      // Finalize any remaining progressive batches before completing analysis
-      await finalizeBatching();
-      console.log(`📦 Finalized progressive batching. Pending batches: ${getPendingCount()}`);
-      
       // Format data for the finalize endpoint
       const recommendations = completedResults.map((result, index) => ({
         shipment: result.shipment,
@@ -1503,10 +1453,6 @@ const Analysis = () => {
     });
 
     try {
-      // Finalize any remaining progressive batches before stopping analysis
-      await finalizeBatching();
-      console.log(`📦 Finalized progressive batching for partial results. Pending batches: ${getPendingCount()}`);
-      
       // Format data for the finalize endpoint (same as handleViewResults)
       const recommendations = completedResults.map((result, index) => ({
         shipment: result.shipment,
@@ -1686,14 +1632,6 @@ const Analysis = () => {
               </div>
             </div>
             <Progress value={progress} className="h-2" />
-            
-            {/* Progressive Batching Status */}
-            {isAnalyzing && getPendingCount() > 0 && (
-              <div className="text-xs text-muted-foreground mt-2 flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                {getPendingCount()} shipments pending auto-save
-              </div>
-            )}
             
             {/* Control Buttons */}
             {(isAnalyzing || completedCount > 0) && !isComplete && (

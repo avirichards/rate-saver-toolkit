@@ -8,15 +8,22 @@ export interface AddressValidationResult {
 
 // Validate US ZIP codes (5 digit or 5+4 format) - auto-extract first 5 digits
 export function validateZipCode(zipCode: string): AddressValidationResult {
+  console.log('🔍 ZIP VALIDATION INPUT:', zipCode, typeof zipCode);
+  
   if (!zipCode || typeof zipCode !== 'string') {
+    console.log('❌ ZIP VALIDATION FAILED: Missing or invalid type');
     return { isValid: false, errors: ['ZIP code is required'] };
   }
 
   const cleaned = zipCode.trim().replace(/\s+/g, '');
+  console.log('🔍 ZIP CLEANED:', cleaned);
   
   // Extract first 5 digits from any string
   const digitMatch = cleaned.match(/\d{5}/);
+  console.log('🔍 ZIP DIGIT MATCH:', digitMatch);
+  
   if (!digitMatch) {
+    console.log('❌ ZIP VALIDATION FAILED: No 5 digits found');
     return { 
       isValid: false, 
       errors: ['ZIP code must contain at least 5 digits'] 
@@ -24,6 +31,7 @@ export function validateZipCode(zipCode: string): AddressValidationResult {
   }
   
   const extractedZip = digitMatch[0];
+  console.log('✅ ZIP VALIDATION SUCCESS:', extractedZip);
   
   return { 
     isValid: true, 

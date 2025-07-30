@@ -225,6 +225,11 @@ const Analysis = () => {
     try {
       
       const validationResults = await validateShipments(shipmentsToAnalyze);
+      console.log('🔍 VALIDATION RESULTS SUMMARY:', {
+        totalShipments: shipmentsToAnalyze.length,
+        validationResultsCount: Object.keys(validationResults).length,
+        sampleResults: Object.values(validationResults).slice(0, 3)
+      });
       
       // Track both valid and invalid shipments with detailed reasons
       const validShipments: ProcessedShipment[] = [];
@@ -232,12 +237,20 @@ const Analysis = () => {
       
       shipmentsToAnalyze.forEach((shipment, index) => {
         const result = validationResults[index];
+        console.log(`🔍 VALIDATION CHECK ${index}:`, {
+          shipmentId: shipment.id,
+          hasResult: !!result,
+          isValid: result?.isValid,
+          errors: result?.errors,
+          warnings: result?.warnings
+        });
+        
         if (result && result.isValid) {
           validShipments.push(shipment);
         } else {
           const reasons = result?.errors ? Object.values(result.errors).flat() : ['Validation failed'];
           invalidShipments.push({ shipment, reasons });
-          
+          console.log(`❌ SHIPMENT ${index} INVALID:`, { shipment: shipment.id, reasons });
         }
       });
       
@@ -247,8 +260,14 @@ const Analysis = () => {
         invalid: invalidShipments.length
       };
       
-      setValidationSummary(summary);
+      console.log('🔍 VALIDATION SUMMARY:', {
+        total: shipmentsToAnalyze.length,
+        valid: validShipments.length,
+        invalid: invalidShipments.length,
+        invalidReasons: invalidShipments.map(i => i.reasons)
+      });
       
+      setValidationSummary(summary);
       
       // Store invalid shipments in analysis results for tracking AND send to orphans immediately
       const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
@@ -262,6 +281,7 @@ const Analysis = () => {
       
       // Send validation failures to orphans immediately
       if (invalidResults.length > 0) {
+        console.log('🚨 SENDING TO ORPHANS:', invalidResults.length, 'validation failures');
         const orphanedShipments = invalidResults.map(result => ({
           shipment: result.shipment,
           error: result.error,
@@ -285,8 +305,9 @@ const Analysis = () => {
           serviceMappings: serviceMappings
         };
         
-        console.log('🚨 Sending validation failures to orphans:', orphanedShipments.length);
+        console.log('🚨 ORPHAN PAYLOAD:', orphanPayload);
         await finalizeAnalysis(orphanPayload);
+        console.log('✅ SENT TO ORPHANS SUCCESSFULLY');
       }
       
       // Initialize results with both valid (pending) and invalid (error) shipments

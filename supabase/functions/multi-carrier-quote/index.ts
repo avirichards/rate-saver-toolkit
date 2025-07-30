@@ -210,8 +210,8 @@ serve(async (req) => {
               }
             };
             
-            const mappedService = serviceCodeMapping[carrierType]?.[serviceType];
-            console.log(`🔄 Service mapping for ${config.account_name} (${carrierType}): ${serviceType} -> ${mappedService || serviceType}`);
+            const mappedService = serviceCodeMapping[carrierType.toUpperCase()]?.[serviceType];
+            console.log(`🔄 Service mapping for ${config.account_name} (${carrierType.toUpperCase()}): ${serviceType} -> ${mappedService || serviceType}`);
             return mappedService || serviceType;
           }).filter(Boolean);
         }

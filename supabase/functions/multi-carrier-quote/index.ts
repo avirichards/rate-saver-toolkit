@@ -160,14 +160,7 @@ serve(async (req) => {
           
           // Map service codes to carrier-specific codes
           servicesToRequest = servicesToRequest.map(serviceType => {
-            // If it's already a carrier-specific code for this carrier, use it
-            if ((carrierType === 'UPS' && serviceType.length <= 3 && /^\d+$/.test(serviceType)) ||
-                (carrierType === 'FEDEX' && serviceType.includes('_')) ||
-                (carrierType === 'DHL' && serviceType.includes('_')) ||
-                (carrierType === 'AMAZON' && serviceType === 'GROUND')) {
-              return serviceType;
-            }
-            
+            const carrierType = config.carrier_type.toUpperCase();
             // Universal service to carrier-specific service mapping
             const serviceCodeMapping: Record<string, Record<string, string>> = {
               'UPS': {
@@ -211,12 +204,12 @@ serve(async (req) => {
             };
             
             
-            const mappedService = serviceCodeMapping[carrierType.toUpperCase()]?.[serviceType];
-            console.log(`🔄 Service mapping for ${config.account_name} (${carrierType.toUpperCase()}): ${serviceType} -> ${mappedService || serviceType}`);
+            const mappedService = serviceCodeMapping[carrierType]?.[serviceType];
+            console.log(`🔄 Service mapping for ${config.account_name} (${carrierType}): ${serviceType} -> ${mappedService || serviceType}`);
             console.log(`🔍 Mapping debug:`, {
-              carrierType: carrierType.toUpperCase(),
+              carrierType: carrierType,
               serviceType,
-              availableMappings: Object.keys(serviceCodeMapping[carrierType.toUpperCase()] || {}),
+              availableMappings: Object.keys(serviceCodeMapping[carrierType] || {}),
               mappedService,
               finalService: mappedService || serviceType
             });

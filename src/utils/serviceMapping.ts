@@ -135,6 +135,22 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
 
   // FedEx specific mappings
   if (service.includes('fedex')) {
+    // FedEx Express Saver should map to 3-Day Select
+    if (service.includes('express saver') || service.includes('express save')) {
+      return {
+        standardizedService: UniversalServiceCategory.THREE_DAY,
+        serviceName: '3-Day Select',
+        confidence: 0.95
+      };
+    }
+    // FedEx Home Delivery is ground residential
+    if (service.includes('home delivery') || service.includes('home deliver')) {
+      return {
+        standardizedService: UniversalServiceCategory.GROUND,
+        serviceName: 'Ground',
+        confidence: 0.95
+      };
+    }
     if (service.includes('overnight') || service.includes('priority overnight')) {
       return {
         standardizedService: UniversalServiceCategory.OVERNIGHT,
@@ -156,6 +172,15 @@ export function mapServiceToServiceCode(serviceName: string): ServiceMapping {
         confidence: 0.85
       };
     }
+  }
+
+  // Home delivery patterns (general, not just FedEx)
+  if (service.includes('home delivery') || service.includes('home deliver')) {
+    return {
+      standardizedService: UniversalServiceCategory.GROUND,
+      serviceName: 'Ground',
+      confidence: 0.9
+    };
   }
 
   // DHL specific mappings

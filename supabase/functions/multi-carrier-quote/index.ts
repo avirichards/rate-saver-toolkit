@@ -197,59 +197,9 @@ serve(async (req) => {
             }
           }
           
-          // Fall back to default universal service to carrier-specific service mapping
-          const serviceCodeMapping: Record<string, Record<string, string>> = {
-              'UPS': {
-                'GROUND': '03',
-                'OVERNIGHT': '01',
-                'OVERNIGHT_SAVER': '13',
-                'OVERNIGHT_EARLY': '14',
-                'TWO_DAY': '02',
-                'TWO_DAY_MORNING': '59',
-                'THREE_DAY': '12',
-                'INTERNATIONAL_EXPRESS': '07',
-                'INTERNATIONAL_EXPEDITED': '08',
-                'INTERNATIONAL_SAVER': '11',
-                'INTERNATIONAL_STANDARD': '65',
-                // Legacy numeric codes (pass through)
-                '01': '01', '13': '13', '14': '14', '02': '02', '59': '59',
-                '12': '12', '03': '03', '07': '07', '08': '08', '11': '11', '65': '65'
-              },
-              'FEDEX': {
-                'GROUND': 'FEDEX_GROUND',
-                'OVERNIGHT': 'PRIORITY_OVERNIGHT',
-                'OVERNIGHT_SAVER': 'STANDARD_OVERNIGHT',
-                'OVERNIGHT_EARLY': 'FIRST_OVERNIGHT',
-                'TWO_DAY': 'FEDEX_2_DAY',
-                'TWO_DAY_MORNING': 'FEDEX_2_DAY_AM',
-                'THREE_DAY': 'FEDEX_EXPRESS_SAVER',
-                'INTERNATIONAL_EXPRESS': 'INTERNATIONAL_PRIORITY',
-                'INTERNATIONAL_EXPEDITED': 'INTERNATIONAL_ECONOMY'
-              },
-              'AMAZON': {
-                'GROUND': 'GROUND'
-                // Amazon ONLY supports ground service - don't map other services
-              },
-              'DHL': {
-                'OVERNIGHT': 'EXPRESS_10_30',
-                'OVERNIGHT_EARLY': 'EXPRESS_9_00',
-                'TWO_DAY': 'EXPRESS_12_00',
-                'INTERNATIONAL_EXPRESS': 'EXPRESS_WORLDWIDE',
-                'INTERNATIONAL_EXPEDITED': 'EXPRESS_EASY'
-              }
-            };
-            
-            
-            const mappedService = serviceCodeMapping[carrierType]?.[serviceType];
-            console.log(`🔄 Service mapping for ${config.account_name} (${carrierType}): ${serviceType} -> ${mappedService || serviceType}`);
-            console.log(`🔍 Mapping debug:`, {
-              carrierType: carrierType,
-              serviceType,
-              availableMappings: Object.keys(serviceCodeMapping[carrierType] || {}),
-              mappedService,
-              finalService: mappedService || serviceType
-            });
-            return mappedService || serviceType;
+          // No custom mapping found - log and skip this service
+          console.log(`⚠️ No custom mapping found for ${config.account_name} (${carrierType}): ${serviceType} - skipping service`);
+          return null;
           }).filter(Boolean);
         }
         

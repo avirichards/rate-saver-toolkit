@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui-lov/Button';
@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
+import { VirtualizedAnalysisResults } from '@/components/ui-lov/VirtualizedAnalysisResults';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
 import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/serviceMapping';
 import { getCarrierServiceCode, CarrierType, getUniversalCategoryFromCarrierCode } from '@/utils/carrierServiceRegistry';
@@ -105,45 +106,22 @@ const Analysis = () => {
       uploadTimestamp?: number
     } | null;
     
-    // Add comprehensive data freshness validation
-    console.log('🔍 CSV DATA INTEGRITY: Analyzing received state:', {
-      hasState: !!state,
-      readyForAnalysis: state?.readyForAnalysis,
-      csvDataCount: state?.csvData?.length || 0,
-      fileName: state?.fileName,
-      uploadTimestamp: state?.uploadTimestamp,
-      dataFreshness: state?.uploadTimestamp ? `${Date.now() - state.uploadTimestamp}ms ago` : 'unknown',
-      mappingsCount: Object.keys(state?.mappings || {}).length,
-      serviceMappingsCount: state?.serviceMappings?.length || 0
-    });
+    // Validate state data
     
     if (!state || !state.readyForAnalysis || !state.csvData || !state.mappings) {
-      console.error('🚫 CSV DATA INTEGRITY: Missing required state for analysis');
       toast.error('Please complete the service mapping review first');
       navigate('/service-mapping');
       return;
     }
     
-    // Add data freshness warning
-    if (state.uploadTimestamp && (Date.now() - state.uploadTimestamp) > 300000) { // 5 minutes
-      console.warn('⚠️ CSV DATA INTEGRITY: Using potentially stale data', {
-        ageMinutes: Math.round((Date.now() - state.uploadTimestamp) / 60000)
-      });
+    // Check data freshness
+    if (state.uploadTimestamp && (Date.now() - state.uploadTimestamp) > 300000) {
+      toast.warning('Using data older than 5 minutes');
     }
     
-    console.log('🔍 Analysis - Received navigation state:', {
-      hasServiceMappings: !!state.serviceMappings,
-      serviceMappingsCount: state.serviceMappings?.length || 0,
-      serviceMappings: state.serviceMappings?.map(m => ({
-        original: m.original,
-        standardizedService: m.standardizedService,
-        standardized: m.standardized
-      }))
-    });
     
     // Validate service mappings exist
     if (!state.serviceMappings || state.serviceMappings.length === 0) {
-      console.error('🚫 No service mappings found in navigation state');
       toast.error('No service mappings found. Please complete the service mapping step first.');
       navigate('/service-mapping', { 
         state: { 
@@ -158,12 +136,6 @@ const Analysis = () => {
     }
     
     // Process CSV data into shipments using the confirmed mappings
-    console.log('🗂️ COLUMN MAPPINGS DEBUG: Processing CSV data with mappings:', {
-      mappings: state.mappings,
-      csvHeaders: Object.keys(state.csvData[0] || {}),
-      currentRateMapping: state.mappings.currentRate,
-      sampleRow: state.csvData[0]
-    });
     
     const processedShipments = state.csvData.map((row, index) => {
       const shipment: ProcessedShipment = { id: index + 1 };
@@ -176,16 +148,6 @@ const Analysis = () => {
           }
           (shipment as any)[fieldName] = value;
           
-          // Debug the currentRate mapping specifically
-          if (fieldName === 'currentRate') {
-            console.log(`💰 CURRENT RATE MAPPING: Row ${index + 1}:`, {
-              fieldName,
-              csvHeader,
-              rawValue: row[csvHeader],
-              processedValue: value,
-              allRowValues: Object.keys(row).map(key => ({ [key]: row[key] }))
-            });
-          }
         }
       });
       
@@ -197,55 +159,11 @@ const Analysis = () => {
       return shipment;
     });
 
-    // Add comprehensive CSV data validation and logging
-    console.log('🔍 CSV DATA INTEGRITY: Processing shipments with current data:', {
-      totalShipments: processedShipments.length,
-      fileName: state.fileName,
-      uploadTimestamp: state.uploadTimestamp,
-      sampleShipmentData: processedShipments.slice(0, 3).map(s => ({
-        id: s.id,
-        trackingId: s.trackingId,
-        service: s.service,
-        weight: s.weight,
-        dimensions: `${s.length || 'N/A'} x ${s.width || 'N/A'} x ${s.height || 'N/A'}`,
-        currentRate: s.currentRate,
-        originZip: s.originZip,
-        destZip: s.destZip
-      })),
-      mappingsUsed: Object.entries(state.mappings).filter(([_, header]) => header && header !== "__NONE__")
-    });
     
-    // Add specific tracking ID validation for the reported issue
-    const targetTrackingId = "1ZJ74F34YW27282266";
-    const targetShipment = processedShipments.find(s => s.trackingId === targetTrackingId);
-    if (targetShipment) {
-      console.log('🎯 CSV DATA INTEGRITY: Found target shipment with updated data:', {
-        trackingId: targetShipment.trackingId,
-        service: targetShipment.service,
-        weight: targetShipment.weight,
-        currentDimensions: `${targetShipment.length || 'N/A'} x ${targetShipment.width || 'N/A'} x ${targetShipment.height || 'N/A'}`,
-        expectedDimensions: "22 x 8 x 7", // From user's updated spreadsheet
-        dimensionsMatch: targetShipment.length === "22" && targetShipment.width === "8" && targetShipment.height === "7",
-        currentRate: targetShipment.currentRate,
-        rawRowData: state.csvData.find((row, idx) => idx === (targetShipment.id - 1))
-      });
-    } else {
-      console.warn('⚠️ CSV DATA INTEGRITY: Target shipment not found in current data:', targetTrackingId);
-    }
-
-    console.log(`✅ CSV DATA INTEGRITY: Successfully processed ${processedShipments.length} shipments from fresh CSV data`);
     setShipments(processedShipments);
     
-    // Set service mappings with debugging
-    console.log('🔍 Setting service mappings:', state.serviceMappings.length);
+    // Set service mappings
     setServiceMappings(state.serviceMappings);
-    
-    // Add data integrity validation display
-    if (targetShipment) {
-      toast.success(`✅ Data Integrity: Found updated shipment ${targetTrackingId} with dimensions ${targetShipment.length}x${targetShipment.width}x${targetShipment.height}`, {
-        duration: 8000,
-      });
-    }
     
     // Check if we have a residential field mapped from CSV
     const residentialField = Object.entries(state.mappings).find(([fieldName, csvHeader]) => 
@@ -253,7 +171,6 @@ const Analysis = () => {
     );
     if (residentialField) {
       setCsvResidentialField(residentialField[1]);
-      console.log('Found residential field mapping:', residentialField[1]);
     }
     
     // Initialize analysis results
@@ -276,7 +193,6 @@ const Analysis = () => {
         if (!user) return;
 
         // Don't auto-select any carriers - let user explicitly choose
-        console.log('📋 Available carrier configs loaded, waiting for user selection');
         setHasLoadedInitialCarriers(true);
       } catch (error) {
         console.error('Error loading carrier configs:', error);
@@ -292,29 +208,8 @@ const Analysis = () => {
 
     // Wait for both service mappings and explicit carrier selection to complete
     useEffect(() => {
-      console.log('🎯 Analysis readiness check:', {
-        readyToAnalyze,
-        serviceMappingsCount: serviceMappings.length,
-        shipmentsCount: shipments.length,
-        selectedCarriersCount: selectedCarriers.length,
-        carrierSelectionComplete,
-        isAnalysisStarted,
-        selectedCarriers: selectedCarriers
-      });
-      
       if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && 
           selectedCarriers.length > 0 && carrierSelectionComplete && !isAnalysisStarted) {
-      console.log('🚀 Starting analysis with service mappings and carriers:', {
-        serviceMappingsCount: serviceMappings.length,
-        shipmentsCount: shipments.length,
-        selectedCarriersCount: selectedCarriers.length,
-        isAnalysisStarted,
-        mappings: serviceMappings.map(m => ({
-          original: m.original,
-          standardizedService: m.standardizedService,
-          standardized: m.standardized
-        }))
-      });
       
       setIsAnalysisStarted(true); // Prevent duplicate analysis starts
       validateAndStartAnalysis(shipments);
@@ -327,19 +222,6 @@ const Analysis = () => {
     setError(null);
     
     try {
-      // Enhanced validation with detailed tracking
-      console.log('🔍 DATA INTEGRITY: Starting validation of shipments:', {
-        totalShipments: shipmentsToAnalyze.length,
-        sampleShipments: shipmentsToAnalyze.slice(0, 3).map(s => ({
-          id: s.id,
-          trackingId: s.trackingId,
-          service: s.service,
-          originZip: s.originZip,
-          destZip: s.destZip,
-          weight: s.weight,
-          currentRate: s.currentRate
-        }))
-      });
       
       const validationResults = await validateShipments(shipmentsToAnalyze);
       
@@ -355,19 +237,6 @@ const Analysis = () => {
           const reasons = result?.errors ? Object.values(result.errors).flat() : ['Validation failed'];
           invalidShipments.push({ shipment, reasons });
           
-          // Log each dropped shipment for tracking
-          console.warn('🚫 DATA INTEGRITY: Dropping invalid shipment during validation:', {
-            shipmentId: shipment.id,
-            trackingId: shipment.trackingId,
-            reasons,
-            rawData: {
-              service: shipment.service,
-              originZip: shipment.originZip,
-              destZip: shipment.destZip,
-              weight: shipment.weight,
-              currentRate: shipment.currentRate
-            }
-          });
         }
       });
       
@@ -379,25 +248,6 @@ const Analysis = () => {
       
       setValidationSummary(summary);
       
-      // Critical data integrity check
-      if (summary.total !== summary.valid + summary.invalid) {
-        console.error('🚨 DATA INTEGRITY ERROR: Shipment count mismatch!', {
-          original: summary.total,
-          valid: summary.valid,
-          invalid: summary.invalid,
-          sum: summary.valid + summary.invalid
-        });
-      }
-      
-      console.log('✅ DATA INTEGRITY: Validation complete:', {
-        summary,
-        validShipmentIds: validShipments.map(s => s.id),
-        invalidShipmentDetails: invalidShipments.map(i => ({
-          id: i.shipment.id,
-          trackingId: i.shipment.trackingId,
-          reasons: i.reasons
-        }))
-      });
       
       // Store invalid shipments in analysis results for tracking
       const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
@@ -440,11 +290,6 @@ const Analysis = () => {
     setCurrentShipmentIndex(0);
     setError(null);
     
-    console.log('🚀 Starting parallel batch analysis of shipments:', {
-      totalShipments: shipmentsToAnalyze.length,
-      serviceMappingsAvailable: serviceMappings.length,
-      batchSize: 6 // Process 6 shipments concurrently
-    });
     
     try {
       // Validate carrier configuration first and get filtered carriers
@@ -457,8 +302,8 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
       
-      // Process shipments in parallel batches for much faster processing
-      const batchSize = 100; // Process 100 shipments concurrently - MAXIMUM SPEED MODE
+      // Process shipments in optimized batches to prevent browser overload
+      const batchSize = 25; // Optimized batch size for performance
       const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
@@ -472,7 +317,7 @@ const Analysis = () => {
         const endIndex = Math.min(startIndex + batchSize, shipmentsToAnalyze.length);
         const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
         
-        console.log(`🔄 Processing batch ${batchIndex + 1}/${totalBatches} (shipments ${startIndex + 1}-${endIndex})`);
+        
         
         // Process all shipments in the batch concurrently
         const batchPromises = batch.map((shipment, indexInBatch) => {
@@ -487,15 +332,14 @@ const Analysis = () => {
         // Update progress to reflect completed batch
         setCurrentShipmentIndex(endIndex - 1);
         
-        // Minimal delay between batches for extreme speed
+        // Small delay between batches for UI responsiveness
         if (batchIndex < totalBatches - 1 && !isPaused) {
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
       
       // Only mark complete if we processed all shipments and weren't paused
       if (!isPaused) {
-        console.log('✅ Analysis complete, updating database');
         setIsComplete(true);
         await updateAnalysisRecord(analysisId);
       }
@@ -637,17 +481,6 @@ const Analysis = () => {
   const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
     const maxRetries = 2;
     
-    console.log(`🔍 Processing shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
-      shipmentId: shipment.id,
-      service: shipment.service,
-      carrier: shipment.carrier,
-      originZip: shipment.originZip,
-      destZip: shipment.destZip,
-      weight: shipment.weight,
-      currentRate: shipment.currentRate,
-      isRetry: retryCount > 0
-    });
-    
       // Update status to processing using shipment ID-based update to prevent race conditions
       setAnalysisResults(prev => {
         return prev.map(result => 
@@ -658,22 +491,6 @@ const Analysis = () => {
       });
     
     try {
-      // Enhanced validation with detailed logging
-      console.log(`📋 Validating shipment ${index + 1} data:`, {
-        shipmentId: shipment.id,
-        hasOriginZip: !!shipment.originZip?.trim(),
-        hasDestZip: !!shipment.destZip?.trim(),
-        hasService: !!shipment.service?.trim(),
-        hasWeight: !!shipment.weight,
-        hasCost: !!shipment.currentRate,
-        rawData: {
-          originZip: shipment.originZip,
-          destZip: shipment.destZip,
-          service: shipment.service,
-          weight: shipment.weight,
-          currentRate: shipment.currentRate
-        }
-      });
       
       const missingFields = [];
       if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
@@ -692,7 +509,6 @@ const Analysis = () => {
         // Handle oz to lbs conversion
         if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
           weight = weight / 16;
-          console.log(`⚖️ Converted weight from oz to lbs: ${shipment.weight}oz → ${weight}lbs`);
         }
         if (isNaN(weight) || weight <= 0) {
           missingFields.push('Valid Weight');
@@ -705,11 +521,9 @@ const Analysis = () => {
       const cleanDestZip = shipment.destZip?.trim();
       
       if (cleanOriginZip && !zipRegex.test(cleanOriginZip)) {
-        console.error(`❌ Invalid origin ZIP format:`, { original: shipment.originZip, cleaned: cleanOriginZip });
         throw new Error(`Invalid origin ZIP code format: "${shipment.originZip}" (expected format: 12345 or 12345-6789)`);
       }
       if (cleanDestZip && !zipRegex.test(cleanDestZip)) {
-        console.error(`❌ Invalid destination ZIP format:`, { original: shipment.destZip, cleaned: cleanDestZip });
         throw new Error(`Invalid destination ZIP code format: "${shipment.destZip}" (expected format: 12345 or 12345-6789)`);
       }
       
@@ -718,39 +532,12 @@ const Analysis = () => {
       const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
       const currentCost = parseFloat(costString);
       
-      // Only log cost parsing for debugging, but don't validate as required
-      if (isNaN(currentCost) || currentCost <= 0) {
-        console.log(`💰 Cost parsing debug (allowing zero costs):`, {
-          original: shipment.currentRate,
-          cleaned: costString,
-          parsed: currentCost,
-          note: 'Zero costs allowed for rate card analysis'
-        });
-      }
       
       // Check if we have any missing fields and provide detailed error
       if (missingFields.length > 0) {
-        console.error(`❌ Validation failed for shipment ${index + 1}:`, {
-          shipmentId: shipment.id,
-          missingFields,
-          shipmentData: {
-            originZip: shipment.originZip,
-            destZip: shipment.destZip,
-            service: shipment.service,
-            weight: shipment.weight,
-            currentRate: shipment.currentRate
-          }
-        });
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
       
-      console.log(`✅ Validation passed for shipment ${index + 1}:`, {
-        shipmentId: shipment.id,
-        weight,
-        currentCost,
-        cleanOriginZip,
-        cleanDestZip
-      });
       
       const length = parseFloat(shipment.length);
       const width = parseFloat(shipment.width); 
@@ -758,12 +545,6 @@ const Analysis = () => {
       
       // Validate dimensions are present and valid
       if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
-        console.error(`❌ Missing or invalid dimensions for shipment ${index + 1}:`, {
-          shipmentId: shipment.id,
-          length: shipment.length,
-          width: shipment.width,
-          height: shipment.height
-        });
         throw new Error(`Missing or invalid package dimensions. All shipments must have valid length, width, and height values.`);
       }
       
@@ -777,25 +558,10 @@ const Analysis = () => {
         normalizeServiceName(m.original) === normalizeServiceName(shipment.service)
       );
       
-      console.log('🔍 Analysis - Looking for service mapping (with normalization):', {
-        shipmentService: shipment.service,
-        normalizedShipmentService: normalizeServiceName(shipment.service || ''),
-        availableMappings: serviceMappings.map(m => ({
-          original: m.original,
-          normalized: normalizeServiceName(m.original),
-          standardizedService: m.standardizedService
-        })),
-        foundMapping: confirmedMapping
-      });
       
       let serviceMapping, serviceCodesToRequest, equivalentServiceCode, isConfirmedMapping = false;
       
       if (confirmedMapping && confirmedMapping.standardizedService) {
-        console.log(`🔧 Found confirmed mapping for "${shipment.service}":`, {
-          original: confirmedMapping.original,
-          standardizedService: confirmedMapping.standardizedService,
-          standardized: confirmedMapping.standardized
-        });
         
         // Use the user-confirmed mapping - pass universal service category directly
         isConfirmedMapping = true;
@@ -810,25 +576,11 @@ const Analysis = () => {
           confidence: confirmedMapping.confidence
         };
         
-        console.log(`✅ Using confirmed mapping for ${shipment.service} → Universal Service ${equivalentServiceCode}:`, {
-          originalService: shipment.service,
-          universalService: confirmedMapping.standardizedService,
-          mappedServiceCategory: equivalentServiceCode,
-          mappedServiceName: confirmedMapping.standardized,
-          requestingUniversalService: true
-        });
       } else {
         // NO FALLBACKS - if no confirmed mapping, this shipment is invalid
         throw new Error(`No confirmed service mapping found for "${shipment.service}". Please verify the service mapping on the mapping page.`);
       }
       
-      console.log('🏠 Analysis - Found confirmed mapping with residential data:', {
-        hasMapping: !!confirmedMapping,
-        original: confirmedMapping?.original,
-        isResidential: confirmedMapping?.isResidential,
-        residentialSource: confirmedMapping?.residentialSource,
-        isResidentialDetected: confirmedMapping?.isResidentialDetected
-      });
 
       // Determine residential status using hierarchical logic - pass full mapping data
       const residentialStatus = determineResidentialStatus(
@@ -842,43 +594,9 @@ const Analysis = () => {
         csvResidentialField
       );
       
-      console.log(`🏠 Residential status for shipment ${index + 1}:`, {
-        shipmentId: shipment.id,
-        originalService: shipment.service,
-        isResidential: residentialStatus.isResidential,
-        source: residentialStatus.source,
-        confidence: residentialStatus.confidence,
-        recipientAddress: shipment.recipientAddress,
-        serviceMapping: {
-          isResidential: confirmedMapping?.isResidential,
-          residentialSource: confirmedMapping?.residentialSource,
-          original: confirmedMapping?.original,
-          standardized: confirmedMapping?.standardized
-        }
-      });
-      
-      console.log(`Processing shipment ${index + 1}:`, {
-        originZip: shipment.originZip,
-        destZip: shipment.destZip,
-        weight,
-        dimensions: { length, width, height },
-        currentCost,
-        originalService: shipment.service,
-        mappedService: serviceMapping,
-        serviceCodes: serviceCodesToRequest,
-        equivalentServiceCode
-      });
-      
       // Use real address data from CSV or map ZIP codes to correct cities for test data
       const originCityState = getCityStateFromZip(shipment.originZip);
       const destCityState = getCityStateFromZip(shipment.destZip);
-      
-      console.log(`ZIP code mapping for shipment ${index + 1}:`, {
-        originZip: shipment.originZip,
-        originMapping: originCityState,
-        destZip: shipment.destZip,
-        destMapping: destCityState
-      });
       
       const shipmentRequest = {
         shipFrom: {
@@ -913,16 +631,6 @@ const Analysis = () => {
         zone: shipment.zone // Include CSV-mapped zone if available
       };
       
-      // Fetch UPS rates with enhanced error handling and retry logic
-      console.log(`🚀 Calling UPS API for shipment ${index + 1}:`, {
-        requestPayload: {
-          ...shipmentRequest,
-          // Log key fields for debugging
-          serviceTypes: shipmentRequest.serviceTypes,
-          equivalentServiceCode: shipmentRequest.equivalentServiceCode,
-          isResidential: shipmentRequest.isResidential
-        }
-      });
       
       const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
         body: { 
@@ -935,19 +643,6 @@ const Analysis = () => {
         }
       });
 
-      console.log(`📦 Multi-carrier API response for shipment ${index + 1}:`, {
-        hasData: !!data,
-        hasError: !!error,
-        errorDetails: error,
-        dataStructure: data ? {
-          hasAllRates: !!data.allRates,
-          allRatesCount: data.allRates?.length || 0,
-          hasBestRates: !!data.bestRates,
-          bestRatesCount: data.bestRates?.length || 0,
-          carrierResults: data.carrierResults?.length || 0,
-          summary: data.summary
-        } : null
-      });
 
       if (error) {
         console.error(`❌ Multi-carrier API Error for shipment ${index + 1}:`, {

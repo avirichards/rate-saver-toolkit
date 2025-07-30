@@ -14,15 +14,6 @@ import { toast } from 'sonner';
 import { UniversalServiceCategory, UNIVERSAL_SERVICES } from '@/utils/universalServiceCategories';
 import { CarrierType, getUniversalCategoryFromCarrierCode, CARRIER_MAPPINGS } from '@/utils/carrierServiceRegistry';
 
-interface CarrierConfig {
-  id: string;
-  carrier_type: string;
-  account_name: string;
-  enabled_services: any; // JSON type from Supabase
-  is_active: boolean;
-  account_group?: string;
-}
-
 interface CarrierService {
   id: string;
   carrier_type: string;
@@ -47,22 +38,26 @@ interface ServiceMapping {
   service_code: string;
   service_name: string;
   universal_category: string;
-  is_enabled: boolean;
   is_custom: boolean;
   is_system: boolean;
   carrier_type: string;
 }
 
+const CARRIER_TYPES = [
+  { value: 'UPS', label: 'UPS' },
+  { value: 'FEDEX', label: 'FedEx' },
+  { value: 'DHL', label: 'DHL' },
+  { value: 'AMAZON', label: 'Amazon' },
+];
+
 export const ServiceTypesManager = () => {
-  const [carrierConfigs, setCarrierConfigs] = useState<CarrierConfig[]>([]);
   const [systemServices, setSystemServices] = useState<CarrierService[]>([]);
   const [customServices, setCustomServices] = useState<CustomService[]>([]);
-  const [selectedCarrier, setSelectedCarrier] = useState<string>('');
+  const [selectedCarrierType, setSelectedCarrierType] = useState<string>('');
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [editedMappings, setEditedMappings] = useState<Record<string, Partial<ServiceMapping>>>({});
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [isManagingUniversal, setIsManagingUniversal] = useState(false);
-  const [editingService, setEditingService] = useState<ServiceMapping | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [universalTypes, setUniversalTypes] = useState<Record<string, any>>({...UNIVERSAL_SERVICES});
@@ -87,25 +82,16 @@ export const ServiceTypesManager = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedCarrier) {
+    if (selectedCarrierType) {
       buildServiceMappings();
     }
-  }, [selectedCarrier, systemServices, customServices, carrierConfigs]);
+  }, [selectedCarrierType, systemServices, customServices]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
-      // Load carrier configs
-      const { data: configs, error: configsError } = await supabase
-        .from('carrier_configs')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true);
-
-      if (configsError) throw configsError;
 
       // Load system services
       const { data: services, error: servicesError } = await supabase
@@ -124,20 +110,12 @@ export const ServiceTypesManager = () => {
 
       if (customError) throw customError;
 
-      setCarrierConfigs((configs || []).map(config => ({
-        ...config,
-        enabled_services: Array.isArray(config.enabled_services) 
-          ? config.enabled_services 
-          : typeof config.enabled_services === 'string' 
-            ? JSON.parse(config.enabled_services || '[]')
-            : []
-      })));
       setSystemServices(services || []);
       setCustomServices(custom || []);
 
-      // Auto-select first carrier if available
-      if (configs && configs.length > 0 && !selectedCarrier) {
-        setSelectedCarrier(configs[0].id);
+      // Auto-select first carrier type if available
+      if (!selectedCarrierType) {
+        setSelectedCarrierType('UPS');
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -148,85 +126,106 @@ export const ServiceTypesManager = () => {
   };
 
   const buildServiceMappings = () => {
-    const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
-    if (!selectedConfig) {
+    if (!selectedCarrierType) {
       setServiceMappings([]);
       return;
     }
 
-    const carrierType = selectedConfig.carrier_type.toUpperCase() as CarrierType;
+    const carrierType = selectedCarrierType.toUpperCase() as CarrierType;
     const mappings: ServiceMapping[] = [];
-    const enabledServices = selectedConfig.enabled_services as string[] || [];
 
     // Get carrier-specific service mappings from the registry
     const carrierServiceMappings = CARRIER_MAPPINGS[carrierType] || [];
 
-    // Create mappings for enabled services
-    enabledServices.forEach(serviceCode => {
-      // Find the service mapping from carrier registry
-      const registryMapping = carrierServiceMappings.find(m => m.carrierCode === serviceCode);
-      
-      // Try to find in system services as fallback
-      const systemService = systemServices.find(s => 
-        s.service_code === serviceCode && s.carrier_type.toUpperCase() === carrierType
+    // Add registry mappings
+    carrierServiceMappings.forEach(registryMapping => {
+      // Check if there's a custom override for this service
+      const customOverride = customServices.find(custom =>
+        custom.carrier_type.toUpperCase() === carrierType &&
+        custom.service_code === registryMapping.carrierCode
       );
 
-      // Use registry service name if available, otherwise fallback to system service or code
-      const serviceName = registryMapping?.carrierServiceName || 
-                         systemService?.service_name || 
-                         serviceCode;
-
-      const universalCategory = registryMapping?.universalCategory || 
-                               getUniversalCategoryFromCarrierCode(carrierType, serviceCode) ||
-                               UniversalServiceCategory.GROUND;
-
-      mappings.push({
-        service_code: serviceCode,
-        service_name: serviceName,
-        universal_category: universalCategory,
-        is_enabled: true,
-        is_custom: !registryMapping && !systemService,
-        is_system: !!systemService,
-        carrier_type: carrierType
-      });
+      if (customOverride) {
+        // Use custom override
+        mappings.push({
+          service_code: customOverride.service_code,
+          service_name: customOverride.service_name,
+          universal_category: customOverride.universal_category,
+          is_custom: true,
+          is_system: false,
+          carrier_type: carrierType
+        });
+      } else {
+        // Use registry mapping
+        mappings.push({
+          service_code: registryMapping.carrierCode,
+          service_name: registryMapping.carrierServiceName,
+          universal_category: registryMapping.universalCategory,
+          is_custom: false,
+          is_system: false,
+          carrier_type: carrierType
+        });
+      }
     });
+
+    // Add system services that aren't in the registry
+    systemServices
+      .filter(service => 
+        service.carrier_type.toUpperCase() === carrierType &&
+        !carrierServiceMappings.some(reg => reg.carrierCode === service.service_code)
+      )
+      .forEach(systemService => {
+        // Check if there's a custom override
+        const customOverride = customServices.find(custom =>
+          custom.carrier_type.toUpperCase() === carrierType &&
+          custom.service_code === systemService.service_code
+        );
+
+        if (customOverride) {
+          mappings.push({
+            service_code: customOverride.service_code,
+            service_name: customOverride.service_name,
+            universal_category: customOverride.universal_category,
+            is_custom: true,
+            is_system: true,
+            carrier_type: carrierType
+          });
+        } else {
+          const universalCategory = getUniversalCategoryFromCarrierCode(carrierType, systemService.service_code) ||
+                                  UniversalServiceCategory.GROUND;
+
+          mappings.push({
+            service_code: systemService.service_code,
+            service_name: systemService.service_name,
+            universal_category: universalCategory,
+            is_custom: false,
+            is_system: true,
+            carrier_type: carrierType
+          });
+        }
+      });
+
+    // Add purely custom services (not overriding existing ones)
+    customServices
+      .filter(custom => 
+        custom.carrier_type.toUpperCase() === carrierType &&
+        !carrierServiceMappings.some(reg => reg.carrierCode === custom.service_code) &&
+        !systemServices.some(sys => sys.service_code === custom.service_code && sys.carrier_type.toUpperCase() === carrierType)
+      )
+      .forEach(customService => {
+        mappings.push({
+          service_code: customService.service_code,
+          service_name: customService.service_name,
+          universal_category: customService.universal_category,
+          is_custom: true,
+          is_system: false,
+          carrier_type: carrierType
+        });
+      });
 
     setServiceMappings(mappings.sort((a, b) => a.service_name.localeCompare(b.service_name)));
     setEditedMappings({});
     setHasUnsavedChanges(false);
-  };
-
-  const toggleServiceEnabled = async (serviceCode: string, enabled: boolean) => {
-    const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
-    if (!selectedConfig) return;
-
-    try {
-      const currentServices = selectedConfig.enabled_services as string[];
-      const updatedServices = enabled
-        ? [...currentServices, serviceCode]
-        : currentServices.filter(code => code !== serviceCode);
-
-      const { error } = await supabase
-        .from('carrier_configs')
-        .update({ enabled_services: updatedServices })
-        .eq('id', selectedCarrier);
-
-      if (error) throw error;
-
-      // Update local state
-      setCarrierConfigs(prev =>
-        prev.map(config =>
-          config.id === selectedCarrier
-            ? { ...config, enabled_services: updatedServices }
-            : config
-        )
-      );
-
-      toast.success(`Service ${enabled ? 'enabled' : 'disabled'}`);
-    } catch (error) {
-      console.error('Error updating service:', error);
-      toast.error('Failed to update service');
-    }
   };
 
   const updateServiceMapping = (serviceCode: string, field: keyof ServiceMapping, value: string) => {
@@ -250,9 +249,6 @@ export const ServiceTypesManager = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
-      if (!selectedConfig) return;
-
       for (const [serviceCode, changes] of Object.entries(editedMappings)) {
         const originalMapping = serviceMappings.find(m => m.service_code === serviceCode);
         if (!originalMapping) continue;
@@ -267,7 +263,7 @@ export const ServiceTypesManager = () => {
             .from('custom_carrier_service_codes')
             .update(updateData)
             .eq('service_code', serviceCode)
-            .eq('carrier_type', selectedConfig.carrier_type.toUpperCase())
+            .eq('carrier_type', selectedCarrierType.toUpperCase())
             .eq('user_id', user.id);
 
           if (error) throw error;
@@ -277,7 +273,7 @@ export const ServiceTypesManager = () => {
             .from('custom_carrier_service_codes')
             .insert({
               user_id: user.id,
-              carrier_type: selectedConfig.carrier_type.toUpperCase(),
+              carrier_type: selectedCarrierType.toUpperCase(),
               service_code: serviceCode,
               service_name: changes.service_name || originalMapping.service_name,
               universal_category: changes.universal_category || originalMapping.universal_category,
@@ -298,9 +294,6 @@ export const ServiceTypesManager = () => {
   };
 
   const addCustomService = async () => {
-    const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
-    if (!selectedConfig) return;
-
     if (!newCustomService.service_code || !newCustomService.service_name) {
       toast.error('Please fill in all required fields');
       return;
@@ -314,7 +307,7 @@ export const ServiceTypesManager = () => {
         .from('custom_carrier_service_codes')
         .insert({
           user_id: user.id,
-          carrier_type: selectedConfig.carrier_type.toUpperCase(),
+          carrier_type: selectedCarrierType.toUpperCase(),
           service_code: newCustomService.service_code,
           service_name: newCustomService.service_name,
           universal_category: newCustomService.universal_category,
@@ -346,11 +339,15 @@ export const ServiceTypesManager = () => {
     if (!confirm('Are you sure you want to delete this custom service?')) return;
 
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { error } = await supabase
         .from('custom_carrier_service_codes')
         .delete()
         .eq('service_code', serviceCode)
-        .eq('carrier_type', carrierConfigs.find(c => c.id === selectedCarrier)?.carrier_type.toUpperCase());
+        .eq('carrier_type', selectedCarrierType.toUpperCase())
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -363,21 +360,18 @@ export const ServiceTypesManager = () => {
   };
 
   const resetToDefaults = async () => {
-    const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
-    if (!selectedConfig) return;
-
-    if (!confirm('Reset all services to system defaults? This will disable all custom services.')) return;
+    if (!confirm('Reset all services to system defaults? This will remove all custom service mappings.')) return;
 
     try {
-      const carrierType = selectedConfig.carrier_type.toUpperCase() as CarrierType;
-      const defaultServices = systemServices
-        .filter(s => s.carrier_type.toUpperCase() === carrierType)
-        .map(s => s.service_code);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
+      // Delete all custom services for this carrier type
       const { error } = await supabase
-        .from('carrier_configs')
-        .update({ enabled_services: defaultServices })
-        .eq('id', selectedCarrier);
+        .from('custom_carrier_service_codes')
+        .delete()
+        .eq('carrier_type', selectedCarrierType.toUpperCase())
+        .eq('user_id', user.id);
 
       if (error) throw error;
 
@@ -386,42 +380,6 @@ export const ServiceTypesManager = () => {
     } catch (error) {
       console.error('Error resetting services:', error);
       toast.error('Failed to reset services');
-    }
-  };
-
-  const enableAllServices = async () => {
-    const allServiceCodes = serviceMappings.map(m => m.service_code);
-    
-    try {
-      const { error } = await supabase
-        .from('carrier_configs')
-        .update({ enabled_services: allServiceCodes })
-        .eq('id', selectedCarrier);
-
-      if (error) throw error;
-
-      loadData();
-      toast.success('All services enabled');
-    } catch (error) {
-      console.error('Error enabling all services:', error);
-      toast.error('Failed to enable all services');
-    }
-  };
-
-  const disableAllServices = async () => {
-    try {
-      const { error } = await supabase
-        .from('carrier_configs')
-        .update({ enabled_services: [] })
-        .eq('id', selectedCarrier);
-
-      if (error) throw error;
-
-      loadData();
-      toast.success('All services disabled');
-    } catch (error) {
-      console.error('Error disabling all services:', error);
-      toast.error('Failed to disable all services');
     }
   };
 
@@ -504,42 +462,27 @@ export const ServiceTypesManager = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Carrier Selection */}
+          {/* Carrier Type Selection */}
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-2">Select Carrier Account</label>
-            <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
+            <label className="block text-sm font-medium mb-2">Select Carrier</label>
+            <Select value={selectedCarrierType} onValueChange={setSelectedCarrierType}>
               <SelectTrigger>
-                <SelectValue placeholder="Select a carrier account" />
+                <SelectValue placeholder="Select a carrier type" />
               </SelectTrigger>
               <SelectContent>
-                {carrierConfigs.map((config) => (
-                  <SelectItem key={config.id} value={config.id}>
-                    {config.account_name} ({config.carrier_type.toUpperCase()})
+                {CARRIER_TYPES.map((carrier) => (
+                  <SelectItem key={carrier.value} value={carrier.value}>
+                    {carrier.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {selectedCarrier && (
+          {selectedCarrierType && (
             <>
               {/* Quick Actions */}
               <div className="flex flex-wrap gap-2 p-4 bg-muted/50 rounded-lg">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={enableAllServices}
-                  iconLeft={<Save className="h-4 w-4" />}
-                >
-                  Enable All
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={disableAllServices}
-                >
-                  Disable All
-                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -648,35 +591,27 @@ export const ServiceTypesManager = () => {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    Service Mappings ({serviceMappings.length} services)
+                    Service Mappings for {selectedCarrierType} ({serviceMappings.length} services)
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Enabled</TableHead>
-                        <TableHead>Carrier Type</TableHead>
-                        <TableHead>Service Name</TableHead>
                         <TableHead>Service Code</TableHead>
+                        <TableHead>Service Name</TableHead>
                         <TableHead>Universal Category</TableHead>
+                        <TableHead>Source</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {serviceMappings.map(mapping => (
                         <TableRow key={mapping.service_code}>
                           <TableCell>
-                            <Switch
-                              checked={mapping.is_enabled}
-                              onCheckedChange={(checked) =>
-                                toggleServiceEnabled(mapping.service_code, checked)
-                              }
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">
-                              {mapping.carrier_type}
-                            </Badge>
+                            <code className="text-sm bg-muted px-2 py-1 rounded font-mono">
+                              {mapping.service_code}
+                            </code>
                           </TableCell>
                           <TableCell>
                             <Input
@@ -685,15 +620,6 @@ export const ServiceTypesManager = () => {
                                 updateServiceMapping(mapping.service_code, 'service_name', e.target.value)
                               }
                               className="min-w-0"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={getCurrentValue(mapping.service_code, 'service_code') as string}
-                              onChange={(e) =>
-                                updateServiceMapping(mapping.service_code, 'service_code', e.target.value)
-                              }
-                              className="min-w-0 font-mono text-sm"
                             />
                           </TableCell>
                           <TableCell>
@@ -714,6 +640,23 @@ export const ServiceTypesManager = () => {
                                 ))}
                               </SelectContent>
                             </Select>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={mapping.is_custom ? "default" : "outline"}>
+                              {mapping.is_custom ? 'Custom' : mapping.is_system ? 'System' : 'Registry'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {mapping.is_custom && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => deleteCustomService(mapping.service_code)}
+                                iconLeft={<Trash2 className="h-4 w-4" />}
+                              >
+                                Delete
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -905,12 +848,6 @@ export const ServiceTypesManager = () => {
                 </DialogContent>
               </Dialog>
             </>
-          )}
-
-          {carrierConfigs.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No carrier accounts found. Please add a carrier account first.
-            </div>
           )}
         </CardContent>
       </Card>

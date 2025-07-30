@@ -2,6 +2,63 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Inline carrier service registry types and functions since we can't import from src/
+enum UniversalServiceCategory {
+  OVERNIGHT = 'OVERNIGHT',
+  TWO_DAY = 'TWO_DAY', 
+  THREE_DAY = 'THREE_DAY',
+  GROUND = 'GROUND',
+  INTERNATIONAL_EXPRESS = 'INTERNATIONAL_EXPRESS',
+  INTERNATIONAL_ECONOMY = 'INTERNATIONAL_ECONOMY'
+}
+
+enum CarrierType {
+  UPS = 'UPS',
+  FEDEX = 'FEDEX',
+  DHL = 'DHL',
+  AMAZON = 'AMAZON'
+}
+
+// Simplified service code mapping function
+function getServiceCodesToRequest(carrierType: CarrierType, primaryCategory: UniversalServiceCategory): string[] {
+  const mappings: Record<CarrierType, Record<UniversalServiceCategory, string[]>> = {
+    [CarrierType.UPS]: {
+      [UniversalServiceCategory.OVERNIGHT]: ['01', '14'],
+      [UniversalServiceCategory.TWO_DAY]: ['02', '59'],
+      [UniversalServiceCategory.THREE_DAY]: ['12'],
+      [UniversalServiceCategory.GROUND]: ['03'],
+      [UniversalServiceCategory.INTERNATIONAL_EXPRESS]: ['07', '08'],
+      [UniversalServiceCategory.INTERNATIONAL_ECONOMY]: ['11', '54']
+    },
+    [CarrierType.FEDEX]: {
+      [UniversalServiceCategory.OVERNIGHT]: ['PRIORITY_OVERNIGHT', 'STANDARD_OVERNIGHT'],
+      [UniversalServiceCategory.TWO_DAY]: ['FEDEX_2_DAY', 'FEDEX_2_DAY_AM'],
+      [UniversalServiceCategory.THREE_DAY]: ['FEDEX_EXPRESS_SAVER'],
+      [UniversalServiceCategory.GROUND]: ['FEDEX_GROUND', 'GROUND_HOME_DELIVERY'],
+      [UniversalServiceCategory.INTERNATIONAL_EXPRESS]: ['INTERNATIONAL_PRIORITY', 'INTERNATIONAL_ECONOMY'],
+      [UniversalServiceCategory.INTERNATIONAL_ECONOMY]: ['INTERNATIONAL_ECONOMY']
+    },
+    [CarrierType.DHL]: {
+      [UniversalServiceCategory.OVERNIGHT]: ['U'],
+      [UniversalServiceCategory.TWO_DAY]: ['T'],
+      [UniversalServiceCategory.THREE_DAY]: ['W'],
+      [UniversalServiceCategory.GROUND]: ['G'],
+      [UniversalServiceCategory.INTERNATIONAL_EXPRESS]: ['P'],
+      [UniversalServiceCategory.INTERNATIONAL_ECONOMY]: ['K']
+    },
+    [CarrierType.AMAZON]: {
+      [UniversalServiceCategory.OVERNIGHT]: [],
+      [UniversalServiceCategory.TWO_DAY]: [],
+      [UniversalServiceCategory.THREE_DAY]: [],
+      [UniversalServiceCategory.GROUND]: ['GROUND'],
+      [UniversalServiceCategory.INTERNATIONAL_EXPRESS]: [],
+      [UniversalServiceCategory.INTERNATIONAL_ECONOMY]: []
+    }
+  };
+
+  return mappings[carrierType]?.[primaryCategory] || [];
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -179,25 +236,33 @@ serve(async (req) => {
         if (servicesToRequest.length > 0) {
           const carrierType = config.carrier_type.toUpperCase();
           
-        // Map service codes to carrier-specific codes
-        servicesToRequest = servicesToRequest.map(serviceType => {
-          const carrierType = config.carrier_type.toUpperCase();
+          // Get enabled services from carrier config
+          const enabledServices = (config.enabled_services as string[]) || [];
           
-          // First check if user has custom service mappings for this service type
-          if (customServiceMappings.length > 0) {
-            const customMapping = customServiceMappings.find(mapping => 
+          // Map service codes to carrier-specific codes
+          servicesToRequest = servicesToRequest.map(serviceType => {
+            // First check if user has custom service mappings for this service type
+            const customMapping = customServiceMappings?.find(mapping => 
               mapping.universal_category === serviceType && 
               mapping.carrier_type.toUpperCase() === carrierType &&
               mapping.is_active
             );
             
-            if (customMapping) {
+            if (customMapping && enabledServices.includes(customMapping.service_code)) {
               console.log(`🎯 Using custom service mapping for ${config.account_name} (${carrierType}): ${serviceType} -> ${customMapping.service_code}`);
               return customMapping.service_code;
             }
-          }
-          
-          // No custom mapping found - log and skip this service
+            
+            // Fall back to carrier service registry
+            const registryMapping = getServiceCodesToRequest(carrierType as CarrierType, serviceType as UniversalServiceCategory);
+            const availableService = registryMapping.find(code => enabledServices.includes(code));
+            
+            if (availableService) {
+              console.log(`📋 Using registry service mapping for ${config.account_name} (${carrierType}): ${serviceType} -> ${availableService}`);
+              return availableService;
+            }
+            
+            // No mapping found - log and skip this service
           console.log(`⚠️ No custom mapping found for ${config.account_name} (${carrierType}): ${serviceType} - skipping service`);
           return null;
           }).filter(Boolean);

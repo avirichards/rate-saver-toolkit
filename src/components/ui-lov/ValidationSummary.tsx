@@ -108,19 +108,33 @@ export const ValidationSummary: React.FC<ValidationSummaryProps> = ({
               </div>
             </div>
 
-            {/* Error breakdown */}
+            {/* Error breakdown with sample errors */}
             {Object.keys(errorBreakdown).length > 0 && (
               <div className="mb-4">
                 <h4 className="font-medium text-sm mb-2 text-red-900">Common Validation Errors:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(errorBreakdown)
-                    .sort(([,a], [,b]) => b - a)
-                    .slice(0, 5)
-                    .map(([field, count]) => (
-                      <Badge key={field} variant="destructive" className="text-xs">
-                        {field}: {count.toLocaleString()} shipments
-                      </Badge>
-                    ))}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(errorBreakdown)
+                      .sort(([,a], [,b]) => b - a)
+                      .slice(0, 5)
+                      .map(([field, count]) => (
+                        <Badge key={field} variant="destructive" className="text-xs">
+                          {field}: {count.toLocaleString()} shipments
+                        </Badge>
+                      ))}
+                  </div>
+                  {/* Show sample error messages */}
+                  <div className="text-xs text-red-700 bg-red-50 p-2 rounded border">
+                    <strong>Sample errors:</strong>
+                    {Object.values(results).slice(0, 3).map((result, idx) => 
+                      Object.keys(result.errors).length > 0 ? (
+                        <div key={idx} className="mt-1">
+                          • Shipment {idx + 1}: {Object.entries(result.errors).map(([field, errors]) => 
+                            `${field} - ${errors[0]}`).join(', ')}
+                        </div>
+                      ) : null
+                    )}
+                  </div>
                 </div>
               </div>
             )}

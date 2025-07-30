@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
+import { ValidationDebugger } from '@/components/ui-lov/ValidationDebugger';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
 import { VirtualizedAnalysisResults } from '@/components/ui-lov/VirtualizedAnalysisResults';
 import { getCityStateFromZip } from '@/utils/zipCodeMapping';
@@ -1300,12 +1301,20 @@ const Analysis = () => {
         
         {/* Compact Validation Summary */}
         {validationState.summary.total > 0 && (
-          <div className="mb-4">
+          <div className="mb-4 space-y-4">
             <ValidationSummary 
               validationState={validationState} 
               shipments={shipments} 
               className="compact" 
             />
+            
+            {/* Show debugger if there are validation failures */}
+            {validationState.summary.invalid > 0 && (
+              <ValidationDebugger 
+                validationState={validationState} 
+                shipments={shipments} 
+              />
+            )}
           </div>
         )}
 

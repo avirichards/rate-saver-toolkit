@@ -165,13 +165,24 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
   const errors: Record<string, string[]> = {};
   const warnings: Record<string, string[]> = {};
 
-  console.log('Validating shipment:', {
+  // Enhanced logging for debugging validation failures
+  console.log('🔍 VALIDATION DEBUG - Shipment details:', {
     id: shipment.id,
     originZip: shipment.originZip,
     destZip: shipment.destZip,
     weight: shipment.weight,
+    weightType: typeof shipment.weight,
     currentRate: shipment.currentRate,
-    dimensions: { length: shipment.length, width: shipment.width, height: shipment.height }
+    currentRateType: typeof shipment.currentRate,
+    dimensions: { 
+      length: shipment.length, 
+      width: shipment.width, 
+      height: shipment.height,
+      lengthType: typeof shipment.length,
+      widthType: typeof shipment.width,
+      heightType: typeof shipment.height
+    },
+    rawShipment: shipment
   });
 
   // Validate required fields - more flexible approach
@@ -199,14 +210,12 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
     errors.weight = weightResult.errors;
   }
 
-  // CurrentRate validation - more flexible
+  // CurrentRate validation - completely optional now
   if (shipment.currentRate) {
     const costResult = validateCost(shipment.currentRate);
     if (!costResult.isValid) {
-      errors.currentRate = costResult.errors;
+      warnings.currentRate = costResult.errors; // Changed from errors to warnings
     }
-  } else {
-    warnings.currentRate = ['Missing currentRate data - cannot calculate savings'];
   }
 
   // Validate dimensions - now optional with smart defaults
@@ -245,15 +254,30 @@ export function validateShipmentData(shipment: any): ShipmentValidationResult {
     warnings.addresses = ['City information missing - may affect rate accuracy'];
   }
 
-  // Log validation results
+  // Enhanced validation result logging
   const isValid = Object.keys(errors).length === 0;
-  console.log(`Shipment ${shipment.id} validation result:`, {
+  console.log(`🔍 VALIDATION RESULT - Shipment ${shipment.id}:`, {
     isValid,
     errorCount: Object.keys(errors).length,
     warningCount: Object.keys(warnings).length,
-    errors: Object.keys(errors),
-    warnings: Object.keys(warnings)
+    errorFields: Object.keys(errors),
+    warningFields: Object.keys(warnings),
+    detailedErrors: errors,
+    detailedWarnings: warnings
   });
+  
+  // Log first few failures for debugging
+  if (!isValid && Object.keys(errors).length > 0) {
+    console.log(`❌ VALIDATION FAILED - Shipment ${shipment.id} detailed errors:`, {
+      shipmentData: {
+        originZip: shipment.originZip,
+        destZip: shipment.destZip,
+        weight: shipment.weight,
+        currentRate: shipment.currentRate
+      },
+      allErrors: errors
+    });
+  }
 
   return {
     isValid,

@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useBatchProcessor } from './useBatchProcessor';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ProcessedShipment {
   id: number;
@@ -49,11 +50,13 @@ interface AnalysisSummary {
 export function useOptimizedAnalysis() {
   const [results, setResults] = useState<AnalysisResult[]>([]);
   const [isPaused, setIsPaused] = useState(false);
+  const [currentCarriers, setCurrentCarriers] = useState<string[]>([]);
+  const [currentServiceMappings, setCurrentServiceMappings] = useState<any[]>([]);
   
   const batchProcessor = useBatchProcessor<ProcessedShipment, AnalysisResult>(
     async (shipments) => {
       // This will be the actual analysis function
-      return await analyzeShipmentBatch(shipments);
+      return await analyzeShipmentBatch(shipments, currentCarriers, currentServiceMappings);
     },
     {
       batchSize: 10, // Smaller batches for real-time updates
@@ -90,6 +93,10 @@ export function useOptimizedAnalysis() {
     selectedCarriers: string[],
     serviceMappings: any[]
   ) => {
+    // Store current analysis parameters
+    setCurrentCarriers(selectedCarriers);
+    setCurrentServiceMappings(serviceMappings);
+    
     // Initialize results with pending status
     const initialResults = shipments.map(shipment => ({
       shipment,
@@ -145,19 +152,93 @@ export function useOptimizedAnalysis() {
   };
 }
 
-// Mock analysis function - replace with actual implementation
-async function analyzeShipmentBatch(shipments: ProcessedShipment[]): Promise<AnalysisResult[]> {
-  // Simulate processing time
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  return shipments.map(shipment => ({
-    shipment,
-    status: 'completed' as const,
-    currentCost: Math.random() * 50,
-    savings: (Math.random() - 0.5) * 20,
-    bestRate: {
-      serviceName: 'Mock Service',
-      cost: Math.random() * 40
+// Real analysis function using Supabase multi-carrier-quote API
+async function analyzeShipmentBatch(
+  shipments: ProcessedShipment[], 
+  selectedCarriers: string[], 
+  serviceMappings: any[]
+): Promise<AnalysisResult[]> {
+
+  const results: AnalysisResult[] = [];
+
+  for (const shipment of shipments) {
+    try {
+      // Convert shipment to API format
+      const shipmentRequest = {
+        shipFrom: {
+          zipCode: shipment.originZip || '',
+          city: shipment.shipperCity || '',
+          state: shipment.shipperState || '',
+          address: shipment.shipperAddress || ''
+        },
+        shipTo: {
+          zipCode: shipment.destZip || '',
+          city: shipment.recipientCity || '',
+          state: shipment.recipientState || '',
+          address: shipment.recipientAddress || ''
+        },
+        weight: parseFloat(shipment.weight || '0'),
+        weightUnit: shipment.weightUnit || 'LBS',
+        dimensions: {
+          length: parseFloat(shipment.length || '0'),
+          width: parseFloat(shipment.width || '0'),
+          height: parseFloat(shipment.height || '0')
+        },
+        service: shipment.service,
+        carrier: shipment.carrier,
+        currentRate: parseFloat(shipment.currentRate || '0')
+      };
+
+      const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
+        body: { 
+          shipment: {
+            ...shipmentRequest,
+            carrierConfigIds: selectedCarriers,
+            shipmentIndex: shipment.id
+          }
+        }
+      });
+
+      if (error) {
+        results.push({
+          shipment,
+          status: 'error',
+          error: error.message,
+          errorType: 'api_error'
+        });
+      } else if (data?.bestRates?.length > 0) {
+        const bestRate = data.bestRates[0];
+        const currentCost = shipmentRequest.currentRate;
+        const savings = currentCost - bestRate.cost;
+
+        results.push({
+          shipment,
+          status: 'completed',
+          currentCost,
+          savings,
+          bestRate: {
+            serviceName: bestRate.serviceName,
+            cost: bestRate.cost,
+            carrier: bestRate.carrier
+          }
+        });
+      } else {
+        results.push({
+          shipment,
+          status: 'error',
+          error: 'No rates returned',
+          errorType: 'no_rates'
+        });
+      }
+    } catch (error) {
+      results.push({
+        shipment,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorType: 'processing_error'
+      });
     }
-  }));
+  }
+
+  return results;
 }

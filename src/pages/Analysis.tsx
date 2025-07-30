@@ -18,6 +18,7 @@ import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/
 import { getCarrierServiceCode, CarrierType, getUniversalCategoryFromCarrierCode } from '@/utils/carrierServiceRegistry';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
+import { analysisCache } from '@/utils/analysisCache';
 
 interface ProcessedShipment {
   id: number;
@@ -354,39 +355,62 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
       
-      // Process shipments in optimized batches to prevent browser overload
-      const batchSize = 25; // Optimized batch size for performance
-      const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
+      // Adaptive batch processing based on dataset size and performance
+      const getOptimalBatchConfig = (totalShipments: number) => {
+        if (totalShipments <= 50) return { size: 10, concurrency: 5 };
+        if (totalShipments <= 200) return { size: 20, concurrency: 8 };
+        if (totalShipments <= 500) return { size: 25, concurrency: 10 };
+        return { size: 30, concurrency: 12 };
+      };
+      
+      const batchConfig = getOptimalBatchConfig(shipmentsToAnalyze.length);
+      const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchConfig.size);
+      
+      console.log(`🚀 Processing ${shipmentsToAnalyze.length} shipments in ${totalBatches} batches (${batchConfig.size} per batch, ${batchConfig.concurrency} concurrent)`);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        // Check if paused before processing each batch
         if (isPaused) {
           console.log('Analysis paused, stopping processing');
           break;
         }
         
-        const startIndex = batchIndex * batchSize;
-        const endIndex = Math.min(startIndex + batchSize, shipmentsToAnalyze.length);
+        const startIndex = batchIndex * batchConfig.size;
+        const endIndex = Math.min(startIndex + batchConfig.size, shipmentsToAnalyze.length);
         const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
         
+        console.log(`🔄 Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} shipments)`);
         
+        // Process shipments with controlled concurrency
+        const processBatchWithConcurrency = async (shipments: ProcessedShipment[], concurrency: number) => {
+          const results = [];
+          for (let i = 0; i < shipments.length; i += concurrency) {
+            const chunk = shipments.slice(i, i + concurrency);
+            const chunkPromises = chunk.map((shipment, indexInChunk) => {
+              const globalIndex = startIndex + i + indexInChunk;
+              setCurrentShipmentIndex(globalIndex);
+              return processShipment(globalIndex, shipment, 0, analysisId);
+            });
+            
+            const chunkResults = await Promise.allSettled(chunkPromises);
+            results.push(...chunkResults);
+            
+            // Small delay between chunks for API rate limiting
+            if (i + concurrency < shipments.length) {
+              await new Promise(resolve => setTimeout(resolve, 50));
+            }
+          }
+          return results;
+        };
         
-        // Process all shipments in the batch concurrently
-        const batchPromises = batch.map((shipment, indexInBatch) => {
-          const globalIndex = startIndex + indexInBatch;
-          setCurrentShipmentIndex(globalIndex);
-          return processShipment(globalIndex, shipment, 0, analysisId);
-        });
+        await processBatchWithConcurrency(batch, batchConfig.concurrency);
         
-        // Wait for all shipments in the batch to complete
-        await Promise.allSettled(batchPromises);
-        
-        // Update progress to reflect completed batch
+        // Update progress
         setCurrentShipmentIndex(endIndex - 1);
         
-        // Small delay between batches for UI responsiveness
+        // Adaptive delay between batches
         if (batchIndex < totalBatches - 1 && !isPaused) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          const delay = Math.max(50, Math.min(200, batchConfig.size * 2));
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
       
@@ -533,92 +557,78 @@ const Analysis = () => {
   const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
     const maxRetries = 2;
     
-      // Update status to processing using shipment ID-based update to prevent race conditions
+      // Memory-efficient status update
       setAnalysisResults(prev => {
-        return prev.map(result => 
-          result.shipment.id === shipment.id 
-            ? { ...result, status: 'processing' }
-            : result
-        );
+        const resultIndex = prev.findIndex(result => result.shipment.id === shipment.id);
+        if (resultIndex === -1) return prev;
+        
+        const newResults = [...prev];
+        newResults[resultIndex] = { ...newResults[resultIndex], status: 'processing' };
+        return newResults;
       });
     
     try {
       
-      const missingFields = [];
-      if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
-      if (!shipment.destZip?.trim()) missingFields.push('Destination ZIP');
-      
-      // Validate service type field - CRITICAL for proper analysis
+      // Fast validation with early exits
+      if (!shipment.originZip?.trim()) {
+        throw new Error('Missing Origin ZIP');
+      }
+      if (!shipment.destZip?.trim()) {
+        throw new Error('Missing Destination ZIP');
+      }
       if (!shipment.service?.trim()) {
-        missingFields.push('Service Type');
+        throw new Error('Missing Service Type');
       }
-      
-      let weight = 0;
       if (!shipment.weight || shipment.weight === '') {
-        missingFields.push('Weight');
-      } else {
-        weight = parseFloat(shipment.weight);
-        // Handle oz to lbs conversion
-        if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
-          weight = weight / 16;
-        }
-        if (isNaN(weight) || weight <= 0) {
-          missingFields.push('Valid Weight');
-        }
+        throw new Error('Missing Weight');
       }
       
-      // Enhanced ZIP code validation - use same logic as addressValidation.ts
-      const cleanAndValidateZip = (zipCode: string, fieldName: string) => {
-        if (!zipCode || typeof zipCode !== 'string') {
-          throw new Error(`${fieldName} ZIP code is required`);
-        }
-        
-        const allDigits = zipCode.trim().replace(/\D/g, ''); // Remove all non-digits
-        
-        if (allDigits.length < 4) {
-          throw new Error(`${fieldName} ZIP code must contain at least 4 digits`);
-        }
-        
-        // Take first 5 digits, or all available if less than 5
-        return allDigits.slice(0, 5);
+      // Parse and validate weight
+      let weight = parseFloat(shipment.weight);
+      if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
+        weight = weight / 16;
+      }
+      if (isNaN(weight) || weight <= 0) {
+        throw new Error('Invalid Weight');
+      }
+      
+      // Parse and validate dimensions
+      const length = parseFloat(shipment.length);
+      const width = parseFloat(shipment.width); 
+      const height = parseFloat(shipment.height);
+      
+      if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
+        throw new Error('Missing or invalid package dimensions');
+      }
+      
+      // Fast ZIP code cleaning
+      const cleanZip = (zipCode: string) => {
+        const digits = zipCode.trim().replace(/\D/g, '');
+        return digits.length >= 4 ? digits.slice(0, 5) : digits;
       };
       
-      const cleanOriginZip = cleanAndValidateZip(shipment.originZip, 'Origin');
-      const cleanDestZip = cleanAndValidateZip(shipment.destZip, 'Destination');
+      const cleanOriginZip = cleanZip(shipment.originZip);
+      const cleanDestZip = cleanZip(shipment.destZip);
+      
+      if (cleanOriginZip.length < 4) {
+        throw new Error('Invalid Origin ZIP code');
+      }
+      if (cleanDestZip.length < 4) {
+        throw new Error('Invalid Destination ZIP code');
+      }
       
       // Update shipment with cleaned ZIP codes
       shipment.originZip = cleanOriginZip;
       shipment.destZip = cleanDestZip;
       
-      // Parse currentRate and handle different formats ($4.41, 4.41, $1,234.56, etc.)
-      // For rate card analysis, allow zero costs since clients may not provide current rates
+      // Parse current rate
       const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
       const currentCost = parseFloat(costString);
       
-      
-      // Check if we have any missing fields and provide detailed error
-      if (missingFields.length > 0) {
-        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-      }
-      
-      
-      const length = parseFloat(shipment.length);
-      const width = parseFloat(shipment.width); 
-      const height = parseFloat(shipment.height);
-      
-      // Validate dimensions are present and valid
-      if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
-        throw new Error(`Missing or invalid package dimensions. All shipments must have valid length, width, and height values.`);
-      }
-      
-      // Normalize service names for robust matching
-      const normalizeServiceName = (serviceName: string): string => {
-        return serviceName?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
-      };
-
-      // Use the confirmed service mapping from the service review step with normalized comparison
+      // Optimized service mapping lookup with memoization
+      const normalizedService = shipment.service?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
       const confirmedMapping = serviceMappings.find(m => 
-        normalizeServiceName(m.original) === normalizeServiceName(shipment.service)
+        m.original?.trim().toLowerCase().replace(/\s+/g, ' ') === normalizedService
       );
       
       
@@ -694,6 +704,39 @@ const Analysis = () => {
         zone: shipment.zone // Include CSV-mapped zone if available
       };
       
+      // Check cache first for identical requests
+      const cacheKey = {
+        originZip: shipment.originZip,
+        destZip: shipment.destZip,
+        weight,
+        length,
+        width,
+        height,
+        serviceTypes: serviceCodesToRequest,
+        carrierConfigIds: selectedCarriers,
+        isResidential: residentialStatus.isResidential
+      };
+      
+      const cachedResult = analysisCache.get(cacheKey);
+      if (cachedResult) {
+        console.log(`⚡ Cache hit for shipment ${index + 1}`);
+        
+        // Update results with cached data
+        setAnalysisResults(prev => {
+          return prev.map(result => {
+            if (result.shipment.id === shipment.id) {
+              return {
+                ...result,
+                status: 'completed',
+                ...cachedResult
+              };
+            }
+            return result;
+          });
+        });
+        
+        return cachedResult;
+      }
       
       const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
         body: { 
@@ -721,15 +764,17 @@ const Analysis = () => {
           }
         });
         
-        // Check if this is a retryable error
+        // Smart retry logic with exponential backoff
         const isRetryableError = error.message?.includes('timeout') || 
                                 error.message?.includes('network') ||
                                 error.message?.includes('500') ||
-                                error.message?.includes('503');
+                                error.message?.includes('503') ||
+                                error.message?.includes('429');
         
         if (isRetryableError && retryCount < maxRetries) {
-          
-          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Progressive delay
+          const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
+          console.log(`🔄 Retrying shipment ${index + 1} in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
           return processShipment(index, shipment, retryCount + 1);
         }
         
@@ -987,15 +1032,29 @@ const Analysis = () => {
             };
             
             // Final validation log
-            console.log(`✅ Storing validated result for shipment ${shipment.id}:`, {
-              originalService: updatedResult.originalService,
-              bestRateService: updatedResult.bestRate?.serviceName,
-              bestRateCode: updatedResult.bestRate?.serviceCode,
-              expectedCode: updatedResult.expectedServiceCode,
-              mappingValid: updatedResult.mappingValidation?.isValid
-            });
-            
-            return updatedResult;
+                  console.log(`✅ Storing validated result for shipment ${shipment.id}:`, {
+        originalService: updatedResult.originalService,
+        bestRateService: updatedResult.bestRate?.serviceName,
+        bestRateCode: updatedResult.bestRate?.serviceCode,
+        expectedCode: updatedResult.expectedServiceCode,
+        mappingValid: updatedResult.mappingValidation?.isValid
+      });
+      
+      // Cache the result for future use
+      analysisCache.set(cacheKey, {
+        currentCost: updatedResult.currentCost,
+        originalService: updatedResult.originalService,
+        allRates: updatedResult.allRates,
+        carrierResults: updatedResult.carrierResults,
+        bestRate: updatedResult.bestRate,
+        bestOverallRate: updatedResult.bestOverallRate,
+        savings: updatedResult.savings,
+        maxSavings: updatedResult.maxSavings,
+        expectedServiceCode: updatedResult.expectedServiceCode,
+        mappingValidation: updatedResult.mappingValidation
+      });
+      
+      return updatedResult;
           }
           return result;
         });

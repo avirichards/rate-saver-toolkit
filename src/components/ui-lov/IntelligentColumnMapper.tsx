@@ -39,7 +39,7 @@ const fieldDefinitions = [
   { name: 'service', displayName: 'Service Type', description: 'Shipping service used', required: true },
   { name: 'carrier', displayName: 'Carrier', description: 'Shipping carrier (UPS, FedEx, etc.)', required: false },
   { name: 'weight', displayName: 'Weight', description: 'Package weight (lbs/oz)', required: true },
-  { name: 'currentRate', displayName: 'Current Cost', description: 'Current shipping cost ($)', required: true },
+  { name: 'currentRate', displayName: 'Current Cost', description: 'Current shipping cost ($) - optional for rate comparison', required: false },
   { name: 'originZip', displayName: 'Origin ZIP', description: 'Pickup ZIP code', required: true },
   { name: 'destZip', displayName: 'Destination ZIP', description: 'Delivery ZIP code', required: true },
   { name: 'length', displayName: 'Length', description: 'Package length (inches) - optional, defaults to 12"', required: false },

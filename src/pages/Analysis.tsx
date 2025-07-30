@@ -95,25 +95,23 @@ const Analysis = () => {
   const [analysisId, setAnalysisId] = useState<string | null>(null);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
-  // Initialize progressive batching with optimized settings for speed
-  const { addCompletedShipment, finalizeBatching, getPendingCount } = useProgressiveBatching(
-    analysisId,
-    {
-      batchSize: 100, // Larger batches, less frequent saves
-      batchTimeoutMs: 45000, // Less frequent timeout saves
-      onBatchSaved: (batchSize) => {
-        console.log(`📦 Background save: ${batchSize} shipments`);
-        // Removed toast for performance - was slowing things down
-      },
-      onError: (error) => {
-        console.error('Progressive batching error:', error);
-        // Only show critical errors
-        if (error.message.includes('auth')) {
-          toast.error('Failed to save progress - authentication issue');
-        }
-      }
-    }
-  );
+  // TEMPORARILY DISABLE progressive batching to debug performance
+  const { addCompletedShipment, finalizeBatching, getPendingCount } = {
+    addCompletedShipment: (_completed: any) => {}, // No-op for now
+    finalizeBatching: async () => {}, // No-op for now  
+    getPendingCount: () => 0 // No-op for now
+  };
+  
+  // TODO: Re-enable once we identify the slowdown
+  // const { addCompletedShipment, finalizeBatching, getPendingCount } = useProgressiveBatching(
+  //   analysisId,
+  //   {
+  //     batchSize: 100,
+  //     batchTimeoutMs: 45000,
+  //     onBatchSaved: (batchSize) => console.log(`📦 Background save: ${batchSize} shipments`),
+  //     onError: (error) => console.error('Progressive batching error:', error)
+  //   }
+  // );
   
   useEffect(() => {
     const state = location.state as { 
@@ -664,6 +662,7 @@ const Analysis = () => {
   
   const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
     const maxRetries = 2;
+    const startTime = performance.now(); // ADD PERFORMANCE MONITORING
     
     console.log(`🔍 Processing shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
       shipmentId: shipment.id,
@@ -673,7 +672,8 @@ const Analysis = () => {
       destZip: shipment.destZip,
       weight: shipment.weight,
       currentRate: shipment.currentRate,
-      isRetry: retryCount > 0
+      isRetry: retryCount > 0,
+      timestamp: new Date().toISOString()
     });
     
       // Update status to processing using shipment ID-based update to prevent race conditions
@@ -950,19 +950,26 @@ const Analysis = () => {
           serviceTypes: shipmentRequest.serviceTypes,
           equivalentServiceCode: shipmentRequest.equivalentServiceCode,
           isResidential: shipmentRequest.isResidential
-        }
-      });
-      
-      const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
-        body: { 
-          shipment: {
-            ...shipmentRequest,
-            carrierConfigIds: selectedCarriers,
-            analysisId: analysisId, // Pass analysis ID for saving individual rates
-            shipmentIndex: index // Pass shipment index for tracking
-          }
-        }
-      });
+         }
+       });
+       
+       const apiStartTime = performance.now(); // TIMING: API call start
+       console.log(`🚀 Starting API call for shipment ${index + 1} at ${apiStartTime.toFixed(2)}ms`);
+       
+       const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
+         body: { 
+           shipment: {
+             ...shipmentRequest,
+             carrierConfigIds: selectedCarriers,
+             analysisId: analysisId, // Pass analysis ID for saving individual rates
+             shipmentIndex: index // Pass shipment index for tracking
+           }
+         }
+       });
+       
+       const apiEndTime = performance.now(); // TIMING: API call end  
+       const apiDuration = apiEndTime - apiStartTime;
+       console.log(`⏱️ API call completed for shipment ${index + 1} in ${apiDuration.toFixed(2)}ms`);
 
       console.log(`📦 Multi-carrier API response for shipment ${index + 1}:`, {
         hasData: !!data,
@@ -1278,9 +1285,13 @@ const Analysis = () => {
               maxSavings,
               expectedServiceCode: equivalentServiceCode,
               mappingValidation
-            });
-            
-            return updatedResult;
+             });
+             
+             const endTime = performance.now(); // TIMING: Total processing time
+             const totalDuration = endTime - startTime;
+             console.log(`🏁 PERFORMANCE: Shipment ${index + 1} completed in ${totalDuration.toFixed(2)}ms (API: ${apiDuration.toFixed(2)}ms)`);
+             
+             return updatedResult;
           }
           return result;
         });

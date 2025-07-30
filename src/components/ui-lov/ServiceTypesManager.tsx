@@ -50,6 +50,7 @@ interface ServiceMapping {
   is_enabled: boolean;
   is_custom: boolean;
   is_system: boolean;
+  carrier_type: string;
 }
 
 export const ServiceTypesManager = () => {
@@ -58,9 +59,11 @@ export const ServiceTypesManager = () => {
   const [customServices, setCustomServices] = useState<CustomService[]>([]);
   const [selectedCarrier, setSelectedCarrier] = useState<string>('');
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
+  const [editedMappings, setEditedMappings] = useState<Record<string, Partial<ServiceMapping>>>({});
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [editingService, setEditingService] = useState<ServiceMapping | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const [newCustomService, setNewCustomService] = useState({
     service_code: '',
@@ -159,7 +162,8 @@ export const ServiceTypesManager = () => {
         universal_category: universalCategory,
         is_enabled: (selectedConfig.enabled_services as string[]).includes(service.service_code),
         is_custom: false,
-        is_system: true
+        is_system: true,
+        carrier_type: carrierType
       });
     });
 
@@ -175,11 +179,14 @@ export const ServiceTypesManager = () => {
         universal_category: service.universal_category,
         is_enabled: (selectedConfig.enabled_services as string[]).includes(service.service_code),
         is_custom: true,
-        is_system: false
+        is_system: false,
+        carrier_type: carrierType
       });
     });
 
     setServiceMappings(mappings.sort((a, b) => a.service_name.localeCompare(b.service_name)));
+    setEditedMappings({});
+    setHasUnsavedChanges(false);
   };
 
   const toggleServiceEnabled = async (serviceCode: string, enabled: boolean) => {
@@ -215,71 +222,71 @@ export const ServiceTypesManager = () => {
     }
   };
 
-  const updateServiceMapping = async (serviceCode: string, universalCategory: string) => {
-    const mapping = serviceMappings.find(m => m.service_code === serviceCode);
-    if (!mapping) return;
+  const updateServiceMapping = (serviceCode: string, field: keyof ServiceMapping, value: string) => {
+    setEditedMappings(prev => ({
+      ...prev,
+      [serviceCode]: {
+        ...prev[serviceCode],
+        [field]: value
+      }
+    }));
+    setHasUnsavedChanges(true);
+  };
+
+  const saveAllChanges = async () => {
+    if (Object.keys(editedMappings).length === 0) {
+      toast.info('No changes to save');
+      return;
+    }
 
     try {
-      if (mapping.is_custom) {
-        // Update custom service
-        const { error } = await supabase
-          .from('custom_carrier_service_codes')
-          .update({ universal_category: universalCategory })
-          .eq('service_code', serviceCode)
-          .eq('carrier_type', carrierConfigs.find(c => c.id === selectedCarrier)?.carrier_type.toUpperCase());
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-        if (error) throw error;
-        
-        loadData();
-        toast.success('Service mapping updated');
-      } else {
-        // For system services, create a user override by creating a custom service with same code
-        const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
-        if (!selectedConfig) return;
+      const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
+      if (!selectedConfig) return;
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+      for (const [serviceCode, changes] of Object.entries(editedMappings)) {
+        const originalMapping = serviceMappings.find(m => m.service_code === serviceCode);
+        if (!originalMapping) continue;
 
-        // Check if custom service with same code already exists
-        const { data: existing } = await supabase
-          .from('custom_carrier_service_codes')
-          .select('*')
-          .eq('service_code', serviceCode)
-          .eq('carrier_type', selectedConfig.carrier_type.toUpperCase())
-          .eq('user_id', user.id)
-          .single();
+        if (originalMapping.is_custom) {
+          // Update existing custom service
+          const updateData: any = {};
+          if (changes.service_name !== undefined) updateData.service_name = changes.service_name;
+          if (changes.universal_category !== undefined) updateData.universal_category = changes.universal_category;
 
-        if (existing) {
-          // Update existing custom override
           const { error } = await supabase
             .from('custom_carrier_service_codes')
-            .update({ universal_category: universalCategory })
-            .eq('id', existing.id);
+            .update(updateData)
+            .eq('service_code', serviceCode)
+            .eq('carrier_type', selectedConfig.carrier_type.toUpperCase())
+            .eq('user_id', user.id);
 
           if (error) throw error;
         } else {
-          // Create new custom override
+          // Create custom override for system service
           const { error } = await supabase
             .from('custom_carrier_service_codes')
             .insert({
               user_id: user.id,
               carrier_type: selectedConfig.carrier_type.toUpperCase(),
               service_code: serviceCode,
-              service_name: mapping.service_name,
-              universal_category: universalCategory,
+              service_name: changes.service_name || originalMapping.service_name,
+              universal_category: changes.universal_category || originalMapping.universal_category,
               is_available: true,
               is_active: true
             });
 
           if (error) throw error;
         }
-
-        loadData();
-        toast.success('Service mapping updated (custom override created)');
       }
+
+      await loadData();
+      toast.success('All changes saved successfully');
     } catch (error) {
-      console.error('Error updating service mapping:', error);
-      toast.error('Failed to update service mapping');
+      console.error('Error saving changes:', error);
+      toast.error('Failed to save changes');
     }
   };
 
@@ -411,6 +418,17 @@ export const ServiceTypesManager = () => {
     }
   };
 
+  const getCurrentValue = (serviceCode: string, field: keyof ServiceMapping) => {
+    const edited = editedMappings[serviceCode];
+    const original = serviceMappings.find(m => m.service_code === serviceCode);
+    
+    if (edited && edited[field] !== undefined) {
+      return edited[field];
+    }
+    
+    return original ? original[field] : '';
+  };
+
   if (loading) {
     return (
       <Card>
@@ -476,6 +494,15 @@ export const ServiceTypesManager = () => {
                   iconLeft={<RotateCcw className="h-4 w-4" />}
                 >
                   Reset to Defaults
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={saveAllChanges}
+                  disabled={!hasUnsavedChanges}
+                  iconLeft={<Save className="h-4 w-4" />}
+                >
+                  Save Changes
                 </Button>
                 <Dialog open={isAddingCustom} onOpenChange={setIsAddingCustom}>
                   <DialogTrigger asChild>
@@ -568,11 +595,11 @@ export const ServiceTypesManager = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Enabled</TableHead>
+                        <TableHead>Carrier Type</TableHead>
                         <TableHead>Service Name</TableHead>
                         <TableHead>Service Code</TableHead>
                         <TableHead>Universal Category</TableHead>
                         <TableHead>Type</TableHead>
-                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -586,49 +613,52 @@ export const ServiceTypesManager = () => {
                               }
                             />
                           </TableCell>
-                          <TableCell className="font-medium">
-                            {mapping.service_name}
+                          <TableCell>
+                            <Badge variant="outline">
+                              {mapping.carrier_type}
+                            </Badge>
                           </TableCell>
                           <TableCell>
-                            <code className="text-sm bg-muted px-2 py-1 rounded">
-                              {mapping.service_code}
-                            </code>
+                            <Input
+                              value={getCurrentValue(mapping.service_code, 'service_name') as string}
+                              onChange={(e) =>
+                                updateServiceMapping(mapping.service_code, 'service_name', e.target.value)
+                              }
+                              className="min-w-0"
+                            />
                           </TableCell>
-                           <TableCell>
-                             <Select
-                               value={mapping.universal_category}
-                               onValueChange={(value) =>
-                                 updateServiceMapping(mapping.service_code, value)
-                               }
-                             >
-                               <SelectTrigger className="w-full">
-                                 <SelectValue />
-                               </SelectTrigger>
-                               <SelectContent>
-                                 {Object.entries(UNIVERSAL_SERVICES).map(([key, info]) => (
-                                   <SelectItem key={key} value={key}>
-                                     {info.displayName}
-                                   </SelectItem>
-                                 ))}
-                               </SelectContent>
-                             </Select>
-                           </TableCell>
+                          <TableCell>
+                            <Input
+                              value={getCurrentValue(mapping.service_code, 'service_code') as string}
+                              onChange={(e) =>
+                                updateServiceMapping(mapping.service_code, 'service_code', e.target.value)
+                              }
+                              className="min-w-0 font-mono text-sm"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={getCurrentValue(mapping.service_code, 'universal_category') as string}
+                              onValueChange={(value) =>
+                                updateServiceMapping(mapping.service_code, 'universal_category', value)
+                              }
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(UNIVERSAL_SERVICES).map(([key, info]) => (
+                                  <SelectItem key={key} value={key}>
+                                    {info.displayName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
                           <TableCell>
                             <Badge variant={mapping.is_custom ? "default" : "outline"}>
                               {mapping.is_custom ? 'Custom' : 'System'}
                             </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {mapping.is_custom && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => deleteCustomService(mapping.service_code)}
-                                iconLeft={<Trash2 className="h-4 w-4" />}
-                              >
-                                Delete
-                              </Button>
-                            )}
                           </TableCell>
                         </TableRow>
                       ))}

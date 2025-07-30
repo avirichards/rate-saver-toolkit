@@ -16,6 +16,7 @@ import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/
 import { getCarrierServiceCode, CarrierType, getUniversalCategoryFromCarrierCode } from '@/utils/carrierServiceRegistry';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
+import { useProgressiveBatching } from '@/hooks/useProgressiveBatching';
 
 interface ProcessedShipment {
   id: number;
@@ -91,7 +92,25 @@ const Analysis = () => {
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const [hasLoadedInitialCarriers, setHasLoadedInitialCarriers] = useState(false);
+  const [analysisId, setAnalysisId] = useState<string | null>(null);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
+  
+  // Initialize progressive batching
+  const { addCompletedShipment, finalizeBatching, getPendingCount } = useProgressiveBatching(
+    analysisId,
+    {
+      batchSize: 25, // Save every 25 completed shipments
+      batchTimeoutMs: 15000, // Or every 15 seconds
+      onBatchSaved: (batchSize) => {
+        console.log(`📦 Progressive batch saved: ${batchSize} shipments`);
+        toast.success(`Saved progress: ${batchSize} shipments processed`, { duration: 2000 });
+      },
+      onError: (error) => {
+        console.error('Progressive batching error:', error);
+        toast.error('Failed to save progress automatically');
+      }
+    }
+  );
   
   useEffect(() => {
     const state = location.state as { 
@@ -495,7 +514,12 @@ const Analysis = () => {
       
       // Only mark complete if we processed all shipments and weren't paused
       if (!isPaused) {
-        console.log('✅ Analysis complete, updating database');
+        console.log('✅ Analysis complete, finalizing progressive batching');
+        
+        // Finalize any remaining batched shipments before marking complete
+        await finalizeBatching();
+        
+        console.log('✅ Progressive batching complete, updating database');
         setIsComplete(true);
         await updateAnalysisRecord(analysisId);
       }
@@ -596,6 +620,7 @@ const Analysis = () => {
     }
 
     console.log('✅ Analysis record created successfully:', data.id);
+    setAnalysisId(data.id); // Store analysis ID for progressive batching
     return data.id;
   };
 
@@ -1238,6 +1263,20 @@ const Analysis = () => {
               mappingValid: updatedResult.mappingValidation?.isValid
             });
             
+            // Add completed shipment to progressive batching
+            addCompletedShipment({
+              shipment,
+              currentCost,
+              allRates: data.allRates,
+              carrierResults: data.carrierResults,
+              bestRate: comparisonRate,
+              bestOverallRate: bestRate,
+              savings,
+              maxSavings,
+              expectedServiceCode: equivalentServiceCode,
+              mappingValidation
+            });
+            
             return updatedResult;
           }
           return result;
@@ -1388,6 +1427,10 @@ const Analysis = () => {
     });
 
     try {
+      // Finalize any remaining progressive batches before completing analysis
+      await finalizeBatching();
+      console.log(`📦 Finalized progressive batching. Pending batches: ${getPendingCount()}`);
+      
       // Format data for the finalize endpoint
       const recommendations = completedResults.map((result, index) => ({
         shipment: result.shipment,
@@ -1453,6 +1496,10 @@ const Analysis = () => {
     });
 
     try {
+      // Finalize any remaining progressive batches before stopping analysis
+      await finalizeBatching();
+      console.log(`📦 Finalized progressive batching for partial results. Pending batches: ${getPendingCount()}`);
+      
       // Format data for the finalize endpoint (same as handleViewResults)
       const recommendations = completedResults.map((result, index) => ({
         shipment: result.shipment,
@@ -1632,6 +1679,14 @@ const Analysis = () => {
               </div>
             </div>
             <Progress value={progress} className="h-2" />
+            
+            {/* Progressive Batching Status */}
+            {isAnalyzing && getPendingCount() > 0 && (
+              <div className="text-xs text-muted-foreground mt-2 flex items-center gap-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                {getPendingCount()} shipments pending auto-save
+              </div>
+            )}
             
             {/* Control Buttons */}
             {(isAnalyzing || completedCount > 0) && !isComplete && (

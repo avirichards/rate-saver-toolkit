@@ -592,7 +592,7 @@ export const ServiceTypesManager = () => {
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Add Custom Service for {selectedCarrierType}</DialogTitle>
+                      <DialogTitle>Add Custom Service</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                       <div className="space-y-2">
@@ -632,9 +632,9 @@ export const ServiceTypesManager = () => {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {Object.values(UniversalServiceCategory).map((category) => (
-                              <SelectItem key={category} value={category}>
-                                {category}
+                            {Object.entries(UNIVERSAL_SERVICES).map(([key, info]) => (
+                              <SelectItem key={key} value={key}>
+                                {info.displayName}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -732,9 +732,9 @@ export const ServiceTypesManager = () => {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                {Object.values(UniversalServiceCategory).map((category) => (
-                                  <SelectItem key={category} value={category}>
-                                    {category}
+                                {Object.entries(UNIVERSAL_SERVICES).map(([key, info]) => (
+                                  <SelectItem key={key} value={key}>
+                                    {info.displayName}
                                   </SelectItem>
                                 ))}
                               </SelectContent>

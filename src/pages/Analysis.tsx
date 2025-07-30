@@ -95,6 +95,7 @@ const Analysis = () => {
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const [hasLoadedInitialCarriers, setHasLoadedInitialCarriers] = useState(false);
   const [isRateCardMode, setIsRateCardMode] = useState(false); // Track if we're in rate card mode
+  const [backgroundSavesInProgress, setBackgroundSavesInProgress] = useState(0);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
@@ -577,6 +578,43 @@ const Analysis = () => {
       console.error('❌ Error updating analysis record:', error);
     } else {
       console.log('✅ Analysis record updated successfully');
+    }
+  };
+
+  // Background processing: Save completed results incrementally
+  const saveCompletedResult = async (result: AnalysisResult, analysisId: string) => {
+    setBackgroundSavesInProgress(prev => prev + 1);
+    
+    try {
+      if (result.status === 'completed' && result.allRates) {
+        // Save individual shipment rates to database
+        const ratesToInsert = result.allRates.map((rate: any) => ({
+          analysis_id: analysisId,
+          shipment_index: result.shipment.id,
+          carrier_config_id: rate.carrierId || '',
+          account_name: rate.carrierName || rate.accountName || 'Unknown',
+          carrier_type: rate.carrierType || 'ups',
+          service_code: rate.serviceCode || '',
+          service_name: rate.serviceName || rate.description || '',
+          rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
+          currency: rate.currency || 'USD',
+          transit_days: rate.transitTime || null,
+          is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
+          published_rate: rate.publishedRate || null,
+          shipment_data: result.shipment || {}
+        }));
+
+        if (ratesToInsert.length > 0) {
+          await supabase
+            .from('shipment_rates')
+            .insert(ratesToInsert);
+        }
+      }
+    } catch (error) {
+      console.error('Background save error for shipment', result.shipment.id, ':', error);
+      // Don't fail the main process for background saves
+    } finally {
+      setBackgroundSavesInProgress(prev => prev - 1);
     }
   };
   
@@ -1100,6 +1138,13 @@ const Analysis = () => {
               mappingValidation
             };
             
+            // Background save to database (non-blocking)
+            if (analysisId) {
+              saveCompletedResult(updatedResult, analysisId).catch(error => {
+                console.error('Background save failed for shipment', shipment.id, ':', error);
+              });
+            }
+            
             // Final validation log
                   console.log(`✅ Storing validated result for shipment ${shipment.id}:`, {
         originalService: updatedResult.originalService,
@@ -1251,6 +1296,24 @@ const Analysis = () => {
       
       console.log('✅ Authentication successful, user:', user.id);
       
+      // Test database connection
+      try {
+        const { data: testData, error: testError } = await supabase
+          .from('shipping_analyses')
+          .select('id')
+          .limit(1);
+        
+        if (testError) {
+          console.error('❌ Database connection error:', testError);
+          throw new Error('Database connection failed. Please try again.');
+        }
+        
+        console.log('✅ Database connection successful');
+      } catch (dbError) {
+        console.error('❌ Database test failed:', dbError);
+        throw new Error('Database connection failed. Please try again.');
+      }
+      
       const { data, error } = await supabase.functions.invoke('finalize-analysis', {
         body: analysisData
       });
@@ -1378,6 +1441,18 @@ const Analysis = () => {
           orphanedShipmentsCount: analysisPayload.orphanedShipments?.length || 0
         }
       });
+      
+      // Try to save analysis locally as fallback
+      try {
+        console.log('🔄 Attempting local fallback save...');
+        const fallbackAnalysisId = await createAnalysisRecord(shipments);
+        await updateAnalysisRecord(fallbackAnalysisId);
+        console.log('✅ Local fallback save successful:', fallbackAnalysisId);
+        navigate(`/results?analysisId=${fallbackAnalysisId}`);
+        return;
+      } catch (fallbackError) {
+        console.error('❌ Local fallback also failed:', fallbackError);
+      }
     }
   };
 
@@ -1613,6 +1688,14 @@ const Analysis = () => {
               <div className="mt-2 flex items-center gap-2 text-sm text-emerald-600">
                 <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
                 <span>⚡ Instant Rate Card Mode - Database lookups only</span>
+              </div>
+            )}
+            
+            {/* Background Processing Indicator */}
+            {backgroundSavesInProgress > 0 && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span>💾 Saving {backgroundSavesInProgress} result{backgroundSavesInProgress !== 1 ? 's' : ''} to database...</span>
               </div>
             )}
             

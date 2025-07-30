@@ -1221,6 +1221,15 @@ const Analysis = () => {
         status: 'error'
       }));
 
+      console.log('🚨 STOP & VIEW RESULTS - ORPHAN DEBUG:', {
+        totalResults: analysisResults.length,
+        completedResults: completedResults.length,
+        errorResults: errorResults.length,
+        orphanedShipments: orphanedShipments.length,
+        sampleErrorResults: errorResults.slice(0, 3),
+        sampleOrphanedShipments: orphanedShipments.slice(0, 3)
+      });
+
       const state = location.state as any;
       const analysisPayload = {
         fileName: state?.fileName || 'Real-time Analysis',
@@ -1235,6 +1244,8 @@ const Analysis = () => {
         carrierConfigsUsed: selectedCarriers,
         serviceMappings: serviceMappings
       };
+
+      console.log('🚨 STOP & VIEW RESULTS - ANALYSIS PAYLOAD:', analysisPayload);
 
       // Finalize analysis in backend
       const analysisId = await finalizeAnalysis(analysisPayload);

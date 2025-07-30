@@ -18,19 +18,20 @@ export function validateZipCode(zipCode: string): AddressValidationResult {
   const cleaned = zipCode.trim().replace(/\s+/g, '');
   console.log('🔍 ZIP CLEANED:', cleaned);
   
-  // Extract first 5 digits from any string
-  const digitMatch = cleaned.match(/\d{5}/);
-  console.log('🔍 ZIP DIGIT MATCH:', digitMatch);
+  // Extract all digits and take the first 5 (or whatever we have)
+  const allDigits = cleaned.replace(/\D/g, ''); // Remove all non-digits
+  console.log('🔍 ALL DIGITS FOUND:', allDigits);
   
-  if (!digitMatch) {
-    console.log('❌ ZIP VALIDATION FAILED: No 5 digits found');
+  if (allDigits.length < 4) {
+    console.log('❌ ZIP VALIDATION FAILED: Less than 4 digits found');
     return { 
       isValid: false, 
-      errors: ['ZIP code must contain at least 5 digits'] 
+      errors: ['ZIP code must contain at least 4 digits'] 
     };
   }
   
-  const extractedZip = digitMatch[0];
+  // Take first 5 digits, or all available if less than 5
+  const extractedZip = allDigits.slice(0, 5);
   console.log('✅ ZIP VALIDATION SUCCESS:', extractedZip);
   
   return { 

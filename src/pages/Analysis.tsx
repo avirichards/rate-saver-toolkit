@@ -637,16 +637,13 @@ const Analysis = () => {
   const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
     const maxRetries = 2;
     
-    console.log(`🔍 Processing shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
-      shipmentId: shipment.id,
-      service: shipment.service,
-      carrier: shipment.carrier,
-      originZip: shipment.originZip,
-      destZip: shipment.destZip,
-      weight: shipment.weight,
-      currentRate: shipment.currentRate,
-      isRetry: retryCount > 0
-    });
+    // Only log on retries or errors to reduce console spam with large datasets
+    if (retryCount > 0) {
+      console.log(`🔍 Retrying shipment ${index + 1} (attempt ${retryCount + 1}/${maxRetries + 1}):`, {
+        shipmentId: shipment.id,
+        service: shipment.service
+      });
+    }
     
       // Update status to processing using shipment ID-based update to prevent race conditions
       setAnalysisResults(prev => {
@@ -658,22 +655,7 @@ const Analysis = () => {
       });
     
     try {
-      // Enhanced validation with detailed logging
-      console.log(`📋 Validating shipment ${index + 1} data:`, {
-        shipmentId: shipment.id,
-        hasOriginZip: !!shipment.originZip?.trim(),
-        hasDestZip: !!shipment.destZip?.trim(),
-        hasService: !!shipment.service?.trim(),
-        hasWeight: !!shipment.weight,
-        hasCost: !!shipment.currentRate,
-        rawData: {
-          originZip: shipment.originZip,
-          destZip: shipment.destZip,
-          service: shipment.service,
-          weight: shipment.weight,
-          currentRate: shipment.currentRate
-        }
-      });
+      // Validation logging only for debugging specific issues
       
       const missingFields = [];
       if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
@@ -744,13 +726,7 @@ const Analysis = () => {
         throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
       }
       
-      console.log(`✅ Validation passed for shipment ${index + 1}:`, {
-        shipmentId: shipment.id,
-        weight,
-        currentCost,
-        cleanOriginZip,
-        cleanDestZip
-      });
+      // Validation passed - no logging needed for performance
       
       const length = parseFloat(shipment.length);
       const width = parseFloat(shipment.width); 
@@ -777,25 +753,12 @@ const Analysis = () => {
         normalizeServiceName(m.original) === normalizeServiceName(shipment.service)
       );
       
-      console.log('🔍 Analysis - Looking for service mapping (with normalization):', {
-        shipmentService: shipment.service,
-        normalizedShipmentService: normalizeServiceName(shipment.service || ''),
-        availableMappings: serviceMappings.map(m => ({
-          original: m.original,
-          normalized: normalizeServiceName(m.original),
-          standardizedService: m.standardizedService
-        })),
-        foundMapping: confirmedMapping
-      });
+      // Service mapping lookup - logging disabled for performance
       
       let serviceMapping, serviceCodesToRequest, equivalentServiceCode, isConfirmedMapping = false;
       
       if (confirmedMapping && confirmedMapping.standardizedService) {
-        console.log(`🔧 Found confirmed mapping for "${shipment.service}":`, {
-          original: confirmedMapping.original,
-          standardizedService: confirmedMapping.standardizedService,
-          standardized: confirmedMapping.standardized
-        });
+        // Service mapping found - logging disabled for performance
         
         // Use the user-confirmed mapping - pass universal service category directly
         isConfirmedMapping = true;
@@ -1199,15 +1162,7 @@ const Analysis = () => {
           : 'No confirmed mapping validation'
       };
 
-      console.log(`🔍 Final validation for shipment ${shipment.id}:`, {
-        originalService: shipment.service,
-        mappingValidation,
-        isConfirmedMapping,
-        comparisonRate: {
-          serviceCode: comparisonRate.serviceCode,
-          serviceName: comparisonRate.serviceName
-        }
-      });
+      // Final validation complete - logging disabled for performance
 
       // Update result using shipment ID-based update to prevent race conditions
       setAnalysisResults(prev => {
@@ -1228,14 +1183,7 @@ const Analysis = () => {
               mappingValidation
             };
             
-            // Final validation log
-            console.log(`✅ Storing validated result for shipment ${shipment.id}:`, {
-              originalService: updatedResult.originalService,
-              bestRateService: updatedResult.bestRate?.serviceName,
-              bestRateCode: updatedResult.bestRate?.serviceCode,
-              expectedCode: updatedResult.expectedServiceCode,
-              mappingValid: updatedResult.mappingValidation?.isValid
-            });
+            // Result stored successfully - logging disabled for performance
             
             return updatedResult;
           }

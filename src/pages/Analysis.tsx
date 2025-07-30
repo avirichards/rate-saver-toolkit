@@ -567,17 +567,28 @@ const Analysis = () => {
         }
       }
       
-      // Enhanced ZIP code validation with better error messages
-      const zipRegex = /^\d{5}(-\d{4})?$/;
-      const cleanOriginZip = shipment.originZip?.trim();
-      const cleanDestZip = shipment.destZip?.trim();
+      // Enhanced ZIP code validation - use same logic as addressValidation.ts
+      const cleanAndValidateZip = (zipCode: string, fieldName: string) => {
+        if (!zipCode || typeof zipCode !== 'string') {
+          throw new Error(`${fieldName} ZIP code is required`);
+        }
+        
+        const allDigits = zipCode.trim().replace(/\D/g, ''); // Remove all non-digits
+        
+        if (allDigits.length < 4) {
+          throw new Error(`${fieldName} ZIP code must contain at least 4 digits`);
+        }
+        
+        // Take first 5 digits, or all available if less than 5
+        return allDigits.slice(0, 5);
+      };
       
-      if (cleanOriginZip && !zipRegex.test(cleanOriginZip)) {
-        throw new Error(`Invalid origin ZIP code format: "${shipment.originZip}" (expected format: 12345 or 12345-6789)`);
-      }
-      if (cleanDestZip && !zipRegex.test(cleanDestZip)) {
-        throw new Error(`Invalid destination ZIP code format: "${shipment.destZip}" (expected format: 12345 or 12345-6789)`);
-      }
+      const cleanOriginZip = cleanAndValidateZip(shipment.originZip, 'Origin');
+      const cleanDestZip = cleanAndValidateZip(shipment.destZip, 'Destination');
+      
+      // Update shipment with cleaned ZIP codes
+      shipment.originZip = cleanOriginZip;
+      shipment.destZip = cleanDestZip;
       
       // Parse currentRate and handle different formats ($4.41, 4.41, $1,234.56, etc.)
       // For rate card analysis, allow zero costs since clients may not provide current rates

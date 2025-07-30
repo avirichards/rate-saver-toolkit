@@ -187,51 +187,52 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
 
   return (
     <div className={className}>
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Column Mapping</h2>
-            <p className="text-muted-foreground">Map your CSV columns to the required fields</p>
+            <h2 className="text-lg font-bold text-foreground">Column Mapping</h2>
+            <p className="text-sm text-muted-foreground">Map your CSV columns to the required fields</p>
           </div>
         </div>
 
         {/* Mapping Statistics */}
-        <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-muted/50 rounded-lg">
+        <div className="grid grid-cols-2 gap-3 mb-4 p-3 bg-muted/50 rounded-lg">
           <div className="text-center">
-            <p className="text-2xl font-bold text-primary">{mappedCount}</p>
-            <p className="text-sm text-muted-foreground">Fields Mapped</p>
+            <p className="text-xl font-bold text-primary">{mappedCount}</p>
+            <p className="text-xs text-muted-foreground">Fields Mapped</p>
           </div>
           <div className="text-center">
-            <p className="text-2xl font-bold text-green-600">{requiredMappedCount}/{requiredFields.length}</p>
-            <p className="text-sm text-muted-foreground">Required Fields</p>
+            <p className="text-xl font-bold text-green-600">{requiredMappedCount}/{requiredFields.length}</p>
+            <p className="text-xs text-muted-foreground">Required Fields</p>
           </div>
         </div>
 
         {/* Manual Mapping Section */}
-        <div className="space-y-4">
+        <div className="space-y-2">
           {fieldDefinitions.map(field => {
             const selectedColumn = mappings[field.name];
             const hasError = validationErrors[field.name];
             const costPreview = field.name === 'currentRate' && selectedColumn ? getCostDataPreview(selectedColumn) : null;
             
             return (
-              <div key={field.name} className="p-4 border border-border rounded-lg bg-card">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+              <div key={field.name} className="p-3 border border-border rounded-lg bg-card">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
+                  <div className="lg:col-span-1">
+                    <div className="flex items-center gap-2 mb-1">
                       <label className="text-sm font-medium text-foreground">
                         {field.displayName}
                         {field.required && <span className="text-destructive ml-1">*</span>}
                       </label>
                     </div>
-                    <p className="text-xs text-muted-foreground mb-3">{field.description}</p>
-                    
+                    <p className="text-xs text-muted-foreground">{field.description}</p>
+                  </div>
+                  <div className="lg:col-span-2">
                     <Select
                       value={selectedColumn || "__NONE__"}
                       onValueChange={(value) => handleMappingChange(field.name, value === "__NONE__" ? "" : value)}
                     >
                       <SelectTrigger className={cn(
-                        "w-full text-left",
+                        "w-full text-left h-9",
                         hasError && "border-destructive"
                       )}>
                         <SelectValue placeholder="Select a column..." />
@@ -263,26 +264,26 @@ export const IntelligentColumnMapper: React.FC<IntelligentColumnMapperProps> = (
 
         {/* Service Mapping Preview */}
         {mappings.service && serviceMappings.length > 0 && (
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <h3 className="font-semibold mb-2 text-blue-900">Service Type Detection</h3>
-            <p className="text-sm text-blue-700 mb-3">
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <h3 className="font-medium mb-2 text-blue-900">Service Type Detection</h3>
+            <p className="text-xs text-blue-700 mb-2">
               Found {serviceMappings.length} unique service types in your data
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1">
               {serviceMappings.slice(0, 5).map((mapping, index) => (
-                <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800">
+                <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800 text-xs">
                   {mapping.original} → {mapping.standardized}
                 </Badge>
               ))}
               {serviceMappings.length > 5 && (
-                <Badge variant="outline">+{serviceMappings.length - 5} more</Badge>
+                <Badge variant="outline" className="text-xs">+{serviceMappings.length - 5} more</Badge>
               )}
             </div>
           </div>
         )}
 
         {/* Action Buttons */}
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="flex justify-end gap-3 mt-4">
           <Button
             onClick={handleProceed}
             disabled={requiredMappedCount < requiredFields.length}

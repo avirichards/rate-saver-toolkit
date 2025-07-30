@@ -154,16 +154,16 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Needs Review Section */}
       {groupedMappings['needs-review'].length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            <h2 className="text-lg font-semibold">Needs Review ({groupedMappings['needs-review'].length})</h2>
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <h2 className="text-base font-semibold">Needs Review ({groupedMappings['needs-review'].length})</h2>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-2">
             {groupedMappings['needs-review'].map((mapping) => (
               <ServiceMappingCard 
                 key={mapping.original}
@@ -180,13 +180,13 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
 
       {/* Good Matches Section */}
       {groupedMappings['good-match'].length > 0 && (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-success" />
-            <h2 className="text-lg font-semibold">Good Matches ({groupedMappings['good-match'].length})</h2>
+            <CheckCircle className="h-4 w-4 text-success" />
+            <h2 className="text-base font-semibold">Good Matches ({groupedMappings['good-match'].length})</h2>
           </div>
           
-          <div className="space-y-3">
+          <div className="space-y-2">
             {groupedMappings['good-match'].map((mapping) => (
               <ServiceMappingCard 
                 key={mapping.original}
@@ -201,7 +201,7 @@ export const ServiceMappingReview: React.FC<ServiceMappingReviewProps> = ({
       )}
 
       {/* Action Section */}
-      <div className="pt-6">
+      <div className="pt-4">
         <Button 
           onClick={handleConfirmAll}
           size="lg"
@@ -231,58 +231,60 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
   showConfirmButton
 }) => {
   return (
-    <Card className={`p-4 ${mapping.status === 'needs-review' ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
+    <Card className={`p-3 ${mapping.status === 'needs-review' ? 'border-destructive/50 bg-destructive/5' : 'border-border'}`}>
       <CardContent className="p-0">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+          {/* Service Info */}
+          <div className="lg:col-span-4">
+            <div className="flex items-center gap-2 mb-1">
               {mapping.status === 'needs-review' ? (
                 <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
               ) : (
                 <CheckCircle className="h-4 w-4 text-success flex-shrink-0" />
               )}
-              <div>
-                <h3 className="font-semibold text-base">{mapping.original}</h3>
-                <p className="text-sm text-muted-foreground">
-                  Mapped to: {UNIVERSAL_SERVICES[mapping.serviceCategory]?.displayName}
+              <div className="min-w-0">
+                <h3 className="font-medium text-sm truncate">{mapping.original}</h3>
+                <p className="text-xs text-muted-foreground truncate">
+                  → {UNIVERSAL_SERVICES[mapping.serviceCategory]?.displayName}
                 </p>
               </div>
-              <div className="ml-auto">
-                <span className="text-xs bg-muted px-2 py-1 rounded-full">
-                  {mapping.count} shipments
-                </span>
-              </div>
             </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <label className="text-sm text-muted-foreground">Service Category:</label>
-                <div className="mt-1">
-                  <UniversalServiceSelector
-                    value={mapping.serviceCategory}
-                    onValueChange={(value) => updateMapping(mapping.original, value)}
-                    placeholder="Select service category"
-                  />
+            <span className="text-xs bg-muted px-2 py-1 rounded-full">
+              {mapping.count} shipments
+            </span>
+          </div>
+          
+          {/* Service Category Selector */}
+          <div className="lg:col-span-4">
+            <label className="text-xs text-muted-foreground">Service Category:</label>
+            <div className="mt-1">
+              <UniversalServiceSelector
+                value={mapping.serviceCategory}
+                onValueChange={(value) => updateMapping(mapping.original, value)}
+                placeholder="Select service category"
+              />
+            </div>
+          </div>
+          
+          {/* Residential Toggle & Actions */}
+          <div className="lg:col-span-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                {mapping.isResidential ? (
+                  <Home className="h-3 w-3 text-primary flex-shrink-0" />
+                ) : (
+                  <Building className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <span className="text-xs font-medium truncate">
+                    {mapping.isResidential ? 'Residential' : 'Commercial'}
+                  </span>
+                  <div className="text-xs text-muted-foreground">
+                    ({mapping.residentialSource})
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            {/* Residential Toggle */}
-            <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
-              <div className="flex items-center gap-2">
-                {mapping.isResidential ? (
-                  <Home className="h-4 w-4 text-primary" />
-                ) : (
-                  <Building className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className="text-sm font-medium">
-                  {mapping.isResidential ? 'Residential Delivery' : 'Commercial Delivery'}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  ({mapping.residentialSource})
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <Switch
                   checked={mapping.isResidential}
                   onCheckedChange={(checked) => updateResidentialStatus(mapping.original, checked)}
@@ -292,8 +294,9 @@ const ServiceMappingCard: React.FC<ServiceMappingCardProps> = ({
                     onClick={() => confirmMapping(mapping.original)}
                     variant="default"
                     size="sm"
+                    className="text-xs px-2 py-1 h-8"
                   >
-                    Confirm as Correct
+                    Confirm
                   </Button>
                 )}
               </div>

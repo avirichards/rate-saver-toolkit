@@ -58,7 +58,7 @@ export const ServiceTypesManager = () => {
   const [systemServices, setSystemServices] = useState<CarrierService[]>([]);
   const [customServices, setCustomServices] = useState<CustomService[]>([]);
   const [selectedCarrier, setSelectedCarrier] = useState<string>('');
-  const [carrierTypeFilter, setCarrierTypeFilter] = useState<string>('ALL');
+  
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [editedMappings, setEditedMappings] = useState<Record<string, Partial<ServiceMapping>>>({});
   const [isAddingCustom, setIsAddingCustom] = useState(false);
@@ -80,11 +80,6 @@ export const ServiceTypesManager = () => {
   useEffect(() => {
     if (selectedCarrier) {
       buildServiceMappings();
-      // Auto-set carrier type filter based on selected carrier
-      const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
-      if (selectedConfig) {
-        setCarrierTypeFilter(selectedConfig.carrier_type.toUpperCase());
-      }
     }
   }, [selectedCarrier, systemServices, customServices, carrierConfigs]);
 
@@ -191,12 +186,7 @@ export const ServiceTypesManager = () => {
       });
     });
 
-    // Filter by carrier type if filter is applied
-    const filteredMappings = carrierTypeFilter && carrierTypeFilter !== 'ALL'
-      ? mappings.filter(m => m.carrier_type === carrierTypeFilter)
-      : mappings;
-
-    setServiceMappings(filteredMappings.sort((a, b) => a.service_name.localeCompare(b.service_name)));
+    setServiceMappings(mappings.sort((a, b) => a.service_name.localeCompare(b.service_name)));
     setEditedMappings({});
     setHasUnsavedChanges(false);
   };
@@ -463,40 +453,21 @@ export const ServiceTypesManager = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Carrier Selection and Filter */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Select Carrier Account</Label>
-              <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a carrier account" />
-                </SelectTrigger>
-                <SelectContent>
-                  {carrierConfigs.map(config => (
-                    <SelectItem key={config.id} value={config.id}>
-                      {config.account_name} ({config.carrier_type.toUpperCase()})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Filter by Carrier Type</Label>
-              <Select value={carrierTypeFilter} onValueChange={setCarrierTypeFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All carrier types" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Carrier Types</SelectItem>
-                  {Array.from(new Set(carrierConfigs.map(c => c.carrier_type.toUpperCase()))).map(type => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          {/* Carrier Selection */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2">Select Carrier Account</label>
+            <Select value={selectedCarrier} onValueChange={setSelectedCarrier}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a carrier account" />
+              </SelectTrigger>
+              <SelectContent>
+                {carrierConfigs.map((config) => (
+                  <SelectItem key={config.id} value={config.id}>
+                    {config.account_name} ({config.carrier_type.toUpperCase()})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {selectedCarrier && (

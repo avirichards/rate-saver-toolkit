@@ -751,11 +751,6 @@ const Analysis = () => {
       };
       
       // Only use caching for API calls, not rate cards (which are already fast)
-      const isRateCardRequest = selectedCarriers.some(carrierId => {
-        const config = carrierConfigs?.find(c => c.id === carrierId);
-        return config?.is_rate_card;
-      });
-      
       let cachedResult = null;
       let cacheKey = null;
       if (!isRateCardRequest) {

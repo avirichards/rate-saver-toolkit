@@ -18,7 +18,6 @@ import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/
 import { getCarrierServiceCode, CarrierType, getUniversalCategoryFromCarrierCode } from '@/utils/carrierServiceRegistry';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
-import { analysisCache } from '@/utils/analysisCache';
 
 interface ProcessedShipment {
   id: number;
@@ -94,8 +93,6 @@ const Analysis = () => {
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const [hasLoadedInitialCarriers, setHasLoadedInitialCarriers] = useState(false);
-  const [isRateCardMode, setIsRateCardMode] = useState(false); // Track if we're in rate card mode
-  const [backgroundSavesInProgress, setBackgroundSavesInProgress] = useState(0);
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
@@ -357,87 +354,39 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
       
-      // Get carrier configs to determine analysis type
-      const { data: carrierConfigs } = await supabase
-        .from('carrier_configs')
-        .select('*')
-        .in('id', selectedCarriers);
+      // Process shipments in optimized batches to prevent browser overload
+      const batchSize = 25; // Optimized batch size for performance
+      const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
       
-      // Check if this is primarily a rate card analysis
-      const isRateCardAnalysis = carrierConfigs?.some(config => config.is_rate_card) || false;
-      setIsRateCardMode(isRateCardAnalysis);
-      
-      // Ultra-fast processing for rate cards, standard batching for API calls
-      if (isRateCardAnalysis) {
-        // Rate cards are essentially VLOOKUPs - process all at once, no batching needed
-        console.log(`⚡ Rate Card Mode: Processing ${shipmentsToAnalyze.length} shipments instantly (database lookups)`);
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        // Check if paused before processing each batch
+        if (isPaused) {
+          console.log('Analysis paused, stopping processing');
+          break;
+        }
         
-        // Process all shipments in parallel for maximum speed
-        const promises = shipmentsToAnalyze.map((shipment, index) => {
-          setCurrentShipmentIndex(index);
-          return processShipment(index, shipment, 0, analysisId, carrierConfigs);
+        const startIndex = batchIndex * batchSize;
+        const endIndex = Math.min(startIndex + batchSize, shipmentsToAnalyze.length);
+        const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
+        
+        
+        
+        // Process all shipments in the batch concurrently
+        const batchPromises = batch.map((shipment, indexInBatch) => {
+          const globalIndex = startIndex + indexInBatch;
+          setCurrentShipmentIndex(globalIndex);
+          return processShipment(globalIndex, shipment, 0, analysisId);
         });
         
-        await Promise.allSettled(promises);
-        setCurrentShipmentIndex(shipmentsToAnalyze.length - 1);
+        // Wait for all shipments in the batch to complete
+        await Promise.allSettled(batchPromises);
         
-      } else {
-        // API calls need rate limiting protection
-        const getOptimalBatchConfig = (totalShipments: number) => {
-          if (totalShipments <= 50) return { size: 10, concurrency: 5, delay: 50 };
-          if (totalShipments <= 200) return { size: 20, concurrency: 8, delay: 100 };
-          if (totalShipments <= 500) return { size: 25, concurrency: 10, delay: 150 };
-          return { size: 30, concurrency: 12, delay: 200 };
-        };
+        // Update progress to reflect completed batch
+        setCurrentShipmentIndex(endIndex - 1);
         
-        const batchConfig = getOptimalBatchConfig(shipmentsToAnalyze.length);
-        const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchConfig.size);
-        
-        console.log(`🚀 API Mode: Processing ${shipmentsToAnalyze.length} shipments in ${totalBatches} batches (${batchConfig.size} per batch, ${batchConfig.concurrency} concurrent)`);
-        
-        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-          if (isPaused) {
-            console.log('Analysis paused, stopping processing');
-            break;
-          }
-          
-          const startIndex = batchIndex * batchConfig.size;
-          const endIndex = Math.min(startIndex + batchConfig.size, shipmentsToAnalyze.length);
-          const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
-          
-          console.log(`🔄 Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} shipments)`);
-          
-          // Process shipments with concurrency control for API calls
-          const processBatchWithConcurrency = async (shipments: ProcessedShipment[], concurrency: number) => {
-            const results = [];
-            for (let i = 0; i < shipments.length; i += concurrency) {
-              const chunk = shipments.slice(i, i + concurrency);
-              const chunkPromises = chunk.map((shipment, indexInChunk) => {
-                const globalIndex = startIndex + i + indexInChunk;
-                setCurrentShipmentIndex(globalIndex);
-                return processShipment(globalIndex, shipment, 0, analysisId, carrierConfigs);
-              });
-              
-              const chunkResults = await Promise.allSettled(chunkPromises);
-              results.push(...chunkResults);
-              
-              // Add delays between chunks for API rate limiting
-              if (i + concurrency < shipments.length) {
-                await new Promise(resolve => setTimeout(resolve, batchConfig.delay));
-              }
-            }
-            return results;
-          };
-          
-          await processBatchWithConcurrency(batch, batchConfig.concurrency);
-          
-          // Update progress
-          setCurrentShipmentIndex(endIndex - 1);
-          
-          // Add delays between batches
-          if (batchIndex < totalBatches - 1 && !isPaused) {
-            await new Promise(resolve => setTimeout(resolve, batchConfig.delay));
-          }
+        // Small delay between batches for UI responsiveness
+        if (batchIndex < totalBatches - 1 && !isPaused) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
       }
       
@@ -580,156 +529,96 @@ const Analysis = () => {
       console.log('✅ Analysis record updated successfully');
     }
   };
-
-  // Background processing: Save completed results incrementally
-  const saveCompletedResult = async (result: AnalysisResult, analysisId: string) => {
-    setBackgroundSavesInProgress(prev => prev + 1);
-    
-    try {
-      if (result.status === 'completed' && result.allRates) {
-        // Save individual shipment rates to database
-        const ratesToInsert = result.allRates.map((rate: any) => ({
-          analysis_id: analysisId,
-          shipment_index: result.shipment.id,
-          carrier_config_id: rate.carrierId || '',
-          account_name: rate.carrierName || rate.accountName || 'Unknown',
-          carrier_type: rate.carrierType || 'ups',
-          service_code: rate.serviceCode || '',
-          service_name: rate.serviceName || rate.description || '',
-          rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
-          currency: rate.currency || 'USD',
-          transit_days: rate.transitTime || null,
-          is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
-          published_rate: rate.publishedRate || null,
-          shipment_data: result.shipment || {}
-        }));
-
-        if (ratesToInsert.length > 0) {
-          await supabase
-            .from('shipment_rates')
-            .insert(ratesToInsert);
-        }
-      }
-    } catch (error) {
-      console.error('Background save error for shipment', result.shipment.id, ':', error);
-      // Don't fail the main process for background saves
-    } finally {
-      setBackgroundSavesInProgress(prev => prev - 1);
-    }
-  };
   
-  const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string, carrierConfigs?: any[]) => {
+  const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
     const maxRetries = 2;
     
-      // Memory-efficient status update
+      // Update status to processing using shipment ID-based update to prevent race conditions
       setAnalysisResults(prev => {
-        const resultIndex = prev.findIndex(result => result.shipment.id === shipment.id);
-        if (resultIndex === -1) return prev;
-        
-        const newResults = [...prev];
-        newResults[resultIndex] = { ...newResults[resultIndex], status: 'processing' };
-        return newResults;
+        return prev.map(result => 
+          result.shipment.id === shipment.id 
+            ? { ...result, status: 'processing' }
+            : result
+        );
       });
     
     try {
       
-      // Ultra-fast validation for rate cards, standard for API calls
-      const isRateCardRequest = selectedCarriers.some(carrierId => {
-        const config = carrierConfigs?.find(c => c.id === carrierId);
-        return config?.is_rate_card;
-      });
+      const missingFields = [];
+      if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
+      if (!shipment.destZip?.trim()) missingFields.push('Destination ZIP');
       
-      // Parse and validate common fields
-      let weight: number;
-      let length: number;
-      let width: number;
-      let height: number;
-      let currentCost: number;
+      // Validate service type field - CRITICAL for proper analysis
+      if (!shipment.service?.trim()) {
+        missingFields.push('Service Type');
+      }
       
-      if (isRateCardRequest) {
-        // Minimal validation for rate cards - just essential fields
-        if (!shipment.originZip?.trim() || !shipment.destZip?.trim() || !shipment.service?.trim() || !shipment.weight) {
-          throw new Error('Missing required fields for rate card analysis');
-        }
-        
-        // Fast parsing for rate cards
-        weight = parseFloat(shipment.weight);
-        if (shipment.weightUnit?.toLowerCase().includes('oz')) weight /= 16;
-        if (isNaN(weight) || weight <= 0) throw new Error('Invalid weight');
-        
-        length = parseFloat(shipment.length || '0');
-        width = parseFloat(shipment.width || '0');
-        height = parseFloat(shipment.height || '0');
-        if (!length || !width || !height) throw new Error('Missing dimensions');
-        
-        // Quick ZIP cleaning
-        shipment.originZip = shipment.originZip.trim().replace(/\D/g, '').slice(0, 5);
-        shipment.destZip = shipment.destZip.trim().replace(/\D/g, '').slice(0, 5);
-        
-        const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
-        currentCost = parseFloat(costString);
+      let weight = 0;
+      if (!shipment.weight || shipment.weight === '') {
+        missingFields.push('Weight');
       } else {
-        // Standard validation for API calls
-        if (!shipment.originZip?.trim()) {
-          throw new Error('Missing Origin ZIP');
-        }
-        if (!shipment.destZip?.trim()) {
-          throw new Error('Missing Destination ZIP');
-        }
-        if (!shipment.service?.trim()) {
-          throw new Error('Missing Service Type');
-        }
-        if (!shipment.weight || shipment.weight === '') {
-          throw new Error('Missing Weight');
-        }
-        
-        // Parse and validate weight
         weight = parseFloat(shipment.weight);
+        // Handle oz to lbs conversion
         if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
           weight = weight / 16;
         }
         if (isNaN(weight) || weight <= 0) {
-          throw new Error('Invalid Weight');
+          missingFields.push('Valid Weight');
         }
-        
-        // Parse and validate dimensions
-        length = parseFloat(shipment.length);
-        width = parseFloat(shipment.width); 
-        height = parseFloat(shipment.height);
-        
-        if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
-          throw new Error('Missing or invalid package dimensions');
-        }
-        
-        // Fast ZIP code cleaning
-        const cleanZip = (zipCode: string) => {
-          const digits = zipCode.trim().replace(/\D/g, '');
-          return digits.length >= 4 ? digits.slice(0, 5) : digits;
-        };
-        
-        const cleanOriginZip = cleanZip(shipment.originZip);
-        const cleanDestZip = cleanZip(shipment.destZip);
-        
-        if (cleanOriginZip.length < 4) {
-          throw new Error('Invalid Origin ZIP code');
-        }
-        if (cleanDestZip.length < 4) {
-          throw new Error('Invalid Destination ZIP code');
-        }
-        
-        // Update shipment with cleaned ZIP codes
-        shipment.originZip = cleanOriginZip;
-        shipment.destZip = cleanDestZip;
-        
-        // Parse current rate
-        const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
-        currentCost = parseFloat(costString);
       }
       
-      // Optimized service mapping lookup with memoization
-      const normalizedService = shipment.service?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
+      // Enhanced ZIP code validation - use same logic as addressValidation.ts
+      const cleanAndValidateZip = (zipCode: string, fieldName: string) => {
+        if (!zipCode || typeof zipCode !== 'string') {
+          throw new Error(`${fieldName} ZIP code is required`);
+        }
+        
+        const allDigits = zipCode.trim().replace(/\D/g, ''); // Remove all non-digits
+        
+        if (allDigits.length < 4) {
+          throw new Error(`${fieldName} ZIP code must contain at least 4 digits`);
+        }
+        
+        // Take first 5 digits, or all available if less than 5
+        return allDigits.slice(0, 5);
+      };
+      
+      const cleanOriginZip = cleanAndValidateZip(shipment.originZip, 'Origin');
+      const cleanDestZip = cleanAndValidateZip(shipment.destZip, 'Destination');
+      
+      // Update shipment with cleaned ZIP codes
+      shipment.originZip = cleanOriginZip;
+      shipment.destZip = cleanDestZip;
+      
+      // Parse currentRate and handle different formats ($4.41, 4.41, $1,234.56, etc.)
+      // For rate card analysis, allow zero costs since clients may not provide current rates
+      const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
+      const currentCost = parseFloat(costString);
+      
+      
+      // Check if we have any missing fields and provide detailed error
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+      
+      
+      const length = parseFloat(shipment.length);
+      const width = parseFloat(shipment.width); 
+      const height = parseFloat(shipment.height);
+      
+      // Validate dimensions are present and valid
+      if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
+        throw new Error(`Missing or invalid package dimensions. All shipments must have valid length, width, and height values.`);
+      }
+      
+      // Normalize service names for robust matching
+      const normalizeServiceName = (serviceName: string): string => {
+        return serviceName?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
+      };
+
+      // Use the confirmed service mapping from the service review step with normalized comparison
       const confirmedMapping = serviceMappings.find(m => 
-        m.original?.trim().toLowerCase().replace(/\s+/g, ' ') === normalizedService
+        normalizeServiceName(m.original) === normalizeServiceName(shipment.service)
       );
       
       
@@ -805,45 +694,6 @@ const Analysis = () => {
         zone: shipment.zone // Include CSV-mapped zone if available
       };
       
-      // Only use caching for API calls, not rate cards (which are already fast)
-      
-      let cachedResult = null;
-      let cacheKey = null;
-      if (!isRateCardRequest) {
-        // Check cache first for identical requests
-        cacheKey = {
-          originZip: shipment.originZip,
-          destZip: shipment.destZip,
-          weight,
-          length,
-          width,
-          height,
-          serviceTypes: serviceCodesToRequest,
-          carrierConfigIds: selectedCarriers,
-          isResidential: residentialStatus.isResidential
-        };
-        
-        cachedResult = analysisCache.get(cacheKey);
-        if (cachedResult) {
-          console.log(`⚡ Cache hit for shipment ${index + 1}`);
-          
-          // Update results with cached data
-          setAnalysisResults(prev => {
-            return prev.map(result => {
-              if (result.shipment.id === shipment.id) {
-                return {
-                  ...result,
-                  status: 'completed',
-                  ...cachedResult
-                };
-              }
-              return result;
-            });
-          });
-          
-          return cachedResult;
-        }
-      }
       
       const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
         body: { 
@@ -871,18 +721,16 @@ const Analysis = () => {
           }
         });
         
-        // Smart retry logic with exponential backoff
+        // Check if this is a retryable error
         const isRetryableError = error.message?.includes('timeout') || 
                                 error.message?.includes('network') ||
                                 error.message?.includes('500') ||
-                                error.message?.includes('503') ||
-                                error.message?.includes('429');
+                                error.message?.includes('503');
         
         if (isRetryableError && retryCount < maxRetries) {
-          const delay = Math.min(1000 * Math.pow(2, retryCount), 5000); // Exponential backoff, max 5s
-          console.log(`🔄 Retrying shipment ${index + 1} in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return processShipment(index, shipment, retryCount + 1, analysisId, carrierConfigs);
+          
+          await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1))); // Progressive delay
+          return processShipment(index, shipment, retryCount + 1);
         }
         
         throw new Error(`Multi-carrier API Error: ${error.message || 'Unknown API error'}`);
@@ -1138,39 +986,16 @@ const Analysis = () => {
               mappingValidation
             };
             
-            // Background save to database (non-blocking)
-            if (analysisId) {
-              saveCompletedResult(updatedResult, analysisId).catch(error => {
-                console.error('Background save failed for shipment', shipment.id, ':', error);
-              });
-            }
-            
             // Final validation log
-                  console.log(`✅ Storing validated result for shipment ${shipment.id}:`, {
-        originalService: updatedResult.originalService,
-        bestRateService: updatedResult.bestRate?.serviceName,
-        bestRateCode: updatedResult.bestRate?.serviceCode,
-        expectedCode: updatedResult.expectedServiceCode,
-        mappingValid: updatedResult.mappingValidation?.isValid
-      });
-      
-      // Only cache results for API calls, not rate cards
-      if (!isRateCardRequest && cachedResult === null) {
-        analysisCache.set(cacheKey, {
-          currentCost: updatedResult.currentCost,
-          originalService: updatedResult.originalService,
-          allRates: updatedResult.allRates,
-          carrierResults: updatedResult.carrierResults,
-          bestRate: updatedResult.bestRate,
-          bestOverallRate: updatedResult.bestOverallRate,
-          savings: updatedResult.savings,
-          maxSavings: updatedResult.maxSavings,
-          expectedServiceCode: updatedResult.expectedServiceCode,
-          mappingValidation: updatedResult.mappingValidation
-        });
-      }
-      
-      return updatedResult;
+            console.log(`✅ Storing validated result for shipment ${shipment.id}:`, {
+              originalService: updatedResult.originalService,
+              bestRateService: updatedResult.bestRate?.serviceName,
+              bestRateCode: updatedResult.bestRate?.serviceCode,
+              expectedCode: updatedResult.expectedServiceCode,
+              mappingValid: updatedResult.mappingValidation?.isValid
+            });
+            
+            return updatedResult;
           }
           return result;
         });
@@ -1238,7 +1063,7 @@ const Analysis = () => {
       if (shouldRetry) {
         console.log(`🔄 Retrying shipment ${index + 1} due to ${errorCategory} error`);
         await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1))); // Progressive delay
-        return processShipment(index, shipment, retryCount + 1, analysisId, carrierConfigs);
+        return processShipment(index, shipment, retryCount + 1);
       }
       
       // Update error result using functional update to prevent race conditions
@@ -1264,56 +1089,9 @@ const Analysis = () => {
       console.log('🚀 Calling finalize-analysis edge function with:', {
         orphanedCount: analysisData.orphanedShipments?.length || 0,
         originalDataCount: analysisData.originalData?.length || 0,
-        recommendationsCount: analysisData.recommendations?.length || 0,
-        totalShipments: analysisData.totalShipments,
-        completedShipments: analysisData.completedShipments,
-        errorShipments: analysisData.errorShipments
+        recommendationsCount: analysisData.recommendations?.length || 0
       });
 
-      // Log a sample of the data being sent
-      console.log('📊 Sample recommendation data:', analysisData.recommendations?.[0]);
-      console.log('📊 Sample orphaned shipment data:', analysisData.orphanedShipments?.[0]);
-      
-      // Validate data structure before sending
-      if (!analysisData.recommendations || analysisData.recommendations.length === 0) {
-        console.warn('⚠️ No recommendations to send to Edge Function');
-      }
-      
-      if (!analysisData.fileName) {
-        console.warn('⚠️ No fileName provided');
-      }
-      
-      if (!analysisData.carrierConfigsUsed || analysisData.carrierConfigsUsed.length === 0) {
-        console.warn('⚠️ No carrier configs used');
-      }
-
-      // Test authentication first
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error('❌ Authentication error:', authError);
-        throw new Error('Authentication failed. Please log in again.');
-      }
-      
-      console.log('✅ Authentication successful, user:', user.id);
-      
-      // Test database connection
-      try {
-        const { data: testData, error: testError } = await supabase
-          .from('shipping_analyses')
-          .select('id')
-          .limit(1);
-        
-        if (testError) {
-          console.error('❌ Database connection error:', testError);
-          throw new Error('Database connection failed. Please try again.');
-        }
-        
-        console.log('✅ Database connection successful');
-      } catch (dbError) {
-        console.error('❌ Database test failed:', dbError);
-        throw new Error('Database connection failed. Please try again.');
-      }
-      
       const { data, error } = await supabase.functions.invoke('finalize-analysis', {
         body: analysisData
       });
@@ -1322,12 +1100,6 @@ const Analysis = () => {
 
       if (error) {
         console.error('❌ Edge function error:', error);
-        console.error('❌ Error details:', {
-          message: error.message,
-          status: error.status,
-          statusText: error.statusText,
-          details: error.details
-        });
         throw new Error(error.message || 'Failed to finalize analysis');
       }
 
@@ -1347,7 +1119,6 @@ const Analysis = () => {
       return data.analysisId;
     } catch (error) {
       console.error('💥 Error finalizing analysis:', error);
-      console.error('💥 Full error object:', error);
       throw error;
     }
   };
@@ -1370,57 +1141,47 @@ const Analysis = () => {
       totalShipments: analysisResults.length,
       completedShipments: completedResults.length,
       errorShipments: errorResults.length,
-      orphanShipments: errorResults.length,
-      completionRate: `${((completedResults.length / analysisResults.length) * 100).toFixed(1)}%`
+      orphanShipments: errorResults.length
     });
-    
-    // Log error breakdown for debugging
-    const errorBreakdown = errorResults.reduce((acc, result) => {
-      const errorType = result.errorType || 'unknown';
-      acc[errorType] = (acc[errorType] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    console.log('Error breakdown:', errorBreakdown);
-
-    // Format data for the finalize endpoint
-    const recommendations = completedResults.map((result, index) => ({
-      shipment: result.shipment,
-      currentCost: result.currentCost || 0,
-      recommendedCost: result.bestRate?.totalCharges || 0,
-      savings: result.savings || 0,
-      customer_service: result.originalService || result.shipment.service,
-      ShipPros_service: result.bestRate?.serviceName || 'Unknown',
-      carrier: 'UPS',
-      status: 'completed',
-      allRates: result.allRates || [],
-      upsRates: result.upsRates || []
-    }));
-
-    const orphanedShipments = errorResults.map((result, index) => ({
-      shipment: result.shipment,
-      error: result.error,
-      errorType: result.errorType || 'unknown_error',
-      customer_service: result.originalService || result.shipment.service,
-      status: 'error'
-    }));
-
-    const state = location.state as any;
-    const analysisPayload = {
-      fileName: state?.fileName || 'Real-time Analysis',
-      totalShipments: analysisResults.length,
-      completedShipments: completedResults.length,
-      errorShipments: errorResults.length,
-      totalCurrentCost,
-      totalPotentialSavings: totalSavings,
-      recommendations,
-      orphanedShipments,
-      originalData: analysisResults,
-      carrierConfigsUsed: selectedCarriers,
-      serviceMappings: serviceMappings
-    };
 
     try {
+      // Format data for the finalize endpoint
+      const recommendations = completedResults.map((result, index) => ({
+        shipment: result.shipment,
+        currentCost: result.currentCost || 0,
+        recommendedCost: result.bestRate?.totalCharges || 0,
+        savings: result.savings || 0,
+        customer_service: result.originalService || result.shipment.service,
+        ShipPros_service: result.bestRate?.serviceName || 'Unknown',
+        carrier: 'UPS',
+        status: 'completed',
+        allRates: result.allRates,
+        upsRates: result.upsRates
+      }));
+
+      const orphanedShipments = errorResults.map((result, index) => ({
+        shipment: result.shipment,
+        error: result.error,
+        errorType: result.errorType || 'unknown_error',
+        customer_service: result.originalService || result.shipment.service,
+        status: 'error'
+      }));
+
+      const state = location.state as any;
+      const analysisPayload = {
+        fileName: state?.fileName || 'Real-time Analysis',
+        totalShipments: analysisResults.length,
+        completedShipments: completedResults.length,
+        errorShipments: errorResults.length,
+        totalCurrentCost,
+        totalPotentialSavings: totalSavings,
+        recommendations,
+        orphanedShipments,
+        originalData: analysisResults,
+        carrierConfigsUsed: selectedCarriers,
+        serviceMappings: serviceMappings
+      };
+
       // Finalize analysis in backend
       const analysisId = await finalizeAnalysis(analysisPayload);
 
@@ -1429,48 +1190,7 @@ const Analysis = () => {
 
     } catch (error: any) {
       console.error('Failed to finalize analysis:', error);
-      
-      // Try to provide a more helpful error message
-      let errorMessage = error.message;
-      if (error.message?.includes('non-2xx status code')) {
-        errorMessage = 'The analysis server is experiencing issues. Please try again in a moment.';
-      } else if (error.message?.includes('Failed to finalize analysis')) {
-        errorMessage = 'Unable to save analysis results. Please check your data and try again.';
-      }
-      
-      // Add completion rate context
-      const completionRate = analysisPayload.totalShipments > 0 ? 
-        (analysisPayload.completedShipments / analysisPayload.totalShipments) : 0;
-      
-      if (completionRate < 0.5) {
-        errorMessage += ` (Only ${(completionRate * 100).toFixed(1)}% of shipments completed successfully)`;
-      }
-      
-      toast.error(`Failed to save analysis: ${errorMessage}`);
-      
-      // Log detailed error for debugging
-      console.error('Detailed error information:', {
-        error: error,
-        analysisPayload: {
-          totalShipments: analysisPayload.totalShipments,
-          completedShipments: analysisPayload.completedShipments,
-          errorShipments: analysisPayload.errorShipments,
-          recommendationsCount: analysisPayload.recommendations?.length || 0,
-          orphanedShipmentsCount: analysisPayload.orphanedShipments?.length || 0
-        }
-      });
-      
-      // Try to save analysis locally as fallback
-      try {
-        console.log('🔄 Attempting local fallback save...');
-        const fallbackAnalysisId = await createAnalysisRecord(shipments);
-        await updateAnalysisRecord(fallbackAnalysisId);
-        console.log('✅ Local fallback save successful:', fallbackAnalysisId);
-        navigate(`/results?analysisId=${fallbackAnalysisId}`);
-        return;
-      } catch (fallbackError) {
-        console.error('❌ Local fallback also failed:', fallbackError);
-      }
+      toast.error(`Failed to save analysis: ${error.message}`);
     }
   };
 
@@ -1500,8 +1220,8 @@ const Analysis = () => {
         ShipPros_service: result.bestRate?.serviceName || 'Unknown',
         carrier: 'UPS',
         status: 'completed',
-        allRates: result.allRates || [],
-        upsRates: result.upsRates || []
+        allRates: result.allRates,
+        upsRates: result.upsRates
       }));
 
       const orphanedShipments = errorResults.map((result, index) => ({
@@ -1558,19 +1278,9 @@ const Analysis = () => {
     <DashboardLayout>
       <div className="max-w-6xl mx-auto p-6">
         <div className="mb-6">
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-3xl font-semibold">Real-Time Shipping Analysis</h1>
-            {isRateCardMode && (
-              <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold bg-emerald-100 text-emerald-800 border-emerald-200">
-                ⚡ Rate Card Mode
-              </div>
-            )}
-          </div>
+          <h1 className="text-3xl font-semibold mb-2">Real-Time Shipping Analysis</h1>
           <p className="text-muted-foreground">
-            {isRateCardMode 
-              ? `Processing ${shipments.length} shipments with instant rate card lookups for maximum speed.`
-              : `Processing ${shipments.length} shipments and comparing current rates across multiple carriers for optimal savings.`
-            }
+            Processing {shipments.length} shipments and comparing current rates across multiple carriers for optimal savings.
           </p>
         </div>
         
@@ -1689,9 +1399,7 @@ const Analysis = () => {
                 {isComplete 
                   ? 'Analysis Complete!' 
                   : isAnalyzing 
-                    ? isRateCardMode
-                      ? `⚡ Instant Rate Card Analysis: ${completedCount}/${shipments.length} completed`
-                      : `Processing shipment ${currentShipmentIndex + 1} of ${shipments.length}...`
+                    ? `Processing shipment ${currentShipmentIndex + 1} of ${shipments.length}...` 
                     : 'Ready to analyze'
                 }
               </div>
@@ -1700,22 +1408,6 @@ const Analysis = () => {
               </div>
             </div>
             <Progress value={progress} className="h-2" />
-            
-            {/* Rate Card Mode Indicator */}
-            {isRateCardMode && isAnalyzing && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-emerald-600">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-                <span>⚡ Instant Rate Card Mode - Database lookups only</span>
-              </div>
-            )}
-            
-            {/* Background Processing Indicator */}
-            {backgroundSavesInProgress > 0 && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-blue-600">
-                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                <span>💾 Saving {backgroundSavesInProgress} result{backgroundSavesInProgress !== 1 ? 's' : ''} to database...</span>
-              </div>
-            )}
             
             {/* Control Buttons */}
             {(isAnalyzing || completedCount > 0) && !isComplete && (

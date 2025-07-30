@@ -141,6 +141,27 @@ serve(async (req) => {
       });
     }
 
+    // Fetch user's custom service mappings from settings
+    const { data: customServiceMappings, error: customMappingsError } = await supabase
+      .from('custom_carrier_service_codes')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    if (customMappingsError) {
+      console.error('Error fetching custom service mappings:', customMappingsError);
+    }
+
+    console.log('🎯 Custom service mappings loaded:', {
+      count: customServiceMappings?.length || 0,
+      mappings: customServiceMappings?.map(m => ({
+        carrier: m.carrier_type,
+        universal: m.universal_category,
+        code: m.service_code,
+        name: m.service_name
+      })) || []
+    });
+
     const allRates: any[] = [];
     const carrierResults: any[] = [];
 
@@ -158,11 +179,26 @@ serve(async (req) => {
         if (servicesToRequest.length > 0) {
           const carrierType = config.carrier_type.toUpperCase();
           
-          // Map service codes to carrier-specific codes
-          servicesToRequest = servicesToRequest.map(serviceType => {
-            const carrierType = config.carrier_type.toUpperCase();
-            // Universal service to carrier-specific service mapping
-            const serviceCodeMapping: Record<string, Record<string, string>> = {
+        // Map service codes to carrier-specific codes
+        servicesToRequest = servicesToRequest.map(serviceType => {
+          const carrierType = config.carrier_type.toUpperCase();
+          
+          // First check if user has custom service mappings for this service type
+          if (customServiceMappings.length > 0) {
+            const customMapping = customServiceMappings.find(mapping => 
+              mapping.universal_category === serviceType && 
+              mapping.carrier_type.toUpperCase() === carrierType &&
+              mapping.is_active
+            );
+            
+            if (customMapping) {
+              console.log(`🎯 Using custom service mapping for ${config.account_name} (${carrierType}): ${serviceType} -> ${customMapping.service_code}`);
+              return customMapping.service_code;
+            }
+          }
+          
+          // Fall back to default universal service to carrier-specific service mapping
+          const serviceCodeMapping: Record<string, Record<string, string>> = {
               'UPS': {
                 'GROUND': '03',
                 'OVERNIGHT': '01',

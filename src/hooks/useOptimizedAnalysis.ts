@@ -52,16 +52,17 @@ export function useOptimizedAnalysis() {
   const [isPaused, setIsPaused] = useState(false);
   const [currentCarriers, setCurrentCarriers] = useState<string[]>([]);
   const [currentServiceMappings, setCurrentServiceMappings] = useState<any[]>([]);
+  const [analysisId, setAnalysisId] = useState<string>('');
   
+  // Create batch processor with proper dependencies
   const batchProcessor = useBatchProcessor<ProcessedShipment, AnalysisResult>(
-    async (shipments) => {
-      // This will be the actual analysis function
-      return await analyzeShipmentBatch(shipments, currentCarriers, currentServiceMappings);
-    },
+    useCallback(async (shipments) => {
+      return await analyzeShipmentBatch(shipments, currentCarriers, currentServiceMappings, analysisId);
+    }, [currentCarriers, currentServiceMappings, analysisId]),
     {
-      batchSize: 10, // Smaller batches for real-time updates
-      maxConcurrent: 3,
-      delayBetweenBatches: 100
+      batchSize: 5, // Smaller batches for real-time updates and API rate limits
+      maxConcurrent: 2, // Reduce concurrent calls to avoid overwhelming API
+      delayBetweenBatches: 200 // Add delay to respect API rate limits
     }
   );
 
@@ -93,9 +94,13 @@ export function useOptimizedAnalysis() {
     selectedCarriers: string[],
     serviceMappings: any[]
   ) => {
+    // Generate a unique analysis ID for this batch
+    const newAnalysisId = `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     // Store current analysis parameters
     setCurrentCarriers(selectedCarriers);
     setCurrentServiceMappings(serviceMappings);
+    setAnalysisId(newAnalysisId);
     
     // Initialize results with pending status
     const initialResults = shipments.map(shipment => ({
@@ -103,6 +108,9 @@ export function useOptimizedAnalysis() {
       status: 'pending' as const
     }));
     setResults(initialResults);
+
+    // Wait a brief moment for state to update before starting processing
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     // Process in batches with real-time updates
     await batchProcessor.processBatches(
@@ -112,7 +120,7 @@ export function useOptimizedAnalysis() {
         setResults(prev => {
           const newResults = [...prev];
           batchResults.forEach((result, idx) => {
-            const globalIndex = batchIndex * 10 + idx; // Assuming batch size of 10
+            const globalIndex = batchIndex * 5 + idx; // Use correct batch size of 5
             if (globalIndex < newResults.length) {
               newResults[globalIndex] = result;
             }
@@ -156,7 +164,8 @@ export function useOptimizedAnalysis() {
 async function analyzeShipmentBatch(
   shipments: ProcessedShipment[], 
   selectedCarriers: string[], 
-  serviceMappings: any[]
+  serviceMappings: any[],
+  analysisId: string
 ): Promise<AnalysisResult[]> {
 
   const results: AnalysisResult[] = [];
@@ -194,6 +203,7 @@ async function analyzeShipmentBatch(
           shipment: {
             ...shipmentRequest,
             carrierConfigIds: selectedCarriers,
+            analysisId: analysisId,
             shipmentIndex: shipment.id
           }
         }

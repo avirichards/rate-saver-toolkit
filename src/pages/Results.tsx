@@ -3083,17 +3083,18 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                         })()}
                        {filteredData.map((item, index) => 
                          editMode ? (
-                            <EditableShipmentRow
-                              key={item.id}
-                              shipment={item}
-                              isSelected={selectedShipments.has(item.id)}
-                              onSelect={(selected) => handleSelectShipment(item.id, selected)}
-                              onFieldUpdate={handleFieldUpdate}
-                                onReanalyze={() => handleReanalyzeSingle(item.id)}
-                              isReanalyzing={reanalyzingShipments.has(item.id)}
-                              editMode={editMode}
-                              getShipmentMarkup={getShipmentMarkup}
-                            />
+                             <EditableShipmentRow
+                               key={item.id}
+                               shipment={item}
+                               isSelected={selectedShipments.has(item.id)}
+                               onSelect={(selected) => handleSelectShipment(item.id, selected)}
+                               onFieldUpdate={handleFieldUpdate}
+                                 onReanalyze={() => handleReanalyzeSingle(item.id)}
+                               isReanalyzing={reanalyzingShipments.has(item.id)}
+                               editMode={editMode}
+                               getShipmentMarkup={getShipmentMarkup}
+                               isClientView={isClientView}
+                             />
                          ) : (
                            <TableRow 
                              key={item.id} 
@@ -3313,7 +3314,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                            {editMode && <TableHead className="text-right text-foreground w-20">Savings</TableHead>}
                            {!editMode && <TableHead className="text-right text-foreground w-20">Ship Pros Rate</TableHead>}
                            {!editMode && <TableHead className="text-right text-foreground w-20">Savings</TableHead>}
-                           {!editMode && <TableHead className="text-foreground w-20">Account</TableHead>}
+                           {!editMode && !isClientView && <TableHead className="text-foreground w-20">Account</TableHead>}
                            {editMode && <TableHead className="text-foreground w-16">Actions</TableHead>}
                         </TableRow>
                       </TableHeader>
@@ -3329,6 +3330,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
                             isReanalyzing={reanalyzingShipments.has(item.id)}
                             editMode={editMode}
                             getShipmentMarkup={getShipmentMarkup}
+                            isClientView={isClientView}
                           />
                         )}
                       </TableBody>

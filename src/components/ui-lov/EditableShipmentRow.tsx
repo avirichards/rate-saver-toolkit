@@ -24,6 +24,7 @@ interface EditableShipmentRowProps {
   isReanalyzing: boolean;
   editMode: boolean;
   getShipmentMarkup: (shipment: any) => { markedUpPrice: number; margin: number; marginPercent: number };
+  isClientView?: boolean;
 }
 
 export function EditableShipmentRow({
@@ -34,7 +35,8 @@ export function EditableShipmentRow({
   onReanalyze,
   isReanalyzing,
   editMode,
-  getShipmentMarkup
+  getShipmentMarkup,
+  isClientView = false
 }: EditableShipmentRowProps) {
   const [localChanges, setLocalChanges] = useState<Record<string, string>>({});
   const [accountNames, setAccountNames] = useState<Record<string, string>>({});
@@ -538,8 +540,8 @@ export function EditableShipmentRow({
         </TableCell>
       )}
       
-      {/* Account - Only in Non-Edit Mode */}
-      {!editMode && (
+      {/* Account - Only in Non-Edit Mode and Non-Client View */}
+      {!editMode && !isClientView && (
         <TableCell>
           {accountNames[shipment.accountId] || shipment.analyzedWithAccount || 'Unknown'}
         </TableCell>

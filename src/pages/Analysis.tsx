@@ -714,19 +714,18 @@ const Analysis = () => {
       }
       
       // Parse currentRate and handle different formats ($4.41, 4.41, $1,234.56, etc.)
+      // For rate card analysis, allow zero costs since clients may not provide current rates
       const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
       const currentCost = parseFloat(costString);
       
-      // Add validation for zero or invalid costs - move to orphans
+      // Only log cost parsing for debugging, but don't validate as required
       if (isNaN(currentCost) || currentCost <= 0) {
-        console.log(`💰 Cost parsing debug:`, {
+        console.log(`💰 Cost parsing debug (allowing zero costs):`, {
           original: shipment.currentRate,
           cleaned: costString,
           parsed: currentCost,
-          isNaN: isNaN(currentCost),
-          isLessOrEqual: currentCost <= 0
+          note: 'Zero costs allowed for rate card analysis'
         });
-        missingFields.push('Valid Cost (greater than $0)');
       }
       
       // Check if we have any missing fields and provide detailed error

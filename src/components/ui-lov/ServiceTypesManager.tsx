@@ -58,7 +58,6 @@ export const ServiceTypesManager = () => {
   const [systemServices, setSystemServices] = useState<CarrierService[]>([]);
   const [customServices, setCustomServices] = useState<CustomService[]>([]);
   const [selectedCarrier, setSelectedCarrier] = useState<string>('');
-  
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [editedMappings, setEditedMappings] = useState<Record<string, Partial<ServiceMapping>>>({});
   const [isAddingCustom, setIsAddingCustom] = useState(false);
@@ -66,6 +65,16 @@ export const ServiceTypesManager = () => {
   const [editingService, setEditingService] = useState<ServiceMapping | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [universalTypes, setUniversalTypes] = useState<Record<string, any>>({...UNIVERSAL_SERVICES});
+  const [editedUniversalTypes, setEditedUniversalTypes] = useState<Record<string, any>>({});
+  const [isAddingUniversal, setIsAddingUniversal] = useState(false);
+  const [newUniversalType, setNewUniversalType] = useState({
+    key: '',
+    displayName: '',
+    description: '',
+    isInternational: false,
+    typicalTransitDays: ''
+  });
 
   const [newCustomService, setNewCustomService] = useState({
     service_code: '',
@@ -416,6 +425,64 @@ export const ServiceTypesManager = () => {
     }
   };
 
+  const updateUniversalType = (key: string, field: string, value: any) => {
+    setEditedUniversalTypes(prev => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        [field]: value
+      }
+    }));
+  };
+
+  const getCurrentUniversalValue = (key: string, field: string) => {
+    const edited = editedUniversalTypes[key];
+    if (edited && edited[field] !== undefined) {
+      return edited[field];
+    }
+    return universalTypes[key] ? universalTypes[key][field] : '';
+  };
+
+  const saveUniversalTypes = () => {
+    // Apply edits to universal types
+    const updatedTypes = { ...universalTypes };
+    Object.keys(editedUniversalTypes).forEach(key => {
+      if (updatedTypes[key]) {
+        updatedTypes[key] = { ...updatedTypes[key], ...editedUniversalTypes[key] };
+      }
+    });
+
+    // Add new universal type if being added
+    if (isAddingUniversal && newUniversalType.key && newUniversalType.displayName) {
+      updatedTypes[newUniversalType.key] = {
+        category: newUniversalType.key,
+        displayName: newUniversalType.displayName,
+        description: newUniversalType.description,
+        isInternational: newUniversalType.isInternational,
+        typicalTransitDays: newUniversalType.typicalTransitDays
+      };
+    }
+
+    setUniversalTypes(updatedTypes);
+    setEditedUniversalTypes({});
+    setIsAddingUniversal(false);
+    setNewUniversalType({
+      key: '',
+      displayName: '',
+      description: '',
+      isInternational: false,
+      typicalTransitDays: ''
+    });
+    toast.success('Universal service types updated');
+  };
+
+  const deleteUniversalType = (key: string) => {
+    const updatedTypes = { ...universalTypes };
+    delete updatedTypes[key];
+    setUniversalTypes(updatedTypes);
+    toast.success('Universal service type deleted');
+  };
+
   const getCurrentValue = (serviceCode: string, field: keyof ServiceMapping) => {
     const edited = editedMappings[serviceCode];
     const original = serviceMappings.find(m => m.service_code === serviceCode);
@@ -426,18 +493,6 @@ export const ServiceTypesManager = () => {
     
     return original ? original[field] : '';
   };
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-center">
-            <div className="text-muted-foreground">Loading service types...</div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -673,54 +728,178 @@ export const ServiceTypesManager = () => {
                 </CardContent>
               </Card>
 
-              {/* Universal Service Types Management Dialog */}
+              {/* Manage Universal Types Dialog */}
               <Dialog open={isManagingUniversal} onOpenChange={setIsManagingUniversal}>
-                <DialogContent className="max-w-4xl">
+                <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Manage Universal Service Types</DialogTitle>
+                    <DialogTitle>Manage Universal Service Categories</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div className="text-sm text-muted-foreground">
-                      These are the universal service categories that all carrier services map to. Changes here will affect the entire system.
+                    <div className="flex justify-between items-center">
+                      <p className="text-sm text-muted-foreground">
+                        Edit existing universal service types or add new ones for your organization.
+                      </p>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setIsAddingUniversal(true)}
+                        iconLeft={<Plus className="h-4 w-4" />}
+                      >
+                        Add Universal Type
+                      </Button>
                     </div>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Category</TableHead>
-                          <TableHead>Display Name</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead>Transit Days</TableHead>
-                          <TableHead>International</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {Object.entries(UNIVERSAL_SERVICES).map(([key, info]) => (
-                          <TableRow key={key}>
-                            <TableCell>
-                              <code className="text-sm bg-muted px-2 py-1 rounded">
-                                {key}
-                              </code>
-                            </TableCell>
-                            <TableCell className="font-medium">
-                              {info.displayName}
-                            </TableCell>
-                            <TableCell>
-                              {info.description}
-                            </TableCell>
-                            <TableCell>
-                              {info.typicalTransitDays}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={info.isInternational ? "default" : "outline"}>
-                                {info.isInternational ? 'Yes' : 'No'}
-                              </Badge>
-                            </TableCell>
+
+                    {/* Add New Universal Type Form */}
+                    {isAddingUniversal && (
+                      <div className="border rounded-lg p-4 bg-muted/50">
+                        <h3 className="font-medium mb-4">Add New Universal Service Type</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="new-key">Category Key</Label>
+                            <Input
+                              id="new-key"
+                              value={newUniversalType.key}
+                              onChange={(e) => setNewUniversalType(prev => ({ ...prev, key: e.target.value.toUpperCase().replace(/[^A-Z_]/g, '') }))}
+                              placeholder="CUSTOM_SERVICE_TYPE"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="new-name">Display Name</Label>
+                            <Input
+                              id="new-name"
+                              value={newUniversalType.displayName}
+                              onChange={(e) => setNewUniversalType(prev => ({ ...prev, displayName: e.target.value }))}
+                              placeholder="Custom Service"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <Label htmlFor="new-description">Description</Label>
+                            <Input
+                              id="new-description"
+                              value={newUniversalType.description}
+                              onChange={(e) => setNewUniversalType(prev => ({ ...prev, description: e.target.value }))}
+                              placeholder="Description of the custom service type"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="new-transit">Transit Days</Label>
+                            <Input
+                              id="new-transit"
+                              value={newUniversalType.typicalTransitDays}
+                              onChange={(e) => setNewUniversalType(prev => ({ ...prev, typicalTransitDays: e.target.value }))}
+                              placeholder="1-3"
+                            />
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Switch
+                              checked={newUniversalType.isInternational}
+                              onCheckedChange={(checked) => setNewUniversalType(prev => ({ ...prev, isInternational: checked }))}
+                            />
+                            <Label>International Service</Label>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-4">
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={saveUniversalTypes}
+                            disabled={!newUniversalType.key || !newUniversalType.displayName}
+                          >
+                            Add Type
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsAddingUniversal(false)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Universal Types Table */}
+                    <div className="border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Category Key</TableHead>
+                            <TableHead>Display Name</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Transit Days</TableHead>
+                            <TableHead>International</TableHead>
+                            <TableHead>Actions</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                    <div className="text-sm text-muted-foreground">
-                      Note: Universal service types are currently read-only. Contact support if you need to modify these categories.
+                        </TableHeader>
+                        <TableBody>
+                          {Object.entries(universalTypes).map(([key, info]) => (
+                            <TableRow key={key}>
+                              <TableCell>
+                                <code className="text-sm bg-muted px-2 py-1 rounded">
+                                  {key}
+                                </code>
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={getCurrentUniversalValue(key, 'displayName')}
+                                  onChange={(e) => updateUniversalType(key, 'displayName', e.target.value)}
+                                  className="min-w-[150px]"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={getCurrentUniversalValue(key, 'description')}
+                                  onChange={(e) => updateUniversalType(key, 'description', e.target.value)}
+                                  className="min-w-[200px]"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={getCurrentUniversalValue(key, 'typicalTransitDays')}
+                                  onChange={(e) => updateUniversalType(key, 'typicalTransitDays', e.target.value)}
+                                  className="w-20"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Switch
+                                  checked={getCurrentUniversalValue(key, 'isInternational') || false}
+                                  onCheckedChange={(checked) => updateUniversalType(key, 'isInternational', checked)}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                {!Object.values(UniversalServiceCategory).includes(key as UniversalServiceCategory) && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => deleteUniversalType(key)}
+                                    iconLeft={<Trash2 className="h-4 w-4" />}
+                                  >
+                                    Delete
+                                  </Button>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    <div className="flex justify-between pt-4">
+                      <div className="text-sm text-muted-foreground">
+                        System universal types cannot be deleted but can be edited.
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="primary"
+                          onClick={saveUniversalTypes}
+                          disabled={Object.keys(editedUniversalTypes).length === 0 && !isAddingUniversal}
+                        >
+                          Save Changes
+                        </Button>
+                        <Button onClick={() => setIsManagingUniversal(false)}>
+                          Close
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </DialogContent>

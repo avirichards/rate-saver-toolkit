@@ -229,15 +229,54 @@ export const ServiceTypesManager = () => {
           .eq('carrier_type', carrierConfigs.find(c => c.id === selectedCarrier)?.carrier_type.toUpperCase());
 
         if (error) throw error;
+        
+        loadData();
+        toast.success('Service mapping updated');
       } else {
-        // For system services, we don't update the registry directly
-        // Instead, we could create a user preference override (future feature)
-        toast.info('System service mappings are read-only. Consider creating a custom service instead.');
-        return;
-      }
+        // For system services, create a user override by creating a custom service with same code
+        const selectedConfig = carrierConfigs.find(c => c.id === selectedCarrier);
+        if (!selectedConfig) return;
 
-      loadData();
-      toast.success('Service mapping updated');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        // Check if custom service with same code already exists
+        const { data: existing } = await supabase
+          .from('custom_carrier_service_codes')
+          .select('*')
+          .eq('service_code', serviceCode)
+          .eq('carrier_type', selectedConfig.carrier_type.toUpperCase())
+          .eq('user_id', user.id)
+          .single();
+
+        if (existing) {
+          // Update existing custom override
+          const { error } = await supabase
+            .from('custom_carrier_service_codes')
+            .update({ universal_category: universalCategory })
+            .eq('id', existing.id);
+
+          if (error) throw error;
+        } else {
+          // Create new custom override
+          const { error } = await supabase
+            .from('custom_carrier_service_codes')
+            .insert({
+              user_id: user.id,
+              carrier_type: selectedConfig.carrier_type.toUpperCase(),
+              service_code: serviceCode,
+              service_name: mapping.service_name,
+              universal_category: universalCategory,
+              is_available: true,
+              is_active: true
+            });
+
+          if (error) throw error;
+        }
+
+        loadData();
+        toast.success('Service mapping updated (custom override created)');
+      }
     } catch (error) {
       console.error('Error updating service mapping:', error);
       toast.error('Failed to update service mapping');
@@ -555,31 +594,25 @@ export const ServiceTypesManager = () => {
                               {mapping.service_code}
                             </code>
                           </TableCell>
-                          <TableCell>
-                            {mapping.is_custom ? (
-                              <Select
-                                value={mapping.universal_category}
-                                onValueChange={(value) =>
-                                  updateServiceMapping(mapping.service_code, value)
-                                }
-                              >
-                                <SelectTrigger className="w-full">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {Object.entries(UNIVERSAL_SERVICES).map(([key, info]) => (
-                                    <SelectItem key={key} value={key}>
-                                      {info.displayName}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Badge variant="secondary">
-                                {UNIVERSAL_SERVICES[mapping.universal_category as UniversalServiceCategory]?.displayName || mapping.universal_category}
-                              </Badge>
-                            )}
-                          </TableCell>
+                           <TableCell>
+                             <Select
+                               value={mapping.universal_category}
+                               onValueChange={(value) =>
+                                 updateServiceMapping(mapping.service_code, value)
+                               }
+                             >
+                               <SelectTrigger className="w-full">
+                                 <SelectValue />
+                               </SelectTrigger>
+                               <SelectContent>
+                                 {Object.entries(UNIVERSAL_SERVICES).map(([key, info]) => (
+                                   <SelectItem key={key} value={key}>
+                                     {info.displayName}
+                                   </SelectItem>
+                                 ))}
+                               </SelectContent>
+                             </Select>
+                           </TableCell>
                           <TableCell>
                             <Badge variant={mapping.is_custom ? "default" : "outline"}>
                               {mapping.is_custom ? 'Custom' : 'System'}

@@ -200,8 +200,29 @@ serve(async (req) => {
     const equivalentServiceCode = shipment.equivalentServiceCode || serviceCodes[0];
     const rates = [];
 
+    // Auto-convert FedEx Ground service codes based on residential status
+    const adjustServiceCodesForResidential = (codes: string[], isResidential: boolean): string[] => {
+      return codes.map(code => {
+        if (code === 'FEDEX_GROUND' && isResidential) {
+          console.log(`🏠 Converting FEDEX_GROUND to GROUND_HOME_DELIVERY for residential delivery`);
+          return 'GROUND_HOME_DELIVERY';
+        }
+        if (code === 'GROUND_HOME_DELIVERY' && !isResidential) {
+          console.log(`🏢 Converting GROUND_HOME_DELIVERY to FEDEX_GROUND for commercial delivery`);
+          return 'FEDEX_GROUND';
+        }
+        return code;
+      });
+    };
+
+    const adjustedServiceCodes = adjustServiceCodesForResidential(serviceCodes, shipment.isResidential || false);
+    console.log(`📋 Service codes adjusted for residential status (${shipment.isResidential}):`, {
+      original: serviceCodes,
+      adjusted: adjustedServiceCodes
+    });
+
     // Get rates for each service type
-    for (const serviceCode of serviceCodes) {
+    for (const serviceCode of adjustedServiceCodes) {
       try {
         ratingRequest.requestedShipment.serviceType = serviceCode;
 

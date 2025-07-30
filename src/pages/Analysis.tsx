@@ -5,7 +5,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui-lov/Card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, Shield, Clock, Pause, Play } from 'lucide-react';
+import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, Shield, Clock, Pause, Play, Zap, BarChart3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
@@ -18,6 +18,9 @@ import { mapServiceToServiceCode, getServiceCategoriesToRequest } from '@/utils/
 import { getCarrierServiceCode, CarrierType, getUniversalCategoryFromCarrierCode } from '@/utils/carrierServiceRegistry';
 import type { ServiceMapping } from '@/utils/csvParser';
 import { determineResidentialStatus } from '@/utils/csvParser';
+import { useAnalysisPerformance } from '@/hooks/useAnalysisPerformance';
+import { analysisCache, requestDeduplicator } from '@/utils/analysisCache';
+import { PerformanceMonitor } from '@/components/ui-lov/PerformanceMonitor';
 
 interface ProcessedShipment {
   id: number;
@@ -75,6 +78,15 @@ const Analysis = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
+  // Performance optimization hooks
+  const {
+    metrics,
+    getOptimalBatchConfig,
+    trackPerformance,
+    createConcurrencyController,
+    createRetryHandler
+  } = useAnalysisPerformance();
+  
   const [shipments, setShipments] = useState<ProcessedShipment[]>([]);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
   const [currentShipmentIndex, setCurrentShipmentIndex] = useState(0);
@@ -93,6 +105,7 @@ const Analysis = () => {
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const [hasLoadedInitialCarriers, setHasLoadedInitialCarriers] = useState(false);
+  const [performanceMode, setPerformanceMode] = useState<'balanced' | 'speed' | 'reliability'>('balanced');
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
   
   useEffect(() => {
@@ -342,7 +355,6 @@ const Analysis = () => {
     setCurrentShipmentIndex(0);
     setError(null);
     
-    
     try {
       // Validate carrier configuration first and get filtered carriers
       const validCarrierIds = await validateCarrierConfiguration();
@@ -354,39 +366,81 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
       
-      // Process shipments in optimized batches to prevent browser overload
-      const batchSize = 25; // Optimized batch size for performance
-      const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
+      // Get optimal batch configuration based on performance metrics
+      const batchConfig = getOptimalBatchConfig(shipmentsToAnalyze.length);
+      
+      // Adjust configuration based on performance mode
+      let adjustedBatchSize = batchConfig.size;
+      let adjustedConcurrency = batchConfig.concurrency;
+      
+      switch (performanceMode) {
+        case 'speed':
+          adjustedBatchSize = Math.min(batchConfig.size * 1.5, 75);
+          adjustedConcurrency = Math.min(batchConfig.concurrency * 1.5, 12);
+          break;
+        case 'reliability':
+          adjustedBatchSize = Math.max(batchConfig.size * 0.7, 15);
+          adjustedConcurrency = Math.max(batchConfig.concurrency * 0.7, 3);
+          break;
+        default: // balanced
+          break;
+      }
+      
+      console.log('🚀 Performance-optimized analysis configuration:', {
+        totalShipments: shipmentsToAnalyze.length,
+        batchSize: adjustedBatchSize,
+        concurrency: adjustedConcurrency,
+        performanceMode,
+        metrics: {
+          avgResponseTime: metrics.averageResponseTime,
+          successRate: metrics.successRate
+        }
+      });
+      
+      // Create concurrency controller
+      const executeWithConcurrency = createConcurrencyController(adjustedConcurrency);
+      const retryHandler = createRetryHandler(3, batchConfig.retryDelay);
+      
+      const totalBatches = Math.ceil(shipmentsToAnalyze.length / adjustedBatchSize);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        // Check if paused before processing each batch
         if (isPaused) {
           console.log('Analysis paused, stopping processing');
           break;
         }
         
-        const startIndex = batchIndex * batchSize;
-        const endIndex = Math.min(startIndex + batchSize, shipmentsToAnalyze.length);
+        const startIndex = batchIndex * adjustedBatchSize;
+        const endIndex = Math.min(startIndex + adjustedBatchSize, shipmentsToAnalyze.length);
         const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
         
+        console.log(`🔄 Processing batch ${batchIndex + 1}/${totalBatches} (${batch.length} shipments)`);
         
-        
-        // Process all shipments in the batch concurrently
+        // Process shipments with concurrency control and caching
         const batchPromises = batch.map((shipment, indexInBatch) => {
           const globalIndex = startIndex + indexInBatch;
           setCurrentShipmentIndex(globalIndex);
-          return processShipment(globalIndex, shipment, 0, analysisId);
+          
+          return executeWithConcurrency(() => 
+            retryHandler(() => processShipmentOptimized(globalIndex, shipment, analysisId))
+          );
         });
         
         // Wait for all shipments in the batch to complete
-        await Promise.allSettled(batchPromises);
+        const batchResults = await Promise.allSettled(batchPromises);
         
-        // Update progress to reflect completed batch
+        // Track performance metrics for this batch
+        const successfulResults = batchResults.filter(result => result.status === 'fulfilled').length;
+        const successRate = successfulResults / batchResults.length;
+        
+        console.log(`✅ Batch ${batchIndex + 1} completed: ${successfulResults}/${batchResults.length} successful`);
+        
+        // Update progress
         setCurrentShipmentIndex(endIndex - 1);
         
-        // Small delay between batches for UI responsiveness
+        // Adaptive delay between batches
         if (batchIndex < totalBatches - 1 && !isPaused) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          const delay = Math.max(50, Math.min(300, batchConfig.delayBetweenBatches));
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
       }
       
@@ -530,6 +584,272 @@ const Analysis = () => {
     }
   };
   
+  // Optimized shipment processing with caching and performance tracking
+  const processShipmentOptimized = async (index: number, shipment: ProcessedShipment, analysisId?: string) => {
+    const startTime = Date.now();
+    
+    // Update status to processing
+    setAnalysisResults(prev => {
+      return prev.map(result => 
+        result.shipment.id === shipment.id 
+          ? { ...result, status: 'processing' }
+          : result
+      );
+    });
+    
+    try {
+      // Check cache first for identical requests
+      const cacheKey = {
+        originZip: shipment.originZip || '',
+        destZip: shipment.destZip || '',
+        weight: parseFloat(shipment.weight || '0'),
+        length: parseFloat(shipment.length || '0'),
+        width: parseFloat(shipment.width || '0'),
+        height: parseFloat(shipment.height || '0'),
+        serviceTypes: shipment.service ? [shipment.service] : [],
+        carrierConfigIds: selectedCarriers,
+        isResidential: false // Will be determined in processing
+      };
+      
+      const cachedResult = analysisCache.get(cacheKey);
+      if (cachedResult) {
+        console.log(`⚡ Cache hit for shipment ${index + 1}`);
+        const responseTime = Date.now() - startTime;
+        trackPerformance('cache', responseTime, true);
+        
+        // Update results with cached data
+        setAnalysisResults(prev => {
+          const newResults = [...prev];
+          if (newResults[index]) {
+            newResults[index] = {
+              ...newResults[index],
+              status: 'completed',
+              ...cachedResult
+            };
+          }
+          return newResults;
+        });
+        
+        return cachedResult;
+      }
+      
+      // Validate shipment data
+      const missingFields = [];
+      if (!shipment.originZip?.trim()) missingFields.push('Origin ZIP');
+      if (!shipment.destZip?.trim()) missingFields.push('Destination ZIP');
+      if (!shipment.service?.trim()) missingFields.push('Service Type');
+      
+      let weight = 0;
+      if (!shipment.weight || shipment.weight === '') {
+        missingFields.push('Weight');
+      } else {
+        weight = parseFloat(shipment.weight);
+        if (shipment.weightUnit && shipment.weightUnit.toLowerCase().includes('oz')) {
+          weight = weight / 16;
+        }
+        if (isNaN(weight) || weight <= 0) {
+          missingFields.push('Valid Weight');
+        }
+      }
+      
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
+      
+      // Enhanced ZIP code validation
+      const zipRegex = /^\d{5}(-\d{4})?$/;
+      const cleanOriginZip = shipment.originZip?.trim();
+      const cleanDestZip = shipment.destZip?.trim();
+      
+      if (cleanOriginZip && !zipRegex.test(cleanOriginZip)) {
+        throw new Error(`Invalid origin ZIP code format: "${shipment.originZip}"`);
+      }
+      if (cleanDestZip && !zipRegex.test(cleanDestZip)) {
+        throw new Error(`Invalid destination ZIP code format: "${shipment.destZip}"`);
+      }
+      
+      // Parse current rate
+      const costString = (shipment.currentRate || '0').toString().replace(/[$,]/g, '').trim();
+      const currentCost = parseFloat(costString);
+      
+      // Validate dimensions
+      const length = parseFloat(shipment.length || '0');
+      const width = parseFloat(shipment.width || '0'); 
+      const height = parseFloat(shipment.height || '0');
+      
+      if (!length || !width || !height || isNaN(length) || isNaN(width) || isNaN(height)) {
+        throw new Error(`Missing or invalid package dimensions`);
+      }
+      
+      // Service mapping logic (simplified for performance)
+      const normalizeServiceName = (serviceName: string): string => {
+        return serviceName?.trim().toLowerCase().replace(/\s+/g, ' ') || '';
+      };
+
+      const confirmedMapping = serviceMappings.find(m => 
+        normalizeServiceName(m.original) === normalizeServiceName(shipment.service)
+      );
+      
+      if (!confirmedMapping) {
+        throw new Error(`No confirmed service mapping found for "${shipment.service}"`);
+      }
+      
+      // Determine residential status
+      const residentialStatus = determineResidentialStatus(
+        shipment, 
+        confirmedMapping,
+        csvResidentialField
+      );
+      
+      // Build shipment request
+      const originCityState = getCityStateFromZip(shipment.originZip);
+      const destCityState = getCityStateFromZip(shipment.destZip);
+      
+      const shipmentRequest = {
+        shipFrom: {
+          name: shipment.shipperName || 'Sample Shipper',
+          address: shipment.shipperAddress || '123 Main St',
+          city: shipment.shipperCity || originCityState.city,
+          state: shipment.shipperState || originCityState.state,
+          zipCode: shipment.originZip.trim(),
+          country: 'US'
+        },
+        shipTo: {
+          name: shipment.recipientName || 'Sample Recipient',
+          address: shipment.recipientAddress || '456 Oak Ave',
+          city: shipment.recipientCity || destCityState.city,
+          state: shipment.recipientState || destCityState.state,
+          zipCode: shipment.destZip.trim(),
+          country: 'US'
+        },
+        package: {
+          weight,
+          weightUnit: 'LBS',
+          length,
+          width,
+          height,
+          dimensionUnit: 'IN'
+        },
+        serviceTypes: [confirmedMapping.standardizedService],
+        equivalentServiceCode: confirmedMapping.standardizedService,
+        isResidential: residentialStatus.isResidential,
+        residentialSource: residentialStatus.source,
+        originalCarrier: shipment.carrier || 'Unknown',
+        zone: shipment.zone
+      };
+      
+      // Use request deduplication for identical requests
+      const requestKey = JSON.stringify({
+        ...shipmentRequest,
+        carrierConfigIds: selectedCarriers,
+        analysisId
+      });
+      
+      const apiCall = async () => {
+        const { data, error } = await supabase.functions.invoke('multi-carrier-quote', {
+          body: { 
+            shipment: {
+              ...shipmentRequest,
+              carrierConfigIds: selectedCarriers,
+              analysisId,
+              shipmentIndex: index
+            }
+          }
+        });
+
+        if (error) {
+          throw new Error(`Multi-carrier API Error: ${error.message || 'Unknown API error'}`);
+        }
+        
+        if (!data || !data.allRates || !Array.isArray(data.allRates) || data.allRates.length === 0) {
+          throw new Error('No rates returned from any carrier');
+        }
+        
+        return data;
+      };
+      
+      // Execute with deduplication
+      const data = await requestDeduplicator.execute(requestKey, apiCall);
+      
+      // Process results (simplified for performance)
+      const serviceRates = data.allRates.filter((rate: any) => 
+        rate.serviceCode === confirmedMapping.standardizedService
+      );
+      
+      const comparisonRate = serviceRates.length > 0 
+        ? serviceRates.reduce((best: any, current: any) => 
+            (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
+          )
+        : data.bestRates?.[0];
+      
+      const bestRate = data.allRates.reduce((best: any, current: any) => 
+        (current.totalCharges || 0) < (best.totalCharges || 0) ? current : best
+      );
+      
+      if (!comparisonRate || comparisonRate.totalCharges === undefined) {
+        throw new Error('Invalid rate data returned from carriers');
+      }
+      
+      const savings = currentCost - comparisonRate.totalCharges;
+      const maxSavings = bestRate ? currentCost - bestRate.totalCharges : savings;
+      
+      const result = {
+        currentCost,
+        originalService: shipment.service,
+        allRates: data.allRates,
+        carrierResults: data.carrierResults,
+        bestRate: comparisonRate,
+        bestOverallRate: bestRate,
+        savings,
+        maxSavings,
+        expectedServiceCode: confirmedMapping.standardizedService
+      };
+      
+      // Cache the result
+      analysisCache.set(cacheKey, result);
+      
+      // Track performance
+      const responseTime = Date.now() - startTime;
+      const carrier = comparisonRate.carrierType || 'unknown';
+      trackPerformance(carrier, responseTime, true);
+      
+      // Update results
+      setAnalysisResults(prev => {
+        const newResults = [...prev];
+        if (newResults[index]) {
+          newResults[index] = {
+            ...newResults[index],
+            status: 'completed',
+            ...result
+          };
+        }
+        return newResults;
+      });
+      
+      return result;
+      
+    } catch (error: any) {
+      const responseTime = Date.now() - startTime;
+      trackPerformance('error', responseTime, false, error.message);
+      
+      setAnalysisResults(prev => {
+        const newResults = [...prev];
+        if (newResults[index]) {
+          newResults[index] = {
+            ...newResults[index],
+            status: 'error',
+            error: error.message,
+            errorType: 'processing_error',
+            errorCategory: 'Unknown'
+          };
+        }
+        return newResults;
+      });
+      
+      throw error;
+    }
+  };
+
   const processShipment = async (index: number, shipment: ProcessedShipment, retryCount = 0, analysisId?: string) => {
     const maxRetries = 2;
     
@@ -1278,10 +1598,42 @@ const Analysis = () => {
     <DashboardLayout>
       <div className="max-w-6xl mx-auto p-6">
         <div className="mb-6">
-          <h1 className="text-3xl font-semibold mb-2">Real-Time Shipping Analysis</h1>
-          <p className="text-muted-foreground">
-            Processing {shipments.length} shipments and comparing current rates across multiple carriers for optimal savings.
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-semibold mb-2">Real-Time Shipping Analysis</h1>
+              <p className="text-muted-foreground">
+                Processing {shipments.length} shipments and comparing current rates across multiple carriers for optimal savings.
+              </p>
+            </div>
+            
+            {/* Performance Mode Selector */}
+            {!isAnalyzing && (
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <Zap className="h-4 w-4 text-yellow-500" />
+                  <span className="text-sm text-gray-600">Performance:</span>
+                  <select
+                    value={performanceMode}
+                    onChange={(e) => setPerformanceMode(e.target.value as any)}
+                    className="text-sm border border-gray-300 rounded-md px-2 py-1 bg-white"
+                  >
+                    <option value="balanced">Balanced</option>
+                    <option value="speed">Speed</option>
+                    <option value="reliability">Reliability</option>
+                  </select>
+                </div>
+                
+                {/* Performance Metrics Display */}
+                {metrics.averageResponseTime > 0 && (
+                  <div className="flex items-center space-x-2 text-sm text-gray-600">
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Avg: {metrics.averageResponseTime.toFixed(0)}ms</span>
+                    <span>Success: {(metrics.successRate * 100).toFixed(1)}%</span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         
         {/* Carrier Selection */}
@@ -1307,6 +1659,17 @@ const Analysis = () => {
           </div>
         )}
         
+        {/* Performance Monitor */}
+        {isAnalyzing && (
+          <PerformanceMonitor
+            metrics={metrics}
+            isAnalyzing={isAnalyzing}
+            currentBatch={Math.floor(currentShipmentIndex / 25) + 1}
+            totalBatches={Math.ceil(shipments.length / 25)}
+            performanceMode={performanceMode}
+          />
+        )}
+
         {/* Progress Overview */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <Card>

@@ -65,8 +65,12 @@ export const FedexDebugTest = () => {
 
       console.log('✅ FedEx auth successful');
 
-      // 3. Test simple rate quote with detailed logging
-      console.log('🔍 Step 3: Testing FedEx rate quote...');
+      // 3. Test multiple service rate quotes with detailed logging
+      console.log('🔍 Step 3: Testing FedEx rate quotes for all enabled services...');
+      
+      const enabledServices = Array.isArray(config.enabled_services) ? config.enabled_services : [];
+      console.log('Enabled services:', enabledServices);
+      
       const testShipment = {
         shipFrom: {
           name: 'Test Shipper',
@@ -85,16 +89,16 @@ export const FedexDebugTest = () => {
           country: 'US'
         },
         package: {
-          weight: 1,
+          weight: 5,
           weightUnit: 'LBS',
-          length: 10,
-          width: 8,
-          height: 6,
+          length: 12,
+          width: 10,
+          height: 8,
           dimensionUnit: 'IN',
           packageType: '02'
         },
-        serviceTypes: ['FEDEX_GROUND'],
-        equivalentServiceCode: 'FEDEX_GROUND',
+        serviceTypes: enabledServices.slice(0, 5), // Test first 5 enabled services
+        equivalentServiceCode: enabledServices[0] || 'FEDEX_GROUND',
         isResidential: false,
         residentialSource: 'debug_test'
       };
@@ -120,8 +124,26 @@ export const FedexDebugTest = () => {
       const { data: services, error: servicesError } = await supabase
         .from('carrier_services')
         .select('*')
-        .eq('carrier_type', 'fedex')
-        .eq('service_code', 'FEDEX_GROUND');
+        .eq('carrier_type', 'fedex');
+
+      // 5. Test multi-carrier quote to see service filtering
+      console.log('🔍 Step 5: Testing multi-carrier quote service filtering...');
+      const multiCarrierTest = {
+        shipFrom: testShipment.shipFrom,
+        shipTo: testShipment.shipTo,
+        package: testShipment.package,
+        serviceTypes: ['GROUND'], // Universal service code
+        equivalentServiceCode: 'GROUND',
+        isResidential: false,
+        residentialSource: 'debug_test',
+        carrierConfigIds: [config.id]
+      };
+
+      const { data: multiCarrierData, error: multiCarrierError } = await supabase.functions.invoke('multi-carrier-quote', {
+        body: { 
+          shipment: multiCarrierTest
+        }
+      });
 
       setResult({
         success: true,
@@ -131,18 +153,28 @@ export const FedexDebugTest = () => {
             id: config.id,
             name: config.account_name,
             sandbox: config.is_sandbox,
-            account: config.fedex_account_number
+            account: config.fedex_account_number,
+            enabledServices: config.enabled_services,
+            serviceCount: enabledServices.length
           },
           auth: {
             success: !!authData?.access_token,
             cached: authData?.cached
           },
-          rates: {
+          directRateQuote: {
+            servicesToTest: testShipment.serviceTypes,
             returned: rateData?.rates?.length || 0,
-            data: rateData
+            data: rateData,
+            error: rateError
           },
-          services: {
+          multiCarrierQuote: {
+            success: !multiCarrierError,
+            error: multiCarrierError,
+            data: multiCarrierData
+          },
+          carrierServices: {
             found: services?.length || 0,
+            enabled: services?.filter(s => enabledServices.includes(s.service_code)) || [],
             data: services
           }
         }

@@ -42,23 +42,10 @@ Deno.serve(async (req) => {
     const payload: BulkAnalysisRequest = await req.json()
     console.log(`📊 Processing ${payload.shipments.length} shipments with ${payload.carrierConfigIds.length} carriers`);
 
-    // Get all carrier configs and rate cards in one query
+    // Get carrier configs and rate cards separately 
     const { data: carrierConfigs, error: configError } = await supabase
       .from('carrier_configs')
-      .select(`
-        *,
-        rate_cards (
-          id,
-          service_code,
-          service_name,
-          zone,
-          weight_break,
-          rate,
-          fuel_surcharge_percent,
-          residential_surcharge,
-          delivery_area_surcharge
-        )
-      `)
+      .select('*')
       .eq('user_id', user.id)
       .in('id', payload.carrierConfigIds)
       .eq('is_active', true);
@@ -67,7 +54,28 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to load carrier configs: ${configError?.message}`);
     }
 
-    console.log(`📋 Loaded ${carrierConfigs.length} carrier configs with rate cards`);
+    // Get rate cards for these configs
+    const { data: rateCards, error: rateCardsError } = await supabase
+      .from('rate_cards')
+      .select('*')
+      .in('carrier_config_id', payload.carrierConfigIds);
+
+    if (rateCardsError) {
+      throw new Error(`Failed to load rate cards: ${rateCardsError?.message}`);
+    }
+
+    // Attach rate cards to carrier configs
+    const rateCardsByConfig = rateCards?.reduce((acc: any, card: any) => {
+      if (!acc[card.carrier_config_id]) acc[card.carrier_config_id] = [];
+      acc[card.carrier_config_id].push(card);
+      return acc;
+    }, {}) || {};
+
+    carrierConfigs.forEach((config: any) => {
+      config.rate_cards = rateCardsByConfig[config.id] || [];
+    });
+
+    console.log(`📋 Loaded ${carrierConfigs.length} carrier configs with ${rateCards?.length || 0} rate cards`);
 
     // Create analysis record
     const { data: analysis, error: analysisError } = await supabase

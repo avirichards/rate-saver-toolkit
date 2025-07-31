@@ -161,7 +161,7 @@ export class DataStreamProcessor {
         original_data: [], // Will be populated during streaming
         total_shipments: baseData.totalShipments,
         total_savings: baseData.totalPotentialSavings,
-        status: 'streaming',
+        status: 'processing',
         processing_metadata: {
           processingType: 'streaming',
           totalChunks,

@@ -56,6 +56,7 @@ async function isRateCardOnlyAnalysis(carrierConfigIds: string[], supabase: any)
 
 // Compute rates from rate cards for rate-card-only analyses
 async function computeRatesFromCards(recommendations: any[], carrierConfigIds: string[], supabase: any) {
+  const startTime = Date.now();
   console.log('🗂️ Loading rate card data for computation...');
   
   // Load carrier configurations
@@ -80,6 +81,8 @@ async function computeRatesFromCards(recommendations: any[], carrierConfigIds: s
   if (rateError) {
     throw new Error(`Failed to load rate card data: ${rateError.message}`);
   }
+
+  console.log('🗂️ rateCardData rows:', rateCardData?.length, 'for configs', carrierConfigIds);
 
   // Create lookup maps for fast access
   const carrierConfigMap = new Map();
@@ -125,6 +128,8 @@ async function computeRatesFromCards(recommendations: any[], carrierConfigIds: s
       // Find matching rates
       const rateKey = `${carrierId}-${serviceCode}-${zone}`;
       const rates = rateCardMap.get(rateKey) || [];
+      
+      console.log('🔑 Trying key:', rateKey, '=>', rateCardMap.has(rateKey));
 
       // Find best rate for this weight
       const eligibleRates = rates.filter(rate => weight >= rate.weight_break);
@@ -151,6 +156,8 @@ async function computeRatesFromCards(recommendations: any[], carrierConfigIds: s
         hasNegotiatedRates: false,
         publishedRate: bestRate.rate_amount
       });
+      
+      console.log(`✅ Pushed rate for shipment ${rec.shipment.id || index}`, rec.allRates.length);
     });
 
     if (rec.allRates.length === 0) {
@@ -158,7 +165,8 @@ async function computeRatesFromCards(recommendations: any[], carrierConfigIds: s
     }
   });
 
-  console.log(`✅ Rate card computation completed for ${recommendations.length} shipments`);
+  const endTime = Date.now();
+  console.log(`✅ Rate card computation completed for ${recommendations.length} shipments in ${endTime - startTime}ms`);
 }
 
 // Helper function to map service names to carrier-specific codes
@@ -594,6 +602,9 @@ Deno.serve(async (req) => {
 
     // Check if this is a rate card-only analysis (skip batching for instant processing)
     const isRateCardOnly = await isRateCardOnlyAnalysis(payload.carrierConfigsUsed, supabase);
+    
+    console.log('⚡ isRateCardOnly?', isRateCardOnly);
+    console.log('⚡ totalShipments:', payload.recommendations.length);
     
     // Smart size detection - datasets over 5000 shipments should use batch processing (except rate cards)
     const BATCH_THRESHOLD = 5000;

@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
 
     // Get rate cards for these configs
     const { data: rateCards, error: rateCardsError } = await supabase
-      .from('rate_cards')
+      .from('rate_card_rates')
       .select('*')
       .in('carrier_config_id', payload.carrierConfigIds);
 
@@ -140,8 +140,8 @@ Deno.serve(async (req) => {
           );
 
           if (rateCard) {
-            const baseRate = parseFloat(rateCard.rate || '0');
-            const fuelSurcharge = baseRate * (parseFloat(rateCard.fuel_surcharge_percent || '0') / 100);
+            const baseRate = parseFloat(rateCard.rate_amount || '0');
+            const fuelSurcharge = baseRate * (parseFloat(config.fuel_surcharge_percent || '0') / 100);
             const totalCost = baseRate + fuelSurcharge;
 
             const rate = {

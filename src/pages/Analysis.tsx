@@ -1086,12 +1086,35 @@ const Analysis = () => {
   
   const finalizeAnalysis = async (analysisData: any) => {
     try {
-      console.log('🚀 Calling finalize-analysis edge function with:', {
+      console.log('🚀 Starting analysis finalization:', {
         orphanedCount: analysisData.orphanedShipments?.length || 0,
         originalDataCount: analysisData.originalData?.length || 0,
         recommendationsCount: analysisData.recommendations?.length || 0
       });
 
+      // For large datasets (>5000 shipments), use streaming processor
+      const STREAMING_THRESHOLD = 5000;
+      const isLargeDataset = analysisData.totalShipments > STREAMING_THRESHOLD;
+
+      if (isLargeDataset) {
+        console.log('📊 Large dataset detected, using streaming processor');
+        
+        const { DataStreamProcessor } = await import('@/utils/dataStreamProcessor');
+        const processor = new DataStreamProcessor({
+          chunkSize: 1000,
+          maxConcurrentChunks: 3,
+          progressCallback: (progress) => {
+            console.log(`🔄 Streaming progress: ${progress.processedChunks}/${progress.totalChunks} chunks`);
+            toast.info(`Processing: ${Math.round((progress.processedChunks / progress.totalChunks) * 100)}% complete`);
+          }
+        });
+
+        const analysisId = await processor.streamAnalysis(analysisData);
+        console.log('✅ Streaming analysis completed:', analysisId);
+        return analysisId;
+      }
+
+      // For smaller datasets, use the original method
       const { data, error } = await supabase.functions.invoke('finalize-analysis', {
         body: analysisData
       });

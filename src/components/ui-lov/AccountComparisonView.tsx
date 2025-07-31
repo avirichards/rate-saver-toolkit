@@ -57,12 +57,16 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
   }, [shipmentRates]);
 
   // Debug logging
-  console.log('AccountComparisonView data:', {
+  console.log('🚀 AccountComparisonView data:', {
     shipmentRatesCount: shipmentRates.length,
     shipmentDataCount: shipmentData.length,
     availableAccounts,
     sampleShipmentRate: shipmentRates[0],
-    sampleShipmentData: shipmentData[0]
+    sampleShipmentData: shipmentData[0],
+    rateShipmentDataStructures: {
+      rateShipmentData: shipmentRates[0]?.shipment_data,
+      shipmentDataFields: shipmentData[0] ? Object.keys(shipmentData[0]) : []
+    }
   });
   
   // Handle account selection for a service

@@ -223,6 +223,15 @@ const Analysis = () => {
     setError(null);
     
     try {
+      // For large datasets, skip detailed validation and go straight to streaming
+      const STREAMING_THRESHOLD = 1000;
+      if (shipmentsToAnalyze.length > STREAMING_THRESHOLD) {
+        console.log(`📊 Large dataset detected (${shipmentsToAnalyze.length} shipments), skipping validation and using streaming processor`);
+        await startAnalysis(shipmentsToAnalyze);
+        return;
+      }
+      
+      console.log(`📊 Small dataset (${shipmentsToAnalyze.length} shipments), using standard validation and processing`);
       
       const validationResults = await validateShipments(shipmentsToAnalyze);
       console.log('🔍 VALIDATION RESULTS SUMMARY:', {
@@ -237,20 +246,12 @@ const Analysis = () => {
       
       shipmentsToAnalyze.forEach((shipment, index) => {
         const result = validationResults[index];
-        console.log(`🔍 VALIDATION CHECK ${index}:`, {
-          shipmentId: shipment.id,
-          hasResult: !!result,
-          isValid: result?.isValid,
-          errors: result?.errors,
-          warnings: result?.warnings
-        });
         
         if (result && result.isValid) {
           validShipments.push(shipment);
         } else {
           const reasons = result?.errors ? Object.values(result.errors).flat() : ['Validation failed'];
           invalidShipments.push({ shipment, reasons });
-          console.log(`❌ SHIPMENT ${index} INVALID:`, { shipment: shipment.id, reasons });
         }
       });
       
@@ -260,16 +261,10 @@ const Analysis = () => {
         invalid: invalidShipments.length
       };
       
-      console.log('🔍 VALIDATION SUMMARY:', {
-        total: shipmentsToAnalyze.length,
-        valid: validShipments.length,
-        invalid: invalidShipments.length,
-        invalidReasons: invalidShipments.map(i => i.reasons)
-      });
-      
+      console.log('🔍 VALIDATION SUMMARY:', summary);
       setValidationSummary(summary);
       
-      // Store invalid shipments in analysis results for tracking AND send to orphans immediately
+      // Store invalid shipments in analysis results for tracking
       const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
         shipment,
         status: 'error' as const,
@@ -279,7 +274,7 @@ const Analysis = () => {
         originalService: shipment.service || 'Unknown'
       }));
       
-      // Send validation failures to orphans immediately
+      // Send validation failures to orphans immediately for small datasets
       if (invalidResults.length > 0) {
         console.log('🚨 SENDING TO ORPHANS:', invalidResults.length, 'validation failures');
         const orphanedShipments = invalidResults.map(result => ({
@@ -407,7 +402,7 @@ const Analysis = () => {
       }
       
       // Process shipments in optimized batches to prevent browser overload
-      const batchSize = 25; // Optimized batch size for performance
+      const batchSize = 100; // Increased batch size for better performance
       const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
       
       for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {

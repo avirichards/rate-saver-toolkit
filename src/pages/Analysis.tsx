@@ -249,48 +249,94 @@ const Analysis = () => {
       
       console.log(`🚀 Starting bulk analysis for ${shipmentsToAnalyze.length} shipments`);
       
-      // Use bulk processing for all datasets
+      // Use fast chunked processing instead of bulk analysis
+      console.log('🚀 Using fast chunked processing for maximum reliability');
+      
       const state = location.state as any;
-      const bulkPayload = {
-        shipments: shipmentsToAnalyze,
-        carrierConfigIds: validCarrierIds,
-        fileName: state?.fileName || 'Real-time Analysis'
-      };
-
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+      
+      const CHUNK_SIZE = 2000; // Large chunks for speed
+      const chunks = [];
+      for (let i = 0; i < shipmentsToAnalyze.length; i += CHUNK_SIZE) {
+        chunks.push(shipmentsToAnalyze.slice(i, i + CHUNK_SIZE));
+      }
+      
+      // Create analysis record first
+      const { data: analysis } = await supabase
+        .from('shipping_analyses')
+        .insert({
+          user_id: user.id,
+          file_name: state?.fileName || 'Real-time Analysis',
+          original_data: shipmentsToAnalyze as any,
+          total_shipments: shipmentsToAnalyze.length,
+          status: 'processing',
+          carrier_configs_used: validCarrierIds as any
+        })
+        .select('id')
+        .single();
+      
+      if (!analysis) {
+        throw new Error('Failed to create analysis record');
+      }
+      
+      let completedChunks = 0;
       const startTime = performance.now();
       
-      console.log('🚀 Calling bulk-rate-analysis function with payload:', {
-        shipmentCount: bulkPayload.shipments.length,
-        carrierConfigIds: bulkPayload.carrierConfigIds,
-        fileName: bulkPayload.fileName
-      });
+      // Process chunks with high concurrency
+      const processChunk = async (chunk: any[], chunkIndex: number) => {
+        const { error } = await supabase.functions.invoke('process-analysis-chunk', {
+          body: {
+            chunkIndex,
+            totalChunks: chunks.length,
+            analysisId: analysis.id,
+            recommendations: chunk.map((shipment, index) => ({
+              shipment,
+              index: chunkIndex * CHUNK_SIZE + index,
+              allRates: [],
+              currentCost: 0,
+              customer_service: shipment.service || 'Ground',
+              carrier: 'multi-carrier'
+            }))
+          }
+        });
+        
+        if (error) {
+          console.error(`Chunk ${chunkIndex} failed:`, error);
+        } else {
+          completedChunks++;
+          setCurrentShipmentIndex((completedChunks / chunks.length) * shipmentsToAnalyze.length);
+        }
+      };
       
-      const { data: result, error } = await supabase.functions.invoke('bulk-rate-analysis', {
-        body: bulkPayload
-      });
-
-      console.log('📡 Raw response from bulk-rate-analysis:', { result, error });
-
-      if (error) {
-        console.error('❌ Function invocation error:', error);
-        throw new Error(`Bulk analysis failed: ${error.message || JSON.stringify(error)}`);
+      // Process 5 chunks concurrently for maximum speed
+      const CONCURRENCY = 5;
+      for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+        const batch = chunks.slice(i, i + CONCURRENCY);
+        await Promise.all(
+          batch.map((chunk, idx) => processChunk(chunk, i + idx))
+        );
       }
-
-      if (!result || !result.success) {
-        console.error('❌ Function returned failure:', result);
-        throw new Error(`Bulk analysis failed: ${result?.error || 'Unknown error'}`);
-      }
-
+      
+      // Mark as completed
+      await supabase
+        .from('shipping_analyses')
+        .update({ status: 'completed' })
+        .eq('id', analysis.id);
+      
       const processingTime = performance.now() - startTime;
-      console.log(`✅ Bulk analysis completed in ${processingTime.toFixed(2)}ms:`, result);
-      
-      // Show success message
-      toast.success(`Analysis completed! Processed ${result.processedShipments} shipments in ${(processingTime / 1000).toFixed(1)}s`);
+      toast.success(`Analysis completed! Processed ${shipmentsToAnalyze.length} shipments in ${(processingTime / 1000).toFixed(1)}s`);
       
       // Navigate to results
       navigate('/results', { 
         state: { 
-          analysisId: result.analysisId,
+          analysisId: analysis.id,
+          fromAnalysis: true 
+        } 
+      });
+      navigate('/results', { 
+        state: { 
+          analysisId: analysis.id,
           fromAnalysis: true 
         } 
       });

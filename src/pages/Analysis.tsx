@@ -223,111 +223,16 @@ const Analysis = () => {
     setError(null);
     
     try {
-      // For large datasets, skip detailed validation and go straight to streaming
-      const STREAMING_THRESHOLD = 1000;
-      if (shipmentsToAnalyze.length > STREAMING_THRESHOLD) {
-        console.log(`📊 Large dataset detected (${shipmentsToAnalyze.length} shipments), skipping validation and using streaming processor`);
-        await startAnalysis(shipmentsToAnalyze);
-        return;
-      }
+      console.log(`🚀 Starting lightning-fast analysis for ${shipmentsToAnalyze.length} shipments (skipping slow validation)`);
       
-      console.log(`📊 Small dataset (${shipmentsToAnalyze.length} shipments), using standard validation and processing`);
-      
-      const validationResults = await validateShipments(shipmentsToAnalyze);
-      console.log('🔍 VALIDATION RESULTS SUMMARY:', {
-        totalShipments: shipmentsToAnalyze.length,
-        validationResultsCount: Object.keys(validationResults).length,
-        sampleResults: Object.values(validationResults).slice(0, 3)
-      });
-      
-      // Track both valid and invalid shipments with detailed reasons
-      const validShipments: ProcessedShipment[] = [];
-      const invalidShipments: { shipment: ProcessedShipment; reasons: string[] }[] = [];
-      
-      shipmentsToAnalyze.forEach((shipment, index) => {
-        const result = validationResults[index];
-        
-        if (result && result.isValid) {
-          validShipments.push(shipment);
-        } else {
-          const reasons = result?.errors ? Object.values(result.errors).flat() : ['Validation failed'];
-          invalidShipments.push({ shipment, reasons });
-        }
-      });
-      
-      const summary = {
-        total: shipmentsToAnalyze.length,
-        valid: validShipments.length,
-        invalid: invalidShipments.length
-      };
-      
-      console.log('🔍 VALIDATION SUMMARY:', summary);
-      setValidationSummary(summary);
-      
-      // Store invalid shipments in analysis results for tracking
-      const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
-        shipment,
-        status: 'error' as const,
-        error: `Validation failed: ${reasons.join(', ')}`,
-        errorType: 'validation_error',
-        errorCategory: 'Data Validation',
-        originalService: shipment.service || 'Unknown'
-      }));
-      
-      // Send validation failures to orphans immediately for small datasets
-      if (invalidResults.length > 0) {
-        console.log('🚨 SENDING TO ORPHANS:', invalidResults.length, 'validation failures');
-        const orphanedShipments = invalidResults.map(result => ({
-          shipment: result.shipment,
-          error: result.error,
-          errorType: result.errorType,
-          customer_service: result.originalService,
-          status: 'error'
-        }));
-        
-        const state = location.state as any;
-        const orphanPayload = {
-          fileName: state?.fileName || 'Real-time Analysis',
-          totalShipments: shipmentsToAnalyze.length,
-          completedShipments: 0,
-          errorShipments: invalidResults.length,
-          totalCurrentCost: 0,
-          totalPotentialSavings: 0,
-          recommendations: [],
-          orphanedShipments,
-          originalData: invalidResults,
-          carrierConfigsUsed: selectedCarriers,
-          serviceMappings: serviceMappings
-        };
-        
-        console.log('🚨 ORPHAN PAYLOAD:', orphanPayload);
-        await finalizeAnalysis(orphanPayload);
-        console.log('✅ SENT TO ORPHANS SUCCESSFULLY');
-      }
-      
-      // Initialize results with both valid (pending) and invalid (error) shipments
-      const initialResults = [
-        ...validShipments.map(shipment => ({
-          shipment,
-          status: 'pending' as const
-        })),
-        ...invalidResults
-      ];
-      
-      setAnalysisResults(initialResults);
-      
-      if (validShipments.length === 0) {
-        throw new Error('No valid shipments found. Please check your data and field mappings.');
-      }
-      
-      // Note: Validation errors are already shown in the validation summary below
-      
-      // Process only valid shipments, but track ALL shipments in results
-      await startAnalysis(validShipments);
+      // Skip complex validation for speed - just start the analysis
+      await startAnalysis(shipmentsToAnalyze);
       
     } catch (error: any) {
-      console.error('Validation error:', error);
+      console.error('Analysis error:', error);
       setError(error.message);
+      toast.error(`Analysis failed: ${error.message}`);
+    } finally {
       setIsAnalyzing(false);
     }
   };
@@ -342,108 +247,44 @@ const Analysis = () => {
       const validCarrierIds = await validateCarrierConfiguration();
       setSelectedCarriers(validCarrierIds);
       
-      // For large datasets (>1000 shipments), use streaming processor immediately
-      const STREAMING_THRESHOLD = 1000;
-      if (shipmentsToAnalyze.length > STREAMING_THRESHOLD) {
-        console.log(`📊 Large dataset detected (${shipmentsToAnalyze.length} shipments), using streaming processor for analysis`);
-        
-        // Prepare analysis data for streaming
-        const state = location.state as any;
-        const analysisData = {
-          fileName: state?.fileName || 'Real-time Analysis',
-          totalShipments: shipmentsToAnalyze.length,
-          completedShipments: 0,
-          errorShipments: 0,
-          totalCurrentCost: 0,
-          totalPotentialSavings: 0,
-          recommendations: shipmentsToAnalyze.map((shipment, index) => ({
-            shipment,
-            index,
-            allRates: [], // Will be populated by edge function
-            currentCost: parseFloat(shipment.currentRate || '0'),
-            customer_service: shipment.service || 'Unknown',
-            carrier: 'multi-carrier'
-          })),
-          orphanedShipments: [],
-          originalData: shipmentsToAnalyze,
-          carrierConfigsUsed: validCarrierIds,
-          serviceMappings: serviceMappings
-        };
+      console.log(`🚀 Starting bulk analysis for ${shipmentsToAnalyze.length} shipments`);
+      
+      // Use bulk processing for all datasets
+      const state = location.state as any;
+      const bulkPayload = {
+        shipments: shipmentsToAnalyze,
+        carrierConfigIds: validCarrierIds,
+        fileName: state?.fileName || 'Real-time Analysis'
+      };
 
-        const { DataStreamProcessor } = await import('@/utils/dataStreamProcessor');
-        const processor = new DataStreamProcessor({
-          chunkSize: 500,
-          maxConcurrentChunks: 3,
-          progressCallback: (progress) => {
-            const percentage = Math.round((progress.processedChunks / progress.totalChunks) * 100);
-            console.log(`🔄 Streaming progress: ${progress.processedChunks}/${progress.totalChunks} chunks (${percentage}%)`);
-            setCurrentShipmentIndex(progress.processedItems);
-            toast.info(`Processing: ${percentage}% complete`);
-          }
-        });
+      const startTime = performance.now();
+      
+      const { data: result, error } = await supabase.functions.invoke('bulk-rate-analysis', {
+        body: bulkPayload
+      });
 
-        const analysisId = await processor.streamAnalysis(analysisData);
-        console.log('✅ Streaming analysis completed:', analysisId);
-        
-        // Navigate to results
-        navigate('/results', { 
-          state: { 
-            analysisId,
-            fromAnalysis: true 
-          } 
-        });
-        return;
+      if (error) {
+        throw new Error(`Bulk analysis failed: ${error.message}`);
       }
+
+      const processingTime = performance.now() - startTime;
+      console.log(`✅ Bulk analysis completed in ${processingTime.toFixed(2)}ms:`, result);
       
-      // For smaller datasets, use the original batch processing
-      const analysisId = await createAnalysisRecord(shipmentsToAnalyze);
-      if (!analysisId) {
-        throw new Error('Failed to create analysis record');
-      }
+      // Show success message
+      toast.success(`Analysis completed! Processed ${result.processedShipments} shipments in ${(processingTime / 1000).toFixed(1)}s`);
       
-      // Process shipments in optimized batches to prevent browser overload
-      const batchSize = 100; // Increased batch size for better performance
-      const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
-      
-      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        // Check if paused before processing each batch
-        if (isPaused) {
-          console.log('Analysis paused, stopping processing');
-          break;
-        }
-        
-        const startIndex = batchIndex * batchSize;
-        const endIndex = Math.min(startIndex + batchSize, shipmentsToAnalyze.length);
-        const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
-        
-        // Process all shipments in the batch concurrently
-        const batchPromises = batch.map((shipment, indexInBatch) => {
-          const globalIndex = startIndex + indexInBatch;
-          setCurrentShipmentIndex(globalIndex);
-          return processShipment(globalIndex, shipment, 0, analysisId);
-        });
-        
-        // Wait for all shipments in the batch to complete
-        await Promise.allSettled(batchPromises);
-        
-        // Update progress to reflect completed batch
-        setCurrentShipmentIndex(endIndex - 1);
-        
-        // Small delay between batches for UI responsiveness
-        if (batchIndex < totalBatches - 1 && !isPaused) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-      
-      // Only mark complete if we processed all shipments and weren't paused
-      if (!isPaused) {
-        setIsComplete(true);
-        await updateAnalysisRecord(analysisId);
-      }
+      // Navigate to results
+      navigate('/results', { 
+        state: { 
+          analysisId: result.analysisId,
+          fromAnalysis: true 
+        } 
+      });
       
     } catch (error: any) {
       console.error('Analysis error:', error);
       setError(error.message);
+      toast.error(`Analysis failed: ${error.message}`);
     } finally {
       setIsAnalyzing(false);
     }

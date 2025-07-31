@@ -267,6 +267,10 @@ const Analysis = () => {
         throw new Error(`Bulk analysis failed: ${error.message}`);
       }
 
+      if (!result || !result.success) {
+        throw new Error(`Bulk analysis failed: ${result?.error || 'Unknown error'}`);
+      }
+
       const processingTime = performance.now() - startTime;
       console.log(`✅ Bulk analysis completed in ${processingTime.toFixed(2)}ms:`, result);
       

@@ -40,6 +40,16 @@ Deno.serve(async (req) => {
     }
 
     const payload: BulkAnalysisRequest = await req.json()
+    
+    // Validate payload
+    if (!payload.shipments || !Array.isArray(payload.shipments) || payload.shipments.length === 0) {
+      throw new Error('No shipments provided for analysis');
+    }
+    
+    if (!payload.carrierConfigIds || !Array.isArray(payload.carrierConfigIds) || payload.carrierConfigIds.length === 0) {
+      throw new Error('No carrier configurations provided for analysis');
+    }
+    
     console.log(`📊 Processing ${payload.shipments.length} shipments with ${payload.carrierConfigIds.length} carriers`);
 
     // Get carrier configs and rate cards separately 
@@ -104,6 +114,21 @@ Deno.serve(async (req) => {
     let errorCount = 0;
 
     console.log('🔄 Starting bulk processing...');
+    
+    if (carrierConfigs.length === 0) {
+      throw new Error('No active carrier configurations found for the provided IDs');
+    }
+    
+    let totalRateCards = 0;
+    carrierConfigs.forEach(config => {
+      totalRateCards += (config.rate_cards?.length || 0);
+    });
+    
+    if (totalRateCards === 0) {
+      throw new Error('No rate cards found for the selected carrier configurations');
+    }
+    
+    console.log(`💰 Found ${totalRateCards} total rate cards across all carriers`);
 
     for (let i = 0; i < payload.shipments.length; i++) {
       const shipment = payload.shipments[i];
@@ -132,9 +157,21 @@ Deno.serve(async (req) => {
           // Get zone from shipment data (should be pre-calculated)
           const zone = shipment.zone || '2';
 
-          // Find matching rate card entry
+          // Find matching rate card entry - be more flexible with service codes
+          const serviceType = shipment.service || 'Ground';
+          let matchingServiceCode = 'GROUND'; // Default to GROUND
+          
+          // Try to match service names to codes
+          if (serviceType.toLowerCase().includes('home')) {
+            matchingServiceCode = 'GROUND'; // Home Delivery maps to GROUND
+          } else if (serviceType.toLowerCase().includes('overnight')) {
+            matchingServiceCode = 'OVERNIGHT';
+          } else if (serviceType.toLowerCase().includes('2day') || serviceType.toLowerCase().includes('2-day')) {
+            matchingServiceCode = 'TWO_DAY';
+          }
+          
           const rateCard = config.rate_cards.find((card: any) => 
-            card.service_code === 'GROUND' && 
+            card.service_code === matchingServiceCode && 
             card.zone === zone &&
             billableWeight <= card.weight_break
           );
@@ -172,13 +209,13 @@ Deno.serve(async (req) => {
         if (bestRate) {
           const savings = currentRate - bestCost;
           
-          // Add to processed shipments
+          // Add to processed shipments (using correct snake_case column names)
           processedShipments.push({
             id: i + 1,
             analysis_id: analysis.id,
-            trackingId: shipment.trackingId || `Shipment-${i + 1}`,
-            originZip: originZip,
-            destinationZip: destZip,
+            tracking_id: shipment.trackingId || `Shipment-${i + 1}`,
+            origin_zip: originZip,
+            destination_zip: destZip,
             weight: weight,
             length: parseFloat(shipment.length || '0'),
             width: parseFloat(shipment.width || '0'),
@@ -187,12 +224,12 @@ Deno.serve(async (req) => {
             carrier: 'multi-carrier',
             customer_service: shipment.service || 'Ground',
             shippros_service: bestRate.serviceName,
-            currentRate: currentRate,
+            current_rate: currentRate,
             shippros_cost: bestCost,
             savings: savings,
-            savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
-            analyzedWithAccount: bestRate.carrierName,
-            accountName: bestRate.carrierName
+            savings_percent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
+            analyzed_with_account: bestRate.carrierName,
+            account_name: bestRate.carrierName
           });
 
           // Add all rates for this shipment

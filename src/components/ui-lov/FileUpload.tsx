@@ -18,7 +18,7 @@ export interface FileUploadProps {
 
 export const FileUpload: React.FC<FileUploadProps> = ({
   accept = '.csv',
-  maxSize = 10, // Default 10MB
+  maxSize = 100, // Default 100MB
   onFileSelect,
   onUpload,
   onError,

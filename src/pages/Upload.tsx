@@ -180,7 +180,7 @@ const Upload = () => {
               onUpload={handleFileUpload}
               onError={handleError}
               acceptedFileTypes={['.csv']}
-              maxFileSizeMB={10}
+              maxFileSizeMB={100}
             />
             
             {isProcessing && (
@@ -197,7 +197,7 @@ const Upload = () => {
               <h3 className="text-sm font-medium mb-2">Instructions:</h3>
               <ul className="list-disc pl-5 text-sm text-muted-foreground space-y-1">
                 <li>File must be in CSV format</li>
-                <li>Maximum file size is 10MB</li>
+                <li>Maximum file size is 100MB</li>
                 <li>Headers should be included in the first row</li>
                 <li>Required columns: tracking ID, weight, service type, origin ZIP, destination ZIP, dimensions</li>
                 <li>Optional columns: cost, zones, and accessorial charges</li>

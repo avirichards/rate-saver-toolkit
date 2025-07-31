@@ -325,10 +325,16 @@ const Analysis = () => {
         throw new Error('No valid shipments found. Please check your data and field mappings.');
       }
       
-      // Note: Validation errors are already shown in the validation summary below
+      // Check if we can use bulk rate card processing
+      const canUseBulkProcessing = await checkForBulkRateCardProcessing();
       
-      // Process only valid shipments, but track ALL shipments in results
-      await startAnalysis(validShipments);
+      if (canUseBulkProcessing) {
+        console.log('🚀 Using bulk rate card processing for instant results');
+        await processBulkRateCards(validShipments);
+      } else {
+        // Process only valid shipments using individual processing
+        await startAnalysis(validShipments);
+      }
       
     } catch (error: any) {
       console.error('Validation error:', error);
@@ -404,6 +410,127 @@ const Analysis = () => {
     }
   };
   
+  const checkForBulkRateCardProcessing = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    if (selectedCarriers.length === 0) return false;
+
+    const { data: configs, error } = await supabase
+      .from('carrier_configs')
+      .select('*')
+      .eq('user_id', user.id)
+      .in('id', selectedCarriers)
+      .eq('is_active', true);
+    
+    if (error || !configs || configs.length === 0) return false;
+
+    const state = location.state as { mappings?: Record<string, string> } | null;
+    const hasZoneMapping = state?.mappings?.zone;
+    
+    // Check if ALL selected carriers are rate cards with zone mapping
+    const allRateCards = configs.every(config => config.is_rate_card && hasZoneMapping);
+    
+    console.log('🔍 Bulk processing check:', {
+      totalCarriers: configs.length,
+      allRateCards,
+      hasZoneMapping,
+      carriers: configs.map(c => ({ 
+        name: c.account_name, 
+        isRateCard: c.is_rate_card,
+        type: c.carrier_type 
+      }))
+    });
+
+    return allRateCards;
+  };
+
+  const processBulkRateCards = async (validShipments: ProcessedShipment[]) => {
+    try {
+      console.log('🚀 Starting bulk rate card processing for', validShipments.length, 'shipments');
+      
+      // Mark all shipments as processing
+      setAnalysisResults(prev => prev.map(result => 
+        result.status === 'pending' ? { ...result, status: 'processing' as const } : result
+      ));
+
+      // Prepare data for bulk processing
+      const state = location.state as any;
+      const allResults = analysisResults.map(result => ({
+        shipment: result.shipment,
+        status: result.status,
+        currentCost: parseFloat(result.shipment.currentRate || '0'),
+        originalService: result.shipment.service || 'Unknown',
+        error: result.error
+      }));
+
+      const payload = {
+        fileName: state?.fileName || 'Bulk Rate Card Analysis',
+        totalShipments: shipments.length,
+        completedShipments: validShipments.length,
+        errorShipments: analysisResults.filter(r => r.status === 'error').length,
+        totalCurrentCost: allResults.reduce((sum, r) => sum + (r.currentCost || 0), 0),
+        totalPotentialSavings: 0, // Will be calculated by finalize-analysis
+        recommendations: [],
+        orphanedShipments: allResults.filter(r => r.error).map(r => ({
+          shipment: r.shipment,
+          error: r.error,
+          errorType: 'validation_error',
+          customer_service: r.originalService,
+          status: 'error'
+        })),
+        originalData: allResults,
+        carrierConfigsUsed: selectedCarriers,
+        serviceMappings: serviceMappings,
+        isBatch: false
+      };
+
+      console.log('📦 Sending bulk payload to finalize-analysis:', {
+        shipments: payload.totalShipments,
+        carriers: selectedCarriers.length,
+        hasZoneMapping: true
+      });
+
+      // Call finalize-analysis directly for bulk processing
+      const { data, error } = await supabase.functions.invoke('finalize-analysis', {
+        body: payload
+      });
+
+      if (error) {
+        throw new Error(`Bulk processing failed: ${error.message}`);
+      }
+
+      console.log('✅ Bulk processing completed:', data);
+
+      // Mark analysis as complete and navigate to results
+      setIsComplete(true);
+      setIsAnalyzing(false);
+      
+      // Navigate to results with the analysis ID
+      if (data?.analysisId) {
+        toast.success('Rate card analysis completed instantly!');
+        navigate('/results', { 
+          state: { 
+            analysisId: data.analysisId,
+            fromAnalysis: true,
+            bulkProcessed: true
+          } 
+        });
+      } else {
+        throw new Error('No analysis ID returned from bulk processing');
+      }
+
+    } catch (error: any) {
+      console.error('Bulk processing error:', error);
+      setError(`Bulk processing failed: ${error.message}`);
+      setIsAnalyzing(false);
+      toast.error('Bulk processing failed, falling back to individual processing');
+      
+      // Fall back to individual processing
+      await startAnalysis(validShipments);
+    }
+  };
+
   const validateCarrierConfiguration = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {

@@ -93,7 +93,17 @@ function calculateRateCardCost(shipment: any, carrierConfigId: string, serviceCo
   if (!rateCards) return null;
 
   const weight = parseFloat(shipment.weight || '0');
-  const zone = shipment.zone || 'default';
+  
+  // Use zone if available, otherwise default to 'default' or derive from ZIP codes
+  let zone = shipment.zone || 'default';
+  
+  // If no zone is provided, you might want to compute it from ZIP codes
+  // For now, we'll use 'default' as a fallback
+  if (!shipment.zone && shipment.originZip && shipment.destZip) {
+    // TODO: Implement zone calculation based on ZIP codes
+    // For rate cards that use zones, this would need proper zone mapping
+    zone = 'default';
+  }
 
   // Find matching rate card
   const matchingRates = rateCards.filter(rate => 
@@ -102,7 +112,10 @@ function calculateRateCardCost(shipment: any, carrierConfigId: string, serviceCo
     weight >= rate.weight_break
   );
 
-  if (matchingRates.length === 0) return null;
+  if (matchingRates.length === 0) {
+    console.warn(`⚠️ No rate card match for: service=${serviceCode}, zone=${zone}, weight=${weight}, carrierConfig=${carrierConfigId}`);
+    return null;
+  }
 
   // Get the rate for the highest weight break that doesn't exceed the shipment weight
   const bestRate = matchingRates
@@ -146,9 +159,15 @@ async function processBulkRates(shipments: any[], carrierConfigIds: string[], su
           const config = carrierConfigCache.get(carrierId);
           if (!config) continue;
           
+          // Extract service name from various possible fields
+          const serviceName = shipment.service || shipment.customer_service || shipment.Service || 'Ground';
+          
           // Map service to carrier-specific service code
-          const serviceCode = mapServiceToCarrierCode(shipment.service, config.carrier_type);
-          if (!serviceCode) continue;
+          const serviceCode = mapServiceToCarrierCode(serviceName, config.carrier_type);
+          if (!serviceCode) {
+            console.warn(`⚠️ No service code mapping for service "${serviceName}" and carrier "${config.carrier_type}"`);
+            continue;
+          }
           
           const cost = calculateRateCardCost(shipment, carrierId, serviceCode);
           if (cost !== null) {
@@ -156,6 +175,7 @@ async function processBulkRates(shipments: any[], carrierConfigIds: string[], su
               carrierId,
               carrierType: config.carrier_type,
               accountName: config.account_name,
+              carrierName: config.account_name,
               serviceCode,
               serviceName: serviceCode,
               rate_amount: cost,
@@ -164,6 +184,8 @@ async function processBulkRates(shipments: any[], carrierConfigIds: string[], su
               rateType: 'rate_card',
               transitTime: null
             });
+          } else {
+            console.warn(`⚠️ No rate found for shipment ${globalIndex} with service "${serviceName}", weight ${shipment.weight}, zone ${shipment.zone || 'default'}`);
           }
         }
         
@@ -187,7 +209,7 @@ async function processBulkRates(shipments: any[], carrierConfigIds: string[], su
         }
         
         // Calculate best rate and savings
-        const currentCost = parseFloat(shipment.currentRate || '0');
+        const currentCost = parseFloat(shipment.currentRate || shipment.current_rate || '0');
         let bestRate = null;
         let savings = 0;
         

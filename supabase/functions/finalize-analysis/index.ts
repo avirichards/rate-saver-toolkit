@@ -32,6 +32,28 @@ interface BatchProcessingResult {
   isComplete: boolean;
 }
 
+// Check if analysis uses only rate cards (no API calls needed)
+async function isRateCardOnlyAnalysis(carrierConfigIds: string[], supabase: any) {
+  const { data: carrierConfigs, error } = await supabase
+    .from('carrier_configs')
+    .select('is_rate_card')
+    .in('id', carrierConfigIds);
+    
+  if (error || !carrierConfigs) {
+    console.log('⚠️ Could not determine carrier types, defaulting to API processing');
+    return false;
+  }
+  
+  const allRateCards = carrierConfigs.every(config => config.is_rate_card === true);
+  console.log('📋 Rate card analysis check:', {
+    totalCarriers: carrierConfigs.length,
+    allRateCards,
+    carrierTypes: carrierConfigs.map(c => ({ is_rate_card: c.is_rate_card }))
+  });
+  
+  return allRateCards;
+}
+
 // Batch processing functions
 async function handleLargeDatasetBatching(payload: AnalysisPayload, user: any, supabase: any) {
   console.log('🔄 Initiating batch processing for large dataset');
@@ -434,13 +456,19 @@ Deno.serve(async (req) => {
       isBatch: !!payload.batchInfo
     })
 
-    // Smart size detection - datasets over 5000 shipments should use batch processing
+    // Check if this is a rate card-only analysis (skip batching for instant processing)
+    const isRateCardOnly = await isRateCardOnlyAnalysis(payload.carrierConfigsUsed, supabase);
+    
+    // Smart size detection - datasets over 5000 shipments should use batch processing (except rate cards)
     const BATCH_THRESHOLD = 5000;
     const BATCH_SIZE = 2000;
     const isLargeDataset = payload.totalShipments > BATCH_THRESHOLD;
     
-    // If this is a large dataset and not already a batch request, initiate batch processing
-    if (isLargeDataset && !payload.batchInfo) {
+    // Rate card analyses bypass batching since they're just database lookups
+    if (isRateCardOnly) {
+      console.log('⚡ Rate card-only analysis detected - processing immediately (no batching needed)');
+    } else if (isLargeDataset && !payload.batchInfo) {
+      console.log('📊 Large dataset with API calls detected - using batch processing');
       return await handleLargeDatasetBatching(payload, user, supabase);
     }
     

@@ -382,6 +382,83 @@ export type Database = {
         }
         Relationships: []
       }
+      processed_shipments: {
+        Row: {
+          account_name: string | null
+          analysis_id: string
+          analyzed_with_account: string | null
+          carrier: string | null
+          created_at: string | null
+          current_rate: number | null
+          customer_service: string | null
+          destination_zip: string | null
+          dimensions: string | null
+          height: number | null
+          id: number
+          length: number | null
+          origin_zip: string | null
+          savings: number | null
+          savings_percent: number | null
+          shippros_cost: number | null
+          shippros_service: string | null
+          tracking_id: string | null
+          weight: number | null
+          width: number | null
+        }
+        Insert: {
+          account_name?: string | null
+          analysis_id: string
+          analyzed_with_account?: string | null
+          carrier?: string | null
+          created_at?: string | null
+          current_rate?: number | null
+          customer_service?: string | null
+          destination_zip?: string | null
+          dimensions?: string | null
+          height?: number | null
+          id?: number
+          length?: number | null
+          origin_zip?: string | null
+          savings?: number | null
+          savings_percent?: number | null
+          shippros_cost?: number | null
+          shippros_service?: string | null
+          tracking_id?: string | null
+          weight?: number | null
+          width?: number | null
+        }
+        Update: {
+          account_name?: string | null
+          analysis_id?: string
+          analyzed_with_account?: string | null
+          carrier?: string | null
+          created_at?: string | null
+          current_rate?: number | null
+          customer_service?: string | null
+          destination_zip?: string | null
+          dimensions?: string | null
+          height?: number | null
+          id?: number
+          length?: number | null
+          origin_zip?: string | null
+          savings?: number | null
+          savings_percent?: number | null
+          shippros_cost?: number | null
+          shippros_service?: string | null
+          tracking_id?: string | null
+          weight?: number | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processed_shipments_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "shipping_analyses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rate_card_rates: {
         Row: {
           carrier_config_id: string

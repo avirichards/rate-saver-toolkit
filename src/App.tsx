@@ -13,6 +13,7 @@ import Mapping from "./pages/Mapping";
 import ServiceMapping from "./pages/ServiceMapping";
 import Analysis from "./pages/Analysis";
 import Results from "./pages/Results";
+import OptimizedResults from "./pages/OptimizedResults";
 import Dashboard from "./pages/Dashboard";
 import ReportsPage from "./pages/Reports";
 import SettingsPage from "./pages/Settings";
@@ -45,6 +46,7 @@ const App = () => (
               <Route path="/service-mapping" element={<ProtectedRoute><ServiceMapping /></ProtectedRoute>} />
               <Route path="/analysis" element={<ProtectedRoute><Analysis /></ProtectedRoute>} />
               <Route path="/results" element={<ProtectedRoute><Results /></ProtectedRoute>} />
+              <Route path="/results/:analysisId" element={<ProtectedRoute><OptimizedResults /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
               <Route path="/reports/:id" element={<ProtectedRoute><Results /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />

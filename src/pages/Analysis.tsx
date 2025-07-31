@@ -337,10 +337,14 @@ const Analysis = () => {
 
   const handleViewResults = () => {
     if (analysisProgress?.analysisId) {
-      navigate('/results', { 
+      navigate(`/results/${analysisProgress.analysisId}`, { 
         state: { 
-          analysisId: analysisProgress.analysisId,
-          fromBulkAnalysis: true
+          fromBulkAnalysis: true,
+          summary: {
+            totalShipments: analysisProgress.totalShipments,
+            totalSavings: analysisProgress.totalSavings,
+            processedShipments: analysisProgress.processedShipments
+          }
         } 
       });
     }

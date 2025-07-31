@@ -36,7 +36,7 @@ export class DataStreamProcessor {
 
   constructor(config: Partial<StreamingProcessorConfig> = {}) {
     this.config = {
-      chunkSize: 1000, // Process 1000 shipments at a time
+      chunkSize: 500, // Process 500 shipments at a time to reduce memory pressure
       maxConcurrentChunks: 3, // Max 3 concurrent requests
       retryAttempts: 3,
       ...config

@@ -32,448 +32,29 @@ interface BatchProcessingResult {
   isComplete: boolean;
 }
 
-// Split carriers by type (rate cards vs API)
-async function splitCarriersByType(carrierConfigIds: string[], supabase: any) {
+// Check if analysis uses only rate cards (no API calls needed)
+async function isRateCardOnlyAnalysis(carrierConfigIds: string[], supabase: any) {
   const { data: carrierConfigs, error } = await supabase
     .from('carrier_configs')
-    .select('id, is_rate_card, account_name, carrier_type')
+    .select('is_rate_card')
     .in('id', carrierConfigIds);
     
   if (error || !carrierConfigs) {
     console.log('⚠️ Could not determine carrier types, defaulting to API processing');
-    return { rateCardCarriers: [], apiCarriers: carrierConfigIds, allRateCards: false };
+    return false;
   }
   
-  const rateCardCarriers = carrierConfigs.filter(config => config.is_rate_card === true).map(c => c.id);
-  const apiCarriers = carrierConfigs.filter(config => config.is_rate_card !== true).map(c => c.id);
   const allRateCards = carrierConfigs.every(config => config.is_rate_card === true);
-  
-  console.log('🔍 Carrier split analysis:', {
+  console.log('📋 Rate card analysis check:', {
     totalCarriers: carrierConfigs.length,
-    rateCardCarriers: rateCardCarriers.length,
-    apiCarriers: apiCarriers.length,
     allRateCards,
-    carrierDetails: carrierConfigs.map(c => ({ 
-      id: c.id, 
-      name: c.account_name, 
-      type: c.carrier_type,
-      isRateCard: c.is_rate_card 
-    }))
+    carrierTypes: carrierConfigs.map(c => ({ is_rate_card: c.is_rate_card }))
   });
   
-  return { rateCardCarriers, apiCarriers, allRateCards };
-}
-
-// Check if analysis uses only rate cards (no API calls needed)
-async function isRateCardOnlyAnalysis(carrierConfigIds: string[], supabase: any) {
-  const { allRateCards } = await splitCarriersByType(carrierConfigIds, supabase);
   return allRateCards;
 }
 
-// Bulk process rate card carriers instantly from original data
-async function processBulkRateCards(payload: AnalysisPayload, rateCardCarrierIds: string[], user: any, supabase: any, analysisId?: string) {
-  console.log('⚡ Starting bulk rate card processing from original data');
-  
-  // Check if we have recommendations or need to process from originalData
-  let shipmentsToProcess: any[] = [];
-  
-  if (payload.recommendations && payload.recommendations.length > 0) {
-    // Use existing recommendations if available
-    shipmentsToProcess = payload.recommendations.filter(rec => 
-      rec.allRates && rec.allRates.some((rate: any) => 
-        rateCardCarrierIds.includes(rate.carrierId)
-      )
-    );
-    console.log(`📋 Processing ${shipmentsToProcess.length} existing recommendations`);
-  } else if (payload.originalData && payload.originalData.length > 0) {
-    // Process from original data - this is the bulk processing case
-    console.log(`📋 Processing ${payload.originalData.length} shipments from original data`);
-    shipmentsToProcess = payload.originalData;
-  }
-  
-  if (shipmentsToProcess.length === 0) {
-    console.log('📝 No shipments found for bulk processing');
-    return { processedShipments: [], shipmentRates: [] };
-  }
-  
-  const processedShipments: any[] = [];
-  const shipmentRates: any[] = [];
-  
-  // Get rate card configs for lookups
-  const { data: rateCardConfigs, error: configError } = await supabase
-    .from('carrier_configs')
-    .select('*')
-    .in('id', rateCardCarrierIds)
-    .eq('is_rate_card', true);
-    
-  if (configError || !rateCardConfigs) {
-    console.log('❌ Error fetching rate card configs:', configError);
-    return { processedShipments: [], shipmentRates: [] };
-  }
-  
-  console.log(`📋 Found ${rateCardConfigs.length} rate card configs for processing`);
-  
-  // Process shipments using direct rate card lookups
-  for (let index = 0; index < shipmentsToProcess.length; index++) {
-    const shipment = shipmentsToProcess[index];
-    
-    // Handle both recommendation format and original data format
-    let shipmentData: any;
-    let currentCost = 0;
-    
-    if (shipment.shipment) {
-      // Recommendation format
-      shipmentData = shipment.shipment;
-      currentCost = parseFloat(shipment.currentCost || 0);
-    } else {
-      // Original data format
-      shipmentData = shipment;
-      currentCost = parseFloat(shipment.total_charges || shipment.amount || shipment.cost || 0);
-    }
-    
-    if (!shipmentData.originZip || !shipmentData.destZip || !shipmentData.weight) {
-      console.log(`⚠️ Skipping shipment ${index} - missing required data`);
-      continue;
-    }
-    
-    const allRatesForShipment: any[] = [];
-    
-    // Process each rate card config
-    for (const config of rateCardConfigs) {
-      try {
-        const rate = await calculateRateCardRate(shipmentData, config, supabase);
-        if (rate) {
-          allRatesForShipment.push({
-            ...rate,
-            carrierId: config.id,
-            carrierName: config.account_name,
-            carrierType: config.carrier_type
-          });
-        }
-      } catch (error) {
-        console.log(`⚠️ Error calculating rate for config ${config.id}:`, error);
-      }
-    }
-    
-    if (allRatesForShipment.length === 0) {
-      console.log(`⚠️ No rates found for shipment ${index}`);
-      continue;
-    }
-    
-    // Find best rate among rate cards
-    let bestRate = allRatesForShipment[0];
-    let lowestCost = parseFloat(bestRate.totalCharges || bestRate.rate_amount || Infinity);
-    
-    allRatesForShipment.forEach((rate: any) => {
-      const rateCost = parseFloat(rate.totalCharges || rate.rate_amount || Infinity);
-      if (rateCost < lowestCost) {
-        lowestCost = rateCost;
-        bestRate = rate;
-      }
-    });
-    
-    const newRate = lowestCost;
-    const savings = currentCost - newRate;
-    
-    // Create processed shipment
-    processedShipments.push({
-      id: index + 1,
-      trackingId: shipmentData.trackingId || shipmentData.tracking_number || `Shipment-${index + 1}`,
-      originZip: shipmentData.originZip || shipmentData.origin_zip || '',
-      destinationZip: shipmentData.destZip || shipmentData.destination_zip || '',
-      weight: parseFloat(shipmentData.weight || '0'),
-      length: parseFloat(shipmentData.length || '0'),
-      width: parseFloat(shipmentData.width || '0'),
-      height: parseFloat(shipmentData.height || '0'),
-      dimensions: shipmentData.dimensions || `${shipmentData.length || 0}x${shipmentData.width || 0}x${shipmentData.height || 0}`,
-      carrier: shipmentData.carrier || 'Rate Card',
-      customer_service: shipmentData.service || shipmentData.customer_service || 'Ground',
-      ShipPros_service: bestRate.serviceName || 'Ground',
-      currentRate: currentCost,
-      ShipPros_cost: newRate,
-      savings: savings,
-      savingsPercent: currentCost > 0 ? (savings / currentCost) * 100 : 0,
-      analyzedWithAccount: bestRate.carrierName || 'Unknown',
-      accountName: bestRate.carrierName || 'Unknown'
-    });
-    
-    // Create shipment rates for all rate card carriers
-    allRatesForShipment.forEach((rate: any) => {
-      shipmentRates.push({
-        analysis_id: analysisId,
-        shipment_index: index,
-        carrier_config_id: rate.carrierId || '',
-        account_name: rate.carrierName || 'Unknown',
-        carrier_type: rate.carrierType || 'rate_card',
-        service_code: rate.serviceCode || 'GROUND',
-        service_name: rate.serviceName || 'Ground',
-        rate_amount: parseFloat(rate.totalCharges || rate.rate_amount || 0),
-        currency: rate.currency || 'USD',
-        transit_days: rate.transitDays || null,
-        delivery_date: rate.deliveryDate || null,
-        is_best_rate: rate === bestRate,
-        source: 'rate_card'
-      });
-    });
-  }
-  
-  console.log(`🎉 Bulk rate card processing complete: ${processedShipments.length} shipments processed`);
-  return { processedShipments, shipmentRates };
-}
-
-// Calculate rate card rate for a single shipment
-async function calculateRateCardRate(shipmentData: any, config: any, supabase: any) {
-  try {
-    const weight = parseFloat(shipmentData.weight || '0');
-    const length = parseFloat(shipmentData.length || '0');
-    const width = parseFloat(shipmentData.width || '0');
-    const height = parseFloat(shipmentData.height || '0');
-    
-    // Calculate dimensional weight (length * width * height / 166)
-    const dimWeight = (length * width * height) / 166;
-    const billableWeight = Math.max(weight, dimWeight);
-    
-    const originZip = shipmentData.originZip || shipmentData.origin_zip || '';
-    const destZip = shipmentData.destZip || shipmentData.destination_zip || '';
-    
-    if (!originZip || !destZip) {
-      console.log('⚠️ Missing origin or destination zip');
-      return null;
-    }
-    
-    // Look up zone from rate card mapping
-    const { data: zoneData } = await supabase
-      .from('rate_card_zones')
-      .select('zone')
-      .eq('carrier_config_id', config.id)
-      .eq('origin_zip', originZip.substring(0, 3))
-      .eq('destination_zip', destZip.substring(0, 3))
-      .single();
-    
-    if (!zoneData) {
-      console.log(`⚠️ No zone found for ${originZip} -> ${destZip}`);
-      return null;
-    }
-    
-    // Look up rate from rate card
-    const { data: rateData } = await supabase
-      .from('rate_card_rates')
-      .select('*')
-      .eq('carrier_config_id', config.id)
-      .eq('service_code', 'GROUND')
-      .eq('zone', zoneData.zone)
-      .lte('weight_min', billableWeight)
-      .gte('weight_max', billableWeight)
-      .single();
-    
-    if (!rateData) {
-      console.log(`⚠️ No rate found for zone ${zoneData.zone}, weight ${billableWeight}`);
-      return null;
-    }
-    
-    return {
-      serviceCode: 'GROUND',
-      serviceName: `${config.carrier_type.toUpperCase()} Ground`,
-      totalCharges: rateData.rate.toString(),
-      rate_amount: rateData.rate,
-      currency: 'USD',
-      transitDays: null,
-      source: 'rate_card',
-      zone: zoneData.zone,
-      billableWeight: billableWeight.toString()
-    };
-  } catch (error) {
-    console.log('⚠️ Error calculating rate card rate:', error);
-    return null;
-  }
-}
-
-
-// Hybrid processing: Rate cards instantly + API carriers separately
-async function handleHybridProcessing(payload: AnalysisPayload, user: any, supabase: any) {
-  console.log('🔀 Starting hybrid carrier processing');
-  
-  const { rateCardCarriers, apiCarriers } = await splitCarriersByType(payload.carrierConfigsUsed, supabase);
-  
-  // Create initial analysis record
-  const initialAnalysisRecord = {
-    user_id: user.id,
-    file_name: payload.fileName,
-    original_data: payload.originalData,
-    carrier_configs_used: payload.carrierConfigsUsed,
-    service_mappings: payload.serviceMappings || [],
-    savings_analysis: {
-      totalCurrentCost: payload.totalCurrentCost,
-      totalPotentialSavings: payload.totalPotentialSavings,
-      savingsPercentage: payload.totalCurrentCost > 0 ? (payload.totalPotentialSavings / payload.totalCurrentCost) * 100 : 0,
-      totalShipments: payload.totalShipments,
-      completedShipments: payload.completedShipments,
-      errorShipments: payload.errorShipments,
-      orphanedShipments: payload.orphanedShipments
-    },
-    total_shipments: payload.totalShipments,
-    total_savings: payload.totalPotentialSavings,
-    status: 'processing',
-    processing_metadata: {
-      savedAt: new Date().toISOString(),
-      processingType: 'hybrid',
-      rateCardCarriers: rateCardCarriers.length,
-      apiCarriers: apiCarriers.length,
-      dataSource: 'hybrid_processing'
-    }
-  };
-  
-  const { data: analysisData, error: analysisError } = await supabase
-    .from('shipping_analyses')
-    .insert(initialAnalysisRecord)
-    .select('id')
-    .single();
-    
-  if (analysisError) {
-    throw new Error(`Failed to create initial analysis record: ${analysisError.message}`);
-  }
-  
-  console.log(`✅ Created analysis record ${analysisData.id}, starting hybrid processing`);
-  
-  // Process rate cards instantly
-  const rateCardResults = await processBulkRateCards(payload, rateCardCarriers, user, supabase, analysisData.id);
-  
-  console.log(`⚡ Rate card processing completed instantly: ${rateCardResults.processedShipments.length} shipments`);
-  
-  // Update analysis with rate card results immediately
-  const partialAnalysisData = {
-    processed_shipments: rateCardResults.processedShipments,
-    savings_analysis: {
-      ...initialAnalysisRecord.savings_analysis,
-      rateCardProcessingCompleted: new Date().toISOString(),
-      rateCardShipmentsProcessed: rateCardResults.processedShipments.length
-    },
-    processing_metadata: {
-      ...initialAnalysisRecord.processing_metadata,
-      rateCardCompletedAt: new Date().toISOString(),
-      rateCardStatus: 'completed'
-    }
-  };
-  
-  await supabase
-    .from('shipping_analyses')
-    .update(partialAnalysisData)
-    .eq('id', analysisData.id);
-  
-  // Process API carriers in background if any exist
-  if (apiCarriers.length > 0) {
-    console.log(`🔄 Starting background API processing for ${apiCarriers.length} API carriers`);
-    
-    const processApiCarriersInBackground = async () => {
-      try {
-        // Filter payload to only include API carrier recommendations
-        const apiRecommendations = payload.recommendations.filter(rec => 
-          rec.allRates && rec.allRates.some((rate: any) => 
-            apiCarriers.includes(rate.carrierId)
-          )
-        );
-        
-        if (apiRecommendations.length > 0) {
-          const apiPayload = {
-            ...payload,
-            recommendations: apiRecommendations,
-            carrierConfigsUsed: apiCarriers,
-            batchInfo: {
-              batchIndex: 0,
-              totalBatches: 1,
-              analysisId: analysisData.id
-            }
-          };
-          
-          console.log(`🔄 Processing ${apiRecommendations.length} API shipments`);
-          await processBatch(apiPayload, user, supabase);
-          
-          // Mark API processing as completed
-          await supabase
-            .from('shipping_analyses')
-            .update({ 
-              status: 'completed',
-              processing_metadata: {
-                ...initialAnalysisRecord.processing_metadata,
-                apiCompletedAt: new Date().toISOString(),
-                apiStatus: 'completed',
-                completedAt: new Date().toISOString()
-              }
-            })
-            .eq('id', analysisData.id);
-            
-          console.log(`✅ API carrier processing completed for analysis ${analysisData.id}`);
-        } else {
-          // No API recommendations, mark as completed
-          await supabase
-            .from('shipping_analyses')
-            .update({ 
-              status: 'completed',
-              processing_metadata: {
-                ...initialAnalysisRecord.processing_metadata,
-                completedAt: new Date().toISOString(),
-                apiStatus: 'no_api_shipments'
-              }
-            })
-            .eq('id', analysisData.id);
-        }
-      } catch (error) {
-        console.error('❌ Error during API carrier processing:', error);
-        
-        await supabase
-          .from('shipping_analyses')
-          .update({ 
-            status: 'partial_complete', // Rate cards completed, API failed
-            processing_metadata: {
-              ...initialAnalysisRecord.processing_metadata,
-              apiError: error.message,
-              apiFailedAt: new Date().toISOString()
-            }
-          })
-          .eq('id', analysisData.id);
-      }
-    };
-    
-    // Start API processing in background
-    EdgeRuntime.waitUntil(processApiCarriersInBackground());
-  } else {
-    // No API carriers, mark as fully completed
-    await supabase
-      .from('shipping_analyses')
-      .update({ 
-        status: 'completed',
-        processing_metadata: {
-          ...initialAnalysisRecord.processing_metadata,
-          completedAt: new Date().toISOString(),
-          apiStatus: 'no_api_carriers'
-        }
-      })
-      .eq('id', analysisData.id);
-  }
-  
-  // Return immediate response with rate card results
-  return new Response(
-    JSON.stringify({ 
-      success: true, 
-      analysisId: analysisData.id,
-      message: rateCardCarriers.length > 0 
-        ? `Rate card results ready instantly! ${apiCarriers.length > 0 ? 'API carriers processing in background.' : ''}`
-        : 'Analysis started - processing in background',
-      processingInfo: {
-        rateCardCarriers: rateCardCarriers.length,
-        apiCarriers: apiCarriers.length,
-        rateCardShipmentsProcessed: rateCardResults.processedShipments.length,
-        processingType: 'hybrid',
-        status: rateCardCarriers.length > 0 ? 'rate_cards_ready' : 'processing'
-      }
-    }),
-    { 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    }
-  );
-}
-
-// Parallel processing for rate card analyses (pure rate card only)
+// Parallel processing for rate card analyses
 async function handleRateCardParallelProcessing(payload: AnalysisPayload, user: any, supabase: any) {
   console.log('🚀 Starting parallel rate card processing');
   
@@ -1138,10 +719,6 @@ async function processBatch(payload: AnalysisPayload, user: any, supabase: any) 
 }
 
 Deno.serve(async (req) => {
-  console.log('🚀 FINALIZE-ANALYSIS FUNCTION CALLED');
-  console.log('📊 Request method:', req.method);
-  console.log('📊 Request URL:', req.url);
-  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -1177,25 +754,19 @@ Deno.serve(async (req) => {
       isBatch: !!payload.batchInfo
     })
 
-// Check carrier types and determine processing strategy
-    const { rateCardCarriers, apiCarriers, allRateCards } = await splitCarriersByType(payload.carrierConfigsUsed, supabase);
+// Check if this is a rate card-only analysis (skip batching for instant processing)
+    const isRateCardOnly = await isRateCardOnlyAnalysis(payload.carrierConfigsUsed, supabase);
     
     // Smart size detection - datasets over 5000 shipments should use batch processing (except rate cards)
     const BATCH_THRESHOLD = 5000;
     const BATCH_SIZE = 2000;
     const isLargeDataset = payload.totalShipments > BATCH_THRESHOLD;
     
-    // Use hybrid processing for mixed carrier scenarios (rate cards + APIs)
-    if (rateCardCarriers.length > 0 && apiCarriers.length > 0 && !payload.batchInfo) {
-      console.log('🔀 Mixed carrier analysis detected - using hybrid processing (rate cards instant + API background)');
-      return await handleHybridProcessing(payload, user, supabase);
-    }
-    
-    // Pure rate card analyses use parallel processing for speed optimization
-    if (allRateCards && isLargeDataset && !payload.batchInfo) {
+    // Rate card analyses use parallel processing for speed optimization
+    if (isRateCardOnly && isLargeDataset && !payload.batchInfo) {
       console.log('⚡ Large rate card analysis detected - using parallel processing for optimization');
       return await handleRateCardParallelProcessing(payload, user, supabase);
-    } else if (allRateCards) {
+    } else if (isRateCardOnly) {
       console.log('⚡ Rate card-only analysis detected - processing immediately (no batching needed)');
     } else if (isLargeDataset && !payload.batchInfo) {
       console.log('📊 Large dataset with API calls detected - using batch processing');

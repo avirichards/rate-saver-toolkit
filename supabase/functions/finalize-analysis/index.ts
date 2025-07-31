@@ -287,6 +287,38 @@ async function calculateRateCardRate(shipmentData: any, config: any, supabase: a
     return null;
   }
 }
+
+async function processBulkRateCards(shipments: any[], carriers: any[], analysisId: string, supabase: any) {
+  console.log(`🚀 Processing ${shipments.length} shipments with rate cards`);
+  const processedShipments = [];
+  const shipmentRates = [];
+
+  for (let i = 0; i < shipments.length; i++) {
+    const shipment = shipments[i];
+    
+    for (const carrier of carriers) {
+      const rate = await calculateRateCardRate(shipment, carrier, supabase);
+      if (rate) {
+        shipmentRates.push({
+          analysis_id: analysisId,
+          shipment_index: i,
+          carrier_config_id: carrier.id,
+          account_name: carrier.account_name,
+          carrier_type: carrier.carrier_type,
+          service_code: rate.serviceCode,
+          service_name: rate.serviceName,
+          rate_amount: rate.rate_amount,
+          currency: rate.currency,
+          transit_days: rate.transitDays,
+          shipment_data: shipment,
+          rate_response: { source: 'rate_card' }
+        });
+      }
+    }
+    
+    processedShipments.push(shipment);
+  }
+
   if (analysisId && shipmentRates.length > 0) {
     console.log(`💾 Bulk inserting ${shipmentRates.length} rate card rates`);
     const BULK_INSERT_SIZE = 1000;
@@ -296,7 +328,7 @@ async function calculateRateCardRate(shipmentData: any, config: any, supabase: a
     }
   }
   
-  console.log(`✅ Bulk processed ${processedShipments.length} rate card shipments in milliseconds`);
+  console.log(`✅ Bulk processed ${processedShipments.length} rate card shipments`);
   return { processedShipments, shipmentRates };
 }
 

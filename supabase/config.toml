@@ -18,9 +18,3 @@ verify_jwt = true
 
 [functions.finalize-analysis]
 verify_jwt = true
-
-[functions.process-analysis-chunk]
-verify_jwt = true
-
-[functions.bulk-rate-analysis]
-verify_jwt = true

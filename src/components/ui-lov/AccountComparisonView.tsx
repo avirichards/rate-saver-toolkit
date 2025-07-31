@@ -116,42 +116,75 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
     // Calculate current cost (total of current rates)
     const currentCost = shipmentData.reduce((sum, shipment) => sum + (shipment.currentRate || 0), 0);
 
-    // Find top performing account by calculating savings per account from rates
-    const accountSavings: Record<string, number> = {};
+    // Find top performing account by calculating total cost per account (lowest total cost = best performer)
+    const accountTotalCosts: Record<string, { totalCost: number; shipmentCount: number }> = {};
     
-    // Group rates by shipment and find best rate for each shipment
-    const shipmentBestRates: Record<string, { account: string; rate: number; currentRate: number }> = {};
+    // Now find the best rates per shipment per account to calculate true total costs
+    const accountOptimalCosts: Record<string, number> = {};
+    const processedShipments = new Set<string>();
     
+    // Group rates by shipment first (using improved matching logic)
+    const ratesByShipment: Record<string, ShipmentRate[]> = {};
     shipmentRates.forEach(rate => {
-      // Use tracking ID for reliable matching
+      // Try multiple ways to match rates with shipment data (same logic as account summaries)
+      let shipment;
+      
+      // First try tracking ID match
       const trackingId = rate.shipment_data?.trackingId;
-      if (!trackingId) return;
-      
-      // Find shipment by tracking ID
-      const currentShipment = shipmentData.find(s => s.trackingId === trackingId);
-      
-      if (currentShipment) {
-        const shipmentKey = trackingId;
-        if (!shipmentBestRates[shipmentKey] || rate.rate_amount < shipmentBestRates[shipmentKey].rate) {
-          shipmentBestRates[shipmentKey] = {
-            account: rate.account_name,
-            rate: rate.rate_amount,
-            currentRate: currentShipment.currentRate
-          };
-        }
+      if (trackingId) {
+        shipment = shipmentData.find(s => s.trackingId === trackingId);
       }
+      
+      // If no match, try matching by the ID field in rate.shipment_data with shipment.id
+      if (!shipment && rate.shipment_data?.id) {
+        shipment = shipmentData.find(s => s.id === rate.shipment_data.id);
+      }
+      
+      // If still no match, try matching by shipment index
+      if (!shipment && typeof rate.shipment_index === 'number') {
+        shipment = shipmentData[rate.shipment_index];
+      }
+      
+      if (!shipment) return;
+      
+      const shipmentKey = shipment.trackingId || String(shipment.id);
+      if (!shipmentKey) return;
+      
+      if (!ratesByShipment[shipmentKey]) {
+        ratesByShipment[shipmentKey] = [];
+      }
+      ratesByShipment[shipmentKey].push(rate);
+    });
+    
+    // For each shipment, find the best rate each account can offer
+    Object.entries(ratesByShipment).forEach(([shipmentKey, rates]) => {
+      // Group rates by account for this shipment
+      const ratesByAccount: Record<string, number> = {};
+      rates.forEach(rate => {
+        if (!ratesByAccount[rate.account_name] || rate.rate_amount < ratesByAccount[rate.account_name]) {
+          ratesByAccount[rate.account_name] = rate.rate_amount;
+        }
+      });
+      
+      // Add the best rate from each account to their total
+      Object.entries(ratesByAccount).forEach(([accountName, bestRate]) => {
+        accountOptimalCosts[accountName] = (accountOptimalCosts[accountName] || 0) + bestRate;
+      });
+      
+      processedShipments.add(shipmentKey);
     });
 
-    // Calculate savings per account
-    Object.values(shipmentBestRates).forEach(({ account, rate, currentRate }) => {
-      const savings = currentRate - rate;
-      accountSavings[account] = (accountSavings[account] || 0) + savings;
-    });
+    // Find top performer (account with lowest total optimal cost)
+    const topPerformer = Object.entries(accountOptimalCosts).reduce((best, [account, totalCost]) => {
+      return totalCost < best.totalCost ? { account, totalCost } : best;
+    }, { account: 'N/A', totalCost: Infinity });
 
-    // Find top performer
-    const topPerformer = Object.entries(accountSavings).reduce((top, [account, savings]) => {
-      return savings > top.savings ? { account, savings } : top;
-    }, { account: 'N/A', savings: 0 });
+    console.log('🏆 Top Performer Calculation:', {
+      accountOptimalCosts,
+      topPerformer,
+      processedShipments: processedShipments.size,
+      totalShipments
+    });
 
     // Calculate savings percentage
     const savingsPercentage = currentCost > 0 ? (totalSavings / currentCost) * 100 : 0;
@@ -176,6 +209,14 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       wins: number;
     }> = {};
 
+    // Debug logging to understand the data structure
+    console.log('🔍 Account Summary Debug:', {
+      shipmentRatesCount: shipmentRates.length,
+      shipmentDataCount: shipmentData.length,
+      sampleRate: shipmentRates[0],
+      sampleShipment: shipmentData[0]
+    });
+
     // First, create a structure to track which shipments each account can quote
     const accountShipmentData: Record<string, Record<string, {
       rate: number;
@@ -186,24 +227,56 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
     // Process each rate and only keep the best rate per account per shipment
     shipmentRates.forEach(rate => {
-      const trackingId = rate.shipment_data?.trackingId;
-      if (!trackingId) return;
+      // Try multiple ways to match rates with shipment data
+      let shipment;
       
-      const shipment = shipmentData.find(s => s.trackingId === trackingId);
-      if (!shipment) return;
+      // First try tracking ID match
+      const trackingId = rate.shipment_data?.trackingId;
+      if (trackingId) {
+        shipment = shipmentData.find(s => s.trackingId === trackingId);
+      }
+      
+      // If no match, try matching by the ID field in rate.shipment_data with shipment.id
+      if (!shipment && rate.shipment_data?.id) {
+        shipment = shipmentData.find(s => s.id === rate.shipment_data.id);
+      }
+      
+      // If still no match, try matching by shipment index
+      if (!shipment && typeof rate.shipment_index === 'number') {
+        shipment = shipmentData[rate.shipment_index];
+      }
+      
+      if (!shipment) {
+        console.log('⚠️ No shipment found for rate:', {
+          rateId: rate.id,
+          trackingId: rate.shipment_data?.trackingId,
+          shipmentDataId: rate.shipment_data?.id,
+          shipmentIndex: rate.shipment_index,
+          availableShipments: shipmentData.slice(0, 3).map(s => ({ id: s.id, trackingId: s.trackingId }))
+        });
+        return;
+      }
+      
+      // Use a unique key that works for the matched shipment
+      const shipmentKey = shipment.trackingId || String(shipment.id);
+      
+      if (!shipmentKey) {
+        console.log('⚠️ Shipment has no valid key:', shipment);
+        return;
+      }
 
       if (!accountShipmentData[rate.account_name]) {
         accountShipmentData[rate.account_name] = {};
       }
 
       // Only use the best (lowest) rate for each shipment per account
-      if (!accountShipmentData[rate.account_name][trackingId] || 
-          rate.rate_amount < accountShipmentData[rate.account_name][trackingId].rate) {
+      if (!accountShipmentData[rate.account_name][shipmentKey] || 
+          rate.rate_amount < accountShipmentData[rate.account_name][shipmentKey].rate) {
         
         const dollarSavings = shipment.currentRate - rate.rate_amount;
         const percentSavings = shipment.currentRate > 0 ? (dollarSavings / shipment.currentRate) * 100 : 0;
         
-        accountShipmentData[rate.account_name][trackingId] = {
+        accountShipmentData[rate.account_name][shipmentKey] = {
           rate: rate.rate_amount,
           shipment,
           dollarSavings,
@@ -212,8 +285,10 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
       }
     });
 
+    console.log('📊 Account Shipment Data:', accountShipmentData);
+
     // Now calculate metrics based on the best rates
-    Object.entries(accountShipmentData).forEach(([accountName, shipmentData]) => {
+    Object.entries(accountShipmentData).forEach(([accountName, shipmentDataMap]) => {
       accounts[accountName] = {
         accountName,
         totalSpend: 0,
@@ -224,7 +299,7 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
 
       const account = accounts[accountName];
       
-      Object.entries(shipmentData).forEach(([trackingId, data]) => {
+      Object.entries(shipmentDataMap).forEach(([trackingId, data]) => {
         account.totalSpend += data.rate;
         account.shipmentsQuoted.add(trackingId);
         account.savingsData.push({ 
@@ -233,11 +308,15 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         });
         
         // Check if this account won this shipment (provides savings vs current rate)
-        // Note: "win" means offering savings, not necessarily being the best option among all accounts
         if (data.dollarSavings > 0) {
           account.wins += 1;
         }
+      });
 
+      console.log(`📋 ${accountName} Summary:`, {
+        shipmentsQuoted: account.shipmentsQuoted.size,
+        totalSpend: account.totalSpend,
+        wins: account.wins
       });
     });
 
@@ -326,12 +405,16 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         shipment.customer_service === customerService
       );
 
-      // Get rates for the UPS equivalent service
+      // Get rates for the UPS equivalent service (using improved matching logic)
       const serviceRates = shipmentRates.filter(rate => {
-        // Check if any shipment with this customer service has rates using tracking ID
-        return serviceShipments.some(shipment => 
-          rate.shipment_data?.trackingId === shipment.trackingId
-        );
+        // Check if any shipment with this customer service has rates using improved matching
+        return serviceShipments.some(shipment => {
+          // Try multiple matching strategies
+          if (rate.shipment_data?.trackingId === shipment.trackingId) return true;
+          if (rate.shipment_data?.id === shipment.id) return true;
+          if (typeof rate.shipment_index === 'number' && shipmentData[rate.shipment_index]?.id === shipment.id) return true;
+          return false;
+        });
       });
 
       console.log(`Customer Service ${customerService} → UPS ${upsService}:`, {
@@ -353,10 +436,24 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
           let validRatesCount = 0;
           
           accountRates.forEach(rate => {
-            // Find the corresponding shipment data by tracking ID
-            const correspondingShipment = serviceShipments.find(shipment => 
+            // Find the corresponding shipment data using improved matching logic
+            let correspondingShipment = serviceShipments.find(shipment => 
               shipment.trackingId === rate.shipment_data?.trackingId
             );
+            
+            // If no match, try alternative matching
+            if (!correspondingShipment) {
+              correspondingShipment = serviceShipments.find(shipment => 
+                shipment.id === rate.shipment_data?.id
+              );
+            }
+            
+            // If still no match, try matching by shipment index
+            if (!correspondingShipment && typeof rate.shipment_index === 'number') {
+              correspondingShipment = serviceShipments.find(shipment => 
+                shipment.id === rate.shipment_index + 1
+              );
+            }
             
             if (correspondingShipment) {
               totalCost += rate.rate_amount;

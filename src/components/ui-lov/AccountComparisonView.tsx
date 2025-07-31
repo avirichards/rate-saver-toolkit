@@ -424,54 +424,73 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
         sampleShipment: serviceShipments[0]
       });
 
-      // Group by account for this service
-      const accountPerformance = [...new Set(serviceRates.map(rate => rate.account_name))]
-        .map(accountName => {
-          const accountRates = serviceRates.filter(rate => rate.account_name === accountName);
+      // Create deduplicated shipment data per account to prevent double counting
+      const accountShipmentData: Record<string, Record<string, {
+        rate: number;
+        shipment: ProcessedShipmentData;
+        dollarSavings: number;
+      }>> = {};
+
+      // Process rates and only keep the best rate per shipment per account
+      serviceRates.forEach(rate => {
+        // Find the corresponding shipment data using improved matching logic
+        let correspondingShipment = serviceShipments.find(shipment => 
+          shipment.trackingId === rate.shipment_data?.trackingId
+        );
+        
+        // If no match, try alternative matching
+        if (!correspondingShipment) {
+          correspondingShipment = serviceShipments.find(shipment => 
+            shipment.id === rate.shipment_data?.id
+          );
+        }
+        
+        // If still no match, try matching by shipment index
+        if (!correspondingShipment && typeof rate.shipment_index === 'number') {
+          correspondingShipment = serviceShipments.find(shipment => 
+            shipment.id === rate.shipment_index + 1
+          );
+        }
+        
+        if (correspondingShipment) {
+          const shipmentKey = correspondingShipment.trackingId || String(correspondingShipment.id);
           
-          // Calculate metrics based on rates that match our shipments
-          let totalCost = 0;
-          let totalSavings = 0;
-          let winCount = 0;
-          let validRatesCount = 0;
+          if (!accountShipmentData[rate.account_name]) {
+            accountShipmentData[rate.account_name] = {};
+          }
           
-          accountRates.forEach(rate => {
-            // Find the corresponding shipment data using improved matching logic
-            let correspondingShipment = serviceShipments.find(shipment => 
-              shipment.trackingId === rate.shipment_data?.trackingId
-            );
+          // Only keep the best (lowest) rate per shipment per account
+          if (!accountShipmentData[rate.account_name][shipmentKey] || 
+              rate.rate_amount < accountShipmentData[rate.account_name][shipmentKey].rate) {
             
-            // If no match, try alternative matching
-            if (!correspondingShipment) {
-              correspondingShipment = serviceShipments.find(shipment => 
-                shipment.id === rate.shipment_data?.id
-              );
-            }
+            const dollarSavings = correspondingShipment.currentRate - rate.rate_amount;
             
-            // If still no match, try matching by shipment index
-            if (!correspondingShipment && typeof rate.shipment_index === 'number') {
-              correspondingShipment = serviceShipments.find(shipment => 
-                shipment.id === rate.shipment_index + 1
-              );
-            }
-            
-            if (correspondingShipment) {
-              totalCost += rate.rate_amount;
-              validRatesCount++;
-              
-              const savings = correspondingShipment.currentRate - rate.rate_amount;
-              totalSavings += savings;
-              if (savings > 0) winCount++;
-            }
-          });
+            accountShipmentData[rate.account_name][shipmentKey] = {
+              rate: rate.rate_amount,
+              shipment: correspondingShipment,
+              dollarSavings
+            };
+          }
+        }
+      });
+
+      // Calculate performance metrics from deduplicated data
+      const accountPerformance = Object.entries(accountShipmentData)
+        .map(([accountName, shipmentRatesMap]) => {
+          const shipmentDataArray = Object.values(shipmentRatesMap);
           
-          const avgCost = validRatesCount > 0 ? totalCost / validRatesCount : 0;
-          const avgSavings = validRatesCount > 0 ? totalSavings / validRatesCount : 0;
-          const winRate = validRatesCount > 0 ? (winCount / validRatesCount) * 100 : 0;
+          const totalCost = shipmentDataArray.reduce((sum, data) => sum + data.rate, 0);
+          const totalSavings = shipmentDataArray.reduce((sum, data) => sum + data.dollarSavings, 0);
+          const winCount = shipmentDataArray.filter(data => data.dollarSavings > 0).length;
+          const shipmentCount = shipmentDataArray.length;
+          
+          const avgCost = shipmentCount > 0 ? totalCost / shipmentCount : 0;
+          const avgSavings = shipmentCount > 0 ? totalSavings / shipmentCount : 0;
+          const winRate = shipmentCount > 0 ? (winCount / shipmentCount) * 100 : 0;
 
           return {
             accountName,
-            shipmentCount: validRatesCount,
+            shipmentCount,
             totalCost,
             avgCost,
             totalSavings,

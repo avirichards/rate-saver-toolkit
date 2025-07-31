@@ -265,6 +265,11 @@ function mapServiceToCarrierCode(serviceName: string, carrierType: string): stri
     return 'FEDEX_GROUND'; // Default to ground
   }
   
+  if (carrierType === 'amazon') {
+    // Amazon typically only offers ground services
+    return 'GROUND';
+  }
+  
   return null;
 }
 

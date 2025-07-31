@@ -27,6 +27,7 @@ export interface AnalysisChunk {
   totalChunks: number;
   analysisId: string;
   data: any[];
+  carrierConfigIds?: string[];
 }
 
 export class DataStreamProcessor {
@@ -59,7 +60,7 @@ export class DataStreamProcessor {
     const analysisId = await this.createStreamingAnalysisRecord(baseData, totalItems, totalChunks);
 
     // Process chunks with concurrency control
-    const chunks = this.createChunks(recommendations, analysisId, totalChunks);
+    const chunks = this.createChunks(recommendations, analysisId, totalChunks, baseData.carrierConfigsUsed);
     await this.processConcurrentChunks(chunks, orphanedShipments, analysisId);
 
     // Finalize the analysis
@@ -71,7 +72,7 @@ export class DataStreamProcessor {
   /**
    * Create optimized chunks for processing
    */
-  private createChunks(recommendations: any[], analysisId: string, totalChunks: number): AnalysisChunk[] {
+  private createChunks(recommendations: any[], analysisId: string, totalChunks: number, carrierConfigIds?: string[]): AnalysisChunk[] {
     const chunks: AnalysisChunk[] = [];
     
     for (let i = 0; i < totalChunks; i++) {
@@ -82,7 +83,8 @@ export class DataStreamProcessor {
         chunkIndex: i,
         totalChunks,
         analysisId,
-        data: recommendations.slice(start, end)
+        data: recommendations.slice(start, end),
+        carrierConfigIds
       });
     }
     
@@ -125,6 +127,7 @@ export class DataStreamProcessor {
             totalChunks: chunk.totalChunks,
             analysisId: chunk.analysisId,
             recommendations: chunk.data,
+            carrierConfigIds: chunk.carrierConfigIds || [],
             processingType: 'streaming_chunk'
           }
         });

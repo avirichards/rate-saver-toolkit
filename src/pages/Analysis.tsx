@@ -342,13 +342,65 @@ const Analysis = () => {
     setCurrentShipmentIndex(0);
     setError(null);
     
-    
     try {
       // Validate carrier configuration first and get filtered carriers
       const validCarrierIds = await validateCarrierConfiguration();
       setSelectedCarriers(validCarrierIds);
       
-      // Create analysis record first to get ID for saving individual rates
+      // For large datasets (>1000 shipments), use streaming processor immediately
+      const STREAMING_THRESHOLD = 1000;
+      if (shipmentsToAnalyze.length > STREAMING_THRESHOLD) {
+        console.log(`📊 Large dataset detected (${shipmentsToAnalyze.length} shipments), using streaming processor for analysis`);
+        
+        // Prepare analysis data for streaming
+        const state = location.state as any;
+        const analysisData = {
+          fileName: state?.fileName || 'Real-time Analysis',
+          totalShipments: shipmentsToAnalyze.length,
+          completedShipments: 0,
+          errorShipments: 0,
+          totalCurrentCost: 0,
+          totalPotentialSavings: 0,
+          recommendations: shipmentsToAnalyze.map((shipment, index) => ({
+            shipment,
+            index,
+            allRates: [], // Will be populated by edge function
+            currentCost: parseFloat(shipment.currentRate || '0'),
+            customer_service: shipment.service || 'Unknown',
+            carrier: 'multi-carrier'
+          })),
+          orphanedShipments: [],
+          originalData: shipmentsToAnalyze,
+          carrierConfigsUsed: validCarrierIds,
+          serviceMappings: serviceMappings
+        };
+
+        const { DataStreamProcessor } = await import('@/utils/dataStreamProcessor');
+        const processor = new DataStreamProcessor({
+          chunkSize: 500,
+          maxConcurrentChunks: 3,
+          progressCallback: (progress) => {
+            const percentage = Math.round((progress.processedChunks / progress.totalChunks) * 100);
+            console.log(`🔄 Streaming progress: ${progress.processedChunks}/${progress.totalChunks} chunks (${percentage}%)`);
+            setCurrentShipmentIndex(progress.processedItems);
+            toast.info(`Processing: ${percentage}% complete`);
+          }
+        });
+
+        const analysisId = await processor.streamAnalysis(analysisData);
+        console.log('✅ Streaming analysis completed:', analysisId);
+        
+        // Navigate to results
+        navigate('/results', { 
+          state: { 
+            analysisId,
+            fromAnalysis: true 
+          } 
+        });
+        return;
+      }
+      
+      // For smaller datasets, use the original batch processing
       const analysisId = await createAnalysisRecord(shipmentsToAnalyze);
       if (!analysisId) {
         throw new Error('Failed to create analysis record');
@@ -368,8 +420,6 @@ const Analysis = () => {
         const startIndex = batchIndex * batchSize;
         const endIndex = Math.min(startIndex + batchSize, shipmentsToAnalyze.length);
         const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
-        
-        
         
         // Process all shipments in the batch concurrently
         const batchPromises = batch.map((shipment, indexInBatch) => {

@@ -10,6 +10,7 @@ interface ChunkPayload {
   totalChunks: number;
   analysisId: string;
   recommendations: any[];
+  carrierConfigIds: string[];
   processingType: 'streaming_chunk';
 }
 
@@ -48,70 +49,101 @@ Deno.serve(async (req) => {
     const processedShipments: any[] = [];
     const shipmentRates: any[] = [];
     
-    payload.recommendations.forEach((rec, localIndex) => {
+    // Process recommendations sequentially to avoid overwhelming the system
+    for (const [localIndex, rec] of payload.recommendations.entries()) {
       const globalIndex = payload.chunkIndex * payload.recommendations.length + localIndex;
       
-      if (!rec.allRates || !Array.isArray(rec.allRates) || rec.allRates.length === 0) {
-        return;
-      }
-      
-      // Find best rate for this shipment
-      let bestRate = rec.allRates[0];
-      let lowestCost = parseFloat(bestRate.totalCharges || bestRate.negotiatedRate || bestRate.rate_amount || Infinity);
-      
-      rec.allRates.forEach((rate: any) => {
-        const rateCost = parseFloat(rate.totalCharges || rate.negotiatedRate || rate.rate_amount || Infinity);
-        if (rateCost < lowestCost) {
-          lowestCost = rateCost;
-          bestRate = rate;
-        }
-      });
-      
-      const currentRate = parseFloat(rec.currentCost || 0);
-      const newRate = lowestCost;
-      const savings = currentRate - newRate;
-      
-      // Create processed shipment
-      processedShipments.push({
-        id: globalIndex + 1,
-        trackingId: rec.shipment.trackingId || `Shipment-${globalIndex + 1}`,
-        originZip: rec.shipment.originZip || '',
-        destinationZip: rec.shipment.destZip || '',
-        weight: parseFloat(rec.shipment.weight || '0'),
-        length: parseFloat(rec.shipment.length || '0'),
-        width: parseFloat(rec.shipment.width || '0'),
-        height: parseFloat(rec.shipment.height || '0'),
-        dimensions: rec.shipment.dimensions,
-        carrier: rec.carrier || 'UPS',
-        customer_service: rec.customer_service || rec.shipment.service || 'Unknown',
-        shippros_service: bestRate.serviceName || bestRate.description || 'Ground',
-        currentRate: currentRate,
-        shippros_cost: newRate,
-        savings: savings,
-        savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
-        analyzedWithAccount: bestRate.carrierName || bestRate.accountName || 'Unknown',
-        accountName: bestRate.carrierName || bestRate.accountName || 'Unknown'
-      });
-      
-      // Create shipment rates for detailed comparison
-      rec.allRates.forEach((rate: any) => {
-        shipmentRates.push({
-          analysis_id: payload.analysisId,
-          shipment_index: globalIndex,
-          carrier_config_id: rate.carrierId || '',
-          account_name: rate.carrierName || rate.accountName || 'Unknown',
-          carrier_type: rate.carrierType || 'ups',
-          service_code: rate.serviceCode || '',
-          service_name: rate.serviceName || rate.description || '',
-          rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
-          currency: rate.currency || 'USD',
-          transit_days: rate.transitTime || null,
-          is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
-          published_rate: rate.publishedRate || null,
-          shipment_data: rec.shipment || {}
+      try {
+        console.log(`🔄 Processing shipment ${globalIndex + 1} in chunk ${payload.chunkIndex + 1}`);
+        
+        // Call multi-carrier quote for each shipment
+        const { data: quoteData, error: quoteError } = await supabase.functions.invoke('multi-carrier-quote', {
+          body: {
+            shipFromZip: rec.shipment.originZip,
+            shipToZip: rec.shipment.destZip,
+            weight: parseFloat(rec.shipment.weight || '1'),
+            length: parseFloat(rec.shipment.length || '12'),
+            width: parseFloat(rec.shipment.width || '12'),
+            height: parseFloat(rec.shipment.height || '12'),
+            serviceTypes: [rec.customer_service || 'GROUND'],
+            carrierConfigs: payload.carrierConfigIds,
+            shipmentId: globalIndex + 1,
+            zone: rec.shipment.zone
+          }
         });
-      });
-    });
+
+        if (quoteError || !quoteData?.rates) {
+          console.error(`Failed to get rates for shipment ${globalIndex}:`, quoteError);
+          continue;
+        }
+
+        const rates = Array.isArray(quoteData.rates) ? quoteData.rates : [];
+        if (rates.length === 0) {
+          console.log(`No rates found for shipment ${globalIndex}`);
+          continue;
+        }
+        
+        // Find best rate
+        let bestRate = rates[0];
+        let lowestCost = parseFloat(bestRate.totalCharges || bestRate.negotiatedRate || bestRate.rate_amount || Infinity);
+        
+        rates.forEach((rate: any) => {
+          const rateCost = parseFloat(rate.totalCharges || rate.negotiatedRate || rate.rate_amount || Infinity);
+          if (rateCost < lowestCost) {
+            lowestCost = rateCost;
+            bestRate = rate;
+          }
+        });
+        
+        const currentRate = parseFloat(rec.shipment.currentRate || '0');
+        const newRate = lowestCost;
+        const savings = currentRate - newRate;
+        
+        // Create processed shipment
+        processedShipments.push({
+          id: globalIndex + 1,
+          trackingId: rec.shipment.trackingId || `Shipment-${globalIndex + 1}`,
+          originZip: rec.shipment.originZip || '',
+          destinationZip: rec.shipment.destZip || '',
+          weight: parseFloat(rec.shipment.weight || '0'),
+          length: parseFloat(rec.shipment.length || '0'),
+          width: parseFloat(rec.shipment.width || '0'),
+          height: parseFloat(rec.shipment.height || '0'),
+          dimensions: `${rec.shipment.length || 0}x${rec.shipment.width || 0}x${rec.shipment.height || 0}`,
+          carrier: rec.carrier || 'UPS',
+          customer_service: rec.customer_service || rec.shipment.service || 'Unknown',
+          shippros_service: bestRate.serviceName || bestRate.description || 'Ground',
+          currentRate: currentRate,
+          shippros_cost: newRate,
+          savings: savings,
+          savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
+          analyzedWithAccount: bestRate.carrierName || bestRate.accountName || 'Unknown',
+          accountName: bestRate.carrierName || bestRate.accountName || 'Unknown'
+        });
+        
+        // Create shipment rates for detailed comparison
+        rates.forEach((rate: any) => {
+          shipmentRates.push({
+            analysis_id: payload.analysisId,
+            shipment_index: globalIndex,
+            carrier_config_id: rate.carrierId || '',
+            account_name: rate.carrierName || rate.accountName || 'Unknown',
+            carrier_type: rate.carrierType || 'ups',
+            service_code: rate.serviceCode || '',
+            service_name: rate.serviceName || rate.description || '',
+            rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
+            currency: rate.currency || 'USD',
+            transit_days: rate.transitTime || null,
+            is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
+            published_rate: rate.publishedRate || null,
+            shipment_data: rec.shipment || {}
+          });
+        });
+        
+      } catch (error) {
+        console.error(`Error processing shipment ${globalIndex}:`, error);
+      }
+    }
 
     console.log(`📊 Processed ${processedShipments.length} shipments with ${shipmentRates.length} rates`);
 

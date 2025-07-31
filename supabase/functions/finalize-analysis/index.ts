@@ -70,97 +70,223 @@ async function isRateCardOnlyAnalysis(carrierConfigIds: string[], supabase: any)
   return allRateCards;
 }
 
-// Bulk process rate card carriers instantly
+// Bulk process rate card carriers instantly from original data
 async function processBulkRateCards(payload: AnalysisPayload, rateCardCarrierIds: string[], user: any, supabase: any, analysisId?: string) {
-  console.log('⚡ Starting bulk rate card processing');
+  console.log('⚡ Starting bulk rate card processing from original data');
   
-  // Filter recommendations to only include rate card carriers
-  const rateCardRecommendations = payload.recommendations.filter(rec => 
-    rec.allRates && rec.allRates.some((rate: any) => 
-      rateCardCarrierIds.includes(rate.carrierId)
-    )
-  );
+  // Check if we have recommendations or need to process from originalData
+  let shipmentsToProcess: any[] = [];
   
-  if (rateCardRecommendations.length === 0) {
-    console.log('📝 No rate card recommendations found');
-    return { processedShipments: [], shipmentRates: [] };
+  if (payload.recommendations && payload.recommendations.length > 0) {
+    // Use existing recommendations if available
+    shipmentsToProcess = payload.recommendations.filter(rec => 
+      rec.allRates && rec.allRates.some((rate: any) => 
+        rateCardCarrierIds.includes(rate.carrierId)
+      )
+    );
+    console.log(`📋 Processing ${shipmentsToProcess.length} existing recommendations`);
+  } else if (payload.originalData && payload.originalData.length > 0) {
+    // Process from original data - this is the bulk processing case
+    console.log(`📋 Processing ${payload.originalData.length} shipments from original data`);
+    shipmentsToProcess = payload.originalData;
   }
   
-  console.log(`📋 Processing ${rateCardRecommendations.length} rate card shipments`);
+  if (shipmentsToProcess.length === 0) {
+    console.log('📝 No shipments found for bulk processing');
+    return { processedShipments: [], shipmentRates: [] };
+  }
   
   const processedShipments: any[] = [];
   const shipmentRates: any[] = [];
   
-  // Process all rate card recommendations in bulk
-  rateCardRecommendations.forEach((rec, index) => {
-    if (!rec.allRates || !Array.isArray(rec.allRates)) return;
+  // Get rate card configs for lookups
+  const { data: rateCardConfigs, error: configError } = await supabase
+    .from('carrier_configs')
+    .select('*')
+    .in('id', rateCardCarrierIds)
+    .eq('is_rate_card', true);
     
-    // Filter to only rate card rates
-    const rateCardRates = rec.allRates.filter((rate: any) => 
-      rateCardCarrierIds.includes(rate.carrierId)
-    );
+  if (configError || !rateCardConfigs) {
+    console.log('❌ Error fetching rate card configs:', configError);
+    return { processedShipments: [], shipmentRates: [] };
+  }
+  
+  console.log(`📋 Found ${rateCardConfigs.length} rate card configs for processing`);
+  
+  // Process shipments using direct rate card lookups
+  for (let index = 0; index < shipmentsToProcess.length; index++) {
+    const shipment = shipmentsToProcess[index];
     
-    if (rateCardRates.length === 0) return;
+    // Handle both recommendation format and original data format
+    let shipmentData: any;
+    let currentCost = 0;
+    
+    if (shipment.shipment) {
+      // Recommendation format
+      shipmentData = shipment.shipment;
+      currentCost = parseFloat(shipment.currentCost || 0);
+    } else {
+      // Original data format
+      shipmentData = shipment;
+      currentCost = parseFloat(shipment.total_charges || shipment.amount || shipment.cost || 0);
+    }
+    
+    if (!shipmentData.originZip || !shipmentData.destZip || !shipmentData.weight) {
+      console.log(`⚠️ Skipping shipment ${index} - missing required data`);
+      continue;
+    }
+    
+    const allRatesForShipment: any[] = [];
+    
+    // Process each rate card config
+    for (const config of rateCardConfigs) {
+      try {
+        const rate = await calculateRateCardRate(shipmentData, config, supabase);
+        if (rate) {
+          allRatesForShipment.push({
+            ...rate,
+            carrierId: config.id,
+            carrierName: config.account_name,
+            carrierType: config.carrier_type
+          });
+        }
+      } catch (error) {
+        console.log(`⚠️ Error calculating rate for config ${config.id}:`, error);
+      }
+    }
+    
+    if (allRatesForShipment.length === 0) {
+      console.log(`⚠️ No rates found for shipment ${index}`);
+      continue;
+    }
     
     // Find best rate among rate cards
-    let bestRate = rateCardRates[0];
-    let lowestCost = parseFloat(bestRate.totalCharges || bestRate.negotiatedRate || bestRate.rate_amount || Infinity);
+    let bestRate = allRatesForShipment[0];
+    let lowestCost = parseFloat(bestRate.totalCharges || bestRate.rate_amount || Infinity);
     
-    rateCardRates.forEach((rate: any) => {
-      const rateCost = parseFloat(rate.totalCharges || rate.negotiatedRate || rate.rate_amount || Infinity);
+    allRatesForShipment.forEach((rate: any) => {
+      const rateCost = parseFloat(rate.totalCharges || rate.rate_amount || Infinity);
       if (rateCost < lowestCost) {
         lowestCost = rateCost;
         bestRate = rate;
       }
     });
     
-    const currentRate = parseFloat(rec.currentCost || 0);
     const newRate = lowestCost;
-    const savings = currentRate - newRate;
+    const savings = currentCost - newRate;
     
     // Create processed shipment
     processedShipments.push({
       id: index + 1,
-      trackingId: rec.shipment.trackingId || `Shipment-${index + 1}`,
-      originZip: rec.shipment.originZip || '',
-      destinationZip: rec.shipment.destZip || '',
-      weight: parseFloat(rec.shipment.weight || '0'),
-      length: parseFloat(rec.shipment.length || '0'),
-      width: parseFloat(rec.shipment.width || '0'),
-      height: parseFloat(rec.shipment.height || '0'),
-      dimensions: rec.shipment.dimensions,
-      carrier: rec.carrier || 'Rate Card',
-      customer_service: rec.customer_service || rec.shipment.service || 'Unknown',
-      ShipPros_service: bestRate.serviceName || bestRate.description || 'Ground',
-      currentRate: currentRate,
+      trackingId: shipmentData.trackingId || shipmentData.tracking_number || `Shipment-${index + 1}`,
+      originZip: shipmentData.originZip || shipmentData.origin_zip || '',
+      destinationZip: shipmentData.destZip || shipmentData.destination_zip || '',
+      weight: parseFloat(shipmentData.weight || '0'),
+      length: parseFloat(shipmentData.length || '0'),
+      width: parseFloat(shipmentData.width || '0'),
+      height: parseFloat(shipmentData.height || '0'),
+      dimensions: shipmentData.dimensions || `${shipmentData.length || 0}x${shipmentData.width || 0}x${shipmentData.height || 0}`,
+      carrier: shipmentData.carrier || 'Rate Card',
+      customer_service: shipmentData.service || shipmentData.customer_service || 'Ground',
+      ShipPros_service: bestRate.serviceName || 'Ground',
+      currentRate: currentCost,
       ShipPros_cost: newRate,
       savings: savings,
-      savingsPercent: currentRate > 0 ? (savings / currentRate) * 100 : 0,
-      analyzedWithAccount: bestRate.carrierName || bestRate.accountName || 'Unknown',
-      accountName: bestRate.carrierName || bestRate.accountName || 'Unknown'
+      savingsPercent: currentCost > 0 ? (savings / currentCost) * 100 : 0,
+      analyzedWithAccount: bestRate.carrierName || 'Unknown',
+      accountName: bestRate.carrierName || 'Unknown'
     });
     
     // Create shipment rates for all rate card carriers
-    rateCardRates.forEach((rate: any) => {
+    allRatesForShipment.forEach((rate: any) => {
       shipmentRates.push({
         analysis_id: analysisId,
         shipment_index: index,
         carrier_config_id: rate.carrierId || '',
-        account_name: rate.carrierName || rate.accountName || 'Unknown',
+        account_name: rate.carrierName || 'Unknown',
         carrier_type: rate.carrierType || 'rate_card',
-        service_code: rate.serviceCode || '',
-        service_name: rate.serviceName || rate.description || '',
-        rate_amount: rate.totalCharges || rate.negotiatedRate || rate.rate_amount || 0,
+        service_code: rate.serviceCode || 'GROUND',
+        service_name: rate.serviceName || 'Ground',
+        rate_amount: parseFloat(rate.totalCharges || rate.rate_amount || 0),
         currency: rate.currency || 'USD',
-        transit_days: rate.transitTime || null,
-        is_negotiated: rate.rateType === 'negotiated' || rate.hasNegotiatedRates || false,
-        published_rate: rate.publishedRate || null,
-        shipment_data: rec.shipment || {}
+        transit_days: rate.transitDays || null,
+        delivery_date: rate.deliveryDate || null,
+        is_best_rate: rate === bestRate,
+        source: 'rate_card'
       });
     });
-  });
+  }
   
-  // Bulk insert rates if we have an analysis ID
+  console.log(`🎉 Bulk rate card processing complete: ${processedShipments.length} shipments processed`);
+  return { processedShipments, shipmentRates };
+}
+
+// Calculate rate card rate for a single shipment
+async function calculateRateCardRate(shipmentData: any, config: any, supabase: any) {
+  try {
+    const weight = parseFloat(shipmentData.weight || '0');
+    const length = parseFloat(shipmentData.length || '0');
+    const width = parseFloat(shipmentData.width || '0');
+    const height = parseFloat(shipmentData.height || '0');
+    
+    // Calculate dimensional weight (length * width * height / 166)
+    const dimWeight = (length * width * height) / 166;
+    const billableWeight = Math.max(weight, dimWeight);
+    
+    const originZip = shipmentData.originZip || shipmentData.origin_zip || '';
+    const destZip = shipmentData.destZip || shipmentData.destination_zip || '';
+    
+    if (!originZip || !destZip) {
+      console.log('⚠️ Missing origin or destination zip');
+      return null;
+    }
+    
+    // Look up zone from rate card mapping
+    const { data: zoneData } = await supabase
+      .from('rate_card_zones')
+      .select('zone')
+      .eq('carrier_config_id', config.id)
+      .eq('origin_zip', originZip.substring(0, 3))
+      .eq('destination_zip', destZip.substring(0, 3))
+      .single();
+    
+    if (!zoneData) {
+      console.log(`⚠️ No zone found for ${originZip} -> ${destZip}`);
+      return null;
+    }
+    
+    // Look up rate from rate card
+    const { data: rateData } = await supabase
+      .from('rate_card_rates')
+      .select('*')
+      .eq('carrier_config_id', config.id)
+      .eq('service_code', 'GROUND')
+      .eq('zone', zoneData.zone)
+      .lte('weight_min', billableWeight)
+      .gte('weight_max', billableWeight)
+      .single();
+    
+    if (!rateData) {
+      console.log(`⚠️ No rate found for zone ${zoneData.zone}, weight ${billableWeight}`);
+      return null;
+    }
+    
+    return {
+      serviceCode: 'GROUND',
+      serviceName: `${config.carrier_type.toUpperCase()} Ground`,
+      totalCharges: rateData.rate.toString(),
+      rate_amount: rateData.rate,
+      currency: 'USD',
+      transitDays: null,
+      source: 'rate_card',
+      zone: zoneData.zone,
+      billableWeight: billableWeight.toString()
+    };
+  } catch (error) {
+    console.log('⚠️ Error calculating rate card rate:', error);
+    return null;
+  }
+}
   if (analysisId && shipmentRates.length > 0) {
     console.log(`💾 Bulk inserting ${shipmentRates.length} rate card rates`);
     const BULK_INSERT_SIZE = 1000;

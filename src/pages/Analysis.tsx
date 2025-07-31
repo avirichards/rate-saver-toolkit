@@ -1092,8 +1092,8 @@ const Analysis = () => {
         recommendationsCount: analysisData.recommendations?.length || 0
       });
 
-      // For large datasets (>5000 shipments), use streaming processor
-      const STREAMING_THRESHOLD = 5000;
+      // For large datasets (>1000 shipments), use streaming processor
+      const STREAMING_THRESHOLD = 1000;
       const isLargeDataset = analysisData.totalShipments > STREAMING_THRESHOLD;
 
       if (isLargeDataset) {
@@ -1101,7 +1101,7 @@ const Analysis = () => {
         
         const { DataStreamProcessor } = await import('@/utils/dataStreamProcessor');
         const processor = new DataStreamProcessor({
-          chunkSize: 1000,
+          chunkSize: 500,
           maxConcurrentChunks: 3,
           progressCallback: (progress) => {
             console.log(`🔄 Streaming progress: ${progress.processedChunks}/${progress.totalChunks} chunks`);

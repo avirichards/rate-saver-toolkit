@@ -750,7 +750,9 @@ export const AccountComparisonView: React.FC<AccountComparisonViewProps> = ({
                         </span>
                       )}
                     </CardTitle>
-                    
+                    <p className="text-sm text-muted-foreground">
+                      {service.totalShipments} shipments analyzed
+                    </p>
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <label className="text-xs text-muted-foreground">Use Account:</label>

@@ -335,12 +335,24 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
-    console.error('Bulk analysis error:', error);
+  } catch (error: any) {
+    console.error('💥 Bulk analysis error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      cause: error.cause
+    });
+    
+    // Return detailed error information
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: error.message || 'Unknown error occurred',
+        errorDetails: {
+          name: error.name,
+          stack: error.stack?.split('\n').slice(0, 5).join('\n'), // First 5 lines of stack
+          timestamp: new Date().toISOString()
+        }
       }),
       { 
         status: 500,

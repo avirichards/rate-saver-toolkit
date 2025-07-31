@@ -259,15 +259,25 @@ const Analysis = () => {
 
       const startTime = performance.now();
       
+      console.log('🚀 Calling bulk-rate-analysis function with payload:', {
+        shipmentCount: bulkPayload.shipments.length,
+        carrierConfigIds: bulkPayload.carrierConfigIds,
+        fileName: bulkPayload.fileName
+      });
+      
       const { data: result, error } = await supabase.functions.invoke('bulk-rate-analysis', {
         body: bulkPayload
       });
 
+      console.log('📡 Raw response from bulk-rate-analysis:', { result, error });
+
       if (error) {
-        throw new Error(`Bulk analysis failed: ${error.message}`);
+        console.error('❌ Function invocation error:', error);
+        throw new Error(`Bulk analysis failed: ${error.message || JSON.stringify(error)}`);
       }
 
       if (!result || !result.success) {
+        console.error('❌ Function returned failure:', result);
         throw new Error(`Bulk analysis failed: ${result?.error || 'Unknown error'}`);
       }
 

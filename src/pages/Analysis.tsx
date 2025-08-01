@@ -167,36 +167,27 @@ const Analysis = () => {
     }
   }, [readyToAnalyze, serviceMappings, shipments, selectedCarriers, carrierSelectionComplete, isAnalyzing]);
 
-  // Poll for analysis progress
+  // Poll for analysis progress via REST API
   const pollAnalysisProgress = useCallback(async (analysisId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('shipping_analyses')
-        .select('status, total_shipments, processed_shipments, total_savings, savings_analysis, processing_metadata')
-        .eq('id', analysisId)
-        .single();
-
-      if (error) {
-        console.error('Error polling analysis progress:', error);
+      const response = await fetch(`http://localhost:5000/api/analyses/${analysisId}/progress`);
+      
+      if (!response.ok) {
+        console.error('Error polling analysis progress: HTTP', response.status);
         return;
       }
 
-      const processedShipments = Array.isArray(data.processed_shipments) ? data.processed_shipments : [];
-      const processedCount = processedShipments.length;
-      const savingsAnalysis = data.savings_analysis as any;
-      const totalCost = savingsAnalysis?.totalCurrentCost || 0;
-      const totalSavings = data.total_savings || 0;
-      const errorCount = savingsAnalysis?.errorShipments || 0;
-
+      const data = await response.json();
+      
       setAnalysisProgress({
         analysisId,
         totalShipments: data.total_shipments,
-        processedShipments: processedCount,
+        processedShipments: data.processed_shipments,
         currentStatus: data.status === 'completed' ? 'completed' : 
                       data.status === 'failed' ? 'failed' : 'processing',
-        totalSavings,
-        totalCurrentCost: totalCost,
-        errorCount
+        totalSavings: data.total_savings || 0,
+        totalCurrentCost: data.total_current_cost || 0,
+        errorCount: data.error_count || 0
       });
 
       // Stop polling if completed or failed
@@ -208,7 +199,13 @@ const Analysis = () => {
         setIsAnalyzing(false);
         
         if (data.status === 'completed') {
-          toast.success(`Analysis completed! Processed ${processedCount} shipments with $${totalSavings.toFixed(2)} total savings.`);
+          toast.success(`Analysis completed! Processed ${data.processed_shipments} shipments with $${data.total_savings?.toFixed(2) || '0.00'} total savings.`);
+          navigate('/results', { 
+            state: { 
+              analysisId, 
+              fileName: location.state?.fileName || 'Bulk Analysis' 
+            } 
+          });
         } else {
           toast.error('Analysis failed. Please try again.');
           setError('Analysis processing failed on the server.');
@@ -217,7 +214,7 @@ const Analysis = () => {
     } catch (error) {
       console.error('Error polling progress:', error);
     }
-  }, [pollInterval]);
+  }, [pollInterval, navigate, location.state]);
 
   const startBulkAnalysis = async () => {
     setIsAnalyzing(true);
@@ -247,9 +244,13 @@ const Analysis = () => {
         throw new Error('Failed to create analysis record');
       }
 
-      // Start bulk processing on server
-      const { data, error } = await supabase.functions.invoke('bulk-rate-analysis', {
-        body: {
+      // Start bulk processing via REST API
+      const response = await fetch('http://localhost:5000/api/analyses/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           analysisId,
           shipments,
           carrierConfigs: selectedCarriers,
@@ -257,12 +258,15 @@ const Analysis = () => {
           columnMappings: location.state?.mappings,
           originZipOverride: location.state?.originZipOverride,
           fileName: location.state?.fileName || 'Bulk Analysis'
-        }
+        })
       });
 
-      if (error) {
-        throw new Error(`Bulk analysis failed: ${error.message}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Analysis failed' }));
+        throw new Error(`Bulk analysis failed: ${errorData.message}`);
       }
+
+      const data = await response.json();
 
       console.log('✅ Bulk analysis started:', data);
       
@@ -278,10 +282,30 @@ const Analysis = () => {
         estimatedTimeRemaining: data.estimatedTime
       });
 
-      // Start polling for progress
+      // Set up WebSocket for real-time progress
+      const socket = new WebSocket('ws://localhost:5000/ws');
+      socket.send(JSON.stringify({type: 'subscribe', analysisId: analysisId}));
+      
+      socket.onmessage = (event) => {
+        const progressData = JSON.parse(event.data);
+        setAnalysisProgress(progressData);
+        
+        if (progressData.currentStatus === 'completed') {
+          socket.close();
+          clearInterval(interval);
+          navigate('/results', { 
+            state: { 
+              analysisId, 
+              fileName: location.state?.fileName || 'Bulk Analysis' 
+            } 
+          });
+        }
+      };
+
+      // Fallback polling in case WebSocket fails
       const interval = setInterval(() => {
         pollAnalysisProgress(analysisId);
-      }, 2000); // Poll every 2 seconds
+      }, 5000); // Poll every 5 seconds as fallback
       
       setPollInterval(interval);
 

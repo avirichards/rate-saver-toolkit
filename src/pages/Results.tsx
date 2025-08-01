@@ -98,6 +98,50 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
   const [error, setError] = useState<string | null>(null);
   const [markupData, setMarkupData] = useState<MarkupData | null>(null);
   const [currentAnalysisId, setCurrentAnalysisId] = useState<string | null>(null);
+
+  const loadAnalysisFromAPI = async () => {
+    const analysisId = params.id || location.state?.analysisId;
+    
+    if (!analysisId) {
+      // Load most recent analysis
+      const response = await fetch('http://localhost:5000/api/analyses');
+      if (response.ok) {
+        const analyses = await response.json();
+        if (analyses.length > 0) {
+          await loadSpecificAnalysis(analyses[0].id);
+        }
+      }
+      return;
+    }
+
+    await loadSpecificAnalysis(analysisId);
+  };
+
+  const loadSpecificAnalysis = async (analysisId: string) => {
+    try {
+      const response = await fetch(`http://localhost:5000/api/analyses/${analysisId}`);
+      if (!response.ok) {
+        throw new Error('Analysis not found');
+      }
+
+      const analysisData = await response.json();
+      
+      setCurrentAnalysisId(analysisId);
+      setAnalysisData(processAnalysisData(analysisData));
+      setShipmentData(analysisData.processed_shipments || []);
+      setOrphanedData(analysisData.orphaned_shipments || []);
+      setShipmentRates(analysisData.shipment_rates || []);
+      
+      const services = [...new Set((analysisData.processed_shipments?.map((s: any) => s.shippros_service).filter(Boolean) || []) as string[])];
+      setAvailableServices(services);
+      
+    } catch (error) {
+      console.error('Error loading analysis:', error);
+      setError('Failed to load analysis data');
+    } finally {
+      setLoading(false);
+    }
+  };
   const [clients, setClients] = useState<any[]>([]);
   const [analysisStatus, setAnalysisStatus] = useState<'completed' | 'processing' | 'failed' | null>(null);
   const [processingProgress, setProcessingProgress] = useState<{ completed: number; total: number } | null>(null);
@@ -1002,7 +1046,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         } else if (params.id) {
           await loadFromDatabase(params.id);
         } else {
-          await loadMostRecentAnalysis();
+          // Load analysis data via REST API
+          await loadAnalysisFromAPI();
         }
         } catch (error) {
         handleDataProcessingError(error, isClientView ? 'client view' : 'normal view');

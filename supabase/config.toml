@@ -18,3 +18,9 @@ verify_jwt = true
 
 [functions.finalize-analysis]
 verify_jwt = true
+
+[functions.start-analysis]
+verify_jwt = true
+
+[functions.get-analysis-status]
+verify_jwt = true

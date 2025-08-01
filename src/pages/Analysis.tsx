@@ -9,6 +9,7 @@ import { CheckCircle, RotateCw, AlertCircle, DollarSign, TrendingDown, Package, 
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
+import { useAnalysisJob } from '@/hooks/useAnalysisJob';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { ValidationDebugger } from '@/components/ui-lov/ValidationDebugger';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
@@ -77,10 +78,6 @@ const Analysis = () => {
   
   const [shipments, setShipments] = useState<ProcessedShipment[]>([]);
   const [analysisResults, setAnalysisResults] = useState<AnalysisResult[]>([]);
-  const [currentShipmentIndex, setCurrentShipmentIndex] = useState(0);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [totalSavings, setTotalSavings] = useState(0);
   const [totalCurrentCost, setTotalCurrentCost] = useState(0);
@@ -88,12 +85,29 @@ const Analysis = () => {
   const [serviceMappings, setServiceMappings] = useState<ServiceMapping[]>([]);
   const [csvResidentialField, setCsvResidentialField] = useState<string | undefined>(undefined);
   const [readyToAnalyze, setReadyToAnalyze] = useState(false);
-  const [analysisSaved, setAnalysisSaved] = useState(false); // Track if analysis has been saved
-  const [isAnalysisStarted, setIsAnalysisStarted] = useState(false); // Track if analysis has been started
+  const [analysisSaved, setAnalysisSaved] = useState(false);
   const [selectedCarriers, setSelectedCarriers] = useState<string[]>([]);
   const [carrierSelectionComplete, setCarrierSelectionComplete] = useState(false);
   const [hasLoadedInitialCarriers, setHasLoadedInitialCarriers] = useState(false);
+  const [isAnalysisStarted, setIsAnalysisStarted] = useState(false);
+  
+  // Use the new analysis job hook
+  const { 
+    startAnalysis: startJobAnalysis, 
+    getResults, 
+    jobId, 
+    status: jobStatus, 
+    error: jobError, 
+    isLoading: jobLoading,
+    resetJob 
+  } = useAnalysisJob();
+  
   const { validateShipments, getValidShipments, validationState } = useShipmentValidation();
+  
+  // Derived state from job status
+  const isAnalyzing = jobLoading || (jobStatus?.status === 'pending' || jobStatus?.status === 'in_progress');
+  const isComplete = jobStatus?.status === 'completed';
+  const currentShipmentIndex = jobStatus?.processed_shipments || 0;
   
   useEffect(() => {
     const state = location.state as { 
@@ -219,10 +233,10 @@ const Analysis = () => {
   }, [readyToAnalyze, serviceMappings, shipments, selectedCarriers, carrierSelectionComplete, isAnalysisStarted]);
   
   const validateAndStartAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
-    setIsAnalyzing(true);
     setError(null);
     
     try {
+      console.log('Starting new job-based analysis for', shipmentsToAnalyze.length, 'shipments');
       
       const validationResults = await validateShipments(shipmentsToAnalyze);
       console.log('🔍 VALIDATION RESULTS SUMMARY:', {
@@ -269,140 +283,62 @@ const Analysis = () => {
       
       setValidationSummary(summary);
       
-      // Store invalid shipments in analysis results for tracking AND send to orphans immediately
-      const invalidResults = invalidShipments.map(({ shipment, reasons }) => ({
-        shipment,
-        status: 'error' as const,
-        error: `Validation failed: ${reasons.join(', ')}`,
-        errorType: 'validation_error',
-        errorCategory: 'Data Validation',
-        originalService: shipment.service || 'Unknown'
-      }));
-      
-      // Send validation failures to orphans immediately
-      if (invalidResults.length > 0) {
-        console.log('🚨 SENDING TO ORPHANS:', invalidResults.length, 'validation failures');
-        const orphanedShipments = invalidResults.map(result => ({
-          shipment: result.shipment,
-          error: result.error,
-          errorType: result.errorType,
-          customer_service: result.originalService,
-          status: 'error'
-        }));
-        
-        const state = location.state as any;
-        const orphanPayload = {
-          fileName: state?.fileName || 'Real-time Analysis',
-          totalShipments: shipmentsToAnalyze.length,
-          completedShipments: 0,
-          errorShipments: invalidResults.length,
-          totalCurrentCost: 0,
-          totalPotentialSavings: 0,
-          recommendations: [],
-          orphanedShipments,
-          originalData: invalidResults,
-          carrierConfigsUsed: selectedCarriers,
-          serviceMappings: serviceMappings
-        };
-        
-        console.log('🚨 ORPHAN PAYLOAD:', orphanPayload);
-        await finalizeAnalysis(orphanPayload);
-        console.log('✅ SENT TO ORPHANS SUCCESSFULLY');
-      }
-      
-      // Initialize results with both valid (pending) and invalid (error) shipments
-      const initialResults = [
-        ...validShipments.map(shipment => ({
-          shipment,
-          status: 'pending' as const
-        })),
-        ...invalidResults
-      ];
-      
-      setAnalysisResults(initialResults);
-      
       if (validShipments.length === 0) {
         throw new Error('No valid shipments found. Please check your data and field mappings.');
       }
       
-      // Note: Validation errors are already shown in the validation summary below
+      // Transform shipments for the job system
+      const shipmentsForJob = validShipments.map(shipment => ({
+        id: shipment.id,
+        trackingId: shipment.trackingId,
+        originZip: shipment.originZip || '',
+        destinationZip: shipment.destZip || '',
+        weight: parseFloat(shipment.weight || '0'),
+        length: shipment.length ? parseFloat(shipment.length) : undefined,
+        width: shipment.width ? parseFloat(shipment.width) : undefined,
+        height: shipment.height ? parseFloat(shipment.height) : undefined,
+        customerService: shipment.service || 'GROUND',
+        currentRate: shipment.currentRate ? parseFloat(shipment.currentRate) : undefined,
+        carrier: shipment.carrier,
+        ...shipment // Include any additional fields
+      }));
       
-      // Process only valid shipments, but track ALL shipments in results
-      await startAnalysis(validShipments);
+      // Start the background analysis job
+      await startJobAnalysis(shipmentsForJob);
+      toast.success('Analysis started! Processing in the background...');
       
     } catch (error: any) {
       console.error('Validation error:', error);
       setError(error.message);
-      setIsAnalyzing(false);
     }
   };
 
-  const startAnalysis = async (shipmentsToAnalyze: ProcessedShipment[]) => {
-    setIsAnalyzing(true);
-    setCurrentShipmentIndex(0);
-    setError(null);
-    
+  // Load completed analysis results
+  const loadCompletedResults = useCallback(async () => {
+    if (!jobId) return;
     
     try {
-      // Validate carrier configuration first and get filtered carriers
-      const validCarrierIds = await validateCarrierConfiguration();
-      setSelectedCarriers(validCarrierIds);
+      const results = await getResults(jobId);
+      console.log('Loaded analysis results:', results.length, 'rates');
       
-      // Create analysis record first to get ID for saving individual rates
-      const analysisId = await createAnalysisRecord(shipmentsToAnalyze);
-      if (!analysisId) {
-        throw new Error('Failed to create analysis record');
-      }
+      // Transform results into the expected format for display
+      const transformedResults = results.map((rate: any) => ({
+        shipment: rate.shipment_data,
+        status: 'completed' as const,
+        allRates: [rate],
+        bestRate: rate,
+        savings: rate.shipment_data.currentRate 
+          ? Math.max(0, rate.shipment_data.currentRate - rate.rate_amount)
+          : 0
+      }));
       
-      // Process shipments in optimized batches to prevent browser overload
-      const batchSize = 25; // Optimized batch size for performance
-      const totalBatches = Math.ceil(shipmentsToAnalyze.length / batchSize);
-      
-      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-        // Check if paused before processing each batch
-        if (isPaused) {
-          console.log('Analysis paused, stopping processing');
-          break;
-        }
-        
-        const startIndex = batchIndex * batchSize;
-        const endIndex = Math.min(startIndex + batchSize, shipmentsToAnalyze.length);
-        const batch = shipmentsToAnalyze.slice(startIndex, endIndex);
-        
-        
-        
-        // Process all shipments in the batch concurrently
-        const batchPromises = batch.map((shipment, indexInBatch) => {
-          const globalIndex = startIndex + indexInBatch;
-          setCurrentShipmentIndex(globalIndex);
-          return processShipment(globalIndex, shipment, 0, analysisId);
-        });
-        
-        // Wait for all shipments in the batch to complete
-        await Promise.allSettled(batchPromises);
-        
-        // Update progress to reflect completed batch
-        setCurrentShipmentIndex(endIndex - 1);
-        
-        // Small delay between batches for UI responsiveness
-        if (batchIndex < totalBatches - 1 && !isPaused) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-      
-      // Only mark complete if we processed all shipments and weren't paused
-      if (!isPaused) {
-        setIsComplete(true);
-        await updateAnalysisRecord(analysisId);
-      }
-      
-    } catch (error: any) {
-      console.error('Analysis error:', error);
-      setError(error.message);
-    } finally {
-      setIsAnalyzing(false);
+      setAnalysisResults(transformedResults);
+      toast.success('Analysis results loaded successfully!');
+    } catch (error) {
+      console.error('Error loading results:', error);
+      toast.error('Failed to load analysis results');
     }
-  };
+  }, [jobId, getResults]);
   
   const validateCarrierConfiguration = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -1409,26 +1345,22 @@ const Analysis = () => {
             </div>
             <Progress value={progress} className="h-2" />
             
-            {/* Control Buttons */}
-            {(isAnalyzing || completedCount > 0) && !isComplete && (
-              <div className="flex gap-4 mt-4">
-                <Button
-                  onClick={() => setIsPaused(!isPaused)}
-                  variant="outline"
-                  disabled={!isAnalyzing}
-                >
-                  {isPaused ? <Play className="h-4 w-4 mr-2" /> : <Pause className="h-4 w-4 mr-2" />}
-                  {isPaused ? 'Resume' : 'Pause'}
-                </Button>
-                
-                <Button
-                  onClick={handleStopAndContinue}
-                  variant="secondary"
-                  disabled={completedCount === 0}
-                >
-                  Stop & View Results
-                </Button>
-                
+            {/* Job Status Display */}
+            {jobStatus && (
+              <div className="mt-4 space-y-2">
+                <div className="text-sm text-muted-foreground">
+                  Job Status: <Badge variant={
+                    jobStatus.status === 'failed' ? 'destructive' : 'default'
+                  }>{jobStatus.status}</Badge>
+                </div>
+                {jobStatus.status === 'completed' && (
+                  <Button
+                    onClick={loadCompletedResults}
+                    variant="default"
+                  >
+                    View Results
+                  </Button>
+                )}
                 <Button
                   onClick={() => navigate('/upload')}
                   variant="outline"

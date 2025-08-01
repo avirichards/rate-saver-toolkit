@@ -112,6 +112,17 @@ class SimpleAPIClient {
     });
   }
 
+  async deleteCarrierConfig(id: string) {
+    return await this.request(`/carrier-configs/${id}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // Carrier services
+  async getCarrierServices() {
+    return await this.request('/carrier-services');
+  }
+
   // Clients
   async getClients() {
     return await this.request('/clients');

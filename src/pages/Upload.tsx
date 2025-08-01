@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { FileUpload } from '@/components/ui-lov/FileUpload';
 import { Button } from '@/components/ui-lov/Button';
 import { toast } from 'sonner';
-import { apiClient } from '@/lib/apiClient';
+import { supabase } from '@/integrations/supabase/client';
 import { parseCSV } from '@/utils/csvParser';
 import { useAuth } from '@/hooks/useAuth';
 import { generateTestData, generateCSVContent, downloadCSV, TEST_SCENARIOS, saveTestSession } from '@/utils/testDataGenerator';
@@ -43,12 +43,19 @@ const Upload = () => {
       const fileContent = await file.text();
       const parseResult = parseCSV(fileContent);
       
-      // Store the upload in the database - now using FormData for file upload
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('reportName', file.name.replace('.csv', ''));
-      
-      const { data: csvUpload, error } = await apiClient.createAnalysis(formData);
+      // Store the upload in Supabase database
+      const { data: csvUpload, error } = await supabase
+        .from('csv_uploads')
+        .insert({
+          file_name: file.name,
+          user_id: user.id,
+          status: 'pending',
+          row_count: parseResult.rowCount,
+          detected_headers: parseResult.headers,
+          file_size: file.size
+        })
+        .select()
+        .single();
 
       if (error) {
         throw error;
@@ -101,13 +108,19 @@ const Upload = () => {
       const csvContent = generateCSVContent(testData);
       const parseResult = parseCSV(csvContent);
       
-      // Store the test upload in the database
-      const formData = new FormData();
-      const testFile = new File([csvContent], `test-data-${scenario}.csv`, { type: 'text/csv' });
-      formData.append('file', testFile);
-      formData.append('reportName', `Test Data - ${scenario}`);
-      
-      const { data: csvUpload, error } = await apiClient.createAnalysis(formData);
+      // Store the test upload in Supabase database
+      const { data: csvUpload, error } = await supabase
+        .from('csv_uploads')
+        .insert({
+          file_name: `test-data-${scenario}.csv`,
+          user_id: user.id,
+          status: 'pending',
+          row_count: parseResult.rowCount,
+          detected_headers: parseResult.headers,
+          file_size: csvContent.length
+        })
+        .select()
+        .single();
 
       if (error) {
         throw error;

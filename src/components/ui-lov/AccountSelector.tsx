@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/lib/apiClient';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CarrierConfig {
   id: string;

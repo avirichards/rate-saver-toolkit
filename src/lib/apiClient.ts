@@ -188,7 +188,7 @@ class SimpleAPIClient {
 
 export const apiClient = new SimpleAPIClient();
 
-// For backward compatibility
+// For backward compatibility - proper Supabase-like interface
 export const supabase = {
   auth: {
     getUser: async () => {
@@ -196,26 +196,85 @@ export const supabase = {
       return { data: { user: (response.data as any)?.user }, error: response.error };
     },
     getSession: async () => ({ data: { session: null }, error: null }),
-    signUp: async () => ({ error: null }),
-    signInWithPassword: ({ email, password }: { email: string; password: string }) => apiClient.signIn(email, password),
+    signUp: async (options: any) => ({ error: null }),
+    signInWithPassword: async (credentials: { email: string; password: string }) => {
+      const response = await apiClient.signIn(credentials.email, credentials.password);
+      return { data: { user: (response.data as any)?.user, access_token: (response.data as any)?.access_token }, error: response.error };
+    },
     signOut: () => apiClient.signOut(),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+    onAuthStateChange: (callback: Function) => ({ data: { subscription: { unsubscribe: () => {} } } })
   },
+
   from: (table: string) => ({
-    select: (columns: string = '*') => ({
-      eq: (column: string, value: any) => apiClient.selectFrom(table, { columns, filters: { [column]: value }, single: true }),
-      order: (column: string, options: any) => apiClient.selectFrom(table, { columns, order: `${column}:${options.ascending ? 'asc' : 'desc'}` }),
-      limit: (count: number) => apiClient.selectFrom(table, { columns, limit: count })
-    }),
+    select: (columns: string = '*') => {
+      const query = { select: columns, filters: {} as any };
+      
+      const buildQuery = (currentQuery: any) => ({
+        eq: (column: string, value: any) => {
+          const newQuery = { ...currentQuery, filters: { ...currentQuery.filters, [column]: value } };
+          return {
+            ...buildQuery(newQuery),
+            single: async () => apiClient.selectFrom(table, { ...newQuery, single: true }),
+            then: (resolve: Function) => apiClient.selectFrom(table, newQuery).then(resolve)
+          };
+        },
+        
+        not: (column: string, operator: string, value: any) => {
+          const newQuery = { ...currentQuery, filters: { ...currentQuery.filters, [`${column}_not_${operator}`]: value } };
+          return buildQuery(newQuery);
+        },
+        
+        in: (column: string, values: any[]) => {
+          const newQuery = { ...currentQuery, filters: { ...currentQuery.filters, [`${column}_in`]: values.join(',') } };
+          return buildQuery(newQuery);
+        },
+        
+        order: (column: string, options: any = { ascending: true }) => {
+          const newQuery = { ...currentQuery, order: `${column}:${options.ascending ? 'asc' : 'desc'}` };
+          return {
+            ...buildQuery(newQuery),
+            then: (resolve: Function) => apiClient.selectFrom(table, newQuery).then(resolve)
+          };
+        },
+        
+        limit: (count: number) => {
+          const newQuery = { ...currentQuery, limit: count };
+          return {
+            ...buildQuery(newQuery),
+            then: (resolve: Function) => apiClient.selectFrom(table, newQuery).then(resolve)
+          };
+        },
+        
+        single: async () => apiClient.selectFrom(table, { ...currentQuery, single: true }),
+        
+        then: (resolve: Function) => apiClient.selectFrom(table, currentQuery).then(resolve)
+      });
+      
+      return buildQuery(query);
+    },
+
     insert: (data: any) => ({
       select: (columns: string = '*') => ({
-        single: () => apiClient.insertInto(table, data, { select: columns, single: true })
+        single: async () => apiClient.insertInto(table, data, { select: columns, single: true })
       })
     }),
+
     update: (data: any) => ({
-      eq: (column: string, value: any) => apiClient.updateTable(table, data, { [column]: value })
+      eq: (column: string, value: any) => ({
+        then: (resolve: Function) => apiClient.updateTable(table, data, { [column]: value }).then(resolve)
+      })
+    }),
+
+    delete: () => ({
+      eq: (column: string, value: any) => ({
+        then: (resolve: Function) => apiClient.request(`/${table}`, {
+          method: 'DELETE',
+          body: JSON.stringify({ _where: { [column]: value } })
+        }).then(resolve)
+      })
     })
   }),
+
   functions: {
     invoke: (name: string, options: any) => apiClient.invokeFunction(name, options.body)
   }

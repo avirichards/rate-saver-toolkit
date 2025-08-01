@@ -42,25 +42,46 @@ class SimpleAPIClient {
     return await this.request(`/analyses/${id}`);
   }
 
-  async createAnalysis(formData: FormData) {
-    // For FormData, we don't need to add auth headers manually since
-    // we'll handle auth at a higher level when needed
+  async uploadCSVForMapping(formData: FormData) {
     try {
-      const response = await fetch(`${this.baseURL}/analyses`, {
+      const response = await fetch(`${this.baseURL}/csv-upload`, {
         method: 'POST',
         body: formData
       });
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Upload failed' }));
         return { error: { message: errorData.message || `HTTP ${response.status}` } };
       }
-
       const data = await response.json();
       return { data };
     } catch (error: any) {
       return { error: { message: error.message || 'Network error' } };
     }
+  }
+
+  async createAnalysis(analysisData: {
+    fileName: string;
+    reportName: string;
+    shipments: any[];
+    mappings: Record<string, string>;
+    serviceMappings: any[];
+    originZipOverride?: string;
+  }) {
+    return await this.request('/analyses', {
+      method: 'POST',
+      body: JSON.stringify(analysisData)
+    });
+  }
+
+  async startAnalysisProcessing(data: {
+    analysisId: string;
+    carrierConfigs: string[];
+    options?: any;
+  }) {
+    return await this.request('/analyses/process', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
   }
 
   async getShipments(analysisId: string) {

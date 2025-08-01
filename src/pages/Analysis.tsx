@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useShipmentValidation } from '@/hooks/useShipmentValidation';
 import { ValidationSummary } from '@/components/ui-lov/ValidationSummary';
 import { CarrierSelector } from '@/components/ui-lov/CarrierSelector';
+import { apiClient } from '@/lib/apiClient';
 import type { ServiceMapping } from '@/utils/csvParser';
 
 interface ProcessedShipment {
@@ -238,49 +239,49 @@ const Analysis = () => {
         message: `Validated ${validationSample.length} sample shipments. Full validation will occur on server.`
       });
 
-      // Start bulk processing via REST API
-      const response = await fetch('http://localhost:5000/api/analyses/process', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          analysisId: location.state?.analysisId, // Use API-generated analysis ID
-          shipments,
-          carrierConfigs: selectedCarriers,
-          serviceMappings,
-          columnMappings: location.state?.mappings,
-          originZipOverride: location.state?.originZipOverride,
-          fileName: location.state?.fileName || 'Bulk Analysis'
-        })
+      // Create analysis record with mapped data
+      const { data: analysisResult, error: analysisError } = await apiClient.createAnalysis({
+        fileName: location.state?.fileName || 'Bulk Analysis',
+        reportName: `${location.state?.fileName || 'Bulk Analysis'} - ${new Date().toLocaleDateString()}`,
+        shipments,
+        mappings: location.state?.mappings || {},
+        serviceMappings,
+        originZipOverride: location.state?.originZipOverride
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Analysis failed' }));
-        throw new Error(`Bulk analysis failed: ${errorData.message}`);
+      if (analysisError) {
+        throw new Error(`Analysis creation failed: ${analysisError.message}`);
       }
 
-      const data = await response.json();
+      const analysisId = (analysisResult as { analysisId: string }).analysisId;
 
-      console.log('✅ Bulk analysis started:', data);
-      
-      const apiAnalysisId = location.state?.analysisId || data.analysisId;
+      // Start processing
+      const { data: processResult, error: processError } = await apiClient.startAnalysisProcessing({
+        analysisId,
+        carrierConfigs: selectedCarriers,
+        options: {}
+      });
+
+      if (processError) {
+        throw new Error(`Processing failed: ${processError.message}`);
+      }
+
+      console.log('✅ Bulk analysis started:', processResult);
       
       // Initialize progress tracking
       setAnalysisProgress({
-        analysisId: apiAnalysisId,
+        analysisId,
         totalShipments: shipments.length,
         processedShipments: 0,
         currentStatus: 'processing',
         totalSavings: 0,
         totalCurrentCost: 0,
-        errorCount: 0,
-        estimatedTimeRemaining: data.estimatedTime
+        errorCount: 0
       });
 
       // Set up WebSocket for real-time progress
       const socket = new WebSocket('ws://localhost:5000/ws');
-      socket.send(JSON.stringify({type: 'subscribe', analysisId: apiAnalysisId}));
+      socket.send(JSON.stringify({type: 'subscribe', analysisId}));
       
       socket.onmessage = (event) => {
         const progressData = JSON.parse(event.data);
@@ -288,20 +289,22 @@ const Analysis = () => {
         
         if (progressData.currentStatus === 'completed') {
           socket.close();
-          clearInterval(interval);
+          if (pollInterval) {
+            clearInterval(pollInterval);
+          }
           navigate('/results', { 
             state: { 
-              analysisId: apiAnalysisId, 
+              analysisId, 
               fileName: location.state?.fileName || 'Bulk Analysis' 
             } 
           });
         }
       };
 
-      // Fallback polling in case WebSocket fails
+      // Fallback polling
       const interval = setInterval(() => {
-        pollAnalysisProgress(apiAnalysisId);
-      }, 5000); // Poll every 5 seconds as fallback
+        pollAnalysisProgress(analysisId);
+      }, 5000);
       
       setPollInterval(interval);
 

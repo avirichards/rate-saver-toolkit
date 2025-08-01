@@ -38,23 +38,21 @@ const Upload = () => {
     setIsProcessing(true);
     
     try {
-      // Upload CSV file to API
+      // Upload CSV file for parsing only
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('reportName', file.name.replace('.csv', ''));
       
-      const { data, error } = await apiClient.createAnalysis(formData);
+      const { data, error } = await apiClient.uploadCSVForMapping(formData);
       
       if (error) {
         throw new Error(error.message);
       }
 
-      toast.success(`File processed successfully! Analysis created with ID: ${data.analysisId}`);
+      toast.success(`File processed successfully! Found ${data.rowCount} rows with ${data.headers.length} columns.`);
       
-      // Navigate to the mapping page with API data
+      // Navigate to the mapping page with parsed data
       navigate('/mapping', { 
         state: { 
-          analysisId: data.analysisId,
           fileName: file.name,
           headers: data.headers,
           data: data.data,
@@ -92,27 +90,25 @@ const Upload = () => {
       // Save test session
       saveTestSession(testData, scenario);
       
-      // Convert test data to CSV format and upload to API
+      // Convert test data to CSV format and upload for parsing
       const csvContent = generateCSVContent(testData);
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const file = new File([blob], `test-data-${scenario}.csv`, { type: 'text/csv' });
       
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('reportName', `Test Data - ${scenario}`);
       
-      const { data, error } = await apiClient.createAnalysis(formData);
+      const { data, error } = await apiClient.uploadCSVForMapping(formData);
       
       if (error) {
         throw new Error(error.message);
       }
 
-      toast.success(`Test data generated! Analysis created with ID: ${data.analysisId}`);
+      toast.success(`Test data generated! ${data.rowCount} rows with ${data.headers.length} columns.`);
       
-      // Navigate to the mapping page with API data
+      // Navigate to the mapping page with parsed data
       navigate('/mapping', { 
         state: { 
-          analysisId: data.analysisId,
           fileName: `test-data-${scenario}.csv`,
           headers: data.headers,
           data: data.data,

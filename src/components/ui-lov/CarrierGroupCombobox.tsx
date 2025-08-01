@@ -48,32 +48,35 @@ export function CarrierGroupCombobox({
   const loadGroups = async () => {
     try {
       setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
       const { data, error } = await supabase
         .from('carrier_configs')
         .select('account_group')
+        .eq('user_id', user.id)
         .not('account_group', 'is', null);
 
-      if (error) {
-        console.error('Error loading carrier groups:', error);
-        toast.error('Failed to load carrier groups');
-        return;
-      }
-
-      // Group by account_group and count
-      const groupCounts = (data || []).reduce((acc, config) => {
-        const group = config.account_group;
-        if (group) {
-          acc[group] = (acc[group] || 0) + 1;
+      if (error) throw error;
+      
+      // Count occurrences of each group
+      const groupCounts: Record<string, number> = {};
+      data.forEach(item => {
+        if (item.account_group) {
+          groupCounts[item.account_group] = (groupCounts[item.account_group] || 0) + 1;
         }
-        return acc;
-      }, {} as Record<string, number>);
-
-      const groupList = Object.entries(groupCounts).map(([name, count]) => ({
-        name,
-        count
-      }));
-
-      setGroups(groupList);
+      });
+      
+      // Convert to array of group objects
+      const groupArray: CarrierGroup[] = Object.keys(groupCounts)
+        .filter(name => name) // Filter out empty strings
+        .map(name => ({
+          name,
+          count: groupCounts[name]
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      
+      setGroups(groupArray);
     } catch (error) {
       console.error('Error loading carrier groups:', error);
       toast.error('Failed to load carrier groups');
@@ -84,8 +87,26 @@ export function CarrierGroupCombobox({
 
   const deleteGroup = async (groupName: string) => {
     try {
-      // This would need to be implemented in the API
-      toast.info('Group deletion will be available soon');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update all configs in this group to remove the group
+      const { error } = await supabase
+        .from('carrier_configs')
+        .update({ account_group: null })
+        .eq('user_id', user.id)
+        .eq('account_group', groupName);
+
+      if (error) throw error;
+      
+      // If the deleted group was selected, clear the selection
+      if (value === groupName) {
+        onValueChange('');
+      }
+      
+      // Refresh the groups list
+      await loadGroups();
+      toast.success(`Group "${groupName}" removed`);
     } catch (error) {
       console.error('Error deleting group:', error);
       toast.error('Failed to delete group');
@@ -97,7 +118,7 @@ export function CarrierGroupCombobox({
     onValueChange(groupName.trim());
     setSearchValue('');
     setOpen(false);
-    await loadGroups();
+    await loadGroups(); // Refresh groups list
   };
 
   const filteredGroups = groups.filter(group =>
@@ -178,6 +199,20 @@ export function CarrierGroupCombobox({
                           ({group.count} account{group.count !== 1 ? 's' : ''})
                         </span>
                       </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          deleteGroup(group.name);
+                        }}
+                        title="Delete group"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </CommandItem>
                   ))}
                 </CommandGroup>

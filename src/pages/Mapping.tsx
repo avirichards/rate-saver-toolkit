@@ -55,16 +55,39 @@ const Mapping = () => {
   }, [location, navigate]);
   
   const handleMappingComplete = async (mappings: Record<string, string>, serviceMappings: ServiceMapping[], originZipOverride?: string) => {
-    if (!user) {
-      toast.error('Please log in to continue');
+    if (!user || !csvUploadId) {
+      toast.error('Missing required data');
       return;
     }
+
     try {
-      // Process CSV data using mappings
+      // Save column mappings to database
+      const mappingInserts = Object.entries(mappings)
+        .filter(([_, csvHeader]) => csvHeader && csvHeader !== "__NONE__")
+        .map(([fieldName, csvHeader]) => ({
+          csv_upload_id: csvUploadId,
+          field_name: fieldName,
+          csv_header: csvHeader,
+          is_required: ['trackingId', 'service', 'weight', 'cost', 'originZip', 'destZip', 'length', 'width', 'height'].includes(fieldName),
+          is_auto_detected: true,
+          confidence_score: 1.0
+        }));
+
+      const { error: mappingError } = await supabase
+        .from('column_mappings')
+        .insert(mappingInserts);
+
+      if (mappingError) {
+        throw mappingError;
+      }
+
+      // Process ALL CSV data using mappings to create structured shipment records
       const processedShipments = csvData.map((row, index) => {
         const shipment: any = { id: index + 1 };
+        
         Object.entries(mappings).forEach(([fieldName, csvHeader]) => {
           if (csvHeader && csvHeader !== "__NONE__" && row[csvHeader] !== undefined) {
+            // Clean and validate the data as we process it
             let value = row[csvHeader];
             if (typeof value === 'string') {
               value = value.trim();
@@ -72,25 +95,37 @@ const Mapping = () => {
             shipment[fieldName] = value;
           }
         });
+        
+        // Apply origin ZIP override if provided
         if (originZipOverride && originZipOverride.trim()) {
           shipment.originZip = originZipOverride.trim();
         }
+        
         return shipment;
       });
-      toast.success('Column mapping completed!');
-      navigate('/analysis', {
-        state: {
+
+      console.log(`Processing ${processedShipments.length} total shipments (sample):`, processedShipments.slice(0, 2));
+
+      toast.success('Column mapping saved successfully!');
+      
+      // Navigate to the service mapping review page
+      navigate('/service-mapping', { 
+        state: { 
+          csvUploadId,
           fileName,
           mappings,
-          shipments: processedShipments,
-          serviceMappings,
+          csvData,
+          rowCount,
+          serviceColumn: mappings.service, // Pass the mapped service column
+          readyForServiceMapping: true,
           originZipOverride,
-          uploadTimestamp
-        }
+          uploadTimestamp // Pass through upload timestamp for data freshness tracking
+        } 
       });
+      
     } catch (error) {
-      console.error('Error processing mappings:', error);
-      toast.error('Failed to process column mappings');
+      console.error('Error saving mappings:', error);
+      toast.error('Failed to save column mappings');
     }
   };
   

@@ -6,9 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { FileUpload } from '@/components/ui-lov/FileUpload';
 import { Button } from '@/components/ui-lov/Button';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { parseCSV } from '@/utils/csvParser';
 import { useAuth } from '@/hooks/useAuth';
 import { generateTestData, generateCSVContent, downloadCSV, TEST_SCENARIOS, saveTestSession } from '@/utils/testDataGenerator';
-import { parseCSVFile, parseCSVText } from '@/utils/csvProcessor';
 import { useTestMode } from '@/hooks/useTestMode';
 
 const Upload = () => {
@@ -38,20 +39,40 @@ const Upload = () => {
     setIsProcessing(true);
     
     try {
-      // Process CSV file directly on frontend
-      const result = await parseCSVFile(file);
+      // Read and parse the CSV file
+      const fileContent = await file.text();
+      const parseResult = parseCSV(fileContent);
       
-      toast.success(`File processed successfully! Found ${result.rowCount} rows with ${result.headers.length} columns.`);
+      // Store the upload in the database
+      const { data: csvUpload, error } = await supabase
+        .from('csv_uploads')
+        .insert({
+          user_id: user.id,
+          file_name: file.name,
+          file_size: file.size,
+          detected_headers: parseResult.headers,
+          row_count: parseResult.rowCount,
+          status: 'parsed'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success(`File processed successfully! Found ${parseResult.rowCount} rows with ${parseResult.headers.length} columns.`);
       
       // Navigate to the mapping page with parsed data
       navigate('/mapping', { 
         state: { 
+          csvUploadId: csvUpload.id,
           fileName: file.name,
-          headers: result.headers,
-          data: result.data,
-          rowCount: result.rowCount,
+          headers: parseResult.headers,
+          data: parseResult.data, // Pass all data for analysis
+          rowCount: parseResult.rowCount,
           fileUploaded: true,
-          uploadTimestamp: Date.now(),
+          uploadTimestamp: Date.now(), // Add timestamp for data freshness tracking
         } 
       });
       
@@ -83,22 +104,41 @@ const Upload = () => {
       // Save test session
       saveTestSession(testData, scenario);
       
-      // Convert test data to CSV format and process directly
+      // Convert test data to CSV format for parsing
       const csvContent = generateCSVContent(testData);
-      const result = parseCSVText(csvContent, `test-data-${scenario}.csv`);
-
-      toast.success(`Test data generated! ${result.rowCount} rows with ${result.headers.length} columns.`);
+      const parseResult = parseCSV(csvContent);
       
-      // Navigate to the mapping page with parsed data
+      // Store the test upload in the database
+      const { data: csvUpload, error } = await supabase
+        .from('csv_uploads')
+        .insert({
+          user_id: user.id,
+          file_name: `test-data-${scenario}.csv`,
+          file_size: csvContent.length,
+          detected_headers: parseResult.headers,
+          row_count: parseResult.rowCount,
+          status: 'parsed'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success(`Test data generated! ${parseResult.rowCount} shipments with ${parseResult.headers.length} columns.`);
+      
+      // Navigate to the mapping page with test data
       navigate('/mapping', { 
         state: { 
+          csvUploadId: csvUpload.id,
           fileName: `test-data-${scenario}.csv`,
-          headers: result.headers,
-          data: result.data,
-          rowCount: result.rowCount,
+          headers: parseResult.headers,
+          data: parseResult.data,
+          rowCount: parseResult.rowCount,
           fileUploaded: true,
           isTestData: true,
-          uploadTimestamp: Date.now(),
+          uploadTimestamp: Date.now(), // Add timestamp for data freshness tracking
         } 
       });
       

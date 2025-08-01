@@ -54,150 +54,6 @@ async function isRateCardOnlyAnalysis(carrierConfigIds: string[], supabase: any)
   return allRateCards;
 }
 
-// Compute rates from rate cards for rate-card-only analyses
-async function computeRatesFromCards(recommendations: any[], carrierConfigIds: string[], supabase: any) {
-  const startTime = Date.now();
-  console.log('🗂️ Loading rate card data for computation...');
-  
-  // Load carrier configurations
-  const { data: carrierConfigs, error: configError } = await supabase
-    .from('carrier_configs')
-    .select('*')
-    .in('id', carrierConfigIds);
-
-  if (configError || !carrierConfigs) {
-    throw new Error(`Failed to load carrier configs: ${configError?.message}`);
-  }
-
-  // Load rate card data for all carriers
-  const { data: rateCardData, error: rateError } = await supabase
-    .from('rate_card_rates')
-    .select(`
-      *,
-      carrier_configs!inner(account_name, carrier_type)
-    `)
-    .in('carrier_config_id', carrierConfigIds);
-
-  if (rateError) {
-    throw new Error(`Failed to load rate card data: ${rateError.message}`);
-  }
-
-  console.log('🗂️ rateCardData rows:', rateCardData?.length, 'for configs', carrierConfigIds);
-
-  // Create lookup maps for fast access
-  const carrierConfigMap = new Map();
-  carrierConfigs.forEach(config => {
-    carrierConfigMap.set(config.id, config);
-  });
-
-  const rateCardMap = new Map();
-  rateCardData?.forEach(rate => {
-    const key = `${rate.carrier_config_id}-${rate.service_code}-${rate.zone || 'default'}`;
-    if (!rateCardMap.has(key)) {
-      rateCardMap.set(key, []);
-    }
-    rateCardMap.get(key).push({
-      ...rate,
-      account_name: rate.carrier_configs.account_name,
-      carrier_type: rate.carrier_configs.carrier_type
-    });
-  });
-
-  console.log(`✅ Loaded rate cards for ${carrierConfigs.length} carriers with ${rateCardData?.length || 0} rate entries`);
-
-  // Process each recommendation
-  recommendations.forEach((rec, index) => {
-    if (!rec.allRates) {
-      rec.allRates = [];
-    }
-
-    const shipment = rec.shipment || {};
-    const weight = parseFloat(shipment.weight || '0');
-    const zone = shipment.zone || 'default';
-    const service = rec.customer_service || shipment.service || 'Ground';
-
-    // Compute rates for each carrier
-    carrierConfigIds.forEach(carrierId => {
-      const config = carrierConfigMap.get(carrierId);
-      if (!config) return;
-
-      // Map service to carrier-specific service code
-      const serviceCode = mapServiceToCarrierCode(service, config.carrier_type);
-      if (!serviceCode) return;
-
-      // Find matching rates
-      const rateKey = `${carrierId}-${serviceCode}-${zone}`;
-      const rates = rateCardMap.get(rateKey) || [];
-      
-      console.log('🔑 Trying key:', rateKey, '=>', rateCardMap.has(rateKey));
-
-      // Find best rate for this weight
-      const eligibleRates = rates.filter(rate => weight >= rate.weight_break);
-      if (eligibleRates.length === 0) return;
-
-      const bestRate = eligibleRates
-        .sort((a, b) => b.weight_break - a.weight_break)[0];
-
-      // Add rate to shipment
-      rec.allRates.push({
-        carrierId: carrierId,
-        carrierType: config.carrier_type,
-        carrierName: config.account_name,
-        accountName: config.account_name,
-        serviceCode: serviceCode,
-        serviceName: bestRate.service_name || serviceCode,
-        description: bestRate.service_name || serviceCode,
-        totalCharges: bestRate.rate_amount,
-        rate_amount: bestRate.rate_amount,
-        negotiatedRate: bestRate.rate_amount,
-        currency: 'USD',
-        rateType: 'rate_card',
-        transitTime: null,
-        hasNegotiatedRates: false,
-        publishedRate: bestRate.rate_amount
-      });
-      
-      console.log(`✅ Pushed rate for shipment ${rec.shipment.id || index}`, rec.allRates.length);
-    });
-
-    if (rec.allRates.length === 0) {
-      console.warn(`⚠️ No rates found for shipment ${index + 1} with service "${service}" and weight ${weight}`);
-    }
-  });
-
-  const endTime = Date.now();
-  console.log(`✅ Rate card computation completed for ${recommendations.length} shipments in ${endTime - startTime}ms`);
-}
-
-// Helper function to map service names to carrier-specific codes
-function mapServiceToCarrierCode(serviceName: string, carrierType: string): string | null {
-  if (!serviceName) return null;
-  
-  const service = serviceName.toLowerCase();
-  
-  if (carrierType === 'ups') {
-    if (service.includes('ground')) return '03';
-    if (service.includes('next day') || service.includes('overnight')) return '01';
-    if (service.includes('2 day') || service.includes('2nd day')) return '02';
-    return '03'; // Default to ground
-  }
-  
-  if (carrierType === 'fedex') {
-    if (service.includes('ground')) return 'FEDEX_GROUND';
-    if (service.includes('overnight')) return 'PRIORITY_OVERNIGHT';
-    if (service.includes('2 day')) return 'FEDEX_2_DAY';
-    return 'FEDEX_GROUND'; // Default to ground
-  }
-  
-  if (carrierType === 'amazon') {
-    // Amazon typically only offers ground services
-    return 'GROUND';
-  }
-  
-  // Add more carriers as needed
-  return null;
-}
-
 // Batch processing functions
 async function handleLargeDatasetBatching(payload: AnalysisPayload, user: any, supabase: any) {
   console.log('🔄 Initiating batch processing for large dataset');
@@ -603,9 +459,6 @@ Deno.serve(async (req) => {
     // Check if this is a rate card-only analysis (skip batching for instant processing)
     const isRateCardOnly = await isRateCardOnlyAnalysis(payload.carrierConfigsUsed, supabase);
     
-    console.log('⚡ isRateCardOnly?', isRateCardOnly);
-    console.log('⚡ totalShipments:', payload.recommendations.length);
-    
     // Smart size detection - datasets over 5000 shipments should use batch processing (except rate cards)
     const BATCH_THRESHOLD = 5000;
     const BATCH_SIZE = 2000;
@@ -613,16 +466,7 @@ Deno.serve(async (req) => {
     
     // Rate card analyses bypass batching since they're just database lookups
     if (isRateCardOnly) {
-      console.log('⚡ Rate card-only analysis detected - processing immediately with rate cards');
-      
-      // Compute rates from rate cards before proceeding
-      const startTime = Date.now();
-      await computeRatesFromCards(payload.recommendations, payload.carrierConfigsUsed, supabase);
-      const endTime = Date.now();
-      
-      console.log(`✅ Rate card computation completed for ${payload.recommendations.length} shipments in ${endTime - startTime}ms`);
-      
-      // Continue with existing logic (skip batching entirely)
+      console.log('⚡ Rate card-only analysis detected - processing immediately (no batching needed)');
     } else if (isLargeDataset && !payload.batchInfo) {
       console.log('📊 Large dataset with API calls detected - using batch processing');
       return await handleLargeDatasetBatching(payload, user, supabase);

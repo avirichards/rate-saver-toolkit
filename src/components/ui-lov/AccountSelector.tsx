@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { apiClient } from '@/lib/apiClient';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CarrierConfig {
   id: string;
@@ -41,9 +41,18 @@ export const AccountSelector: React.FC<AccountSelectorProps> = ({
 
   const loadCarrierConfigs = async () => {
     try {
-      const { data, error } = await apiClient.getCarrierConfigs();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('carrier_configs')
+        .select('id, carrier_type, account_name, is_active, is_sandbox, connection_status')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('account_name');
+
       if (error) throw error;
-      setCarrierConfigs(Array.isArray(data) ? data.filter((config: any) => config.is_active) : []);
+      setCarrierConfigs((data || []) as CarrierConfig[]);
     } catch (error) {
       console.error('Error loading carrier configs:', error);
     } finally {

@@ -53,9 +53,8 @@ const ReportsPage = () => {
   const loadReports = async () => {
     try {
       setLoading(true);
-      console.log('📊 REPORTS: Loading reports summary for user:', user?.id);
+      console.log('📊 REPORTS: Loading reports for user:', user?.id);
       
-      // Only fetch summary data for list view - much faster!
       const { data, error } = await supabase
         .from('shipping_analyses')
         .select(`
@@ -64,25 +63,28 @@ const ReportsPage = () => {
           analysis_date, 
           total_shipments, 
           total_savings, 
+          markup_data, 
+          savings_analysis,
           created_at, 
           status, 
           updated_at,
           report_name,
           client_id,
+          processed_shipments,
+          orphaned_shipments,
           processing_metadata
         `)
         .eq('user_id', user?.id)
         .eq('is_deleted', false)
         .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(100); // Limit to recent 100 reports for faster loading
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Database error:', error);
         throw error;
       }
 
-      // Fetch client data for reports that have a client_id
+      // Manually fetch client data for reports that have a client_id
       let reportsWithClients = data || [];
       if (reportsWithClients.length > 0) {
         const clientIds = [...new Set(reportsWithClients.map(r => r.client_id).filter(Boolean))];
@@ -93,13 +95,9 @@ const ReportsPage = () => {
             .select('id, company_name')
             .in('id', clientIds);
 
-          // Map clients to reports (with empty arrays for large data fields)
+          // Map clients to reports
           reportsWithClients = reportsWithClients.map(report => ({
             ...report,
-            markup_data: null, // Will be loaded when needed
-            savings_analysis: null, // Will be loaded when needed  
-            processed_shipments: [], // Will be loaded when needed
-            orphaned_shipments: [], // Will be loaded when needed
             client: report.client_id 
               ? clientsData?.find(c => c.id === report.client_id) || null
               : null

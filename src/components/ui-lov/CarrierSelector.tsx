@@ -6,8 +6,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Truck, Settings, AlertTriangle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { apiClient } from '@/lib/apiClient';
 import { Link } from 'react-router-dom';
 
 interface CarrierConfig {
@@ -49,17 +49,18 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
   const loadCarrierConfigs = async () => {
     try {
       setLoading(true);
-      const { data, error } = await apiClient.getCarrierConfigs();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-      if (error) {
-        console.error('Error loading carrier configs:', error);
-        toast.error('Failed to load carrier accounts');
-        return;
-      }
+      const { data, error } = await supabase
+        .from('carrier_configs')
+        .select('id, carrier_type, account_name, is_active, is_sandbox, is_rate_card')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
 
-      const carrierData = Array.isArray(data) ? data as CarrierConfig[] : [];
-      const activeConfigs = carrierData.filter((config: CarrierConfig) => config.is_active);
-      setCarrierConfigs(activeConfigs);
+      if (error) throw error;
+      setCarrierConfigs((data || []) as CarrierConfig[]);
     } catch (error) {
       console.error('Error loading carrier configs:', error);
       toast.error('Failed to load carrier accounts');
@@ -77,6 +78,7 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
       newSelected = newSelected.filter(id => id !== carrierId);
     }
     
+    // Allow users to uncheck all carriers if they want
     onCarrierChange(newSelected);
   };
 
@@ -84,6 +86,7 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
     if (checked) {
       onCarrierChange(carrierConfigs.map(config => config.id));
     } else {
+      // Allow unchecking all carriers - user can select individual ones after
       onCarrierChange([]);
     }
   };
@@ -146,6 +149,7 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
           <div 
             className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/50 cursor-pointer hover:bg-muted/70 transition-colors"
             onClick={(e) => {
+              // Only handle click if it's not on the checkbox itself
               if (e.target !== e.currentTarget.querySelector('button')) {
                 handleSelectAll(!isAllSelected);
               }
@@ -173,11 +177,12 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
             const isRateCard = config.is_rate_card;
             const willFallbackToAPI = isRateCard && !hasZoneMapping;
             
-            return (
+            const carrierElement = (
               <div 
                 key={config.id} 
                 className={`flex items-center space-x-3 p-3 border rounded-lg transition-colors hover:bg-muted/50 cursor-pointer`}
                 onClick={(e) => {
+                  // Only handle click if it's not on the checkbox itself
                   if (e.target !== e.currentTarget.querySelector('button')) {
                     handleCarrierToggle(config.id, !isSelected);
                   }
@@ -226,6 +231,8 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
                 </div>
               </div>
             );
+
+            return carrierElement;
           })}
         </div>
 

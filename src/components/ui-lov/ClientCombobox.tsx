@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { apiClient } from '@/lib/apiClient';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface Client {
@@ -48,9 +48,13 @@ export function ClientCombobox({
   const loadClients = async () => {
     try {
       setLoading(true);
-      const { data, error } = await apiClient.getClients();
+      const { data, error } = await supabase
+        .from('clients')
+        .select('id, company_name')
+        .order('company_name');
+
       if (error) throw error;
-      setClients(Array.isArray(data) ? data : []);
+      setClients(data || []);
     } catch (error) {
       console.error('Error loading clients:', error);
       toast.error('Failed to load clients');
@@ -60,13 +64,25 @@ export function ClientCombobox({
   };
 
   const createNewClient = async (companyName: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('Please log in to create clients');
+      return null;
+    }
+
     try {
-      const { data, error } = await apiClient.createClient({
-        company_name: companyName.trim()
-      });
+      const { data, error } = await supabase
+        .from('clients')
+        .insert({
+          company_name: companyName.trim(),
+          user_id: user.id
+        })
+        .select()
+        .single();
 
       if (error) throw error;
       
+      // Refresh the clients list
       await loadClients();
       toast.success(`Client "${companyName}" created successfully`);
       
@@ -82,8 +98,8 @@ export function ClientCombobox({
     if (!searchValue.trim()) return;
     
     const newClient = await createNewClient(searchValue);
-    if (newClient && (newClient as any).id) {
-      onValueChange((newClient as any).id);
+    if (newClient) {
+      onValueChange(newClient.id);
       setSearchValue('');
       setOpen(false);
     }
@@ -91,16 +107,19 @@ export function ClientCombobox({
 
   const deleteClient = async (clientId: string, clientName: string) => {
     try {
-      const { error } = await apiClient.request(`/clients/${clientId}`, {
-        method: 'DELETE'
-      });
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', clientId);
 
       if (error) throw error;
       
+      // If the deleted client was selected, clear the selection
       if (value === clientId) {
         onValueChange('');
       }
       
+      // Refresh the clients list
       await loadClients();
       toast.success(`Client "${clientName}" deleted`);
     } catch (error) {

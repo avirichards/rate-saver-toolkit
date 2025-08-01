@@ -5,7 +5,7 @@ interface APIResponse<T = any> {
 }
 
 class SimpleAPIClient {
-  private baseURL = 'https://workspace--avi96.replit.app/api';
+  private baseURL = 'http://localhost:5000/api';
   
   // Helper method for making authenticated requests
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<APIResponse<T>> {
@@ -132,7 +132,7 @@ class SimpleAPIClient {
 
   // WebSocket for real-time updates
   createWebSocket() {
-    const ws = new WebSocket('wss://workspace--avi96.replit.app/ws');
+    const ws = new WebSocket('ws://localhost:5000/ws');
     
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);

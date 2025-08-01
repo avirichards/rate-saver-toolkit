@@ -132,7 +132,7 @@ class SimpleAPIClient {
 
   // WebSocket for real-time updates
   createWebSocket() {
-    const ws = new WebSocket('ws://localhost:5000/ws');
+    const ws = new WebSocket('wss://workspace--avi96.replit.app/ws');
     
     ws.onerror = (error) => {
       console.error('WebSocket error:', error);

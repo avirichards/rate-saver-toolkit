@@ -55,7 +55,7 @@ const Upload = () => {
           file_size: file.size
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         throw error;
@@ -108,7 +108,7 @@ const Upload = () => {
       const csvContent = generateCSVContent(testData);
       const parseResult = parseCSV(csvContent);
       
-      // Store the test upload in Supabase database
+      // Store the test upload in Supabase database  
       const { data: csvUpload, error } = await supabase
         .from('csv_uploads')
         .insert({
@@ -120,7 +120,7 @@ const Upload = () => {
           file_size: csvContent.length
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         throw error;

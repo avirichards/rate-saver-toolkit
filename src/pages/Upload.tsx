@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { FileUpload } from '@/components/ui-lov/FileUpload';
 import { Button } from '@/components/ui-lov/Button';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/apiClient';
 import { parseCSV } from '@/utils/csvParser';
 import { useAuth } from '@/hooks/useAuth';
 import { generateTestData, generateCSVContent, downloadCSV, TEST_SCENARIOS, saveTestSession } from '@/utils/testDataGenerator';
@@ -43,19 +43,12 @@ const Upload = () => {
       const fileContent = await file.text();
       const parseResult = parseCSV(fileContent);
       
-      // Store the upload in the database
-      const { data: csvUpload, error } = await supabase
-        .from('csv_uploads')
-        .insert({
-          user_id: user.id,
-          file_name: file.name,
-          file_size: file.size,
-          detected_headers: parseResult.headers,
-          row_count: parseResult.rowCount,
-          status: 'parsed'
-        })
-        .select()
-        .single();
+      // Store the upload in the database - now using FormData for file upload
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('reportName', file.name.replace('.csv', ''));
+      
+      const { data: csvUpload, error } = await apiClient.createAnalysis(formData);
 
       if (error) {
         throw error;
@@ -109,18 +102,12 @@ const Upload = () => {
       const parseResult = parseCSV(csvContent);
       
       // Store the test upload in the database
-      const { data: csvUpload, error } = await supabase
-        .from('csv_uploads')
-        .insert({
-          user_id: user.id,
-          file_name: `test-data-${scenario}.csv`,
-          file_size: csvContent.length,
-          detected_headers: parseResult.headers,
-          row_count: parseResult.rowCount,
-          status: 'parsed'
-        })
-        .select()
-        .single();
+      const formData = new FormData();
+      const testFile = new File([csvContent], `test-data-${scenario}.csv`, { type: 'text/csv' });
+      formData.append('file', testFile);
+      formData.append('reportName', `Test Data - ${scenario}`);
+      
+      const { data: csvUpload, error } = await apiClient.createAnalysis(formData);
 
       if (error) {
         throw error;

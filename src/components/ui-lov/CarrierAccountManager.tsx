@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Edit2, Trash2, TestTube, AlertTriangle, CheckCircle, Truck } from 'lucide-react';
-import { apiClient } from '@/lib/apiClient';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/apiClient';
 import { CarrierGroupCombobox } from './CarrierGroupCombobox';
 import { RateCardUploadDialog } from './RateCardUploadDialog';
 import { RateCardEditDialog } from './RateCardEditDialog';
@@ -133,8 +134,8 @@ export const CarrierAccountManager = () => {
   const loadCarrierConfigs = async () => {
     try {
       setLoading(true);
-      const userResponse = await apiClient.getUser();
-      if (userResponse.error || !userResponse.data) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
       const response = await apiClient.getCarrierConfigs();
       if (response.error) {
@@ -211,11 +212,14 @@ export const CarrierAccountManager = () => {
     if (!validateAccountData(newAccount)) return;
 
     try {
-      const userResponse = await apiClient.getUser();
-      if (userResponse.error || !userResponse.data) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error('You must be logged in to save accounts');
+        return;
+      }
 
       const accountData = {
-        user_id: (userResponse.data as any).id,
+        user_id: user.id,
         carrier_type: newAccount.carrier_type,
         account_name: newAccount.account_name,
         account_group: newAccount.account_group || null,

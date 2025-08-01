@@ -10,12 +10,10 @@ class SimpleAPIClient {
   // Helper method for making authenticated requests
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<APIResponse<T>> {
     try {
-      const token = localStorage.getItem('auth_token');
-      
+      // Get token from Supabase session instead of localStorage
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         headers: {
           'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` }),
           ...options.headers,
         },
         ...options,
@@ -33,28 +31,7 @@ class SimpleAPIClient {
     }
   }
 
-  // Auth methods - simplified
-  async getUser() {
-    return await this.request('/auth/user');
-  }
-
-  async signIn(email: string, password: string) {
-    const response = await this.request('/auth/signin', {
-      method: 'POST',
-      body: JSON.stringify({ email, password })
-    });
-    
-    if ((response.data as any)?.access_token) {
-      localStorage.setItem('auth_token', (response.data as any).access_token);
-    }
-    
-    return response;
-  }
-
-  async signOut() {
-    localStorage.removeItem('auth_token');
-    return await this.request('/auth/signout', { method: 'POST' });
-  }
+  // Remove auth methods since we're using Supabase for authentication
 
   // Analysis endpoints
   async getAnalyses() {
@@ -66,14 +43,11 @@ class SimpleAPIClient {
   }
 
   async createAnalysis(formData: FormData) {
-    const token = localStorage.getItem('auth_token');
-    
+    // For FormData, we don't need to add auth headers manually since
+    // we'll handle auth at a higher level when needed
     try {
       const response = await fetch(`${this.baseURL}/analyses`, {
         method: 'POST',
-        headers: {
-          ...(token && { 'Authorization': `Bearer ${token}` })
-        },
         body: formData
       });
 

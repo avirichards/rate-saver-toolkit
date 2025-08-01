@@ -6,8 +6,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Truck, Settings, AlertTriangle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/apiClient';
 import { Link } from 'react-router-dom';
 
 interface CarrierConfig {
@@ -49,18 +49,17 @@ export const CarrierSelector: React.FC<CarrierSelectorProps> = ({
   const loadCarrierConfigs = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('carrier_configs')
-        .select('*')
-        .eq('is_active', true)
-        .order('account_name', { ascending: true });
+      const { data, error } = await apiClient.getCarrierConfigs();
 
       if (error) {
         console.error('Error loading carrier configs:', error);
+        toast.error('Failed to load carrier accounts');
         return;
       }
 
-      setCarrierConfigs((data || []) as CarrierConfig[]);
+      const carrierData = Array.isArray(data) ? data as CarrierConfig[] : [];
+      const activeConfigs = carrierData.filter((config: CarrierConfig) => config.is_active);
+      setCarrierConfigs(activeConfigs);
     } catch (error) {
       console.error('Error loading carrier configs:', error);
       toast.error('Failed to load carrier accounts');

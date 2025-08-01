@@ -6,10 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { FileUpload } from '@/components/ui-lov/FileUpload';
 import { Button } from '@/components/ui-lov/Button';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
-import { parseCSV } from '@/utils/csvParser';
 import { useAuth } from '@/hooks/useAuth';
 import { generateTestData, generateCSVContent, downloadCSV, TEST_SCENARIOS, saveTestSession } from '@/utils/testDataGenerator';
+import { apiClient } from '@/lib/apiClient';
 import { useTestMode } from '@/hooks/useTestMode';
 
 const Upload = () => {
@@ -39,40 +38,29 @@ const Upload = () => {
     setIsProcessing(true);
     
     try {
-      // Read and parse the CSV file
-      const fileContent = await file.text();
-      const parseResult = parseCSV(fileContent);
+      // Upload CSV file to API
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('reportName', file.name.replace('.csv', ''));
       
-      // Store the upload in Supabase database
-      const { data: csvUpload, error } = await supabase
-        .from('csv_uploads')
-        .insert({
-          file_name: file.name,
-          user_id: user.id,
-          status: 'pending',
-          row_count: parseResult.rowCount,
-          detected_headers: parseResult.headers,
-          file_size: file.size
-        })
-        .select()
-        .maybeSingle();
-
+      const { data, error } = await apiClient.createAnalysis(formData);
+      
       if (error) {
-        throw error;
+        throw new Error(error.message);
       }
 
-      toast.success(`File processed successfully! Found ${parseResult.rowCount} rows with ${parseResult.headers.length} columns.`);
+      toast.success(`File processed successfully! Analysis created with ID: ${data.analysisId}`);
       
-      // Navigate to the mapping page with parsed data
+      // Navigate to the mapping page with API data
       navigate('/mapping', { 
         state: { 
-          csvUploadId: csvUpload.id,
+          analysisId: data.analysisId,
           fileName: file.name,
-          headers: parseResult.headers,
-          data: parseResult.data, // Pass all data for analysis
-          rowCount: parseResult.rowCount,
+          headers: data.headers,
+          data: data.data,
+          rowCount: data.rowCount,
           fileUploaded: true,
-          uploadTimestamp: Date.now(), // Add timestamp for data freshness tracking
+          uploadTimestamp: Date.now(),
         } 
       });
       
@@ -104,41 +92,34 @@ const Upload = () => {
       // Save test session
       saveTestSession(testData, scenario);
       
-      // Convert test data to CSV format for parsing
+      // Convert test data to CSV format and upload to API
       const csvContent = generateCSVContent(testData);
-      const parseResult = parseCSV(csvContent);
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const file = new File([blob], `test-data-${scenario}.csv`, { type: 'text/csv' });
       
-      // Store the test upload in Supabase database  
-      const { data: csvUpload, error } = await supabase
-        .from('csv_uploads')
-        .insert({
-          file_name: `test-data-${scenario}.csv`,
-          user_id: user.id,
-          status: 'pending',
-          row_count: parseResult.rowCount,
-          detected_headers: parseResult.headers,
-          file_size: csvContent.length
-        })
-        .select()
-        .maybeSingle();
-
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('reportName', `Test Data - ${scenario}`);
+      
+      const { data, error } = await apiClient.createAnalysis(formData);
+      
       if (error) {
-        throw error;
+        throw new Error(error.message);
       }
 
-      toast.success(`Test data generated! ${parseResult.rowCount} shipments with ${parseResult.headers.length} columns.`);
+      toast.success(`Test data generated! Analysis created with ID: ${data.analysisId}`);
       
-      // Navigate to the mapping page with test data
+      // Navigate to the mapping page with API data
       navigate('/mapping', { 
         state: { 
-          csvUploadId: csvUpload.id,
+          analysisId: data.analysisId,
           fileName: `test-data-${scenario}.csv`,
-          headers: parseResult.headers,
-          data: parseResult.data,
-          rowCount: parseResult.rowCount,
+          headers: data.headers,
+          data: data.data,
+          rowCount: data.rowCount,
           fileUploaded: true,
           isTestData: true,
-          uploadTimestamp: Date.now(), // Add timestamp for data freshness tracking
+          uploadTimestamp: Date.now(),
         } 
       });
       

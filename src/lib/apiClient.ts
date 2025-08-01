@@ -5,7 +5,7 @@ interface APIResponse<T = any> {
 }
 
 class SimpleAPIClient {
-  private baseURL = 'http://localhost:5000/api';
+  private baseURL = 'https://workspace--avi96.replit.app/api';
   
   // Helper method for making authenticated requests
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<APIResponse<T>> {

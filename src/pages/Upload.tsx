@@ -8,7 +8,7 @@ import { Button } from '@/components/ui-lov/Button';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { generateTestData, generateCSVContent, downloadCSV, TEST_SCENARIOS, saveTestSession } from '@/utils/testDataGenerator';
-import { apiClient } from '@/lib/apiClient';
+import { parseCSVFile, parseCSVText } from '@/utils/csvProcessor';
 import { useTestMode } from '@/hooks/useTestMode';
 
 const Upload = () => {
@@ -38,25 +38,18 @@ const Upload = () => {
     setIsProcessing(true);
     
     try {
-      // Upload CSV file for parsing only
-      const formData = new FormData();
-      formData.append('file', file);
+      // Process CSV file directly on frontend
+      const result = await parseCSVFile(file);
       
-      const { data, error } = await apiClient.uploadCSVForMapping(formData);
-      
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      toast.success(`File processed successfully! Found ${data.rowCount} rows with ${data.headers.length} columns.`);
+      toast.success(`File processed successfully! Found ${result.rowCount} rows with ${result.headers.length} columns.`);
       
       // Navigate to the mapping page with parsed data
       navigate('/mapping', { 
         state: { 
           fileName: file.name,
-          headers: data.headers,
-          data: data.data,
-          rowCount: data.rowCount,
+          headers: result.headers,
+          data: result.data,
+          rowCount: result.rowCount,
           fileUploaded: true,
           uploadTimestamp: Date.now(),
         } 
@@ -90,29 +83,19 @@ const Upload = () => {
       // Save test session
       saveTestSession(testData, scenario);
       
-      // Convert test data to CSV format and upload for parsing
+      // Convert test data to CSV format and process directly
       const csvContent = generateCSVContent(testData);
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const file = new File([blob], `test-data-${scenario}.csv`, { type: 'text/csv' });
-      
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const { data, error } = await apiClient.uploadCSVForMapping(formData);
-      
-      if (error) {
-        throw new Error(error.message);
-      }
+      const result = parseCSVText(csvContent, `test-data-${scenario}.csv`);
 
-      toast.success(`Test data generated! ${data.rowCount} rows with ${data.headers.length} columns.`);
+      toast.success(`Test data generated! ${result.rowCount} rows with ${result.headers.length} columns.`);
       
       // Navigate to the mapping page with parsed data
       navigate('/mapping', { 
         state: { 
           fileName: `test-data-${scenario}.csv`,
-          headers: data.headers,
-          data: data.data,
-          rowCount: data.rowCount,
+          headers: result.headers,
+          data: result.data,
+          rowCount: result.rowCount,
           fileUploaded: true,
           isTestData: true,
           uploadTimestamp: Date.now(),

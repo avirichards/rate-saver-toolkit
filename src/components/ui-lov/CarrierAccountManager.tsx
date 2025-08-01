@@ -137,14 +137,19 @@ export const CarrierAccountManager = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const response = await apiClient.getCarrierConfigs();
-      if (response.error) {
-        console.error('Error loading carrier configs:', response.error);
+      const { data, error } = await supabase
+        .from('carrier_configs')
+        .select('*')
+        .order('account_group', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error loading carrier configs:', error);
         toast.error('Failed to load carrier accounts');
         return;
       }
 
-      setConfigs((response.data || []) as CarrierConfig[]);
+      setConfigs((data || []) as CarrierConfig[]);
     } catch (error) {
       console.error('Error loading carrier configs:', error);
       toast.error('Failed to load carrier accounts');
@@ -155,14 +160,20 @@ export const CarrierAccountManager = () => {
 
   const loadAvailableServices = async () => {
     try {
-      const response = await apiClient.getCarrierServices();
-      if (response.error) {
-        console.error('Error loading carrier services:', response.error);
+      const { data, error } = await supabase
+        .from('carrier_services')
+        .select('*')
+        .eq('is_active', true)
+        .order('carrier_type', { ascending: true })
+        .order('service_name', { ascending: true });
+
+      if (error) {
+        console.error('Error loading carrier services:', error);
         toast.error('Failed to load carrier services');
         return;
       }
 
-      setAvailableServices((response.data || []) as CarrierService[]);
+      setAvailableServices((data || []) as CarrierService[]);
     } catch (error) {
       console.error('Error loading available services:', error);
       toast.error('Failed to load carrier services');
@@ -240,10 +251,15 @@ export const CarrierAccountManager = () => {
         usps_password: newAccount.carrier_type === 'usps' ? newAccount.usps_password : null
       };
 
-      const response = await apiClient.createCarrierConfig(accountData);
-      if (response.error) {
-        console.error('Error saving account:', response.error);
-        if (response.error.message?.includes('duplicate key')) {
+      const { data: csvUpload, error } = await supabase
+        .from('carrier_configs')
+        .insert(accountData)
+        .select()
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error saving account:', error);
+        if (error.message?.includes('duplicate key')) {
           toast.error('An account with this name already exists');
         } else {
           toast.error('Failed to save carrier account');
@@ -263,30 +279,33 @@ export const CarrierAccountManager = () => {
 
 const updateAccount = async (account: CarrierConfig) => {
     try {
-      const response = await apiClient.updateCarrierConfig(account.id, {
-        account_name: account.account_name,
-        account_group: account.account_group || null,
-        enabled_services: account.enabled_services,
-        is_active: account.is_active,
-        is_sandbox: account.is_sandbox,
-        ups_client_id: account.ups_client_id,
-        ups_client_secret: account.ups_client_secret,
-        ups_account_number: account.ups_account_number,
-        fedex_account_number: account.fedex_account_number,
-        fedex_meter_number: account.fedex_meter_number,
-        fedex_key: account.fedex_key,
-        fedex_password: account.fedex_password,
-        dhl_account_number: account.dhl_account_number,
-        dhl_site_id: account.dhl_site_id,
-        dhl_password: account.dhl_password,
-        usps_user_id: account.usps_user_id,
-        usps_password: account.usps_password,
-        connection_status: account.connection_status,
-        last_test_at: account.last_test_at
-      });
+      const { error } = await supabase
+        .from('carrier_configs')
+        .update({
+          account_name: account.account_name,
+          account_group: account.account_group || null,
+          enabled_services: account.enabled_services,
+          is_active: account.is_active,
+          is_sandbox: account.is_sandbox,
+          ups_client_id: account.ups_client_id,
+          ups_client_secret: account.ups_client_secret,
+          ups_account_number: account.ups_account_number,
+          fedex_account_number: account.fedex_account_number,
+          fedex_meter_number: account.fedex_meter_number,
+          fedex_key: account.fedex_key,
+          fedex_password: account.fedex_password,
+          dhl_account_number: account.dhl_account_number,
+          dhl_site_id: account.dhl_site_id,
+          dhl_password: account.dhl_password,
+          usps_user_id: account.usps_user_id,
+          usps_password: account.usps_password,
+          connection_status: account.connection_status,
+          last_test_at: account.last_test_at
+        })
+        .eq('id', account.id);
 
-      if (response.error) {
-        console.error('Error updating account:', response.error);
+      if (error) {
+        console.error('Error updating account:', error);
         toast.error('Failed to update account');
         return;
       }
@@ -304,9 +323,13 @@ const updateAccount = async (account: CarrierConfig) => {
     if (!confirm('Are you sure you want to delete this carrier account?')) return;
 
     try {
-      const response = await apiClient.deleteCarrierConfig(id);
-      if (response.error) {
-        console.error('Error deleting account:', response.error);
+      const { error } = await supabase
+        .from('carrier_configs')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting account:', error);
         toast.error('Failed to delete account');
         return;
       }
@@ -324,27 +347,32 @@ const updateAccount = async (account: CarrierConfig) => {
     try {
       if (config.carrier_type === 'ups') {
         // Test UPS connection using the specific config ID
-        const response = await apiClient.invokeFunction('ups-auth', {
-          action: 'get_token', 
-          config_id: config.id 
+        const { data, error } = await supabase.functions.invoke('ups-auth', {
+          body: { action: 'get_token', config_id: config.id }
         });
 
-        if (response.error || !(response.data as any)?.access_token) {
+        if (error || !(data as any)?.access_token) {
           // Update config to mark as error
-          await apiClient.updateCarrierConfig(config.id, {
-            connection_status: 'error',
-            last_test_at: new Date().toISOString()
-          });
+          await supabase
+            .from('carrier_configs')
+            .update({
+              connection_status: 'error',
+              last_test_at: new Date().toISOString()
+            })
+            .eq('id', config.id);
             
           loadCarrierConfigs();
-          throw new Error(response.error?.message || 'Failed to authenticate with UPS');
+          throw new Error(error?.message || 'Failed to authenticate with UPS');
         }
         
         // Update config to mark as connected
-        await apiClient.updateCarrierConfig(config.id, {
-          connection_status: 'connected',
-          last_test_at: new Date().toISOString()
-        });
+        await supabase
+          .from('carrier_configs')
+          .update({
+            connection_status: 'connected',
+            last_test_at: new Date().toISOString()
+          })
+          .eq('id', config.id);
           
         toast.success(`${config.account_name} connection successful!`);
         loadCarrierConfigs();
@@ -354,20 +382,26 @@ const updateAccount = async (account: CarrierConfig) => {
         
         if (!result.success) {
           // Update config to mark as error
-          await apiClient.updateCarrierConfig(config.id, {
-            connection_status: 'error',
-            last_test_at: new Date().toISOString()
-          });
+          await supabase
+            .from('carrier_configs')
+            .update({
+              connection_status: 'error',
+              last_test_at: new Date().toISOString()
+            })
+            .eq('id', config.id);
             
           loadCarrierConfigs();
           throw new Error(result.message);
         }
         
         // Update config to mark as connected
-        await apiClient.updateCarrierConfig(config.id, {
-          connection_status: 'connected',
-          last_test_at: new Date().toISOString()
-        });
+        await supabase
+          .from('carrier_configs')
+          .update({
+            connection_status: 'connected',
+            last_test_at: new Date().toISOString()
+          })
+          .eq('id', config.id);
           
         toast.success(`${config.account_name} connection successful!`);
         loadCarrierConfigs();
@@ -380,10 +414,13 @@ const updateAccount = async (account: CarrierConfig) => {
       toast.error(`${config.account_name} connection failed: ${error.message}`);
       
       // Update config to mark as error if not already done
-      await apiClient.updateCarrierConfig(config.id, {
-        connection_status: 'error',
-        last_test_at: new Date().toISOString()
-      });
+      await supabase
+        .from('carrier_configs')
+        .update({
+          connection_status: 'error',
+          last_test_at: new Date().toISOString()
+        })
+        .eq('id', config.id);
         
       loadCarrierConfigs();
     } finally {

@@ -15,7 +15,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { apiClient } from '@/lib/apiClient';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface CarrierGroup {
@@ -48,25 +48,32 @@ export function CarrierGroupCombobox({
   const loadGroups = async () => {
     try {
       setLoading(true);
-      const { data, error } = await apiClient.getCarrierConfigs();
-      if (error) throw error;
-      
-      // Group by account_group and count
-      const groupCounts: Record<string, number> = {};
-      if (Array.isArray(data)) {
-        data.forEach((item: any) => {
-          if (item.account_group) {
-            groupCounts[item.account_group] = (groupCounts[item.account_group] || 0) + 1;
-          }
-        });
+      const { data, error } = await supabase
+        .from('carrier_configs')
+        .select('account_group')
+        .not('account_group', 'is', null);
+
+      if (error) {
+        console.error('Error loading carrier groups:', error);
+        toast.error('Failed to load carrier groups');
+        return;
       }
-      
-      const groupArray: CarrierGroup[] = Object.keys(groupCounts)
-        .filter(name => name)
-        .map(name => ({ name, count: groupCounts[name] }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-      
-      setGroups(groupArray);
+
+      // Group by account_group and count
+      const groupCounts = (data || []).reduce((acc, config) => {
+        const group = config.account_group;
+        if (group) {
+          acc[group] = (acc[group] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>);
+
+      const groupList = Object.entries(groupCounts).map(([name, count]) => ({
+        name,
+        count
+      }));
+
+      setGroups(groupList);
     } catch (error) {
       console.error('Error loading carrier groups:', error);
       toast.error('Failed to load carrier groups');

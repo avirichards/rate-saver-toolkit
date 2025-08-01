@@ -238,12 +238,6 @@ const Analysis = () => {
         message: `Validated ${validationSample.length} sample shipments. Full validation will occur on server.`
       });
 
-      // Create analysis record
-      const analysisId = await createAnalysisRecord();
-      if (!analysisId) {
-        throw new Error('Failed to create analysis record');
-      }
-
       // Start bulk processing via REST API
       const response = await fetch('http://localhost:5000/api/analyses/process', {
         method: 'POST',
@@ -251,7 +245,7 @@ const Analysis = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          analysisId,
+          analysisId: location.state?.analysisId, // Use API-generated analysis ID
           shipments,
           carrierConfigs: selectedCarriers,
           serviceMappings,
@@ -270,9 +264,11 @@ const Analysis = () => {
 
       console.log('✅ Bulk analysis started:', data);
       
+      const apiAnalysisId = location.state?.analysisId || data.analysisId;
+      
       // Initialize progress tracking
       setAnalysisProgress({
-        analysisId,
+        analysisId: apiAnalysisId,
         totalShipments: shipments.length,
         processedShipments: 0,
         currentStatus: 'processing',
@@ -284,7 +280,7 @@ const Analysis = () => {
 
       // Set up WebSocket for real-time progress
       const socket = new WebSocket('ws://localhost:5000/ws');
-      socket.send(JSON.stringify({type: 'subscribe', analysisId: analysisId}));
+      socket.send(JSON.stringify({type: 'subscribe', analysisId: apiAnalysisId}));
       
       socket.onmessage = (event) => {
         const progressData = JSON.parse(event.data);
@@ -295,7 +291,7 @@ const Analysis = () => {
           clearInterval(interval);
           navigate('/results', { 
             state: { 
-              analysisId, 
+              analysisId: apiAnalysisId, 
               fileName: location.state?.fileName || 'Bulk Analysis' 
             } 
           });
@@ -304,7 +300,7 @@ const Analysis = () => {
 
       // Fallback polling in case WebSocket fails
       const interval = setInterval(() => {
-        pollAnalysisProgress(analysisId);
+        pollAnalysisProgress(apiAnalysisId);
       }, 5000); // Poll every 5 seconds as fallback
       
       setPollInterval(interval);

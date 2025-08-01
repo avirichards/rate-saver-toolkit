@@ -137,11 +137,7 @@ export const CarrierAccountManager = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from('carrier_configs')
-        .select('*')
-        .order('account_group', { ascending: true, nullsFirst: false })
-        .order('created_at', { ascending: false });
+      const { data, error } = await apiClient.getCarrierConfigs();
 
       if (error) {
         console.error('Error loading carrier configs:', error);
@@ -251,11 +247,7 @@ export const CarrierAccountManager = () => {
         usps_password: newAccount.carrier_type === 'usps' ? newAccount.usps_password : null
       };
 
-      const { data: csvUpload, error } = await supabase
-        .from('carrier_configs')
-        .insert(accountData)
-        .select()
-        .maybeSingle();
+      const { data, error } = await apiClient.createCarrierConfig(accountData);
 
       if (error) {
         console.error('Error saving account:', error);
@@ -279,30 +271,27 @@ export const CarrierAccountManager = () => {
 
 const updateAccount = async (account: CarrierConfig) => {
     try {
-      const { error } = await supabase
-        .from('carrier_configs')
-        .update({
-          account_name: account.account_name,
-          account_group: account.account_group || null,
-          enabled_services: account.enabled_services,
-          is_active: account.is_active,
-          is_sandbox: account.is_sandbox,
-          ups_client_id: account.ups_client_id,
-          ups_client_secret: account.ups_client_secret,
-          ups_account_number: account.ups_account_number,
-          fedex_account_number: account.fedex_account_number,
-          fedex_meter_number: account.fedex_meter_number,
-          fedex_key: account.fedex_key,
-          fedex_password: account.fedex_password,
-          dhl_account_number: account.dhl_account_number,
-          dhl_site_id: account.dhl_site_id,
-          dhl_password: account.dhl_password,
-          usps_user_id: account.usps_user_id,
-          usps_password: account.usps_password,
-          connection_status: account.connection_status,
-          last_test_at: account.last_test_at
-        })
-        .eq('id', account.id);
+      const { error } = await apiClient.updateCarrierConfig(account.id, {
+        account_name: account.account_name,
+        account_group: account.account_group || null,
+        enabled_services: account.enabled_services,
+        is_active: account.is_active,
+        is_sandbox: account.is_sandbox,
+        ups_client_id: account.ups_client_id,
+        ups_client_secret: account.ups_client_secret,
+        ups_account_number: account.ups_account_number,
+        fedex_account_number: account.fedex_account_number,
+        fedex_meter_number: account.fedex_meter_number,
+        fedex_key: account.fedex_key,
+        fedex_password: account.fedex_password,
+        dhl_account_number: account.dhl_account_number,
+        dhl_site_id: account.dhl_site_id,
+        dhl_password: account.dhl_password,
+        usps_user_id: account.usps_user_id,
+        usps_password: account.usps_password,
+        connection_status: account.connection_status,
+        last_test_at: account.last_test_at
+      });
 
       if (error) {
         console.error('Error updating account:', error);
@@ -323,10 +312,7 @@ const updateAccount = async (account: CarrierConfig) => {
     if (!confirm('Are you sure you want to delete this carrier account?')) return;
 
     try {
-      const { error } = await supabase
-        .from('carrier_configs')
-        .delete()
-        .eq('id', id);
+      const { error } = await apiClient.deleteCarrierConfig(id);
 
       if (error) {
         console.error('Error deleting account:', error);

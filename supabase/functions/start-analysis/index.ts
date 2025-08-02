@@ -291,22 +291,38 @@ async function processAnalysisInBackground(
 function findApplicableRates(shipment: ShipmentData, rateCards: any[]): any[] {
   const applicableRates: any[] = [];
   
+  // Normalize customer service for better matching
+  const customerService = (shipment.customerService || '').toLowerCase();
+  console.log(`Finding rates for shipment ${shipment.id}: ${customerService}, weight: ${shipment.weight}`);
+  
   for (const rateCard of rateCards) {
     // Check if weight is within the rate card's weight break
     if (shipment.weight && shipment.weight <= rateCard.weight_break) {
-      // More flexible service matching - normalize service names for comparison
-      const customerService = (shipment.customerService || '').toLowerCase().replace(/[\s-]/g, '');
-      const rateCardServiceCode = (rateCard.service_code || '').toLowerCase().replace(/[\s-]/g, '');
-      const rateCardServiceName = (rateCard.service_name || '').toLowerCase().replace(/[\s-]/g, '');
       
-      // Check for service matches with more flexible matching
-      const serviceMatches = 
-        customerService.includes('ground') && (rateCardServiceCode.includes('ground') || rateCardServiceName.includes('ground')) ||
-        customerService.includes('express') && (rateCardServiceCode.includes('express') || rateCardServiceName.includes('express')) ||
-        customerService.includes('2day') && (rateCardServiceCode.includes('2day') || rateCardServiceName.includes('2day')) ||
-        customerService.includes('nextday') && (rateCardServiceCode.includes('nextday') || rateCardServiceName.includes('nextday')) ||
-        customerService === rateCardServiceCode ||
-        customerService === rateCardServiceName;
+      // Improved service matching logic
+      let serviceMatches = false;
+      const rateCardService = (rateCard.service_code || '').toLowerCase();
+      const rateCardName = (rateCard.service_name || '').toLowerCase();
+      
+      // Direct matches
+      if (customerService.includes(rateCardService) || customerService.includes(rateCardName)) {
+        serviceMatches = true;
+      }
+      // Ground service matching
+      else if ((customerService.includes('ground') || customerService.includes('standard')) && 
+               (rateCardService === 'ground' || rateCardName.includes('ground'))) {
+        serviceMatches = true;
+      }
+      // Express service matching  
+      else if (customerService.includes('express') && 
+               (rateCardService.includes('express') || rateCardName.includes('express'))) {
+        serviceMatches = true;
+      }
+      // 2-day service matching
+      else if ((customerService.includes('2day') || customerService.includes('2 day')) && 
+               (rateCardService.includes('2day') || rateCardName.includes('2day'))) {
+        serviceMatches = true;
+      }
       
       if (serviceMatches) {
         applicableRates.push({
@@ -323,5 +339,15 @@ function findApplicableRates(shipment: ShipmentData, rateCards: any[]): any[] {
     }
   }
   
-  return applicableRates;
+  // Return only the BEST (cheapest) rate per shipment, not all matches
+  if (applicableRates.length > 0) {
+    const bestRate = applicableRates.reduce((best, current) => 
+      current.rate_amount < best.rate_amount ? current : best
+    );
+    console.log(`Found best rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name}`);
+    return [bestRate]; // Return only the best rate
+  }
+  
+  console.log(`No applicable rates found for shipment ${shipment.id}`);
+  return [];
 }

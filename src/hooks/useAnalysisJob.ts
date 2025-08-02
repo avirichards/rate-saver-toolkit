@@ -104,13 +104,28 @@ export const useAnalysisJob = () => {
   // Get final results when job is completed
   const getResults = useCallback(async (analysisJobId: string) => {
     try {
+      // First find the shipping_analyses record that was created for this job
+      const { data: shippingAnalyses, error: analysisError } = await supabase
+        .from('shipping_analyses')
+        .select('id')
+        .contains('processing_metadata', { analysis_job_id: analysisJobId })
+        .limit(1);
+
+      if (analysisError || !shippingAnalyses || shippingAnalyses.length === 0) {
+        console.error('No shipping analysis found for job:', analysisJobId);
+        return [];
+      }
+
+      const shippingAnalysisId = shippingAnalyses[0].id;
+
+      // Now get the rates using the shipping analysis ID
       const { data: rates, error } = await supabase
         .from('shipment_rates')
         .select(`
           *,
           carrier_configs!inner(account_name, carrier_type)
         `)
-        .eq('analysis_id', analysisJobId);
+        .eq('analysis_id', shippingAnalysisId);
 
       if (error) {
         throw new Error(error.message);

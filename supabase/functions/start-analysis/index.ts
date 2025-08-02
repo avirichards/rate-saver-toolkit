@@ -100,10 +100,16 @@ Deno.serve(async (req) => {
 
     console.log(`Created analysis job ${job.id}`);
 
-    // Return immediately with job ID
+    // Return immediately with job ID - ensure proper format
     const response = new Response(
       JSON.stringify({ jobId: job.id }),
-      { status: 202, headers: corsHeaders }
+      { 
+        status: 202, 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
     );
 
     // Start background processing
@@ -128,6 +134,31 @@ async function processAnalysisInBackground(
 ) {
   try {
     console.log(`Starting background processing for job ${jobId}`);
+
+    // Create a shipping analysis record for compatibility with existing foreign keys
+    const { data: shippingAnalysis, error: analysisError } = await supabase
+      .from('shipping_analyses')
+      .insert({
+        user_id: userId,
+        file_name: 'Background Analysis',
+        total_shipments: shipments.length,
+        status: 'processing',
+        original_data: { job_id: jobId, shipments_sample: shipments.slice(0, 3) },
+        processing_metadata: {
+          analysis_job_id: jobId,
+          started_at: new Date().toISOString()
+        }
+      })
+      .select()
+      .single();
+
+    if (analysisError || !shippingAnalysis) {
+      console.error('Failed to create shipping analysis record:', analysisError);
+      throw new Error('Failed to create analysis record');
+    }
+
+    const analysisId = shippingAnalysis.id;
+    console.log(`Created shipping analysis record: ${analysisId}`);
 
     // Update job status to in_progress
     await supabase
@@ -172,7 +203,7 @@ async function processAnalysisInBackground(
           
           for (const rate of applicableRates) {
             shipmentRates.push({
-              analysis_id: jobId,
+              analysis_id: analysisId, // Use shipping_analyses.id for foreign key compatibility
               shipment_index: shipment.id,
               carrier_config_id: rate.carrier_config_id,
               account_name: rate.account_name,

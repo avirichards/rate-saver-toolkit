@@ -250,10 +250,19 @@ function findApplicableRates(shipment: ShipmentData, rateCards: any[]): any[] {
   for (const rateCard of rateCards) {
     // Check if weight is within the rate card's weight break
     if (shipment.weight && shipment.weight <= rateCard.weight_break) {
-      // Check if service matches (simplified matching for now)
-      const serviceMatches = rateCard.service_code && 
-        (shipment.customerService === rateCard.service_code ||
-         shipment.customerService === rateCard.service_name);
+      // More flexible service matching - normalize service names for comparison
+      const customerService = (shipment.customerService || '').toLowerCase().replace(/[\s-]/g, '');
+      const rateCardServiceCode = (rateCard.service_code || '').toLowerCase().replace(/[\s-]/g, '');
+      const rateCardServiceName = (rateCard.service_name || '').toLowerCase().replace(/[\s-]/g, '');
+      
+      // Check for service matches with more flexible matching
+      const serviceMatches = 
+        customerService.includes('ground') && (rateCardServiceCode.includes('ground') || rateCardServiceName.includes('ground')) ||
+        customerService.includes('express') && (rateCardServiceCode.includes('express') || rateCardServiceName.includes('express')) ||
+        customerService.includes('2day') && (rateCardServiceCode.includes('2day') || rateCardServiceName.includes('2day')) ||
+        customerService.includes('nextday') && (rateCardServiceCode.includes('nextday') || rateCardServiceName.includes('nextday')) ||
+        customerService === rateCardServiceCode ||
+        customerService === rateCardServiceName;
       
       if (serviceMatches) {
         applicableRates.push({

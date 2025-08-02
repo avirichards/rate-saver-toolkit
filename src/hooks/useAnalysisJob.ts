@@ -16,42 +16,6 @@ export const useAnalysisJob = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Start a new analysis job
-  const startAnalysis = useCallback(async (shipments: any[]) => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Please log in to start analysis');
-      }
-
-      const response = await supabase.functions.invoke('start-analysis', {
-        body: { shipments },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message);
-      }
-
-      if (response.data?.jobId) {
-        setJobId(response.data.jobId);
-        console.log('Analysis job started:', response.data.jobId);
-      } else {
-        throw new Error('No job ID returned from analysis service');
-      }
-    } catch (err: any) {
-      console.error('Error starting analysis:', err);
-      setError(err.message || 'Failed to start analysis');
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   // Get status of current job
   const getJobStatus = useCallback(async (currentJobId: string) => {
     try {
@@ -85,6 +49,44 @@ export const useAnalysisJob = () => {
       return null;
     }
   }, []);
+
+  // Start a new analysis job
+  const startAnalysis = useCallback(async (shipments: any[]) => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Please log in to start analysis');
+      }
+
+      const response = await supabase.functions.invoke('start-analysis', {
+        body: { shipments },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.jobId) {
+        setJobId(response.data.jobId);
+        console.log('Analysis job started:', response.data.jobId);
+        // Immediately fetch initial status
+        setTimeout(() => getJobStatus(response.data.jobId), 1000);
+      } else {
+        throw new Error('No job ID returned from analysis service');
+      }
+    } catch (err: any) {
+      console.error('Error starting analysis:', err);
+      setError(err.message || 'Failed to start analysis');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [getJobStatus]);
 
   // Poll for status updates
   useEffect(() => {

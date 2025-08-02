@@ -41,6 +41,8 @@ Deno.serve(async (req) => {
   }
 
   try {
+    console.log('🚀 START-ANALYSIS: Function invoked');
+    
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -49,6 +51,7 @@ Deno.serve(async (req) => {
     // Get the user from the auth header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
+      console.error('❌ Missing authorization header');
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
         { status: 401, headers: corsHeaders }
@@ -59,6 +62,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
+      console.error('❌ Invalid authorization token:', userError);
       return new Response(
         JSON.stringify({ error: 'Invalid authorization token' }),
         { status: 401, headers: corsHeaders }
@@ -75,13 +79,14 @@ Deno.serve(async (req) => {
     const { shipments } = await req.json();
     
     if (!shipments || !Array.isArray(shipments)) {
+      console.error('❌ Invalid shipments data');
       return new Response(
         JSON.stringify({ error: 'Invalid shipments data' }),
         { status: 400, headers: corsHeaders }
       );
     }
 
-    console.log(`Starting analysis for ${shipments.length} shipments for user ${user.id}`);
+    console.log(`📦 Starting analysis for ${shipments.length} shipments for user ${user.id}`);
 
     // Create analysis job
     const { data: job, error: jobError } = await supabase
@@ -95,14 +100,14 @@ Deno.serve(async (req) => {
       .single();
 
     if (jobError || !job) {
-      console.error('Error creating analysis job:', jobError);
+      console.error('❌ Error creating analysis job:', jobError);
       return new Response(
         JSON.stringify({ error: 'Failed to create analysis job' }),
         { status: 500, headers: corsHeaders }
       );
     }
 
-    console.log(`Created analysis job ${job.id}`);
+    console.log(`✅ Created analysis job ${job.id}`);
 
     // Return immediately with job ID - ensure proper format
     const response = new Response(
@@ -122,7 +127,7 @@ Deno.serve(async (req) => {
     return response;
 
   } catch (error) {
-    console.error('Error in start-analysis function:', error);
+    console.error('💥 Error in start-analysis function:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: corsHeaders }
@@ -137,7 +142,7 @@ async function processAnalysisInBackground(
   shipments: ShipmentData[]
 ) {
   try {
-    console.log(`Starting background processing for job ${jobId}`);
+    console.log(`🔄 BACKGROUND: Starting processing for job ${jobId} with ${shipments.length} shipments`);
 
     // Create a shipping analysis record for compatibility with existing foreign keys
     const { data: shippingAnalysis, error: analysisError } = await supabase
@@ -157,12 +162,12 @@ async function processAnalysisInBackground(
       .single();
 
     if (analysisError || !shippingAnalysis) {
-      console.error('Failed to create shipping analysis record:', analysisError);
+      console.error('❌ Failed to create shipping analysis record:', analysisError);
       throw new Error('Failed to create analysis record');
     }
 
     const analysisId = shippingAnalysis.id;
-    console.log(`Created shipping analysis record: ${analysisId}`);
+    console.log(`✅ Created shipping analysis record: ${analysisId}`);
 
     // Update job status to in_progress
     await supabase
@@ -170,7 +175,7 @@ async function processAnalysisInBackground(
       .update({ status: 'in_progress' })
       .eq('id', jobId);
 
-    // Load all carrier configs for this user (both rate cards and API accounts)  
+    // Load all carrier configs for this user (both rate cards and API accounts)
     const { data: carrierConfigs, error: configError } = await supabase
       .from('carrier_configs')
       .select('*')
@@ -181,13 +186,13 @@ async function processAnalysisInBackground(
       throw new Error(`Failed to load carrier configs: ${configError.message}`);
     }
 
-    console.log(`Loaded ${carrierConfigs?.length || 0} carrier configurations`);
+    console.log(`📋 Loaded ${carrierConfigs?.length || 0} carrier configurations`);
 
     // Separate rate card configs from API configs
     const rateCardConfigs = carrierConfigs?.filter(config => config.is_rate_card) || [];
     const apiConfigs = carrierConfigs?.filter(config => !config.is_rate_card) || [];
 
-    console.log(`Rate card configs: ${rateCardConfigs.length}, API configs: ${apiConfigs.length}`);
+    console.log(`📊 Rate card configs: ${rateCardConfigs.length}, API configs: ${apiConfigs.length}`);
 
     // Load rate card data if we have rate card configs
     let rateCards: any[] = [];
@@ -207,34 +212,33 @@ async function processAnalysisInBackground(
         .in('carrier_config_id', rateCardConfigs.map(c => c.id));
 
       if (rateCardError) {
-        console.error('Error loading rate cards:', rateCardError);
+        console.error('❌ Error loading rate cards:', rateCardError);
       } else {
         rateCards = rateCardData || [];
-        console.log(`Loaded ${rateCards.length} rate card entries`);
+        console.log(`✅ Loaded ${rateCards.length} rate card entries`);
       }
     }
 
     // Process shipments in smaller batches for API calls
-    const batchSize = 50;
+    const batchSize = 10; // Smaller batches for better debugging
     let processedCount = 0;
 
     for (let i = 0; i < shipments.length; i += batchSize) {
       const batch = shipments.slice(i, i + batchSize);
       const shipmentRates: any[] = [];
 
-      console.log(`Processing batch ${Math.floor(i / batchSize) + 1} with ${batch.length} shipments`);
+      console.log(`🔄 Processing batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(shipments.length / batchSize)} with ${batch.length} shipments`);
 
       for (const shipment of batch) {
         try {
-          console.log(`📦 Processing shipment ${shipment.id}: ${shipment.customerService}, ${shipment.weight}lbs`);
-          console.log(`🔍 Using ${rateCardConfigs.length} rate card configs and ${apiConfigs.length} API configs`);
+          console.log(`📦 Processing shipment ${shipment.id}: ${shipment.customerService}, ${shipment.weight}lbs, ${shipment.originZip} -> ${shipment.destinationZip}`);
           
           // Get rates from rate cards
           const rateCardRates = findApplicableRates(shipment, rateCards);
           console.log(`📋 Found ${rateCardRates.length} rate card rates for shipment ${shipment.id}`);
           
           // Get rates from APIs  
-          const apiRates = await getApiRates(shipment, apiConfigs, supabase);
+          const apiRates = await getApiRates(shipment, apiConfigs);
           console.log(`🌐 Found ${apiRates.length} API rates for shipment ${shipment.id}`);
           
           // Combine all rates
@@ -279,9 +283,9 @@ async function processAnalysisInBackground(
           .insert(shipmentRates);
 
         if (insertError) {
-          console.error('Error inserting shipment rates:', insertError);
+          console.error('❌ Error inserting shipment rates:', insertError);
         } else {
-          console.log(`Inserted ${shipmentRates.length} rates for batch`);
+          console.log(`✅ Inserted ${shipmentRates.length} rates for batch`);
         }
       }
 
@@ -293,7 +297,7 @@ async function processAnalysisInBackground(
         .update({ processed_shipments: processedCount })
         .eq('id', jobId);
 
-      console.log(`Progress: ${processedCount}/${shipments.length} shipments processed`);
+      console.log(`📈 Progress: ${processedCount}/${shipments.length} shipments processed`);
     }
 
     // Mark job as completed
@@ -319,10 +323,10 @@ async function processAnalysisInBackground(
       })
       .eq('id', analysisId);
 
-    console.log(`Analysis job ${jobId} completed successfully`);
+    console.log(`🎉 Analysis job ${jobId} completed successfully`);
 
   } catch (error) {
-    console.error(`Error in background processing for job ${jobId}:`, error);
+    console.error(`💥 Error in background processing for job ${jobId}:`, error);
     
     // Mark job as failed
     await supabase
@@ -340,11 +344,15 @@ function findApplicableRates(shipment: ShipmentData, rateCards: any[]): RateResu
   
   // Normalize customer service for better matching
   const customerService = (shipment.customerService || '').toLowerCase();
-  console.log(`Finding rate card rates for shipment ${shipment.id}: ${customerService}, weight: ${shipment.weight}`);
+  const shipmentWeight = parseFloat(String(shipment.weight)) || 0;
+  
+  console.log(`🔍 Finding rate card rates for shipment ${shipment.id}: "${customerService}", weight: ${shipmentWeight}lbs`);
   
   for (const rateCard of rateCards) {
+    const rateCardWeight = parseFloat(String(rateCard.weight_break)) || 0;
+    
     // Check if weight is within the rate card's weight break
-    if (shipment.weight && shipment.weight <= rateCard.weight_break) {
+    if (shipmentWeight > 0 && shipmentWeight <= rateCardWeight) {
       
       // Improved service matching logic
       let serviceMatches = false;
@@ -372,6 +380,7 @@ function findApplicableRates(shipment: ShipmentData, rateCards: any[]): RateResu
       }
       
       if (serviceMatches) {
+        console.log(`✅ Rate card match for shipment ${shipment.id}: ${rateCard.carrier_configs.account_name} - $${rateCard.rate_amount}`);
         applicableRates.push({
           carrier_config_id: rateCard.carrier_config_id,
           account_name: rateCard.carrier_configs.account_name,
@@ -388,59 +397,53 @@ function findApplicableRates(shipment: ShipmentData, rateCards: any[]): RateResu
     }
   }
   
-  // Return only the BEST (cheapest) rate card rate
-  if (applicableRates.length > 0) {
-    const bestRate = applicableRates.reduce((best, current) => 
-      current.rate_amount < best.rate_amount ? current : best
-    );
-    console.log(`Found best rate card rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name}`);
-    return [bestRate];
-  }
-  
-  return [];
+  console.log(`📋 Found ${applicableRates.length} applicable rate card rates for shipment ${shipment.id}`);
+  return applicableRates;
 }
 
-async function getApiRates(shipment: ShipmentData, apiConfigs: any[], supabase: any): Promise<RateResult[]> {
+async function getApiRates(shipment: ShipmentData, apiConfigs: any[]): Promise<RateResult[]> {
   const apiRates: RateResult[] = [];
   
-  console.log(`Getting API rates for shipment ${shipment.id} from ${apiConfigs.length} API configs`);
+  console.log(`🌐 Getting API rates for shipment ${shipment.id} from ${apiConfigs.length} API configs`);
   
   for (const config of apiConfigs) {
     try {
+      console.log(`🔄 Trying ${config.carrier_type} API for shipment ${shipment.id} with account ${config.account_name}`);
+      
       if (config.carrier_type === 'ups') {
-        const upsRate = await getUpsRate(shipment, config, supabase);
-        if (upsRate) apiRates.push(upsRate);
+        const upsRate = await getUpsRate(shipment, config);
+        if (upsRate) {
+          console.log(`✅ UPS rate found: $${upsRate.rate_amount}`);
+          apiRates.push(upsRate);
+        }
       } else if (config.carrier_type === 'fedex') {
-        const fedexRate = await getFedexRate(shipment, config, supabase);
-        if (fedexRate) apiRates.push(fedexRate);
+        const fedexRate = await getFedexRate(shipment, config);
+        if (fedexRate) {
+          console.log(`✅ FedEx rate found: $${fedexRate.rate_amount}`);
+          apiRates.push(fedexRate);
+        }
       }
     } catch (error) {
-      console.error(`Error getting ${config.carrier_type} rate for shipment ${shipment.id}:`, error);
+      console.error(`❌ Error getting ${config.carrier_type} rate for shipment ${shipment.id}:`, error);
     }
   }
   
-  // Return only the best API rate
-  if (apiRates.length > 0) {
-    const bestRate = apiRates.reduce((best, current) => 
-      current.rate_amount < best.rate_amount ? current : best
-    );
-    console.log(`Found best API rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name}`);
-    return [bestRate];
-  }
-  
-  return [];
+  console.log(`🌐 Found ${apiRates.length} total API rates for shipment ${shipment.id}`);
+  return apiRates;
 }
 
-async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): Promise<RateResult | null> {
+async function getUpsRate(shipment: ShipmentData, config: any): Promise<RateResult | null> {
   try {
-    console.log(`🚀 Getting UPS rate for shipment ${shipment.id} using account ${config.account_name}`);
+    console.log(`🚀 UPS: Getting rate for shipment ${shipment.id} using account ${config.account_name}`);
     
-    // Get authentication token first using service role to bypass RLS
+    // Use service role client for internal function calls
     const serviceSupabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
     
+    // Get authentication token first
+    console.log(`🔐 UPS: Getting auth token for config ${config.id}`);
     const authResponse = await serviceSupabase.functions.invoke('ups-auth', {
       body: {
         action: 'get_token',
@@ -454,49 +457,49 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
     }
 
     const authData = authResponse.data;
-    if (!authData || !authData.access_token) {
-      console.error(`❌ No UPS auth token received for shipment ${shipment.id}`, authData);
+    if (!authData?.access_token) {
+      console.error(`❌ No UPS auth token received for shipment ${shipment.id}:`, authData);
       return null;
     }
     
     console.log(`✅ UPS auth successful for shipment ${shipment.id}`);
     
-    // Build proper request structure that matches the UPS rate function
+    // Build proper request structure for UPS rate function
     const upsRequest = {
       shipment: {
         shipFrom: {
           name: 'Shipper',
           address: '123 Main St',
-          city: 'Any City',
+          city: 'Miami',
           state: 'FL',
-          zipCode: shipment.originZip,
+          zipCode: shipment.originZip || '34986',
           country: 'US'
         },
         shipTo: {
           name: 'Recipient',
-          address: '123 Main St',
-          city: 'Any City', 
+          address: '456 Oak Ave',
+          city: 'Dallas', 
           state: 'TX',
           zipCode: shipment.destinationZip,
           country: 'US'
         },
         package: {
-          weight: shipment.weight,
+          weight: parseFloat(String(shipment.weight)) || 1,
           weightUnit: 'LBS',
-          length: shipment.length || 12,
-          width: shipment.width || 12,
-          height: shipment.height || 6,
+          length: parseFloat(String(shipment.length)) || 12,
+          width: parseFloat(String(shipment.width)) || 12,
+          height: parseFloat(String(shipment.height)) || 6,
           dimensionUnit: 'IN',
           packageType: '02'
         },
-        serviceTypes: ['03'], // UPS Ground as default
+        serviceTypes: ['03'], // UPS Ground
         equivalentServiceCode: '03',
         isResidential: false
       },
       configId: config.id
     };
 
-    console.log(`UPS API request structure for shipment ${shipment.id}:`, upsRequest);
+    console.log(`📤 UPS: Sending rate request for shipment ${shipment.id}`);
 
     const response = await serviceSupabase.functions.invoke('ups-rate-quote', {
       body: upsRequest
@@ -508,15 +511,16 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
     }
 
     const data = response.data;
-    console.log(`📊 UPS API response for shipment ${shipment.id}:`, data);
+    console.log(`📊 UPS API response for shipment ${shipment.id}:`, JSON.stringify(data));
     
-    if (data?.rates && data.rates.length > 0) {
+    if (data?.rates && Array.isArray(data.rates) && data.rates.length > 0) {
       // Find the best matching service
       const bestRate = data.rates.reduce((best: any, current: any) => 
-        current.totalCharges < best.totalCharges ? current : best
+        (current.totalCharges || 999999) < (best.totalCharges || 999999) ? current : best
       );
       
-      console.log(`✅ UPS best rate for shipment ${shipment.id}: $${bestRate.totalCharges}`);
+      const rateAmount = parseFloat(String(bestRate.totalCharges)) || 0;
+      console.log(`✅ UPS best rate for shipment ${shipment.id}: $${rateAmount}`);
       
       return {
         carrier_config_id: config.id,
@@ -524,7 +528,7 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
         carrier_type: 'ups',
         service_code: bestRate.serviceCode || '03',
         service_name: bestRate.serviceName || 'UPS Ground',
-        rate_amount: bestRate.totalCharges,
+        rate_amount: rateAmount,
         is_negotiated: bestRate.hasNegotiatedRates || false,
         source: 'ups_api',
         rate_response: bestRate
@@ -535,21 +539,23 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
     
     return null;
   } catch (error) {
-    console.error(`Error calling UPS API for shipment ${shipment.id}:`, error);
+    console.error(`💥 Error calling UPS API for shipment ${shipment.id}:`, error);
     return null;
   }
 }
 
-async function getFedexRate(shipment: ShipmentData, config: any, supabase: any): Promise<RateResult | null> {
+async function getFedexRate(shipment: ShipmentData, config: any): Promise<RateResult | null> {
   try {
-    console.log(`🚀 Getting FedEx rate for shipment ${shipment.id} using account ${config.account_name}`);
+    console.log(`🚀 FedEx: Getting rate for shipment ${shipment.id} using account ${config.account_name}`);
     
-    // Get authentication token first using service role to bypass RLS
+    // Use service role client for internal function calls
     const serviceSupabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
     
+    // Get authentication token first
+    console.log(`🔐 FedEx: Getting auth token for config ${config.id}`);
     const authResponse = await serviceSupabase.functions.invoke('fedex-auth', {
       body: {
         action: 'get_token',
@@ -563,49 +569,49 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
     }
 
     const authData = authResponse.data;
-    if (!authData || !authData.access_token) {
-      console.error(`❌ No FedEx auth token received for shipment ${shipment.id}`, authData);
+    if (!authData?.access_token) {
+      console.error(`❌ No FedEx auth token received for shipment ${shipment.id}:`, authData);
       return null;
     }
     
     console.log(`✅ FedEx auth successful for shipment ${shipment.id}`);
     
-    // Build proper request structure that matches the FedEx rate function
+    // Build proper request structure for FedEx rate function
     const fedexRequest = {
       shipment: {
         shipFrom: {
           name: 'Shipper',
           address: '123 Main St',
-          city: 'Any City',
+          city: 'Miami',
           state: 'FL',
-          zipCode: shipment.originZip,
+          zipCode: shipment.originZip || '34986',
           country: 'US'
         },
         shipTo: {
           name: 'Recipient',
-          address: '123 Main St',
-          city: 'Any City',
+          address: '456 Oak Ave',
+          city: 'Dallas',
           state: 'TX', 
           zipCode: shipment.destinationZip,
           country: 'US'
         },
         package: {
-          weight: shipment.weight,
+          weight: parseFloat(String(shipment.weight)) || 1,
           weightUnit: 'LBS',
-          length: shipment.length || 12,
-          width: shipment.width || 12,
-          height: shipment.height || 6,
+          length: parseFloat(String(shipment.length)) || 12,
+          width: parseFloat(String(shipment.width)) || 12,
+          height: parseFloat(String(shipment.height)) || 6,
           dimensionUnit: 'IN',
           packageType: '02'
         },
-        serviceTypes: ['FEDEX_GROUND'], // FedEx Ground as default
+        serviceTypes: ['FEDEX_GROUND'], // FedEx Ground
         equivalentServiceCode: 'FEDEX_GROUND',
         isResidential: false
       },
       configId: config.id
     };
 
-    console.log(`FedEx API request structure for shipment ${shipment.id}:`, fedexRequest);
+    console.log(`📤 FedEx: Sending rate request for shipment ${shipment.id}`);
 
     const response = await serviceSupabase.functions.invoke('fedex-rate-quote', {
       body: fedexRequest
@@ -617,15 +623,16 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
     }
 
     const data = response.data;
-    console.log(`📊 FedEx API response for shipment ${shipment.id}:`, data);
+    console.log(`📊 FedEx API response for shipment ${shipment.id}:`, JSON.stringify(data));
     
-    if (data?.rates && data.rates.length > 0) {
+    if (data?.rates && Array.isArray(data.rates) && data.rates.length > 0) {
       // Find the best matching service
       const bestRate = data.rates.reduce((best: any, current: any) => 
-        current.totalCharges < best.totalCharges ? current : best
+        (current.totalCharges || 999999) < (best.totalCharges || 999999) ? current : best
       );
       
-      console.log(`✅ FedEx best rate for shipment ${shipment.id}: $${bestRate.totalCharges}`);
+      const rateAmount = parseFloat(String(bestRate.totalCharges)) || 0;
+      console.log(`✅ FedEx best rate for shipment ${shipment.id}: $${rateAmount}`);
       
       return {
         carrier_config_id: config.id,
@@ -633,7 +640,7 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
         carrier_type: 'fedex',
         service_code: bestRate.serviceCode || 'FEDEX_GROUND',
         service_name: bestRate.serviceName || 'FedEx Ground',
-        rate_amount: bestRate.totalCharges,
+        rate_amount: rateAmount,
         is_negotiated: bestRate.hasAccountRates || false,
         source: 'fedex_api',
         rate_response: bestRate
@@ -644,7 +651,7 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
     
     return null;
   } catch (error) {
-    console.error(`Error calling FedEx API for shipment ${shipment.id}:`, error);
+    console.error(`💥 Error calling FedEx API for shipment ${shipment.id}:`, error);
     return null;
   }
 }

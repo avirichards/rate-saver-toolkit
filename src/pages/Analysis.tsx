@@ -109,6 +109,13 @@ const Analysis = () => {
   const isComplete = jobStatus?.status === 'completed';
   const currentShipmentIndex = jobStatus?.processed_shipments || 0;
   
+  // Load results when job completes
+  useEffect(() => {
+    if (isComplete && jobId) {
+      loadCompletedResults();
+    }
+  }, [isComplete, jobId]);
+  
   useEffect(() => {
     const state = location.state as { 
       readyForAnalysis?: boolean, 
@@ -221,11 +228,11 @@ const Analysis = () => {
     }
   }, [shipments, hasLoadedInitialCarriers]);
 
-    // Wait for both service mappings and explicit carrier selection to complete
-    useEffect(() => {
-      if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && 
-          selectedCarriers.length > 0 && carrierSelectionComplete && !isAnalysisStarted) {
-      
+  // Wait for both service mappings and explicit carrier selection to complete
+  useEffect(() => {
+    if (readyToAnalyze && serviceMappings.length > 0 && shipments.length > 0 && 
+        selectedCarriers.length > 0 && carrierSelectionComplete && !isAnalysisStarted) {
+    
       setIsAnalysisStarted(true); // Prevent duplicate analysis starts
       validateAndStartAnalysis(shipments);
       setReadyToAnalyze(false); // Prevent multiple analysis starts
@@ -1206,8 +1213,8 @@ const Analysis = () => {
     }
   };
   
-  const progress = isComplete ? 100 : shipments.length > 0 ? (currentShipmentIndex / shipments.length) * 100 : 0;
-  const completedCount = analysisResults.filter(r => r.status === 'completed').length;
+  const progress = jobStatus?.progress_percentage || 0;
+  const completedCount = jobStatus?.processed_shipments || 0;
   const errorCount = analysisResults.filter(r => r.status === 'error').length;
   
   return (
@@ -1335,7 +1342,7 @@ const Analysis = () => {
                 {isComplete 
                   ? 'Analysis Complete!' 
                   : isAnalyzing 
-                    ? `Processing shipment ${currentShipmentIndex + 1} of ${shipments.length}...` 
+                    ? `Processing shipment ${currentShipmentIndex} of ${jobStatus?.total_shipments || shipments.length}...` 
                     : 'Ready to analyze'
                 }
               </div>
@@ -1398,11 +1405,14 @@ const Analysis = () => {
               height={400}
             />
             
-            {isComplete && (
+            {isComplete && analysisResults.length > 0 && (
               <div className="flex justify-end mt-6">
                 <Button 
                   variant="primary" 
-                  onClick={handleViewResults}
+                  onClick={() => {
+                    // Navigate to results with the job ID
+                    navigate(`/results?jobId=${jobId}`);
+                  }}
                   iconRight={<CheckCircle className="ml-1 h-4 w-4" />}
                 >
                   View Detailed Results

@@ -60,20 +60,24 @@ export const useAnalysisJob = () => {
         throw new Error('Please log in to check analysis status');
       }
 
-      const response = await supabase.functions.invoke('get-analysis-status', {
-        body: null,
+      const url = `https://olehfhquezzfkdgilkut.supabase.co/functions/v1/get-analysis-status?jobId=${currentJobId}`;
+      const response = await fetch(url, {
+        method: 'GET',
         headers: {
           Authorization: `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
         },
       });
 
-      if (response.error) {
-        throw new Error(response.error.message);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      if (response.data) {
-        setStatus(response.data);
-        return response.data;
+      const data = await response.json();
+
+      if (data) {
+        setStatus(data);
+        return data;
       }
     } catch (err: any) {
       console.error('Error getting job status:', err);

@@ -1245,7 +1245,6 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         console.log('🔄 Analysis job still processing');
         setAnalysisStatus('processing');
         toast.info('Analysis is still processing. Please wait...');
-        // Could add polling here if needed
         setLoading(false);
         return;
       }
@@ -1259,7 +1258,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         .maybeSingle();
 
       if (analysisError || !shippingAnalyses) {
-        console.error('No shipping analysis found for job:', jobId);
+        console.error('No shipping analysis found for job:', jobId, analysisError);
         toast.error('Analysis results not found');
         setLoading(false);
         return;
@@ -1268,11 +1267,70 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       console.log('Successfully loaded analysis from job:', shippingAnalyses);
       setCurrentAnalysisId(shippingAnalyses.id);
       
-      // Load shipment rates for this analysis
+      // Load shipment rates for this analysis - this is the key data
       const ratesData = await loadShipmentRates(shippingAnalyses.id);
       
-      // Process the analysis data
-      processAnalysisFromDatabase(shippingAnalyses);
+      if (!ratesData || ratesData.length === 0) {
+        console.warn('No shipment rates found for analysis:', shippingAnalyses.id);
+        toast.warning('No rate analysis results found. The analysis may not have completed properly.');
+        setLoading(false);
+        return;
+      }
+
+      console.log(`Found ${ratesData.length} shipment rates for analysis`);
+      
+      // Create a processed analysis data structure from the rates
+      const processedShipmentData: ProcessedShipmentData[] = ratesData.map((rate: any, index: number) => ({
+        id: rate.shipment_index || index + 1,
+        trackingId: rate.shipment_data?.trackingId || `${index + 1}`,
+        customer_service: rate.shipment_data?.customerService || rate.service_name,
+        currentRate: rate.shipment_data?.currentRate || 0,
+        currentCost: rate.shipment_data?.currentRate || 0,
+        ShipPros_cost: rate.rate_amount,
+        ShipPros_service: rate.service_name,
+        savings: Math.max(0, (rate.shipment_data?.currentRate || 0) - rate.rate_amount),
+        savingsPercent: rate.shipment_data?.currentRate > 0 
+          ? ((Math.max(0, (rate.shipment_data?.currentRate || 0) - rate.rate_amount)) / rate.shipment_data?.currentRate) * 100 
+          : 0,
+        originZip: rate.shipment_data?.originZip,
+        destinationZip: rate.shipment_data?.destinationZip,
+        weight: rate.shipment_data?.weight,
+        accountName: rate.account_name,
+        carrier: rate.carrier_type,
+        analyzedWithAccount: rate.account_name
+      }));
+
+      // Create analysis data structure
+      const totalPotentialSavings = processedShipmentData.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
+      const totalCurrentCost = processedShipmentData.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
+      
+      const analysisData: ProcessedAnalysisData = {
+        file_name: shippingAnalyses.file_name || 'Background Analysis',
+        totalShipments: jobData.total_shipments,
+        completedShipments: processedShipmentData.length,
+        analyzedShipments: processedShipmentData.length,
+        errorShipments: 0,
+        totalPotentialSavings,
+        totalCurrentCost,
+        savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
+        recommendations: processedShipmentData,
+        orphanedShipments: [],
+        serviceMappings: [],
+        bestAccount: ratesData[0]?.account_name || 'Unknown'
+      };
+
+      // Set the data and finish loading
+      setAnalysisData(analysisData);
+      setShipmentData(processedShipmentData);
+      setOrphanedData([]);
+      
+      // Initialize service data
+      const services = [...new Set(processedShipmentData.map((item: any) => item.customer_service).filter(Boolean))] as string[];
+      setAvailableServices(services);
+      setSelectedServicesOverview([]);
+      
+      setLoading(false);
+      toast.success(`Analysis results loaded: ${processedShipmentData.length} shipments processed`);
       
     } catch (error) {
       console.error('Error loading from job ID:', error);

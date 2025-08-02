@@ -259,6 +259,19 @@ async function processAnalysisInBackground(
       })
       .eq('id', jobId);
 
+    // Also update the shipping analysis status
+    await supabase
+      .from('shipping_analyses')
+      .update({ 
+        status: 'completed',
+        updated_at: new Date().toISOString(),
+        processing_metadata: {
+          analysis_job_id: jobId,
+          completed_at: new Date().toISOString()
+        }
+      })
+      .eq('id', analysisId);
+
     console.log(`Analysis job ${jobId} completed successfully`);
 
   } catch (error) {

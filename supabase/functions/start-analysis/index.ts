@@ -20,13 +20,17 @@ interface ShipmentData {
   [key: string]: any;
 }
 
-interface RateCardRate {
+interface RateResult {
   carrier_config_id: string;
   account_name: string;
+  carrier_type: string;
   service_code: string;
   service_name: string;
-  weight_break: number;
   rate_amount: number;
+  is_negotiated: boolean;
+  source: string;
+  rate_response?: any;
+  weight_break?: number;
   zone?: string;
 }
 
@@ -166,28 +170,52 @@ async function processAnalysisInBackground(
       .update({ status: 'in_progress' })
       .eq('id', jobId);
 
-    // Load all rate card data once
-    const { data: rateCards, error: rateCardError } = await supabase
-      .from('rate_card_rates')
-      .select(`
-        *,
-        carrier_configs!inner(
-          id,
-          account_name,
-          carrier_type,
-          user_id
-        )
-      `)
-      .eq('carrier_configs.user_id', userId);
+    // Load all carrier configs for this user (both rate cards and API accounts)
+    const { data: carrierConfigs, error: configError } = await supabase
+      .from('carrier_configs')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true);
 
-    if (rateCardError) {
-      throw new Error(`Failed to load rate cards: ${rateCardError.message}`);
+    if (configError) {
+      throw new Error(`Failed to load carrier configs: ${configError.message}`);
     }
 
-    console.log(`Loaded ${rateCards?.length || 0} rate card entries`);
+    console.log(`Loaded ${carrierConfigs?.length || 0} carrier configurations`);
 
-    // Process shipments in batches of 1000
-    const batchSize = 1000;
+    // Separate rate card configs from API configs
+    const rateCardConfigs = carrierConfigs?.filter(config => config.is_rate_card) || [];
+    const apiConfigs = carrierConfigs?.filter(config => !config.is_rate_card) || [];
+
+    console.log(`Rate card configs: ${rateCardConfigs.length}, API configs: ${apiConfigs.length}`);
+
+    // Load rate card data if we have rate card configs
+    let rateCards: any[] = [];
+    if (rateCardConfigs.length > 0) {
+      const { data: rateCardData, error: rateCardError } = await supabase
+        .from('rate_card_rates')
+        .select(`
+          *,
+          carrier_configs!inner(
+            id,
+            account_name,
+            carrier_type,
+            user_id
+          )
+        `)
+        .eq('carrier_configs.user_id', userId)
+        .in('carrier_config_id', rateCardConfigs.map(c => c.id));
+
+      if (rateCardError) {
+        console.error('Error loading rate cards:', rateCardError);
+      } else {
+        rateCards = rateCardData || [];
+        console.log(`Loaded ${rateCards.length} rate card entries`);
+      }
+    }
+
+    // Process shipments in smaller batches for API calls
+    const batchSize = 50;
     let processedCount = 0;
 
     for (let i = 0; i < shipments.length; i += batchSize) {
@@ -198,27 +226,42 @@ async function processAnalysisInBackground(
 
       for (const shipment of batch) {
         try {
-          // Find applicable rate cards for this shipment
-          const applicableRates = findApplicableRates(shipment, rateCards || []);
+          console.log(`Processing shipment ${shipment.id}: ${shipment.customerService}, ${shipment.weight}lbs`);
           
-          for (const rate of applicableRates) {
+          // Get rates from rate cards
+          const rateCardRates = findApplicableRates(shipment, rateCards);
+          
+          // Get rates from APIs  
+          const apiRates = await getApiRates(shipment, apiConfigs, supabase);
+          
+          // Combine all rates
+          const allRates = [...rateCardRates, ...apiRates];
+          
+          if (allRates.length > 0) {
+            // Find the best (cheapest) rate
+            const bestRate = allRates.reduce((best, current) => 
+              current.rate_amount < best.rate_amount ? current : best
+            );
+            
+            console.log(`Best rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name}`);
+            
             shipmentRates.push({
-              analysis_id: analysisId, // Use shipping_analyses.id for foreign key compatibility
+              analysis_id: analysisId,
               shipment_index: shipment.id,
-              carrier_config_id: rate.carrier_config_id,
-              account_name: rate.account_name,
-              carrier_type: rate.carrier_type,
-              service_code: rate.service_code,
-              service_name: rate.service_name,
-              rate_amount: rate.rate_amount,
-              is_negotiated: true,
+              carrier_config_id: bestRate.carrier_config_id,
+              account_name: bestRate.account_name,
+              carrier_type: bestRate.carrier_type,
+              service_code: bestRate.service_code,
+              service_name: bestRate.service_name,
+              rate_amount: bestRate.rate_amount,
+              is_negotiated: bestRate.is_negotiated || false,
               shipment_data: shipment,
-              rate_response: {
-                source: 'rate_card',
-                weight_break: rate.weight_break,
-                zone: rate.zone
+              rate_response: bestRate.rate_response || {
+                source: bestRate.source || 'unknown'
               }
             });
+          } else {
+            console.log(`No rates found for shipment ${shipment.id}`);
           }
         } catch (error) {
           console.error(`Error processing shipment ${shipment.id}:`, error);
@@ -288,12 +331,12 @@ async function processAnalysisInBackground(
   }
 }
 
-function findApplicableRates(shipment: ShipmentData, rateCards: any[]): any[] {
-  const applicableRates: any[] = [];
+function findApplicableRates(shipment: ShipmentData, rateCards: any[]): RateResult[] {
+  const applicableRates: RateResult[] = [];
   
   // Normalize customer service for better matching
   const customerService = (shipment.customerService || '').toLowerCase();
-  console.log(`Finding rates for shipment ${shipment.id}: ${customerService}, weight: ${shipment.weight}`);
+  console.log(`Finding rate card rates for shipment ${shipment.id}: ${customerService}, weight: ${shipment.weight}`);
   
   for (const rateCard of rateCards) {
     // Check if weight is within the rate card's weight break
@@ -332,6 +375,8 @@ function findApplicableRates(shipment: ShipmentData, rateCards: any[]): any[] {
           service_code: rateCard.service_code,
           service_name: rateCard.service_name,
           rate_amount: rateCard.rate_amount,
+          is_negotiated: true,
+          source: 'rate_card',
           weight_break: rateCard.weight_break,
           zone: rateCard.zone
         });
@@ -339,15 +384,147 @@ function findApplicableRates(shipment: ShipmentData, rateCards: any[]): any[] {
     }
   }
   
-  // Return only the BEST (cheapest) rate per shipment, not all matches
+  // Return only the BEST (cheapest) rate card rate
   if (applicableRates.length > 0) {
     const bestRate = applicableRates.reduce((best, current) => 
       current.rate_amount < best.rate_amount ? current : best
     );
-    console.log(`Found best rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name}`);
-    return [bestRate]; // Return only the best rate
+    console.log(`Found best rate card rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name}`);
+    return [bestRate];
   }
   
-  console.log(`No applicable rates found for shipment ${shipment.id}`);
   return [];
+}
+
+async function getApiRates(shipment: ShipmentData, apiConfigs: any[], supabase: any): Promise<RateResult[]> {
+  const apiRates: RateResult[] = [];
+  
+  console.log(`Getting API rates for shipment ${shipment.id} from ${apiConfigs.length} API configs`);
+  
+  for (const config of apiConfigs) {
+    try {
+      if (config.carrier_type === 'ups') {
+        const upsRate = await getUpsRate(shipment, config, supabase);
+        if (upsRate) apiRates.push(upsRate);
+      } else if (config.carrier_type === 'fedex') {
+        const fedexRate = await getFedexRate(shipment, config, supabase);
+        if (fedexRate) apiRates.push(fedexRate);
+      }
+    } catch (error) {
+      console.error(`Error getting ${config.carrier_type} rate for shipment ${shipment.id}:`, error);
+    }
+  }
+  
+  // Return only the best API rate
+  if (apiRates.length > 0) {
+    const bestRate = apiRates.reduce((best, current) => 
+      current.rate_amount < best.rate_amount ? current : best
+    );
+    console.log(`Found best API rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name}`);
+    return [bestRate];
+  }
+  
+  return [];
+}
+
+async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): Promise<RateResult | null> {
+  try {
+    console.log(`Getting UPS rate for shipment ${shipment.id} using account ${config.account_name}`);
+    
+    const response = await supabase.functions.invoke('ups-rate-quote', {
+      body: {
+        shipment: {
+          originZip: shipment.originZip,
+          destinationZip: shipment.destinationZip,
+          weight: shipment.weight,
+          length: shipment.length || 12,
+          width: shipment.width || 12,
+          height: shipment.height || 12,
+          service: shipment.customerService
+        },
+        carrierConfigId: config.id
+      }
+    });
+
+    if (response.error) {
+      console.error(`UPS API error for shipment ${shipment.id}:`, response.error);
+      return null;
+    }
+
+    const data = response.data;
+    if (data?.rates && data.rates.length > 0) {
+      // Find the best matching service
+      const bestRate = data.rates.reduce((best: any, current: any) => 
+        current.totalCharges < best.totalCharges ? current : best
+      );
+      
+      return {
+        carrier_config_id: config.id,
+        account_name: config.account_name,
+        carrier_type: 'ups',
+        service_code: bestRate.serviceCode || 'UPS_GROUND',
+        service_name: bestRate.serviceName || 'UPS Ground',
+        rate_amount: bestRate.totalCharges,
+        is_negotiated: bestRate.negotiatedRate || false,
+        source: 'ups_api',
+        rate_response: bestRate
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error calling UPS API for shipment ${shipment.id}:`, error);
+    return null;
+  }
+}
+
+async function getFedexRate(shipment: ShipmentData, config: any, supabase: any): Promise<RateResult | null> {
+  try {
+    console.log(`Getting FedEx rate for shipment ${shipment.id} using account ${config.account_name}`);
+    
+    const response = await supabase.functions.invoke('fedex-rate-quote', {
+      body: {
+        shipment: {
+          originZip: shipment.originZip,
+          destinationZip: shipment.destinationZip,
+          weight: shipment.weight,
+          length: shipment.length || 12,
+          width: shipment.width || 12,
+          height: shipment.height || 12,
+          service: shipment.customerService
+        },
+        carrierConfigId: config.id
+      }
+    });
+
+    if (response.error) {
+      console.error(`FedEx API error for shipment ${shipment.id}:`, response.error);
+      return null;
+    }
+
+    const data = response.data;
+    if (data?.rates && data.rates.length > 0) {
+      // Find the best matching service
+      const bestRate = data.rates.reduce((best: any, current: any) => 
+        current.totalCharges < best.totalCharges ? current : best
+      );
+      
+      return {
+        carrier_config_id: config.id,
+        account_name: config.account_name,
+        carrier_type: 'fedex',
+        service_code: bestRate.serviceCode || 'FEDEX_GROUND',
+        service_name: bestRate.serviceName || 'FedEx Ground',
+        rate_amount: bestRate.totalCharges,
+        is_negotiated: bestRate.negotiatedRate || false,
+        source: 'fedex_api',
+        rate_response: bestRate
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(`Error calling FedEx API for shipment ${shipment.id}:`, error);
+    return null;
+  }
 }

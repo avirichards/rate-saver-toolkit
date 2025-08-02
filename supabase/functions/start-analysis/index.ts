@@ -431,6 +431,25 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
   try {
     console.log(`Getting UPS rate for shipment ${shipment.id} using account ${config.account_name}`);
     
+    // Get authentication token first
+    const authResponse = await supabase.functions.invoke('ups-auth', {
+      body: {
+        action: 'get_token',
+        config_id: config.id
+      }
+    });
+
+    if (authResponse.error) {
+      console.error(`UPS auth failed for shipment ${shipment.id}:`, authResponse.error);
+      return null;
+    }
+
+    const authData = authResponse.data;
+    if (!authData || !authData.access_token) {
+      console.error(`No auth token received for shipment ${shipment.id}`);
+      return null;
+    }
+    
     const response = await supabase.functions.invoke('ups-rate-quote', {
       body: {
         shipment: {
@@ -442,7 +461,8 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
           height: shipment.height || 12,
           service: shipment.customerService
         },
-        carrierConfigId: config.id
+        carrierConfigId: config.id,
+        accessToken: authData.access_token
       }
     });
 
@@ -482,6 +502,25 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
   try {
     console.log(`Getting FedEx rate for shipment ${shipment.id} using account ${config.account_name}`);
     
+    // Get authentication token first
+    const authResponse = await supabase.functions.invoke('fedex-auth', {
+      body: {
+        action: 'get_token',
+        config_id: config.id
+      }
+    });
+
+    if (authResponse.error) {
+      console.error(`FedEx auth failed for shipment ${shipment.id}:`, authResponse.error);
+      return null;
+    }
+
+    const authData = authResponse.data;
+    if (!authData || !authData.access_token) {
+      console.error(`No auth token received for shipment ${shipment.id}`);
+      return null;
+    }
+    
     const response = await supabase.functions.invoke('fedex-rate-quote', {
       body: {
         shipment: {
@@ -493,7 +532,8 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
           height: shipment.height || 12,
           service: shipment.customerService
         },
-        carrierConfigId: config.id
+        carrierConfigId: config.id,
+        accessToken: authData.access_token
       }
     });
 

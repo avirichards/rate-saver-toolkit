@@ -1321,7 +1321,11 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       const totalPotentialSavings = processedShipmentData.reduce((sum: number, item: any) => sum + (item.savings || 0), 0);
       const totalCurrentCost = processedShipmentData.reduce((sum: number, item: any) => sum + (item.currentCost || 0), 0);
       
-      console.log(`Analysis summary: ${processedShipmentData.length} shipments, $${totalCurrentCost.toFixed(2)} current cost, $${totalPotentialSavings.toFixed(2)} potential savings`);
+      // Ensure totalCurrentCost is a number
+      const safeTotalCurrentCost = Number(totalCurrentCost) || 0;
+      const safeTotalPotentialSavings = Number(totalPotentialSavings) || 0;
+      
+      console.log(`Analysis summary: ${processedShipmentData.length} shipments, $${safeTotalCurrentCost.toFixed(2)} current cost, $${safeTotalPotentialSavings.toFixed(2)} potential savings`);
       
       const analysisData: ProcessedAnalysisData = {
         file_name: shippingAnalyses.file_name || 'Background Analysis',
@@ -1329,8 +1333,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         completedShipments: processedShipmentData.length,
         analyzedShipments: processedShipmentData.length,
         errorShipments: Math.max(0, jobData.total_shipments - processedShipmentData.length), // Shipments without rates
-        totalPotentialSavings,
-        totalCurrentCost,
+        totalPotentialSavings: safeTotalPotentialSavings,
+        totalCurrentCost: safeTotalCurrentCost,
         savingsPercentage: totalCurrentCost > 0 ? (totalPotentialSavings / totalCurrentCost) * 100 : 0,
         recommendations: processedShipmentData,
         orphanedShipments: [], // TODO: Handle shipments that didn't get rates

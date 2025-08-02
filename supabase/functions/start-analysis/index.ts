@@ -5,16 +5,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Add detailed logging function
-function logWithTimestamp(message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  if (data) {
-    console.log(`${timestamp} - ${message}:`, JSON.stringify(data, null, 2));
-  } else {
-    console.log(`${timestamp} - ${message}`);
-  }
-}
-
 interface ShipmentData {
   id: number;
   trackingId?: string;
@@ -61,7 +51,7 @@ Deno.serve(async (req) => {
     // Get the user from the auth header - store for later use in sub-function calls
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      logWithTimestamp('❌ Missing authorization header');
+      console.error('❌ Missing authorization header');
       return new Response(
         JSON.stringify({ error: 'Missing authorization header' }),
         { status: 401, headers: corsHeaders }
@@ -72,7 +62,7 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !user) {
-      logWithTimestamp('❌ Invalid authorization token', userError);
+      console.error('❌ Invalid authorization token:', userError);
       return new Response(
         JSON.stringify({ error: 'Invalid authorization token' }),
         { status: 401, headers: corsHeaders }
@@ -445,7 +435,7 @@ async function getApiRates(shipment: ShipmentData, apiConfigs: any[], authHeader
 
 async function getUpsRate(shipment: ShipmentData, config: any, authHeader: string): Promise<RateResult | null> {
   try {
-    logWithTimestamp(`🚀 UPS: Getting rate for shipment ${shipment.id} using account ${config.account_name}`);
+    console.log(`🚀 UPS: Getting rate for shipment ${shipment.id} using account ${config.account_name}`);
     
     // Use service role client for internal function calls
     const serviceSupabase = createClient(
@@ -454,7 +444,7 @@ async function getUpsRate(shipment: ShipmentData, config: any, authHeader: strin
     );
     
     // Get authentication token first
-    logWithTimestamp(`🔐 UPS: Getting auth token for config ${config.id}`);
+    console.log(`🔐 UPS: Getting auth token for config ${config.id}`);
     
     const authResponse = await serviceSupabase.functions.invoke('ups-auth', {
       body: {
@@ -466,24 +456,24 @@ async function getUpsRate(shipment: ShipmentData, config: any, authHeader: strin
       }
     });
 
-    logWithTimestamp(`🔐 UPS: Auth response for shipment ${shipment.id}`, { 
+    console.log(`🔐 UPS: Auth response for shipment ${shipment.id}`, { 
       error: authResponse.error, 
       hasData: !!authResponse.data,
       hasToken: !!authResponse.data?.access_token 
     });
 
     if (authResponse.error) {
-      logWithTimestamp(`❌ UPS auth failed for shipment ${shipment.id}`, authResponse.error);
+      console.log(`❌ UPS auth failed for shipment ${shipment.id}`, authResponse.error);
       return null;
     }
 
     const authData = authResponse.data;
     if (!authData?.access_token) {
-      logWithTimestamp(`❌ No UPS auth token received for shipment ${shipment.id}`, authData);
+      console.log(`❌ No UPS auth token received for shipment ${shipment.id}`, authData);
       return null;
     }
     
-    logWithTimestamp(`✅ UPS auth successful for shipment ${shipment.id}`);
+    console.log(`✅ UPS auth successful for shipment ${shipment.id}`);
     
     // Build proper request structure for UPS rate function
     const upsRequest = {
@@ -520,7 +510,7 @@ async function getUpsRate(shipment: ShipmentData, config: any, authHeader: strin
       configId: config.id
     };
 
-    logWithTimestamp(`📤 UPS: Sending rate request for shipment ${shipment.id}`, upsRequest);
+    console.log(`📤 UPS: Sending rate request for shipment ${shipment.id}`);
 
     const response = await serviceSupabase.functions.invoke('ups-rate-quote', {
       body: upsRequest,
@@ -529,14 +519,14 @@ async function getUpsRate(shipment: ShipmentData, config: any, authHeader: strin
       }
     });
 
-    logWithTimestamp(`📊 UPS: Rate response for shipment ${shipment.id}`, { 
+    console.log(`📊 UPS: Rate response for shipment ${shipment.id}`, { 
       error: response.error, 
       hasData: !!response.data,
       ratesCount: response.data?.rates?.length || 0
     });
 
     if (response.error) {
-      logWithTimestamp(`❌ UPS API error for shipment ${shipment.id}`, response.error);
+      console.log(`❌ UPS API error for shipment ${shipment.id}`, response.error);
       return null;
     }
 
@@ -549,7 +539,7 @@ async function getUpsRate(shipment: ShipmentData, config: any, authHeader: strin
       );
       
       const rateAmount = parseFloat(String(bestRate.totalCharges)) || 0;
-      logWithTimestamp(`✅ UPS best rate for shipment ${shipment.id}: $${rateAmount}`);
+      console.log(`✅ UPS best rate for shipment ${shipment.id}: $${rateAmount}`);
       
       return {
         carrier_config_id: config.id,
@@ -563,19 +553,19 @@ async function getUpsRate(shipment: ShipmentData, config: any, authHeader: strin
         rate_response: bestRate
       };
     } else {
-      logWithTimestamp(`⚠️ No UPS rates returned for shipment ${shipment.id}`, data);
+      console.log(`⚠️ No UPS rates returned for shipment ${shipment.id}`, data);
     }
     
     return null;
   } catch (error) {
-    logWithTimestamp(`💥 Error calling UPS API for shipment ${shipment.id}`, error);
+    console.log(`💥 Error calling UPS API for shipment ${shipment.id}`, error);
     return null;
   }
 }
 
 async function getFedexRate(shipment: ShipmentData, config: any, authHeader: string): Promise<RateResult | null> {
   try {
-    logWithTimestamp(`🚀 FedEx: Getting rate for shipment ${shipment.id} using account ${config.account_name}`);
+    console.log(`🚀 FedEx: Getting rate for shipment ${shipment.id} using account ${config.account_name}`);
     
     // Use service role client for internal function calls
     const serviceSupabase = createClient(
@@ -584,7 +574,7 @@ async function getFedexRate(shipment: ShipmentData, config: any, authHeader: str
     );
     
     // Get authentication token first
-    logWithTimestamp(`🔐 FedEx: Getting auth token for config ${config.id}`);
+    console.log(`🔐 FedEx: Getting auth token for config ${config.id}`);
     const authResponse = await serviceSupabase.functions.invoke('fedex-auth', {
       body: {
         action: 'get_token',
@@ -595,24 +585,24 @@ async function getFedexRate(shipment: ShipmentData, config: any, authHeader: str
       }
     });
 
-    logWithTimestamp(`🔐 FedEx: Auth response for shipment ${shipment.id}`, { 
+    console.log(`🔐 FedEx: Auth response for shipment ${shipment.id}`, { 
       error: authResponse.error, 
       hasData: !!authResponse.data,
       hasToken: !!authResponse.data?.access_token 
     });
 
     if (authResponse.error) {
-      logWithTimestamp(`❌ FedEx auth failed for shipment ${shipment.id}`, authResponse.error);
+      console.log(`❌ FedEx auth failed for shipment ${shipment.id}`, authResponse.error);
       return null;
     }
 
     const authData = authResponse.data;
     if (!authData?.access_token) {
-      logWithTimestamp(`❌ No FedEx auth token received for shipment ${shipment.id}`, authData);
+      console.log(`❌ No FedEx auth token received for shipment ${shipment.id}`, authData);
       return null;
     }
     
-    logWithTimestamp(`✅ FedEx auth successful for shipment ${shipment.id}`);
+    console.log(`✅ FedEx auth successful for shipment ${shipment.id}`);
     
     // Build proper request structure for FedEx rate function
     const fedexRequest = {
@@ -649,7 +639,7 @@ async function getFedexRate(shipment: ShipmentData, config: any, authHeader: str
       configId: config.id
     };
 
-    logWithTimestamp(`📤 FedEx: Sending rate request for shipment ${shipment.id}`, fedexRequest);
+    console.log(`📤 FedEx: Sending rate request for shipment ${shipment.id}`);
 
     const response = await serviceSupabase.functions.invoke('fedex-rate-quote', {
       body: fedexRequest,
@@ -658,14 +648,14 @@ async function getFedexRate(shipment: ShipmentData, config: any, authHeader: str
       }
     });
 
-    logWithTimestamp(`📊 FedEx: Rate response for shipment ${shipment.id}`, { 
+    console.log(`📊 FedEx: Rate response for shipment ${shipment.id}`, { 
       error: response.error, 
       hasData: !!response.data,
       ratesCount: response.data?.rates?.length || 0
     });
 
     if (response.error) {
-      logWithTimestamp(`❌ FedEx API error for shipment ${shipment.id}`, response.error);
+      console.log(`❌ FedEx API error for shipment ${shipment.id}`, response.error);
       return null;
     }
 
@@ -678,7 +668,7 @@ async function getFedexRate(shipment: ShipmentData, config: any, authHeader: str
       );
       
       const rateAmount = parseFloat(String(bestRate.totalCharges)) || 0;
-      logWithTimestamp(`✅ FedEx best rate for shipment ${shipment.id}: $${rateAmount}`);
+      console.log(`✅ FedEx best rate for shipment ${shipment.id}: $${rateAmount}`);
       
       return {
         carrier_config_id: config.id,
@@ -692,12 +682,12 @@ async function getFedexRate(shipment: ShipmentData, config: any, authHeader: str
         rate_response: bestRate
       };
     } else {
-      logWithTimestamp(`⚠️ No FedEx rates returned for shipment ${shipment.id}`, data);
+      console.log(`⚠️ No FedEx rates returned for shipment ${shipment.id}`, data);
     }
     
     return null;
   } catch (error) {
-    logWithTimestamp(`💥 Error calling FedEx API for shipment ${shipment.id}`, error);
+    console.log(`💥 Error calling FedEx API for shipment ${shipment.id}`, error);
     return null;
   }
 }

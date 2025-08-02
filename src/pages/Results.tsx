@@ -1293,8 +1293,8 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
       
       // Create a processed analysis data structure from the best rates only
       const processedShipmentData: ProcessedShipmentData[] = bestRates.map((rate: any, index: number) => {
-        const currentRate = rate.shipment_data?.currentRate || 0;
-        const shipProsCost = rate.rate_amount || 0;
+        const currentRate = parseFloat(rate.shipment_data?.currentRate || '0') || 0;
+        const shipProsCost = parseFloat(rate.rate_amount || '0') || 0;
         const savings = Math.max(0, currentRate - shipProsCost);
         const savingsPercent = currentRate > 0 ? (savings / currentRate) * 100 : 0;
         

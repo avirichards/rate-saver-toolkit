@@ -170,7 +170,7 @@ async function processAnalysisInBackground(
       .update({ status: 'in_progress' })
       .eq('id', jobId);
 
-    // Load all carrier configs for this user (both rate cards and API accounts)
+    // Load all carrier configs for this user (both rate cards and API accounts)  
     const { data: carrierConfigs, error: configError } = await supabase
       .from('carrier_configs')
       .select('*')
@@ -226,16 +226,20 @@ async function processAnalysisInBackground(
 
       for (const shipment of batch) {
         try {
-          console.log(`Processing shipment ${shipment.id}: ${shipment.customerService}, ${shipment.weight}lbs`);
+          console.log(`📦 Processing shipment ${shipment.id}: ${shipment.customerService}, ${shipment.weight}lbs`);
+          console.log(`🔍 Using ${rateCardConfigs.length} rate card configs and ${apiConfigs.length} API configs`);
           
           // Get rates from rate cards
           const rateCardRates = findApplicableRates(shipment, rateCards);
+          console.log(`📋 Found ${rateCardRates.length} rate card rates for shipment ${shipment.id}`);
           
           // Get rates from APIs  
           const apiRates = await getApiRates(shipment, apiConfigs, supabase);
+          console.log(`🌐 Found ${apiRates.length} API rates for shipment ${shipment.id}`);
           
           // Combine all rates
           const allRates = [...rateCardRates, ...apiRates];
+          console.log(`📊 Total rates found for shipment ${shipment.id}: ${allRates.length}`);
           
           if (allRates.length > 0) {
             // Find the best (cheapest) rate
@@ -243,7 +247,7 @@ async function processAnalysisInBackground(
               current.rate_amount < best.rate_amount ? current : best
             );
             
-            console.log(`Best rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name}`);
+            console.log(`✅ Best rate for shipment ${shipment.id}: $${bestRate.rate_amount} from ${bestRate.account_name} (${bestRate.source})`);
             
             shipmentRates.push({
               analysis_id: analysisId,
@@ -261,10 +265,10 @@ async function processAnalysisInBackground(
               }
             });
           } else {
-            console.log(`No rates found for shipment ${shipment.id}`);
+            console.log(`❌ No rates found for shipment ${shipment.id} - will be orphaned`);
           }
         } catch (error) {
-          console.error(`Error processing shipment ${shipment.id}:`, error);
+          console.error(`💥 Error processing shipment ${shipment.id}:`, error);
         }
       }
 

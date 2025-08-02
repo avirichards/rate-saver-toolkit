@@ -374,7 +374,7 @@ function findApplicableRates(shipment: ShipmentData, rateCards: any[]): RateResu
           carrier_type: rateCard.carrier_configs.carrier_type,
           service_code: rateCard.service_code,
           service_name: rateCard.service_name,
-          rate_amount: rateCard.rate_amount,
+          rate_amount: parseFloat(rateCard.rate_amount || '0'),
           is_negotiated: true,
           source: 'rate_card',
           weight_break: rateCard.weight_break,
@@ -450,20 +450,45 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
       return null;
     }
     
-    const response = await supabase.functions.invoke('ups-rate-quote', {
-      body: {
-        shipment: {
-          originZip: shipment.originZip,
-          destinationZip: shipment.destinationZip,
+    // Build proper request structure that matches the UPS rate function
+    const upsRequest = {
+      shipment: {
+        shipFrom: {
+          name: 'Shipper',
+          address: '123 Main St',
+          city: 'Any City',
+          state: 'FL',
+          zipCode: shipment.originZip,
+          country: 'US'
+        },
+        shipTo: {
+          name: 'Recipient',
+          address: '123 Main St',
+          city: 'Any City', 
+          state: 'TX',
+          zipCode: shipment.destinationZip,
+          country: 'US'
+        },
+        package: {
           weight: shipment.weight,
+          weightUnit: 'LBS',
           length: shipment.length || 12,
           width: shipment.width || 12,
-          height: shipment.height || 12,
-          service: shipment.customerService
+          height: shipment.height || 6,
+          dimensionUnit: 'IN',
+          packageType: '02'
         },
-        carrierConfigId: config.id,
-        accessToken: authData.access_token
-      }
+        serviceTypes: ['03'], // UPS Ground as default
+        equivalentServiceCode: '03',
+        isResidential: false
+      },
+      configId: config.id
+    };
+
+    console.log(`UPS API request structure for shipment ${shipment.id}:`, upsRequest);
+
+    const response = await supabase.functions.invoke('ups-rate-quote', {
+      body: upsRequest
     });
 
     if (response.error) {
@@ -482,10 +507,10 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
         carrier_config_id: config.id,
         account_name: config.account_name,
         carrier_type: 'ups',
-        service_code: bestRate.serviceCode || 'UPS_GROUND',
+        service_code: bestRate.serviceCode || '03',
         service_name: bestRate.serviceName || 'UPS Ground',
         rate_amount: bestRate.totalCharges,
-        is_negotiated: bestRate.negotiatedRate || false,
+        is_negotiated: bestRate.hasNegotiatedRates || false,
         source: 'ups_api',
         rate_response: bestRate
       };
@@ -521,20 +546,45 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
       return null;
     }
     
-    const response = await supabase.functions.invoke('fedex-rate-quote', {
-      body: {
-        shipment: {
-          originZip: shipment.originZip,
-          destinationZip: shipment.destinationZip,
+    // Build proper request structure that matches the FedEx rate function
+    const fedexRequest = {
+      shipment: {
+        shipFrom: {
+          name: 'Shipper',
+          address: '123 Main St',
+          city: 'Any City',
+          state: 'FL',
+          zipCode: shipment.originZip,
+          country: 'US'
+        },
+        shipTo: {
+          name: 'Recipient',
+          address: '123 Main St',
+          city: 'Any City',
+          state: 'TX', 
+          zipCode: shipment.destinationZip,
+          country: 'US'
+        },
+        package: {
           weight: shipment.weight,
+          weightUnit: 'LBS',
           length: shipment.length || 12,
           width: shipment.width || 12,
-          height: shipment.height || 12,
-          service: shipment.customerService
+          height: shipment.height || 6,
+          dimensionUnit: 'IN',
+          packageType: '02'
         },
-        carrierConfigId: config.id,
-        accessToken: authData.access_token
-      }
+        serviceTypes: ['FEDEX_GROUND'], // FedEx Ground as default
+        equivalentServiceCode: 'FEDEX_GROUND',
+        isResidential: false
+      },
+      configId: config.id
+    };
+
+    console.log(`FedEx API request structure for shipment ${shipment.id}:`, fedexRequest);
+
+    const response = await supabase.functions.invoke('fedex-rate-quote', {
+      body: fedexRequest
     });
 
     if (response.error) {
@@ -556,7 +606,7 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
         service_code: bestRate.serviceCode || 'FEDEX_GROUND',
         service_name: bestRate.serviceName || 'FedEx Ground',
         rate_amount: bestRate.totalCharges,
-        is_negotiated: bestRate.negotiatedRate || false,
+        is_negotiated: bestRate.hasAccountRates || false,
         source: 'fedex_api',
         rate_response: bestRate
       };

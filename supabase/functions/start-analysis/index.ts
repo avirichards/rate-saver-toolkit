@@ -429,10 +429,15 @@ async function getApiRates(shipment: ShipmentData, apiConfigs: any[], supabase: 
 
 async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): Promise<RateResult | null> {
   try {
-    console.log(`Getting UPS rate for shipment ${shipment.id} using account ${config.account_name}`);
+    console.log(`🚀 Getting UPS rate for shipment ${shipment.id} using account ${config.account_name}`);
     
-    // Get authentication token first
-    const authResponse = await supabase.functions.invoke('ups-auth', {
+    // Get authentication token first using service role to bypass RLS
+    const serviceSupabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    
+    const authResponse = await serviceSupabase.functions.invoke('ups-auth', {
       body: {
         action: 'get_token',
         config_id: config.id
@@ -440,15 +445,17 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
     });
 
     if (authResponse.error) {
-      console.error(`UPS auth failed for shipment ${shipment.id}:`, authResponse.error);
+      console.error(`❌ UPS auth failed for shipment ${shipment.id}:`, authResponse.error);
       return null;
     }
 
     const authData = authResponse.data;
     if (!authData || !authData.access_token) {
-      console.error(`No auth token received for shipment ${shipment.id}`);
+      console.error(`❌ No UPS auth token received for shipment ${shipment.id}`, authData);
       return null;
     }
+    
+    console.log(`✅ UPS auth successful for shipment ${shipment.id}`);
     
     // Build proper request structure that matches the UPS rate function
     const upsRequest = {
@@ -487,21 +494,25 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
 
     console.log(`UPS API request structure for shipment ${shipment.id}:`, upsRequest);
 
-    const response = await supabase.functions.invoke('ups-rate-quote', {
+    const response = await serviceSupabase.functions.invoke('ups-rate-quote', {
       body: upsRequest
     });
 
     if (response.error) {
-      console.error(`UPS API error for shipment ${shipment.id}:`, response.error);
+      console.error(`❌ UPS API error for shipment ${shipment.id}:`, response.error);
       return null;
     }
 
     const data = response.data;
+    console.log(`📊 UPS API response for shipment ${shipment.id}:`, data);
+    
     if (data?.rates && data.rates.length > 0) {
       // Find the best matching service
       const bestRate = data.rates.reduce((best: any, current: any) => 
         current.totalCharges < best.totalCharges ? current : best
       );
+      
+      console.log(`✅ UPS best rate for shipment ${shipment.id}: $${bestRate.totalCharges}`);
       
       return {
         carrier_config_id: config.id,
@@ -514,6 +525,8 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
         source: 'ups_api',
         rate_response: bestRate
       };
+    } else {
+      console.log(`⚠️ No UPS rates returned for shipment ${shipment.id}`);
     }
     
     return null;
@@ -525,10 +538,15 @@ async function getUpsRate(shipment: ShipmentData, config: any, supabase: any): P
 
 async function getFedexRate(shipment: ShipmentData, config: any, supabase: any): Promise<RateResult | null> {
   try {
-    console.log(`Getting FedEx rate for shipment ${shipment.id} using account ${config.account_name}`);
+    console.log(`🚀 Getting FedEx rate for shipment ${shipment.id} using account ${config.account_name}`);
     
-    // Get authentication token first
-    const authResponse = await supabase.functions.invoke('fedex-auth', {
+    // Get authentication token first using service role to bypass RLS
+    const serviceSupabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    
+    const authResponse = await serviceSupabase.functions.invoke('fedex-auth', {
       body: {
         action: 'get_token',
         config_id: config.id
@@ -536,15 +554,17 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
     });
 
     if (authResponse.error) {
-      console.error(`FedEx auth failed for shipment ${shipment.id}:`, authResponse.error);
+      console.error(`❌ FedEx auth failed for shipment ${shipment.id}:`, authResponse.error);
       return null;
     }
 
     const authData = authResponse.data;
     if (!authData || !authData.access_token) {
-      console.error(`No auth token received for shipment ${shipment.id}`);
+      console.error(`❌ No FedEx auth token received for shipment ${shipment.id}`, authData);
       return null;
     }
+    
+    console.log(`✅ FedEx auth successful for shipment ${shipment.id}`);
     
     // Build proper request structure that matches the FedEx rate function
     const fedexRequest = {
@@ -583,21 +603,25 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
 
     console.log(`FedEx API request structure for shipment ${shipment.id}:`, fedexRequest);
 
-    const response = await supabase.functions.invoke('fedex-rate-quote', {
+    const response = await serviceSupabase.functions.invoke('fedex-rate-quote', {
       body: fedexRequest
     });
 
     if (response.error) {
-      console.error(`FedEx API error for shipment ${shipment.id}:`, response.error);
+      console.error(`❌ FedEx API error for shipment ${shipment.id}:`, response.error);
       return null;
     }
 
     const data = response.data;
+    console.log(`📊 FedEx API response for shipment ${shipment.id}:`, data);
+    
     if (data?.rates && data.rates.length > 0) {
       // Find the best matching service
       const bestRate = data.rates.reduce((best: any, current: any) => 
         current.totalCharges < best.totalCharges ? current : best
       );
+      
+      console.log(`✅ FedEx best rate for shipment ${shipment.id}: $${bestRate.totalCharges}`);
       
       return {
         carrier_config_id: config.id,
@@ -610,6 +634,8 @@ async function getFedexRate(shipment: ShipmentData, config: any, supabase: any):
         source: 'fedex_api',
         rate_response: bestRate
       };
+    } else {
+      console.log(`⚠️ No FedEx rates returned for shipment ${shipment.id}`);
     }
     
     return null;

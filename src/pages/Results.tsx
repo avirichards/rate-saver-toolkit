@@ -947,9 +947,13 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
         
         const state = location.state as { analysisComplete?: boolean; analysisData?: AnalysisData } | null;
         const analysisIdFromQuery = searchParams.get('analysisId');
+        const jobIdFromQuery = searchParams.get('jobId');
         
-        if (analysisIdFromQuery) {
-          // Loading from Reports tab
+        if (jobIdFromQuery) {
+          // Loading from new job-based workflow
+          await loadFromJobId(jobIdFromQuery);
+        } else if (analysisIdFromQuery) {
+          // Loading from Reports tab (old workflow)
           await loadFromDatabase(analysisIdFromQuery);
         } else if (state?.analysisComplete && state.analysisData) {
           setAnalysisData(state.analysisData);
@@ -1199,6 +1203,82 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
     };
     
     return poll();
+  };
+
+  // Load analysis results from new job-based workflow
+  const loadFromJobId = async (jobId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error('Please log in to view results');
+      setLoading(false);
+      return;
+    }
+
+    console.log('Loading analysis from job ID:', jobId);
+
+    try {
+      // First get the analysis job status
+      const { data: jobData, error: jobError } = await supabase
+        .from('analysis_jobs')
+        .select('*')
+        .eq('id', jobId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (jobError) {
+        console.error('Database error loading job:', jobError);
+        toast.error('Failed to load analysis job: ' + jobError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!jobData) {
+        console.warn('No analysis job found with ID:', jobId);
+        toast.error('Analysis job not found or you do not have permission to view it');
+        navigate('/reports');
+        setLoading(false);
+        return;
+      }
+
+      // Check if job is completed
+      if (jobData.status !== 'completed') {
+        console.log('🔄 Analysis job still processing');
+        setAnalysisStatus('processing');
+        toast.info('Analysis is still processing. Please wait...');
+        // Could add polling here if needed
+        setLoading(false);
+        return;
+      }
+
+      // Find the corresponding shipping_analyses record
+      const { data: shippingAnalyses, error: analysisError } = await supabase
+        .from('shipping_analyses')
+        .select('*')
+        .contains('processing_metadata', { analysis_job_id: jobId })
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (analysisError || !shippingAnalyses) {
+        console.error('No shipping analysis found for job:', jobId);
+        toast.error('Analysis results not found');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Successfully loaded analysis from job:', shippingAnalyses);
+      setCurrentAnalysisId(shippingAnalyses.id);
+      
+      // Load shipment rates for this analysis
+      const ratesData = await loadShipmentRates(shippingAnalyses.id);
+      
+      // Process the analysis data
+      processAnalysisFromDatabase(shippingAnalyses);
+      
+    } catch (error) {
+      console.error('Error loading from job ID:', error);
+      toast.error('Failed to load analysis results');
+      setLoading(false);
+    }
   };
 
   const loadMostRecentAnalysis = async () => {
@@ -2188,7 +2268,7 @@ const Results: React.FC<ResultsProps> = ({ isClientView = false, shareToken }) =
           {/* Navigation buttons - Hidden in client view */}
           {!isClientView && (
             <div className="flex items-center gap-4 mb-8">
-              {(searchParams.get('analysisId') || currentAnalysisId) && (
+              {(searchParams.get('analysisId') || searchParams.get('jobId') || currentAnalysisId) && (
                 <Link to="/reports">
                   <Button
                     variant="outline"
